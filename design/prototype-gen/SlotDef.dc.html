@@ -1,0 +1,265 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .grp { padding: 12px 10px 5px; font-size: 11px; font-weight: 500; color: #8a95a3; letter-spacing: .04em; }
+    .item { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .iton { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .tab { height: 44px; padding: 0 14px; display: flex; align-items: center; font-size: 13px; color: #5a6673; border-bottom: 2px solid transparent; cursor: pointer; }
+    .tabon { height: 44px; padding: 0 14px; display: flex; align-items: center; font-size: 13px; font-weight: 500; color: #2f5ccc; border-bottom: 2px solid #2f5ccc; cursor: pointer; }
+    .fl { font-size: 11.5px; color: #5a6673; margin-bottom: 5px; }
+    .fi { min-height: 30px; display: flex; align-items: center; padding: 0 10px; background: #ffffff;
+      border: 1px solid #cfd6df; border-radius: 4px; font-size: 12.5px; }
+    .fg { margin-bottom: 13px; }
+    .auto { display: inline-flex; align-items: center; height: 17px; padding: 0 5px; border-radius: 3px;
+      font-size: 10px; font-weight: 500; background: #eef2fd; color: #2f5ccc; border: 1px solid #c9d6f6; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: .03em;">HT</div>
+      <div style="font-size: 14px; font-weight: 600;">霍桐实验仪器</div>
+    </div>
+    <span class="pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">管理后台</span>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">陈</div>
+      <div style="line-height: 1.25;"><div style="font-size:12px;font-weight:500">陈工</div><div style="font-size:11px;color:#8a95a3">系统管理员</div></div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <div style="width: 240px; flex-shrink: 0; background: #ffffff; border-right: 1px solid #e2e6ec;">
+      <div class="grp">落地</div><div class="item">后台首页</div>
+      <div class="grp">语料域</div><div class="item">语料管理</div><div class="item">知识库管理</div><div class="item">元数据与词表</div>
+      <div class="grp">能力域</div><div class="iton">模板管理</div>
+      <div class="grp">治理域</div><div class="item">用户与权限</div><div class="item">系统设置</div><div class="item">审计与统计</div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+      <div style="flex-shrink: 0; display: flex; align-items: center; gap: 2px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+        <div class="tab">模板</div><div class="tabon">槽位定义</div><div class="tab">条款库</div>
+        <div style="flex-grow: 1;"></div>
+        <div class="gbtn"><span style="color:#8a95a3">模板</span><span>非标产品生产任务单（C 类）</span><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+      </div>
+
+      <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+        <!-- 槽位列表 -->
+        <div style="width: 360px; flex-shrink: 0; border-right: 1px solid #e2e6ec; background: #ffffff; display: flex; flex-direction: column; min-height: 0;">
+          <div style="height: 44px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-bottom: 1px solid #e2e6ec;">
+            <span style="font-size: 12.5px; font-weight: 600;">槽位</span>
+            <span class="m" style="font-size: 11.5px; color: #8a95a3;">47</span>
+            <div style="flex-grow: 1;"></div>
+            <span class="pill" style="background:#e6f2ec;color:#1c6b45;border:1px solid #c2ded1;">定义完整</span>
+          </div>
+          <div class="sc" style="flex-grow: 1; min-height: 0; padding: 6px 0 12px;">
+            <sc-for list="{{secs}}" as="g" hint-placeholder-count="3">
+              <div>
+                <div style="padding: 10px 14px 5px; font-size: 11px; font-weight: 500; color: #8a95a3; letter-spacing: .03em;">{{g.name}}</div>
+                <sc-for list="{{g.slots}}" as="s" hint-placeholder-count="4">
+                  <div style="{{s.row}}" onClick="{{s.pick}}">
+                    <div style="flex-grow: 1; min-width: 0;">
+                      <div style="font-size: 12.5px; line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{s.name}}</div>
+                      <div class="m" style="font-size: 10px; color: #a2acb9; margin-top: 2px;">{{s.key}}</div>
+                    </div>
+                    <span style="{{s.tagStyle}}">{{s.tag}}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- 属性编辑 -->
+        <div class="sc" style="flex-grow: 1; min-width: 0; padding: 18px 20px 24px;">
+          <div style="max-width: 760px;">
+
+            <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 5px;">
+              <span style="font-size: 15px; font-weight: 600;">材质</span>
+              <span class="m" style="font-size: 11.5px; color: #8a95a3;">material</span>
+              <span class="pill" style="background:#eef2fd;color:#2f5ccc;border:1px solid #c9d6f6;">块级控件</span>
+            </div>
+            <div style="font-size: 11.5px; color: #8a95a3; line-height: 1.7; margin-bottom: 16px;">带「自动」标记的两项来自 Word 模板：槽位标识取自内容控件的 Tag，提问话术取自控件内的占位文字。其余九项需在此维护。</div>
+
+            <div style="display: flex; gap: 14px;" class="fg">
+              <div style="flex: 1 1 0;">
+                <div class="fl">槽位标识 <span class="auto">自动</span></div>
+                <div class="fi m" style="background: #f8fafc; color: #5a6673;">material</div>
+              </div>
+              <div style="flex: 1 1 0;">
+                <div class="fl">显示名称</div>
+                <div class="fi" style="font-weight: 500;">材质</div>
+              </div>
+              <div style="flex: 1 1 0;">
+                <div class="fl">所属章节</div>
+                <div class="fi"><span>技术要求 · 主设备参数</span><div style="flex-grow:1"></div><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 14px;" class="fg">
+              <div style="flex: 1 1 0;">
+                <div class="fl">数据类型</div>
+                <div class="fi"><span>长段落</span><div style="flex-grow:1"></div><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+                <div style="font-size: 10.5px; color: #8a95a3; line-height: 1.6; margin-top: 5px;">文本 · 数值（含单位）· 单选 · 复选 · 日期 · 长段落 · 重复行</div>
+              </div>
+              <div style="flex: 1 1 0;">
+                <div class="fl">是否必填</div>
+                <div class="fi"><span>必填</span><div style="flex-grow:1"></div><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+              </div>
+              <div style="flex: 1 1 0;">
+                <div class="fl">填写阶段</div>
+                <div class="fi"><span>本阶段</span><div style="flex-grow:1"></div><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+                <div style="font-size: 10.5px; color: #8a95a3; line-height: 1.6; margin-top: 5px;">标「后续阶段」的不提问、不预填、不给建议，输出时留空</div>
+              </div>
+            </div>
+
+            <div class="fg">
+              <div class="fl">禁止继承</div>
+              <div style="display: flex; gap: 8px;">
+                <span style="{{inh.no}}">否 · 可从基准项目继承</span>
+                <span style="{{inh.yes}}">是 · 强制转为提问</span>
+              </div>
+              <div style="font-size: 10.5px; color: #8a95a3; line-height: 1.65; margin-top: 6px;">客户名称、项目编号、报价金额、日期、联系人默认为「是」。</div>
+            </div>
+
+            <div class="fg">
+              <div class="fl">提问话术 <span class="auto">自动</span></div>
+              <div class="ta fi" style="min-height: 54px; align-items: flex-start; padding: 9px 11px; line-height: 1.75;">主体及附件材质有特殊要求的均需描述清楚</div>
+              <div style="font-size: 10.5px; color: #8a95a3; line-height: 1.6; margin-top: 5px;">抽自模板中该控件的占位文字。可改写，改写后不会被再次上传覆盖。</div>
+            </div>
+
+            <div class="fg">
+              <div class="fl">建议来源</div>
+              <div style="border: 1px solid #cfd6df; border-radius: 4px; overflow: hidden;">
+                <sc-for list="{{rules}}" as="r" hint-placeholder-count="3">
+                  <div style="display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-bottom: 1px solid #eef1f5;">
+                    <span class="m" style="flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 3px; font-size: 10.5px; background: #eef1f5; color: #5a6673;">{{r.n}}</span>
+                    <span style="font-size: 11.5px; color: #8a95a3; width: 76px; flex-shrink: 0;">{{r.kind}}</span>
+                    <span style="flex-grow: 1; min-width: 0; font-size: 12px;">{{r.value}}</span>
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.6" stroke-linecap="round" style="flex-shrink:0;cursor:pointer"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+                  </div>
+                </sc-for>
+                <div style="padding: 8px 11px;"><span style="font-size: 12px; color: #2f5ccc; cursor: pointer;">+ 添加规则</span></div>
+              </div>
+              <div style="font-size: 10.5px; color: #8a95a3; line-height: 1.65; margin-top: 6px;">按顺序依次尝试，命中即停。三条都不命中时该槽位视为未填，转为提问。</div>
+            </div>
+
+            <div style="display: flex; gap: 14px;" class="fg">
+              <div style="flex: 1 1 0;">
+                <div class="fl">取值约束</div>
+                <div class="fi" style="color: #a2acb9;">长段落类型无枚举约束</div>
+              </div>
+              <div style="flex: 1 1 0;">
+                <div class="fl">留空处理</div>
+                <div class="fi"><span>整段留空</span><div style="flex-grow:1"></div><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+                <div style="font-size: 10.5px; color: #8a95a3; line-height: 1.6; margin-top: 5px;">整段留空 · 删除该段 · 填入占位文字</div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 8px; margin-top: 18px; padding-top: 16px; border-top: 1px solid #eef1f5;">
+              <span style="font-size: 11px; color: #8a95a3;">改动即时生效，不影响已完成的生成记录</span>
+              <div style="flex-grow: 1;"></div>
+              <div class="gbtn">还原</div>
+              <div style="display:inline-flex;align-items:center;height:28px;padding:0 14px;border-radius:5px;font-size:13px;font-weight:500;color:#ffffff;background:#2f5ccc;cursor:pointer;">保存</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sel: 'material' }; }
+
+  renderVals() {
+    const accent = '#2f5ccc';
+    const soft = 'color-mix(in oklab, ' + accent + ' 9%, #ffffff)';
+    const pill = 'display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:3px;font-size:10.5px;font-weight:500;';
+
+    const TAG = {
+      '禁止': 'background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;',
+      '继承': 'background:#eef2fd;color:#2f5ccc;border:1px solid #c9d6f6;',
+      '后续': 'background:#f8fafc;color:#a2acb9;border:1px solid #e9edf2;',
+      '部分': 'background:#f1edfb;color:#6b4fbb;border:1px solid #d9cef2;'
+    };
+
+    // 附录 C：47 个槽位中可继承 30、禁止继承 10、后续阶段 7
+    const SECS = [
+      { name: 'C.1　单据头', slots: [
+        { key: 'contract_no', name: '合同编号', tag: '禁止' },
+        { key: 'customer_name', name: '客户名称', tag: '禁止' },
+        { key: 'order_type', name: '订单类型', tag: '继承' },
+        { key: 'delivery_date', name: '交货日期', tag: '禁止' },
+        { key: 'production_owner', name: '生产人员', tag: '后续' }
+      ]},
+      { name: 'C.2　设备信息', slots: [
+        { key: 'equipment_items', name: '设备信息表', tag: '部分' }
+      ]},
+      { name: 'C.3　技术要求 · 主设备参数', slots: [
+        { key: 'volume_ml', name: '全容积', tag: '继承' },
+        { key: 'material', name: '材质', tag: '继承' },
+        { key: 'structure', name: '结构形式', tag: '继承' },
+        { key: 'pressure_design', name: '设计压力', tag: '继承' },
+        { key: 'footprint', name: '占地尺寸要求', tag: '禁止' }
+      ]}
+    ];
+
+    return {
+      secs: SECS.map((g) => ({
+        name: g.name,
+        slots: g.slots.map((s) => {
+          const on = this.state.sel === s.key;
+          return {
+            key: s.key, name: s.name, tag: s.tag,
+            tagStyle: pill + TAG[s.tag],
+            row: 'display:flex;align-items:center;gap:9px;padding:8px 14px;cursor:pointer;' +
+              (on ? 'background:' + soft + ';border-left:2px solid ' + accent + ';padding-left:12px;' : ''),
+            pick: () => this.setState({ sel: s.key })
+          };
+        })
+      })),
+      inh: {
+        no: 'display:inline-flex;align-items:center;height:30px;padding:0 13px;border-radius:4px;font-size:12.5px;font-weight:500;cursor:pointer;color:' + accent + ';background:' + soft + ';border:1px solid color-mix(in oklab, ' + accent + ' 26%, #ffffff);',
+        yes: 'display:inline-flex;align-items:center;height:30px;padding:0 13px;border-radius:4px;font-size:12.5px;cursor:pointer;color:#5a6673;background:#ffffff;border:1px solid #dde3ea;'
+      },
+      // FR-5.6：章节匹配规则可为精确标题、标题关键词或章节序号，按此顺序依次尝试
+      rules: [
+        { n: 1, kind: '精确标题', value: '主体及附件材质' },
+        { n: 2, kind: '标题关键词', value: '材质　·　材料　·　选材' },
+        { n: 3, kind: '章节序号', value: '3.3' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

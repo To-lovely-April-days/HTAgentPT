@@ -1,0 +1,175 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .grp { padding: 12px 10px 5px; font-size: 11px; font-weight: 500; color: #8a95a3; letter-spacing: .04em; }
+    .item { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .iton { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .abtn { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px;
+      font-size: 11.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .tab { height: 44px; padding: 0 14px; display: flex; align-items: center; font-size: 13px; color: #5a6673; border-bottom: 2px solid transparent; cursor: pointer; }
+    .tabon { height: 44px; padding: 0 14px; display: flex; align-items: center; font-size: 13px; font-weight: 500; color: #2f5ccc; border-bottom: 2px solid #2f5ccc; cursor: pointer; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: .03em;">HT</div>
+      <div style="font-size: 14px; font-weight: 600;">霍桐实验仪器</div>
+    </div>
+    <span class="pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">管理后台</span>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">陈</div>
+      <div style="line-height: 1.25;"><div style="font-size:12px;font-weight:500">陈工</div><div style="font-size:11px;color:#8a95a3">系统管理员</div></div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <div style="width: 240px; flex-shrink: 0; background: #ffffff; border-right: 1px solid #e2e6ec;">
+      <div class="grp">落地</div><div class="item">后台首页</div>
+      <div class="grp">语料域</div><div class="item">语料管理</div><div class="item">知识库管理</div><div class="item">元数据与词表</div>
+      <div class="grp">能力域</div><div class="iton">模板管理</div>
+      <div class="grp">治理域</div><div class="item">用户与权限</div><div class="item">系统设置</div><div class="item">审计与统计</div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+      <div style="flex-shrink: 0; display: flex; align-items: center; gap: 2px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+        <div class="tab">模板</div><div class="tab">槽位定义</div><div class="tabon">条款库</div>
+      </div>
+
+      <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+        <div class="gbtn"><span style="color:#8a95a3">类别</span><span>全部</span><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+        <div class="gbtn" style="width: 240px;"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.6" stroke-linecap="round"><path d="M11.5 11.5L14 14"/><circle cx="7" cy="7" r="4.6"/></svg><span style="color:#a2acb9">搜索条款编号或正文</span></div>
+        <div style="flex-grow: 1;"></div>
+        <span style="font-size: 11.5px; color: #8a95a3;">已审定 <span class="m">142</span> 条</span>
+        <div style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 13px;border-radius:5px;font-size:13px;font-weight:500;color:#ffffff;background:#2f5ccc;cursor:pointer;">拟新增条款</div>
+      </div>
+
+      <!-- 待审定：新增与修改须经指定人员确认 -->
+      <div style="flex-shrink: 0; background: #ffffff; border-bottom: 1px solid #e2e6ec; padding: 14px 18px 15px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+          <span style="font-size: 13px; font-weight: 600;">待审定</span>
+          <span class="pill" style="background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;">2 条</span>
+        </div>
+        <div style="font-size: 11.5px; color: #8a95a3; line-height: 1.65; margin-bottom: 10px;">条款库只收录已审定条款。新增与修改都要经指定人员确认后才会进入可选范围——在此之前，报价合同拼装时看不到它们。</div>
+        <div style="display: flex; gap: 10px;">
+          <sc-for list="{{pending}}" as="p" hint-placeholder-count="2">
+            <div style="flex: 1 1 0; min-width: 0; border: 1px solid #f0dcb4; background: #fdf4e3; border-radius: 5px; padding: 12px 13px;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                <span class="m" style="font-size: 11.5px; font-weight: 500; color: #8a5a00;">{{p.no}}</span>
+                <span style="font-size: 12.5px; font-weight: 500; color: #8a5a00;">{{p.title}}</span>
+                <span class="pill" style="background:#ffffff;color:#8a5a00;border:1px solid #f0dcb4;">{{p.kind}}</span>
+              </div>
+              <div style="font-size: 11.5px; color: #8a5a00; line-height: 1.75; opacity: .92; margin-bottom: 9px;">{{p.why}}</div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:4px;font-size:11.5px;font-weight:500;color:#ffffff;background:#8a5a00;cursor:pointer;">审定通过</span>
+                <span style="display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:4px;font-size:11.5px;color:#8a5a00;background:#ffffff;border:1px solid #f0dcb4;cursor:pointer;">退回</span>
+                <div style="flex-grow: 1;"></div>
+                <span style="font-size: 10.5px; color: #8a5a00; opacity: .8;">{{p.by}}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div class="sc" style="flex-grow: 1; min-height: 0; padding: 14px 18px 20px;">
+        <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+          <div style="margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 8px;">
+              <span style="font-size: 13px; font-weight: 600;">{{g.name}}</span>
+              <span style="font-size: 11px; color: #8a95a3;">{{g.n}} 条</span>
+            </div>
+            <div style="background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px; overflow: hidden;">
+              <sc-for list="{{g.items}}" as="c" hint-placeholder-count="3">
+                <div style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 15px; border-bottom: 1px solid #eef1f5;">
+                  <span class="m" style="width: 62px; flex-shrink: 0; font-size: 11.5px; font-weight: 500; color: #2f5ccc; padding-top: 1px;">{{c.no}}</span>
+                  <div style="flex-grow: 1; min-width: 0;">
+                    <div style="font-size: 12.5px; font-weight: 500; line-height: 1.5; margin-bottom: 3px;">{{c.title}}</div>
+                    <div style="font-size: 11.5px; color: #5a6673; line-height: 1.7;">{{c.brief}}</div>
+                  </div>
+                  <div style="width: 160px; flex-shrink: 0;">
+                    <div style="font-size: 11px; color: #8a95a3; line-height: 1.6;">审定 {{c.by}}</div>
+                    <div class="m" style="font-size: 11px; color: #8a95a3; line-height: 1.6;">{{c.since}} 生效</div>
+                  </div>
+                  <div style="display: flex; gap: 6px; flex-shrink: 0;">
+                    <span class="abtn">全文</span>
+                    <span class="abtn">拟修改</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+
+        <div style="padding: 12px 14px; background: #f8fafc; border: 1px solid #e9edf2; border-radius: 5px;">
+          <div style="font-size: 11.5px; color: #5a6673; line-height: 1.8;">条款一经审定即锁定正文，不能就地编辑。需要改动时走「拟修改」，生成一条待审定的新版本，审定通过后新版本生效、旧版本停用但保留——已经用旧版本出过的合同要能查到当时的原文。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      pending: [
+        { no: 'PY-014', title: '外币结算汇率约定', kind: '新增', by: '拟稿 张伟 · 待财务部刘工审定',
+          why: '出口订单增多，现有付款条款未覆盖汇率波动的处理方式。' },
+        { no: 'WR-005', title: '质保期与范围', kind: '修改', by: '拟稿 李工 · 待售后部审定',
+          why: '拟将易损件清单中的「导热油」移出免费更换之列，与现行做法一致。' }
+      ],
+      groups: [
+        { name: '付款条款', n: 18, items: [
+          { no: 'PY-003', title: '分期付款比例', by: '财务部 刘工', since: '2025-06-01',
+            brief: '预付 30%、发货前 60%、验收后 10% 质保金，质保期满无息退还。' },
+          { no: 'PY-009', title: '逾期付款', by: '法务顾问 周律师', since: '2024-01-01',
+            brief: '每逾期一日按未付金额万分之三计违约金，累计不超过 5%。' },
+          { no: 'PY-011', title: '全额预付优惠', by: '财务部 刘工', since: '2024-09-01',
+            brief: '合同生效后一次性付清的，总价优惠 2%。' }
+        ]},
+        { name: '质量保证', n: 12, items: [
+          { no: 'WR-005', title: '质保期与范围', by: '售后部 李工', since: '2025-02-10',
+            brief: '验收合格起 12 个月，制造质量与材料缺陷免费维修更换，易损件除外。' },
+          { no: 'WR-011', title: '响应时限', by: '售后部 李工', since: '2025-02-10',
+            brief: '4 小时内响应，华东地区 48 小时内到达现场。' }
+        ]},
+        { name: '违约责任', n: 9, items: [
+          { no: 'BR-002', title: '交货延期违约金', by: '法务顾问 周律师', since: '2024-01-01',
+            brief: '每延期一日按合同总价万分之三计，累计不超过 5%；超过 30 日需方可解除合同。' },
+          { no: 'BR-007', title: '不可抗力', by: '法务顾问 周律师', since: '2024-01-01',
+            brief: '不可抗力致不能履行的，受影响方应在 15 日内书面通知并提供证明。' }
+        ]}
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
