@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using HT.Agent.Application.Abstractions;
+using HT.Agent.Application.Logic;
 using HT.Agent.Domain;
 using HT.Agent.Domain.Entities;
 using HT.Agent.Infrastructure.Persistence;
@@ -16,6 +17,7 @@ public class QaService(
     IRetrievalService retrieval,
     IChatModelClient chat,
     IRuntimeConfig config,
+    IProjectService projects,
     IAuditWriter audit,
     ICurrentUser me) : IQaService
 {
@@ -23,6 +25,17 @@ public class QaService(
         QaRequest req, [EnumeratorCancellation] CancellationToken ct = default)
     {
         var session = await GetOrCreateSessionAsync(req, ct);
+
+        // 意图路由（FR-4.1）：台账查询转 M3 结构化返回，生成与翻译转对应模块，
+        // 其余进检索流程。判定结果对用户可见（intent 事件），可传 forcedIntent 手动纠正。
+        var intent = await RouteIntentAsync(req, ct);
+        if (intent != IntentRouter.Knowledge)
+        {
+            await foreach (var ev in HandleRoutedIntentAsync(intent, req, session, ct))
+                yield return ev;
+            yield break;
+        }
+
         var historyTurns = await config.GetIntAsync(ConfigKeys.HistoryTurns, 6, ct);
         var history = await db.QaMessages.AsNoTracking()
             .Where(m => m.SessionId == session.Id && m.Answer != null)
@@ -37,6 +50,7 @@ public class QaService(
         yield return new QaEvent("meta", new
         {
             sessionId = session.Id,
+            intent = IntentRouter.Knowledge,
             rewrittenQuery = result.RewrittenQuery,
             hitCount = result.Chunks.Count,
             topScore = result.TopScore
@@ -47,6 +61,7 @@ public class QaService(
             Id = Guid.NewGuid(),
             SessionId = session.Id,
             Question = req.Question,
+            Intent = IntentRouter.Knowledge,
             RewrittenQuery = rewritten == req.Question ? null : rewritten,
             At = DateTimeOffset.UtcNow
         };
@@ -97,6 +112,90 @@ public class QaService(
         session.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
         await WriteTraceAsync(message, result, answered: true, ct);
+        yield return new QaEvent("done", new { messageId = message.Id });
+    }
+
+    private static readonly string[] KnownIntents =
+        [IntentRouter.Knowledge, IntentRouter.Ledger, IntentRouter.Generate, IntentRouter.Translate];
+
+    private async Task<string> RouteIntentAsync(QaRequest req, CancellationToken ct)
+    {
+        if (req.ForcedIntent is not null)
+            return KnownIntents.Contains(req.ForcedIntent) ? req.ForcedIntent : IntentRouter.Knowledge;
+        var customers = await db.VocabTerms.AsNoTracking()
+            .Where(v => v.VocabKey == VocabKeys.CustomerName && v.IsActive)
+            .Select(v => v.Value).ToListAsync(ct);
+        var devices = await db.VocabTerms.AsNoTracking()
+            .Where(v => v.VocabKey == VocabKeys.DeviceType && v.IsActive)
+            .Select(v => v.Value).ToListAsync(ct);
+        var intent = IntentRouter.Classify(req.Question, customers, devices);
+        // 无台账权限的角色不分流到台账（表 3-2），当知识问答处理
+        if (intent == IntentRouter.Ledger && !me.Permissions.Contains(PermissionKeys.ProjectSearch))
+            return IntentRouter.Knowledge;
+        return intent;
+    }
+
+    private async IAsyncEnumerable<QaEvent> HandleRoutedIntentAsync(
+        string intent, QaRequest req, QaSession session, [EnumeratorCancellation] CancellationToken ct)
+    {
+        var message = new QaMessage
+        {
+            Id = Guid.NewGuid(),
+            SessionId = session.Id,
+            Question = req.Question,
+            Intent = intent,
+            At = DateTimeOffset.UtcNow
+        };
+
+        if (intent == IntentRouter.Ledger)
+        {
+            // 台账查询以结构化方式返回表格，不经模型生成（FR-3.4/4.1）
+            var customers = await db.VocabTerms.AsNoTracking()
+                .Where(v => v.VocabKey == VocabKeys.CustomerName && v.IsActive)
+                .Select(v => v.Value).ToListAsync(ct);
+            var devices = await db.VocabTerms.AsNoTracking()
+                .Where(v => v.VocabKey == VocabKeys.DeviceType && v.IsActive)
+                .Select(v => v.Value).ToListAsync(ct);
+            var f = IntentRouter.ExtractFilters(req.Question, customers, devices);
+            int? yearFrom = f.YearFrom, yearTo = f.YearTo;
+            if (yearFrom is null && f.RecentYears is not null)
+                yearFrom = DateTimeOffset.UtcNow.Year - f.RecentYears + 1;
+            var result = await projects.SearchAsync(new ProjectSearchRequest(
+                CustomerName: f.CustomerName, YearFrom: yearFrom, YearTo: yearTo, DeviceType: f.DeviceType), ct);
+
+            yield return new QaEvent("meta", new { sessionId = session.Id, intent, hitCount = result.Rows.Count, topScore = 0.0, rewrittenQuery = req.Question });
+            yield return new QaEvent("table", new
+            {
+                intent,
+                filters = new { customer = f.CustomerName, deviceType = f.DeviceType, yearFrom, yearTo },
+                rows = result.Rows,
+                amountVisible = result.AmountVisible,
+                note = "台账查询为结构化结果，不经模型生成。筛选条件由提问解析而来，可修改后重查，或用 forcedIntent=knowledge 转知识问答。"
+            });
+            message.Answer = $"[台账] 按解析出的条件返回 {result.Rows.Count} 条项目记录";
+        }
+        else
+        {
+            // 生成与翻译转交对应模块（FR-4.1）：给出跳转指令，由前端切到对应工作区
+            var target = intent == IntentRouter.Generate ? "generate" : "translate";
+            var name = intent == IntentRouter.Generate ? "方案生成" : "翻译";
+            yield return new QaEvent("meta", new { sessionId = session.Id, intent, hitCount = 0, topScore = 0.0, rewrittenQuery = req.Question });
+            yield return new QaEvent("redirect", new
+            {
+                intent,
+                module = target,
+                message = $"这个请求更适合在「{name}」里完成，已为你准备切换。判定有误可用 forcedIntent=knowledge 按知识问答处理。"
+            });
+            message.Answer = $"[分流] 已转交{name}模块";
+        }
+
+        db.QaMessages.Add(message);
+        session.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(new AuditEntry("qa.ask", AuditResult.Success,
+            UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+            TargetType: "qa_message", TargetId: message.Id.ToString(),
+            Detail: new { question = req.Question, intent, forced = req.ForcedIntent is not null }), ct);
         yield return new QaEvent("done", new { messageId = message.Id });
     }
 

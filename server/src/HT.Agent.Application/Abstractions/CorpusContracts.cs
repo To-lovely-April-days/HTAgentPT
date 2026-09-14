@@ -41,8 +41,22 @@ public interface IDocumentService
     /// <summary>编辑单块：仅重算该块向量，不触发整份重解析（FR-1.5）。</summary>
     Task EditChunkAsync(long chunkId, string newText, CancellationToken ct = default);
     Task DeleteChunkAsync(long chunkId, CancellationToken ct = default);
+    /// <summary>合并相邻分块（FR-1.5）：同文档、seq 连续；合并块重算向量。</summary>
+    Task<long> MergeChunksAsync(IReadOnlyList<long> chunkIds, CancellationToken ct = default);
+    /// <summary>按字符偏移拆分单块（FR-1.5）：新块逐块重算向量，后续块 seq 顺延。</summary>
+    Task<IReadOnlyList<long>> SplitChunkAsync(long chunkId, IReadOnlyList<int> offsets, CancellationToken ct = default);
+    /// <summary>按条件批量修正元数据（FR-3.6），受控字段仍查词表；返回受影响文档数。</summary>
+    Task<int> BatchUpdateMetadataAsync(MetadataBatchFilter filter, MetadataBatchSet set, CancellationToken ct = default);
     Task<(Stream Content, string FileName, string ContentType)> DownloadAsync(Guid docId, CancellationToken ct = default);
 }
+
+/// <summary>批量修正的筛选条件（全部可选，但至少给一个，避免误伤全库）。</summary>
+public record MetadataBatchFilter(Guid? KbId = null, string? CustomerName = null,
+    string? DocCategory = null, int? Year = null, string? DeviceType = null);
+
+/// <summary>批量修正要写入的值（只写非空项）。</summary>
+public record MetadataBatchSet(string? CustomerName = null, string? DeviceType = null,
+    string? DocCategory = null, int? Year = null, string? ProjectNo = null);
 
 public record UploadDocumentRequest(
     Guid KbId, string FileName, string ContentType, long FileSize,

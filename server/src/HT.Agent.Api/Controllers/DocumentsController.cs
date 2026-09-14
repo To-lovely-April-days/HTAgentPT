@@ -69,6 +69,14 @@ public class DocumentsController(IDocumentService docs, AppDbContext db) : Contr
     public async Task<IActionResult> Chunks(Guid id, CancellationToken ct)
         => Ok(await docs.GetChunksAsync(id, ct));
 
+    public record MetaBatchBody(MetadataBatchFilter Filter, MetadataBatchSet Set);
+
+    /// <summary>批量修正元数据（FR-3.6）：归集阶段的集中整理，须 meta.manage。</summary>
+    [HttpPost("metadata/batch")]
+    [RequirePermission(PermissionKeys.MetaManage)]
+    public async Task<IActionResult> MetadataBatch([FromBody] MetaBatchBody body, CancellationToken ct)
+        => Ok(new { affected = await docs.BatchUpdateMetadataAsync(body.Filter, body.Set, ct) });
+
     /// <summary>解析队列一览（E3 界面）：状态、尝试次数、具体失败原因。</summary>
     [HttpGet("queue")]
     public async Task<IActionResult> Queue(CancellationToken ct)
@@ -105,6 +113,20 @@ public class ChunksController(IDocumentService docs) : ControllerBase
         await docs.DeleteChunkAsync(id, ct);
         return NoContent();
     }
+
+    public record MergeBody(List<long> ChunkIds);
+
+    /// <summary>合并相邻分块（FR-1.5）。</summary>
+    [HttpPost("merge")]
+    public async Task<IActionResult> Merge([FromBody] MergeBody body, CancellationToken ct)
+        => Ok(new { chunkId = await docs.MergeChunksAsync(body.ChunkIds, ct) });
+
+    public record SplitBody(List<int> Offsets);
+
+    /// <summary>按字符偏移拆分单块（FR-1.5）。</summary>
+    [HttpPost("{id:long}/split")]
+    public async Task<IActionResult> Split(long id, [FromBody] SplitBody body, CancellationToken ct)
+        => Ok(new { chunkIds = await docs.SplitChunkAsync(id, body.Offsets, ct) });
 }
 
 [ApiController]

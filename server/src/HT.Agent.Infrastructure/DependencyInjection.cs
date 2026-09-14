@@ -60,6 +60,7 @@ public static class DependencyInjection
         services.AddScoped<IVocabService, VocabService>();
         services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
         services.AddScoped<IDocumentService, DocumentService>();
+        services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<IRetrievalService, RetrievalService>();
         services.AddScoped<IQaService, QaService>();
 

@@ -213,6 +213,131 @@ public class DocumentService(
             TargetType: "chunk", TargetId: chunkId.ToString()), ct);
     }
 
+    /// <summary>合并相邻分块（FR-1.5）：同文档、激活态、seq 连续。合并块继承首块的章节与页码。</summary>
+    public async Task<long> MergeChunksAsync(IReadOnlyList<long> chunkIds, CancellationToken ct = default)
+    {
+        if (chunkIds.Count < 2)
+            throw new DomainRuleException("MERGE_NEED_TWO", "合并至少选两块");
+        var chunks = await db.Chunks.Where(c => chunkIds.Contains(c.Id)).OrderBy(c => c.Seq).ToListAsync(ct);
+        if (chunks.Count != chunkIds.Count || chunks.Any(c => !c.IsActive))
+            throw new DomainRuleException("MERGE_CHUNK_MISSING", "有分块不存在或已删除");
+        if (chunks.Select(c => c.DocId).Distinct().Count() != 1)
+            throw new DomainRuleException("MERGE_CROSS_DOC", "只能合并同一文档内的分块");
+        for (var i = 1; i < chunks.Count; i++)
+            if (chunks[i].Seq != chunks[i - 1].Seq + 1)
+                throw new DomainRuleException("MERGE_NOT_ADJACENT", "只能合并 seq 连续的相邻分块");
+
+        var head = chunks[0];
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        head.Text = string.Join("\n", chunks.Select(c => c.Text));
+        head.SearchText = ChineseTokenizer.Tokenize(head.Text);
+        head.Embedding = null;
+        head.EmbeddingModel = null;
+        db.Chunks.RemoveRange(chunks.Skip(1));
+        db.ParseJobs.Add(new ParseJob
+        {
+            Id = Guid.NewGuid(), DocId = head.DocId, ChunkId = head.Id,
+            Kind = ParseJobKind.EmbedOnly, QueuedBy = me.UserId, QueuedAt = DateTimeOffset.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+        await audit.WriteAsync(new AuditEntry("chunk.merge", AuditResult.Success,
+            UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+            TargetType: "chunk", TargetId: head.Id.ToString(), Detail: new { merged = chunkIds }), ct);
+        return head.Id;
+    }
+
+    /// <summary>拆分单块（FR-1.5）：按字符偏移切开，后续分块 seq 顺延，各新块逐块重算向量。</summary>
+    public async Task<IReadOnlyList<long>> SplitChunkAsync(long chunkId, IReadOnlyList<int> offsets, CancellationToken ct = default)
+    {
+        var chunk = await db.Chunks.FirstOrDefaultAsync(c => c.Id == chunkId && c.IsActive, ct)
+            ?? throw new DomainRuleException("CHUNK_NOT_FOUND", "分块不存在");
+        IReadOnlyList<string> parts;
+        try { parts = ChunkSplitter.Split(chunk.Text, offsets); }
+        catch (ArgumentException ex) { throw new DomainRuleException("SPLIT_INVALID", ex.Message); }
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        // 后续块 seq 让位
+        await db.Chunks.Where(c => c.DocId == chunk.DocId && c.IsActive && c.Seq > chunk.Seq)
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.Seq, c => c.Seq + parts.Count - 1), ct);
+
+        chunk.Text = parts[0];
+        chunk.SearchText = ChineseTokenizer.Tokenize(parts[0]);
+        chunk.Embedding = null;
+        chunk.EmbeddingModel = null;
+        var newChunks = new List<Chunk>();
+        for (var i = 1; i < parts.Count; i++)
+        {
+            newChunks.Add(new Chunk
+            {
+                DocId = chunk.DocId, KbId = chunk.KbId, Classification = chunk.Classification,
+                Seq = chunk.Seq + i, SectionPath = chunk.SectionPath, PageNo = chunk.PageNo,
+                Text = parts[i], SearchText = ChineseTokenizer.Tokenize(parts[i]),
+                ParseVersion = chunk.ParseVersion, CreatedAt = DateTimeOffset.UtcNow
+            });
+        }
+        db.Chunks.AddRange(newChunks);
+        await db.SaveChangesAsync(ct);
+
+        var ids = new List<long> { chunk.Id };
+        ids.AddRange(newChunks.Select(c => c.Id));
+        foreach (var id in ids)
+            db.ParseJobs.Add(new ParseJob
+            {
+                Id = Guid.NewGuid(), DocId = chunk.DocId, ChunkId = id,
+                Kind = ParseJobKind.EmbedOnly, QueuedBy = me.UserId, QueuedAt = DateTimeOffset.UtcNow
+            });
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+        await audit.WriteAsync(new AuditEntry("chunk.split", AuditResult.Success,
+            UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+            TargetType: "chunk", TargetId: chunkId.ToString(), Detail: new { parts = parts.Count }), ct);
+        return ids;
+    }
+
+    /// <summary>批量修正元数据（FR-3.6）：历史资料归集阶段的集中整理。受控字段仍走词表校验。</summary>
+    public async Task<int> BatchUpdateMetadataAsync(MetadataBatchFilter filter, MetadataBatchSet set, CancellationToken ct = default)
+    {
+        if (filter.KbId is null && string.IsNullOrWhiteSpace(filter.CustomerName) &&
+            string.IsNullOrWhiteSpace(filter.DocCategory) && filter.Year is null &&
+            string.IsNullOrWhiteSpace(filter.DeviceType))
+            throw new DomainRuleException("BATCH_FILTER_EMPTY", "批量修正必须至少给一个筛选条件，不允许全库改写");
+        var hasSet = !string.IsNullOrWhiteSpace(set.CustomerName) || !string.IsNullOrWhiteSpace(set.DeviceType) ||
+                     !string.IsNullOrWhiteSpace(set.DocCategory) || set.Year is not null ||
+                     !string.IsNullOrWhiteSpace(set.ProjectNo);
+        if (!hasSet)
+            throw new DomainRuleException("BATCH_SET_EMPTY", "没有要写入的值");
+        if (!string.IsNullOrWhiteSpace(set.DeviceType) && !await vocab.IsValidAsync(VocabKeys.DeviceType, set.DeviceType, ct))
+            throw new DomainRuleException("META_DEVICE_TYPE", $"设备类型「{set.DeviceType}」不在受控词表中");
+        if (!string.IsNullOrWhiteSpace(set.DocCategory) && !await vocab.IsValidAsync(VocabKeys.DocCategory, set.DocCategory, ct))
+            throw new DomainRuleException("META_DOC_CATEGORY", $"文档类别「{set.DocCategory}」不在受控词表中");
+        if (!string.IsNullOrWhiteSpace(set.ProjectNo) && !await db.Projects.AnyAsync(p => p.ProjectNo == set.ProjectNo, ct))
+            throw new DomainRuleException("META_PROJECT_NOT_FOUND", $"项目编号 {set.ProjectNo} 不在台账中");
+
+        var q = db.DocMetadatas.AsQueryable();
+        if (filter.KbId is not null)
+            q = q.Where(m => db.Documents.Any(d => d.Id == m.DocumentId && d.KbId == filter.KbId));
+        if (!string.IsNullOrWhiteSpace(filter.CustomerName)) q = q.Where(m => m.CustomerName == filter.CustomerName);
+        if (!string.IsNullOrWhiteSpace(filter.DocCategory)) q = q.Where(m => m.DocCategory == filter.DocCategory);
+        if (filter.Year is not null) q = q.Where(m => m.Year == filter.Year);
+        if (!string.IsNullOrWhiteSpace(filter.DeviceType)) q = q.Where(m => m.DeviceType == filter.DeviceType);
+
+        var rows = await q.ToListAsync(ct);
+        foreach (var m in rows)
+        {
+            if (!string.IsNullOrWhiteSpace(set.CustomerName)) m.CustomerName = set.CustomerName;
+            if (!string.IsNullOrWhiteSpace(set.DeviceType)) m.DeviceType = set.DeviceType;
+            if (!string.IsNullOrWhiteSpace(set.DocCategory)) m.DocCategory = set.DocCategory;
+            if (set.Year is not null) m.Year = set.Year.Value;
+            if (!string.IsNullOrWhiteSpace(set.ProjectNo)) m.ProjectNo = set.ProjectNo;
+        }
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(new AuditEntry("meta.batch_update", AuditResult.Success,
+            UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+            Detail: new { filter, set, affected = rows.Count }), ct);
+        return rows.Count;
+    }
+
     public async Task<(Stream Content, string FileName, string ContentType)> DownloadAsync(Guid docId, CancellationToken ct = default)
     {
         var doc = await db.Documents.AsNoTracking().FirstOrDefaultAsync(d => d.Id == docId, ct)
