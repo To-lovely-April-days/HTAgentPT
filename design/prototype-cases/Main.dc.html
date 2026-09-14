@@ -1,0 +1,197 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .n { height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .non { height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .fl { font-size: 11.5px; color: #8a95a3; margin-bottom: 5px; }
+    .fi { height: 28px; display: flex; align-items: center; padding: 0 9px; background: #ffffff;
+      border: 1px solid #cfd6df; border-radius: 4px; font-size: 12.5px; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 28px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: .03em;">HT</div>
+      <div style="font-size: 14px; font-weight: 600;">霍桐实验仪器 · 企业智能体</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 2px;">
+      <div class="n">问答</div><div class="non">案例检索</div><div class="n">案例录入</div><div class="n">报修工单</div><div class="n">翻译</div>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span style="font-size: 12px; color: #8a95a3;">可访问密级</span>
+      <span class="pill" style="background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;">内部</span>
+      <span class="pill" style="background:#e3f4f4;color:#00696b;border:1px solid #b8dedd;">公开</span>
+    </div>
+    <div style="width: 1px; height: 20px; background: #e2e6ec;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">李</div>
+      <div style="line-height: 1.25;"><div style="font-size:12px;font-weight:500">李敏</div><div style="font-size:11px;color:#8a95a3">售后工程师</div></div>
+    </div>
+  </div>
+
+  <!-- 检索条：型号 / 报警代码 / 现象关键词 -->
+  <div style="flex-shrink: 0; background: #ffffff; border-bottom: 1px solid #e2e6ec; padding: 14px 18px 13px;">
+    <div style="display: flex; gap: 12px; align-items: flex-end;">
+      <div style="width: 180px;">
+        <div class="fl">设备型号</div>
+        <div class="fi"><span class="m">CJF-5L</span><div style="flex-grow:1"></div><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+      </div>
+      <div style="width: 150px;">
+        <div class="fl">报警代码</div>
+        <div class="fi m" style="color: #a2acb9;">如 E-17</div>
+      </div>
+      <div style="flex-grow: 1;">
+        <div class="fl">故障现象关键词</div>
+        <div class="fi"><span>搅拌 停机</span><div style="flex-grow:1"></div><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.6" stroke-linecap="round"><path d="M11.5 11.5L14 14"/><circle cx="7" cy="7" r="4.6"/></svg></div>
+      </div>
+      <div style="width: 150px;">
+        <div class="fl">时间范围</div>
+        <div class="fi"><span>不限</span><div style="flex-grow:1"></div><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+      </div>
+      <div class="gbtn">重置</div>
+      <div style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 15px;border-radius:4px;font-size:13px;font-weight:500;color:#ffffff;background:#2f5ccc;cursor:pointer;">检索</div>
+    </div>
+  </div>
+
+  <!-- 结果 -->
+  <div style="flex-grow: 1; display: flex; flex-direction: column; min-height: 0;">
+    <div style="height: 42px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+      <span style="font-size: 12.5px;">命中 <span class="m" style="font-weight: 500;">31</span> 条</span>
+      <span style="font-size: 11.5px; color: #8a95a3;">按设备型号归并为 3 组，避免同型案例占满结果</span>
+      <div style="flex-grow: 1;"></div>
+      <span style="font-size: 11.5px; color: #8a95a3;">排序</span>
+      <div style="{{t.sortRel}}" onClick="{{pickRel}}">相关度</div>
+      <div style="{{t.sortTime}}" onClick="{{pickTime}}">时间</div>
+    </div>
+
+    <div class="sc" style="flex-grow: 1; min-height: 0; padding: 12px 18px 16px;">
+      <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+        <div style="margin-bottom: 12px; background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px; overflow: hidden;">
+
+          <div style="display: flex; align-items: center; gap: 10px; padding: 12px 15px; border-bottom: 1px solid #eef1f5; background: #f8fafc;">
+            <span class="m" style="font-size: 13px; font-weight: 600;">{{g.model}}</span>
+            <span style="font-size: 12px; color: #5a6673;">{{g.name}}</span>
+            <div style="flex-grow: 1;"></div>
+            <span style="font-size: 11.5px; color: #8a95a3;">本公司 <span class="m" style="color:#1c2530">{{g.own}}</span> 条 · 共享库 <span class="m" style="color:#1c2530">{{g.shared}}</span> 条</span>
+          </div>
+
+          <sc-for list="{{g.cases}}" as="c" hint-placeholder-count="3">
+            <div style="display: flex; align-items: flex-start; gap: 11px; padding: 12px 15px; border-bottom: 1px solid #eef1f5; cursor: pointer;">
+              <sc-if value="{{c.hasCode}}" hint-placeholder-val="{{ true }}">
+                <span class="m" style="flex-shrink: 0; display: inline-flex; align-items: center; height: 20px; padding: 0 7px; margin-top: 1px; border-radius: 3px; font-size: 11.5px; font-weight: 500; background: #fdeceb; color: #b3261e; border: 1px solid #f5cdc9;">{{c.code}}</span>
+              </sc-if>
+              <div style="flex-grow: 1; min-width: 0;">
+                <div style="font-size: 13px; font-weight: 500; line-height: 1.5;">{{c.phenom}}</div>
+                <div style="font-size: 11.5px; color: #5a6673; line-height: 1.65; margin-top: 4px;">{{c.result}}</div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-top: 7px;">
+                  <span style="font-size: 11px; color: #8a95a3;">{{c.who}}</span>
+                  <span class="m" style="font-size: 11px; color: #8a95a3;">{{c.date}}</span>
+                  <span style="{{c.srcStyle}}">{{c.src}}</span>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+
+          <div style="padding: 10px 15px; text-align: center;">
+            <span style="font-size: 12px; color: #2f5ccc; cursor: pointer;">展开其余 {{g.rest}} 条</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "sort": {"editor": "enum", "default": "相关度", "options": ["相关度", "时间"], "section": "排序"}
+}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sort: null }; }
+
+  renderVals() {
+    const accent = '#2f5ccc';
+    const soft = 'color-mix(in oklab, ' + accent + ' 9%, #ffffff)';
+    const line = 'color-mix(in oklab, ' + accent + ' 26%, #ffffff)';
+    const sort = this.state.sort || this.props.sort || '相关度';
+    const pill = 'display:inline-flex;align-items:center;height:19px;padding:0 6px;border-radius:3px;font-size:11px;font-weight:500;';
+
+    const SRC = {
+      '本公司': 'background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;',
+      '共享库 · 华东分公司': 'background:#e3f4f4;color:#00696b;border:1px solid #b8dedd;',
+      '共享库 · 西北分公司': 'background:#e3f4f4;color:#00696b;border:1px solid #b8dedd;'
+    };
+
+    // FR-8.6 同型归并：同一设备型号的案例在检索结果中归并展示
+    const defs = [
+      { model: 'CJF-5L', name: '高压反应釜', own: 8, shared: 14, rest: 19, cases: [
+        { code: 'E-17', hasCode: true, phenom: '搅拌电机过载停机，复位后运行数分钟再次跳停',
+          result: '磁力耦合内磁转子与釜内介质结晶卡滞。拆解清洗磁缸、更换耦合轴承后恢复。建议高黏度工况将转速上限下调至 600 rpm。',
+          who: '李敏', date: '2025-11-03', src: '本公司' },
+        { code: '', hasCode: false, phenom: '磁力密封件渗漏，釜体法兰处有介质析出',
+          result: '密封件已运行 2,100 小时，超出 1,800 小时更换周期。整组更换并调整预紧力矩至 45 N·m。',
+          who: '李敏', date: '2025-08-12', src: '本公司' },
+        { code: 'E-04', hasCode: true, phenom: '升温速率达不到设定值，夹套油温正常',
+          result: '导热油劣化导致换热效率下降，油品酸值超标。更换导热油并清洗夹套后升温速率恢复。',
+          who: '王工', date: '2024-06-20', src: '共享库 · 华东分公司' }
+      ]},
+      { model: 'CJF-2L', name: '高压反应釜', own: 3, shared: 6, rest: 7, cases: [
+        { code: 'E-17', hasCode: true, phenom: '低温工况下搅拌启动困难，电流冲击大',
+          result: '介质在低温下黏度骤升。改为先升温至 40 ℃ 再启动搅拌，并在控制逻辑中加入温度连锁。',
+          who: '李敏', date: '2025-06-09', src: '本公司' },
+        { code: '', hasCode: false, phenom: '压力表读数与控制系统显示偏差 0.8 MPa',
+          result: '就地压力表未按年度校验。校验后偏差消除，已纳入年检清单。',
+          who: '赵工', date: '2024-11-15', src: '共享库 · 西北分公司' }
+      ]},
+      { model: 'SF-20L', name: '玻璃反应釜', own: 2, shared: 4, rest: 5, cases: [
+        { code: '', hasCode: false, phenom: '夹套冷凝水析出，视镜起雾影响观察',
+          result: '冷媒温度低于环境露点。加装夹套保温层并将冷媒温度上调至 5 ℃ 以上。',
+          who: '李敏', date: '2025-03-27', src: '本公司' }
+      ]}
+    ];
+
+    const tab = (on) => 'display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:4px;font-size:11.5px;cursor:pointer;' +
+      (on ? 'font-weight:500;color:' + accent + ';background:' + soft + ';border:1px solid ' + line + ';'
+          : 'color:#5a6673;background:#ffffff;border:1px solid #dde3ea;');
+
+    return {
+      groups: defs.map((g) => ({
+        model: g.model, name: g.name, own: g.own, shared: g.shared, rest: g.rest,
+        cases: g.cases.map((c) => ({
+          code: c.code, hasCode: c.hasCode, phenom: c.phenom, result: c.result,
+          who: c.who, date: c.date, src: c.src,
+          srcStyle: pill + SRC[c.src]
+        }))
+      })),
+      t: { sortRel: tab(sort === '相关度'), sortTime: tab(sort === '时间') },
+      pickRel: () => this.setState({ sort: '相关度' }),
+      pickTime: () => this.setState({ sort: '时间' })
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,224 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .n { height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .non { height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .sec { font-size: 11.5px; color: #8a95a3; margin: 0 0 6px; }
+    .bd { font-size: 13px; line-height: 1.85; color: #1c2530; margin: 0 0 18px; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 28px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: .03em;">HT</div>
+      <div style="font-size: 14px; font-weight: 600;">霍桐实验仪器 · 企业智能体</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 2px;">
+      <div class="n">问答</div><div class="non">案例检索</div><div class="n">案例录入</div><div class="n">报修工单</div><div class="n">翻译</div>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span style="font-size: 12px; color: #8a95a3;">可访问密级</span>
+      <span class="pill" style="background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;">内部</span>
+      <span class="pill" style="background:#e3f4f4;color:#00696b;border:1px solid #b8dedd;">公开</span>
+    </div>
+    <div style="width: 1px; height: 20px; background: #e2e6ec;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">李</div>
+      <div style="line-height: 1.25;"><div style="font-size:12px;font-weight:500">李敏</div><div style="font-size:11px;color:#8a95a3">售后工程师</div></div>
+    </div>
+  </div>
+
+  <div style="height: 58px; flex-shrink: 0; display: flex; align-items: center; gap: 11px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M13 8H3M7 4L3 8l4 4"/></svg>
+    <span class="m" style="font-size: 14px; font-weight: 600;">FC-2025-0442</span>
+    <span class="m pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">CJF-5L</span>
+    <span class="m pill" style="background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;">E-17</span>
+    <span class="pill" style="background:#e6f2ec;color:#1c6b45;border:1px solid #c2ded1;">已解决</span>
+    <div style="flex-grow: 1;"></div>
+    <span style="{{st.badge}}">{{st.label}}</span>
+    <div class="gbtn">编辑</div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <div class="sc" style="flex-grow: 1; min-width: 0; padding: 20px 24px 24px; background: #ffffff;">
+      <div style="max-width: 760px;">
+        <p class="sec">故障现象</p>
+        <p class="bd">某高校用户现场，客户反映搅拌电机过载停机，复位后运行数分钟再次跳停。釜内介质为高黏度聚合物浆料，事发前连续运行 26 小时。</p>
+
+        <p class="sec">原因判断</p>
+        <p class="bd">磁力耦合内磁转子与釜内介质结晶卡滞，导致电机负载骤增触发过载保护。复位后短时运行即再次跳停，符合机械卡滞而非电气故障的特征。</p>
+
+        <p class="sec">处理步骤</p>
+        <p class="bd">1. 停机泄压至常压，切断动力电源并挂牌。<br>2. 拆卸磁缸上盖，取出内磁转子，可见轴承位有结晶附着。<br>3. 用工业酒精清洗磁缸内壁与转子，清除结晶。<br>4. 更换耦合轴承一套，按 45 N·m 力矩复装。<br>5. 空载试运行 30 分钟，电流稳定在 2.1 A，无异响。</p>
+
+        <p class="sec">所用备件</p>
+        <div style="display: inline-flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid #e2e6ec; border-radius: 5px; margin-bottom: 18px;">
+          <span style="font-size: 12.5px;">磁力耦合轴承</span>
+          <span class="m" style="font-size: 12px; color: #5a6673;">MC-5L-B</span>
+          <span class="m" style="font-size: 12px; color: #5a6673;">1 套</span>
+        </div>
+
+        <p class="sec">补充说明</p>
+        <p class="bd">建议高黏度工况将转速上限下调至 600 rpm，并将磁缸清洗纳入半年保养项。</p>
+
+        <div style="display: flex; align-items: center; gap: 14px; padding-top: 6px; border-top: 1px solid #eef1f5;">
+          <span style="font-size: 11.5px; color: #8a95a3;">录入 <span style="color:#1c2530">李敏</span></span>
+          <span class="m" style="font-size: 11.5px; color: #8a95a3;">2025-11-03</span>
+          <span style="font-size: 11.5px; color: #8a95a3;">来源工单 <span class="m" style="color:#2f5ccc">WO-2025-0891</span></span>
+        </div>
+      </div>
+    </div>
+
+    <div style="width: 420px; flex-shrink: 0; border-left: 1px solid #e2e6ec; background: #ffffff; display: flex; flex-direction: column; min-height: 0;">
+      <div class="sc" style="flex-grow: 1; min-height: 0; padding: 18px;">
+
+        <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">流转状态</div>
+
+        <div style="margin-bottom: 16px;">
+          <sc-for list="{{steps}}" as="s" hint-placeholder-count="4">
+            <div style="display: flex; gap: 11px;">
+              <div style="display: flex; flex-direction: column; align-items: center; flex-shrink: 0;">
+                <div style="{{s.dot}}"></div>
+                <div style="{{s.bar}}"></div>
+              </div>
+              <div style="padding-bottom: 14px; flex-grow: 1; min-width: 0;">
+                <div style="{{s.title}}">{{s.name}}</div>
+                <div style="font-size: 11px; color: #8a95a3; line-height: 1.6; margin-top: 2px;">{{s.note}}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="{{st.panel}}">
+          <div style="font-size: 12.5px; font-weight: 600; line-height: 1.5; margin-bottom: 6px;">{{st.title}}</div>
+          <div style="font-size: 11.5px; line-height: 1.75; margin-bottom: 11px; opacity: .92;">{{st.body}}</div>
+          <div style="display: flex; gap: 6px;">
+            <span style="{{st.btnStyle}}">{{st.btn}}</span>
+          </div>
+        </div>
+
+        <div style="margin-top: 16px; padding: 12px 13px; background: #f8fafc; border: 1px solid #e9edf2; border-radius: 5px;">
+          <div style="font-size: 11.5px; line-height: 1.75; color: #5a6673;">无论流转到哪一步，本案例在本公司的检索都不受影响——录入即生效，不依赖审核。提交总部只决定它能不能进集团共享库、被其他公司看到。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "syncStatus": {
+    "editor": "enum",
+    "default": "local　本地生效",
+    "options": ["local　本地生效", "pending　待总部审核", "shared　已并入共享库", "rejected　已驳回"],
+    "section": "流转状态"
+  }
+}'>
+class Component extends DCLogic {
+  renderVals() {
+    const accent = '#2f5ccc';
+    const soft = 'color-mix(in oklab, ' + accent + ' 9%, #ffffff)';
+    const raw = this.props.syncStatus ?? 'local　本地生效';
+    const key = raw.split('　')[0];
+    const pill = 'display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:4px;font-size:11.5px;font-weight:500;';
+
+    // 7.1 fault_case.sync_status 取值为 local / pending / shared / rejected
+    const IDX = { local: 0, pending: 1, shared: 3, rejected: 2 };
+    const at = IDX[key];
+
+    const STEP = [
+      { name: '本地录入', note: '写入本公司私有库，立即可检索' },
+      { name: '提交总部', note: '经与共享库同步相同的通道上传' },
+      { name: '总部审核', note: '审核人可查看、修改、通过或驳回' },
+      { name: '并入共享库', note: '标注来源公司与录入时间，随下次同步下发' }
+    ];
+
+    const ST = {
+      local: {
+        label: 'local　本地生效',
+        badge: pill + 'background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;',
+        panel: 'padding:13px 14px;border-radius:5px;background:' + soft + ';border:1px solid color-mix(in oklab, ' + accent + ' 26%, #ffffff);color:#1c2530;',
+        title: '尚未提交总部',
+        body: '本案例目前只在本公司可见。提交后经审核可并入集团共享库，供其他公司检索——这是共享库长期增值的来源。提交前会先做敏感信息检测。',
+        btn: '提交总部',
+        btnStyle: 'display:inline-flex;align-items:center;height:26px;padding:0 11px;border-radius:4px;font-size:12px;font-weight:500;color:#ffffff;background:' + accent + ';cursor:pointer;'
+      },
+      pending: {
+        label: 'pending　待总部审核',
+        badge: pill + 'background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;',
+        panel: 'padding:13px 14px;border-radius:5px;background:#fdf4e3;border:1px solid #f0dcb4;color:#8a5a00;',
+        title: '已于 2025-11-05 提交，待总部审核',
+        body: '审核期间本公司检索不受影响。审核人可以修改后再通过，通过或驳回都会回传结果。',
+        btn: '撤回提交',
+        btnStyle: 'display:inline-flex;align-items:center;height:26px;padding:0 11px;border-radius:4px;font-size:12px;font-weight:500;color:#8a5a00;background:#ffffff;border:1px solid #f0dcb4;cursor:pointer;'
+      },
+      shared: {
+        label: 'shared　已并入共享库',
+        badge: pill + 'background:#e6f2ec;color:#1c6b45;border:1px solid #c2ded1;',
+        panel: 'padding:13px 14px;border-radius:5px;background:#e6f2ec;border:1px solid #c2ded1;color:#1c6b45;',
+        title: '2025-11-12 并入集团共享库',
+        body: '共享库中标注来源公司「上海霍桐」与录入时间。已随 11-15 那次同步下发至 4 家公司。本地这份是正本，共享库那份是副本，两者独立。',
+        btn: '查看共享库中的副本',
+        btnStyle: 'display:inline-flex;align-items:center;height:26px;padding:0 11px;border-radius:4px;font-size:12px;font-weight:500;color:#1c6b45;background:#ffffff;border:1px solid #c2ded1;cursor:pointer;'
+      },
+      rejected: {
+        label: 'rejected　已驳回',
+        badge: pill + 'background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;',
+        panel: 'padding:13px 14px;border-radius:5px;background:#fdeceb;border:1px solid #f5cdc9;color:#b3261e;',
+        title: '2025-11-08 被总部驳回',
+        body: '驳回原因：处理步骤第 4 步的力矩值 45 N·m 与 CJF 系列装配规范中的 38 N·m 不符，请核实后重新提交。若确为现场实测值，请在补充说明中注明依据。',
+        btn: '修改后重新提交',
+        btnStyle: 'display:inline-flex;align-items:center;height:26px;padding:0 11px;border-radius:4px;font-size:12px;font-weight:500;color:#ffffff;background:#b3261e;cursor:pointer;'
+      }
+    };
+
+    const st = ST[key] || ST.local;
+    const done = key === 'shared';
+
+    return {
+      st: st,
+      steps: STEP.map((s, i) => {
+        const isDone = i < at || (done && i <= at);
+        const isNow = i === at;
+        const isRej = key === 'rejected' && i === 2;
+        const color = isRej ? '#b3261e' : (isNow ? accent : (isDone ? '#1c6b45' : '#cfd6df'));
+        return {
+          name: s.name, note: s.note,
+          dot: 'width:11px;height:11px;border-radius:50%;margin-top:3px;flex-shrink:0;background:' +
+            ((isDone || isNow || isRej) ? color : '#ffffff') + ';border:1.5px solid ' + color + ';',
+          bar: 'width:1.5px;flex-grow:1;min-height:16px;background:' + ((i < at) ? '#c2ded1' : '#e9edf2') + ';',
+          title: 'font-size:12.5px;line-height:1.5;' +
+            ((isNow || isRej) ? 'font-weight:600;color:' + color + ';' : (isDone ? 'color:#1c2530;' : 'color:#a2acb9;'))
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

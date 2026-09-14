@@ -1,0 +1,232 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .n { height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .non { height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .kv { display: flex; align-items: flex-start; gap: 12px; padding: 9px 0; border-bottom: 1px solid #eef1f5; }
+    .k { width: 84px; flex-shrink: 0; font-size: 11.5px; color: #8a95a3; line-height: 1.6; }
+    .v { flex-grow: 1; min-width: 0; font-size: 12.5px; line-height: 1.65; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 28px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: .03em;">HT</div>
+      <div style="font-size: 14px; font-weight: 600;">霍桐实验仪器 · 企业智能体</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 2px;">
+      <div class="n">问答</div><div class="n">案例检索</div><div class="n">案例录入</div><div class="non">报修工单</div><div class="n">翻译</div>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span style="font-size: 12px; color: #8a95a3;">可访问密级</span>
+      <span class="pill" style="background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;">内部</span>
+      <span class="pill" style="background:#e3f4f4;color:#00696b;border:1px solid #b8dedd;">公开</span>
+    </div>
+    <div style="width: 1px; height: 20px; background: #e2e6ec;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">李</div>
+      <div style="line-height: 1.25;"><div style="font-size:12px;font-weight:500">李敏</div><div style="font-size:11px;color:#8a95a3">售后工程师</div></div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <!-- 工单列表 -->
+    <div style="width: 400px; flex-shrink: 0; border-right: 1px solid #e2e6ec; background: #ffffff; display: flex; flex-direction: column; min-height: 0;">
+      <div style="height: 46px; flex-shrink: 0; display: flex; align-items: center; gap: 5px; padding: 0 14px; border-bottom: 1px solid #e2e6ec;">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="3">
+          <div style="{{t.style}}" onClick="{{t.pick}}">{{t.label}} <span class="m">{{t.count}}</span></div>
+        </sc-for>
+      </div>
+      <div class="sc" style="flex-grow: 1; min-height: 0;">
+        <sc-for list="{{list}}" as="w" hint-placeholder-count="5">
+          <div style="{{w.row}}" onClick="{{w.pick}}">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+              <span class="m" style="font-size: 12px; font-weight: 500; color: #2f5ccc;">{{w.no}}</span>
+              <span style="{{w.stStyle}}">{{w.status}}</span>
+              <div style="flex-grow: 1;"></div>
+              <span class="m" style="font-size: 11px; color: #8a95a3;">{{w.at}}</span>
+            </div>
+            <div style="font-size: 12.5px; line-height: 1.5; margin-bottom: 4px;">{{w.title}}</div>
+            <div style="font-size: 11px; color: #8a95a3;">{{w.who}} · 设备 <span class="m">{{w.sn}}</span></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- 工单详情 -->
+    <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+      <div style="height: 58px; flex-shrink: 0; display: flex; align-items: center; gap: 11px; padding: 0 20px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+        <span class="m" style="font-size: 14px; font-weight: 600;">WO-2025-0891</span>
+        <span class="pill" style="background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;">处理中</span>
+        <div style="flex-grow: 1;"></div>
+        <div class="gbtn">指派</div>
+        <div class="gbtn">更新状态</div>
+        <div style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 13px;border-radius:5px;font-size:13px;font-weight:500;color:#ffffff;background:#2f5ccc;cursor:pointer;">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5v9M3.5 8h9"/></svg>
+          <span>转为故障案例</span>
+        </div>
+      </div>
+
+      <div class="sc" style="flex-grow: 1; min-height: 0; padding: 18px 20px 22px;">
+        <div style="display: flex; gap: 20px;">
+
+          <div style="flex-grow: 1; min-width: 0;">
+            <div style="font-size: 12px; font-weight: 600; margin-bottom: 4px;">客户提交内容</div>
+            <div style="font-size: 11px; color: #8a95a3; margin-bottom: 10px;">经公开入口提交，客户只填这三项</div>
+            <div style="border: 1px solid #e2e6ec; border-radius: 5px; padding: 2px 14px 6px; margin-bottom: 18px;">
+              <div class="kv"><div class="k">设备编号</div><div class="v m">HT-CJF5L-2025-0312-01</div></div>
+              <div class="kv"><div class="k">现象描述</div><div class="v">搅拌启动后大约五分钟就自己停了，面板上出现 E-17，按复位能再转一会儿又停。已经反复三次。</div></div>
+              <div class="kv" style="border-bottom: none;"><div class="k">联系方式</div><div class="v">王老师　138-0013-8000</div></div>
+            </div>
+
+            <div style="font-size: 12px; font-weight: 600; margin-bottom: 10px;">处理记录</div>
+            <div style="border: 1px solid #e2e6ec; border-radius: 5px; overflow: hidden;">
+              <sc-for list="{{log}}" as="l" hint-placeholder-count="4">
+                <div style="display: flex; gap: 11px; padding: 11px 14px; border-bottom: 1px solid #eef1f5;">
+                  <span class="m" style="width: 96px; flex-shrink: 0; font-size: 11px; color: #8a95a3; padding-top: 1px;">{{l.at}}</span>
+                  <div style="flex-grow: 1; min-width: 0;">
+                    <div style="font-size: 12.5px; line-height: 1.6;">{{l.what}}</div>
+                    <div style="font-size: 11px; color: #8a95a3; margin-top: 2px;">{{l.who}}</div>
+                  </div>
+                </div>
+              </sc-for>
+              <div style="padding: 11px 14px;">
+                <div style="min-height: 28px; display: flex; align-items: center; padding: 0 10px; background: #f8fafc; border: 1px solid #e2e6ec; border-radius: 4px; font-size: 12.5px; color: #a2acb9;">追加一条处理记录…</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="width: 320px; flex-shrink: 0;">
+            <div style="font-size: 12px; font-weight: 600; margin-bottom: 10px;">工单信息</div>
+            <div style="border: 1px solid #e2e6ec; border-radius: 5px; padding: 2px 13px 6px; margin-bottom: 16px;">
+              <div class="kv"><div class="k">提交时间</div><div class="v m">2025-11-02 09:14</div></div>
+              <div class="kv"><div class="k">受理</div><div class="v">李敏　<span class="m" style="color:#8a95a3">11-02 10:20</span></div></div>
+              <div class="kv"><div class="k">关联项目</div><div class="v m" style="color:#2f5ccc">2025-0312</div></div>
+              <div class="kv" style="border-bottom: none;"><div class="k">设备型号</div><div class="v m">CJF-5L</div></div>
+            </div>
+
+            <!-- FR-7.4：客户账号由售后在处理报修时开通 -->
+            <div style="{{acct.box}}">
+              <div style="font-size: 12px; font-weight: 600; line-height: 1.5; margin-bottom: 5px;">{{acct.title}}</div>
+              <div style="font-size: 11.5px; line-height: 1.75; margin-bottom: 10px; opacity: .92;">{{acct.body}}</div>
+              <span style="{{acct.btnStyle}}">{{acct.btn}}</span>
+            </div>
+
+            <div style="margin-top: 16px; padding: 12px 13px; background: #f8fafc; border: 1px solid #e9edf2; border-radius: 5px;">
+              <div style="font-size: 11.5px; line-height: 1.75; color: #5a6673;">本期只做最简流转：受理、指派、更新状态、追加记录。不含派工调度与备件管理。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "customerAccount": {
+    "editor": "enum",
+    "default": "尚未开通",
+    "options": ["尚未开通", "已开通"],
+    "section": "客户账号"
+  }
+}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: '处理中', sel: 'WO-2025-0891' }; }
+
+  renderVals() {
+    const accent = '#2f5ccc';
+    const soft = 'color-mix(in oklab, ' + accent + ' 9%, #ffffff)';
+    const line = 'color-mix(in oklab, ' + accent + ' 26%, #ffffff)';
+    const pill = 'display:inline-flex;align-items:center;height:19px;padding:0 6px;border-radius:3px;font-size:11px;font-weight:500;';
+    const opened = (this.props.customerAccount ?? '尚未开通') === '已开通';
+
+    const ST = {
+      '待受理': 'background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;',
+      '处理中': 'background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;',
+      '已完成': 'background:#e6f2ec;color:#1c6b45;border:1px solid #c2ded1;'
+    };
+
+    const TABS = [['待受理', 3], ['处理中', 5], ['已完成', 41]];
+
+    const ITEMS = [
+      { no: 'WO-2025-0891', status: '处理中', at: '11-02', sn: 'HT-CJF5L-2025-0312-01',
+        title: '搅拌启动五分钟后自停，面板显示 E-17', who: '王老师' },
+      { no: 'WO-2025-0887', status: '处理中', at: '10-29', sn: 'HT-SF20L-2025-0701-03',
+        title: '视镜起雾，夹套外壁有冷凝水', who: '刘工' },
+      { no: 'WO-2025-0885', status: '处理中', at: '10-27', sn: 'HT-CJF2L-2024-0877-02',
+        title: '压力表读数与触摸屏显示对不上', who: '陈老师' },
+      { no: 'WO-2025-0882', status: '处理中', at: '10-24', sn: 'HT-CJF10L-2024-0512-01',
+        title: '升温到 180 ℃ 后温度不再上升', who: '周工' },
+      { no: 'WO-2025-0878', status: '处理中', at: '10-21', sn: 'HT-SF50L-2024-0208-01',
+        title: '夹套密封圈老化渗漏', who: '吴老师' }
+    ];
+
+    return {
+      tabs: TABS.map((t) => ({
+        label: t[0], count: t[1],
+        style: 'display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border-radius:4px;font-size:12.5px;cursor:pointer;' +
+          (this.state.tab === t[0] ? 'font-weight:500;color:' + accent + ';background:' + soft + ';border:1px solid ' + line + ';'
+                                    : 'color:#5a6673;background:#ffffff;border:1px solid #dde3ea;'),
+        pick: () => this.setState({ tab: t[0] })
+      })),
+      list: ITEMS.map((w) => ({
+        no: w.no, status: w.status, at: w.at, sn: w.sn, title: w.title, who: w.who,
+        stStyle: pill + ST[w.status],
+        row: 'padding:12px 14px;border-bottom:1px solid #eef1f5;cursor:pointer;' +
+          (this.state.sel === w.no ? 'background:' + soft + ';' : ''),
+        pick: () => this.setState({ sel: w.no })
+      })),
+      log: [
+        { at: '11-02 09:14', what: '客户经公开入口提交报修，工单生成', who: '系统' },
+        { at: '11-02 10:20', what: '受理并指派给李敏', who: '李敏' },
+        { at: '11-03 08:40', what: '现场确认为磁力耦合卡滞，非电气故障。已带备件前往。', who: '李敏' },
+        { at: '11-03 15:10', what: '更换耦合轴承并清洗磁缸，空载试运行 30 分钟正常。等待客户确认后关单。', who: '李敏' }
+      ],
+      acct: opened
+        ? {
+            box: 'padding:13px 14px;border-radius:5px;background:#e6f2ec;border:1px solid #c2ded1;color:#1c6b45;',
+            title: '客户账号已开通',
+            body: '账号绑定客户编号 CU-2019-0043，仅可见本人名下项目与工单。客户现在可以自己查询本单进度。',
+            btn: '查看账号',
+            btnStyle: 'display:inline-flex;align-items:center;height:26px;padding:0 11px;border-radius:4px;font-size:12px;font-weight:500;color:#1c6b45;background:#ffffff;border:1px solid #c2ded1;cursor:pointer;'
+          }
+        : {
+            box: 'padding:13px 14px;border-radius:5px;background:' + soft + ';border:1px solid ' + line + ';color:#1c2530;',
+            title: '客户尚无账号',
+            body: '客户账号由售后在处理报修时开通，绑定客户编号后仅可见本人名下项目与工单。未开通时客户只能凭工单号匿名查进度。',
+            btn: '为该客户开通账号',
+            btnStyle: 'display:inline-flex;align-items:center;height:26px;padding:0 11px;border-radius:4px;font-size:12px;font-weight:500;color:#ffffff;background:' + accent + ';cursor:pointer;'
+          }
+    };
+  }
+}
+</script>
+</body>
+</html>
