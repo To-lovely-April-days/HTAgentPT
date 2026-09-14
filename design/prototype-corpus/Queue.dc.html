@@ -1,0 +1,190 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; } a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .grp { padding: 12px 10px 5px; font-size: 11px; font-weight: 500; color: #8a95a3; letter-spacing: .04em; }
+    .item { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .iton { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .abtn { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px;
+      font-size: 11.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .tab { height: 44px; padding: 0 14px; display: flex; align-items: center; font-size: 13px; color: #5a6673; border-bottom: 2px solid transparent; cursor: pointer; }
+    .tabon { height: 44px; padding: 0 14px; display: flex; align-items: center; font-size: 13px; font-weight: 500; color: #2f5ccc; border-bottom: 2px solid #2f5ccc; cursor: pointer; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: .03em;">HT</div>
+      <div style="font-size: 14px; font-weight: 600;">霍桐实验仪器</div>
+    </div>
+    <span class="pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">管理后台</span>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">陈</div>
+      <div style="line-height: 1.25;"><div style="font-size:12px;font-weight:500">陈工</div><div style="font-size:11px;color:#8a95a3">系统管理员</div></div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <div style="width: 240px; flex-shrink: 0; background: #ffffff; border-right: 1px solid #e2e6ec;">
+      <div class="grp">落地</div><div class="item">后台首页</div>
+      <div class="grp">语料域</div><div class="iton">语料管理</div><div class="item">知识库管理</div><div class="item">元数据与词表</div>
+      <div class="grp">能力域</div><div class="item">模板管理</div>
+      <div class="grp">治理域</div><div class="item">用户与权限</div><div class="item">系统设置</div><div class="item">审计与统计</div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+      <div style="flex-shrink: 0; display: flex; align-items: center; gap: 2px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+        <div class="tab">文档列表</div><div class="tabon">解析队列 <span class="m" style="margin-left:5px;color:#8a5a00">7</span></div>
+      </div>
+
+      <!-- 10.3：引擎不可用时任务置于等待，不得丢弃请求 -->
+      <sc-if value="{{down}}" hint-placeholder-val="{{ false }}">
+        <div style="flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: #fdf4e3; border-bottom: 1px solid #f0dcb4; color: #8a5a00;">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" style="flex-shrink:0"><circle cx="10" cy="10" r="7.6"/><path d="M10 6.1v4.5M10 13.5v.1"/></svg>
+          <span style="font-size: 12.5px; font-weight: 500;">文档解析服务暂不可用，队列已转为等待</span>
+          <span style="font-size: 11.5px;">任务没有丢弃也没有失败。服务恢复后按原顺序自动继续，无需重新提交。</span>
+          <div style="flex-grow: 1;"></div>
+          <span style="font-size: 11.5px;">已等待 <span class="m">00:06:41</span></span>
+        </div>
+      </sc-if>
+
+      <div style="height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+        <div>
+          <div style="font-size: 11px; color: #8a95a3;">并发数</div>
+          <div style="display: flex; align-items: baseline; gap: 5px; margin-top: 2px;">
+            <span class="m" style="font-size: 15px; font-weight: 600;">2</span>
+            <span style="font-size: 11px; color: #8a95a3;">/ 上限 4</span>
+          </div>
+        </div>
+        <div style="width: 1px; height: 26px; background: #e2e6ec;"></div>
+        <span style="font-size: 11.5px; color: #5a6673; line-height: 1.65; max-width: 420px;">解析是离线任务，与在线问答共用同一批算力。并发数是配置项——调高会缩短入库时间，但问答的首字响应会变慢。</span>
+        <div style="flex-grow: 1;"></div>
+        <div class="gbtn">暂停队列</div>
+        <div class="gbtn">调整并发数</div>
+      </div>
+
+      <div class="sc" style="flex-grow: 1; min-height: 0; padding: 16px 18px 20px;">
+
+        <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 9px;">
+          <span style="font-size: 13px; font-weight: 600;">{{v.runTitle}}</span>
+          <span class="pill" style="{{v.runPill}}">{{v.runCount}}</span>
+        </div>
+        <div style="margin-bottom: 18px;">
+          <sc-for list="{{running}}" as="r" hint-placeholder-count="2">
+            <div style="background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px; padding: 13px 15px; margin-bottom: 8px;">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 9px;">
+                <span style="font-size: 12.5px; font-weight: 500;">{{r.name}}</span>
+                <span style="{{r.stStyle}}">{{r.status}}</span>
+                <div style="flex-grow: 1;"></div>
+                <span class="m" style="font-size: 11.5px; color: #5a6673;">{{r.prog}}</span>
+                <span class="abtn">中止</span>
+              </div>
+              <div style="height: 4px; border-radius: 2px; background: #eef1f5; overflow: hidden;">
+                <div style="{{r.bar}}"></div>
+              </div>
+              <div style="font-size: 11px; color: #8a95a3; line-height: 1.6; margin-top: 7px;">{{r.stage}}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 9px;">
+          <span style="font-size: 13px; font-weight: 600;">排队中</span>
+          <span class="pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">5</span>
+          <span style="font-size: 11px; color: #8a95a3;">按提交顺序执行，可拖动调序</span>
+        </div>
+        <div style="background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px; overflow: hidden;">
+          <sc-for list="{{queued}}" as="q" hint-placeholder-count="5">
+            <div style="display: flex; align-items: center; gap: 11px; padding: 11px 15px; border-bottom: 1px solid #eef1f5;">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#cfd6df" stroke-width="1.6" stroke-linecap="round" style="flex-shrink:0;cursor:grab"><path d="M6 4h.01M10 4h.01M6 8h.01M10 8h.01M6 12h.01M10 12h.01"/></svg>
+              <span class="m" style="width: 22px; flex-shrink: 0; font-size: 11.5px; color: #8a95a3;">{{q.n}}</span>
+              <div style="flex-grow: 1; min-width: 0;">
+                <div style="font-size: 12.5px; line-height: 1.45;">{{q.name}}</div>
+                <div style="font-size: 10.5px; color: #a2acb9; margin-top: 2px;">{{q.meta}}</div>
+              </div>
+              <span style="font-size: 11px; color: #8a95a3;">{{q.eta}}</span>
+              <span class="abtn">移出队列</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="margin-top: 16px; padding: 12px 14px; background: #f8fafc; border: 1px solid #e9edf2; border-radius: 5px;">
+          <div style="font-size: 11.5px; color: #5a6673; line-height: 1.8;">解析引擎整体不可达时，任务转为等待而不是失败——这两者在界面上是分开的。失败是引擎接了任务但处理出错（文件损坏、格式不支持、超时、引擎异常），在文档列表里显示并可看具体原因；等待是引擎根本没接到，服务恢复后自动继续。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "engine": {"editor": "enum", "default": "正常", "options": ["正常", "解析服务不可达"], "section": "解析服务"}
+}'>
+class Component extends DCLogic {
+  renderVals() {
+    const accent = '#2f5ccc';
+    const down = (this.props.engine ?? '正常') === '解析服务不可达';
+    const pill = 'display:inline-flex;align-items:center;height:19px;padding:0 6px;border-radius:3px;font-size:11px;font-weight:500;';
+
+    const RUN = [
+      { name: '2025-1108 华东理工 4 联釜技术方案', prog: '31 / 52 页', pct: 60,
+        stage: '版面分析 › 表格结构识别' },
+      { name: '集团设备技术资料汇编 2024（第 3 卷）', prog: '218 / 412 页', pct: 53,
+        stage: '光学字符识别 › 扫描页' }
+    ];
+
+    return {
+      down: down,
+      v: {
+        runTitle: down ? '等待中' : '解析中',
+        runCount: down ? '2 · 已暂停' : '2 / 并发上限 4',
+        runPill: down
+          ? 'background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;'
+          : 'background:#eef2fd;color:#2f5ccc;border:1px solid #c9d6f6;'
+      },
+      running: RUN.map(function (r) {
+        return {
+          name: r.name, prog: r.prog, stage: down ? '等待解析服务恢复，进度已保留' : r.stage,
+          status: down ? '等待中' : '解析中',
+          stStyle: pill + (down
+            ? 'background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;'
+            : 'background:#eef2fd;color:#2f5ccc;border:1px solid #c9d6f6;'),
+          bar: 'height:100%;width:' + r.pct + '%;background:' + (down ? '#8a5a00' : accent) + ';'
+        };
+      }),
+      queued: [
+        { n: 1, name: '2025-1108 采购合同（终稿）', meta: 'DOCX · 14 页 · 机密', eta: '约 2 分钟' },
+        { n: 2, name: '真空冷冻干燥机通用报警代码表（2025）', meta: 'XLSX · 冻干机', eta: '约 1 分钟' },
+        { n: 3, name: 'SRTU-200 安装调试记录 2025Q3', meta: 'PDF · 26 页 · 含扫描页', eta: '约 9 分钟' },
+        { n: 4, name: '反应釜选型指南（2025 修订）', meta: 'PDF · 34 页', eta: '约 4 分钟' },
+        { n: 5, name: 'CJF 系列常见故障速查表', meta: 'PDF · 8 页', eta: '约 1 分钟' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

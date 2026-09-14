@@ -1,0 +1,248 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; } a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .grp { padding: 12px 10px 5px; font-size: 11px; font-weight: 500; color: #8a95a3; letter-spacing: .04em; }
+    .item { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .iton { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .fl { font-size: 11.5px; color: #5a6673; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }
+    .fi { height: 30px; display: flex; align-items: center; padding: 0 10px; background: #ffffff;
+      border: 1px solid #cfd6df; border-radius: 4px; font-size: 12.5px; }
+    .fg { margin-bottom: 14px; }
+    .vocab { display: inline-flex; align-items: center; height: 16px; padding: 0 5px; border-radius: 3px;
+      font-size: 10px; font-weight: 500; background: #eef2fd; color: #2f5ccc; border: 1px solid #c9d6f6; }
+    .req { color: #b3261e; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: .03em;">HT</div>
+      <div style="font-size: 14px; font-weight: 600;">霍桐实验仪器</div>
+    </div>
+    <span class="pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">管理后台</span>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">陈</div>
+      <div style="line-height: 1.25;"><div style="font-size:12px;font-weight:500">陈工</div><div style="font-size:11px;color:#8a95a3">系统管理员</div></div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <div style="width: 240px; flex-shrink: 0; background: #ffffff; border-right: 1px solid #e2e6ec;">
+      <div class="grp">落地</div><div class="item">后台首页</div>
+      <div class="grp">语料域</div><div class="iton">语料管理</div><div class="item">知识库管理</div><div class="item">元数据与词表</div>
+      <div class="grp">能力域</div><div class="item">模板管理</div>
+      <div class="grp">治理域</div><div class="item">用户与权限</div><div class="item">系统设置</div><div class="item">审计与统计</div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+      <div style="height: 54px; flex-shrink: 0; display: flex; align-items: center; gap: 11px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M13 8H3M7 4L3 8l4 4"/></svg>
+        <div>
+          <div style="font-size: 14px; font-weight: 600; line-height: 1.4;">上传文档</div>
+          <div style="font-size: 11.5px; color: #8a95a3; margin-top: 2px;">已选 3 个文件 · 共 9.6 MB</div>
+        </div>
+        <div style="flex-grow: 1;"></div>
+        <div class="gbtn">取消</div>
+        <div style="{{v.submitBtn}}">{{v.submitText}}</div>
+      </div>
+
+      <div class="sc" style="flex-grow: 1; min-height: 0; padding: 18px 20px 24px;">
+        <div style="display: flex; gap: 18px; align-items: flex-start;">
+
+          <!-- 文件与去向 -->
+          <div style="width: 400px; flex-shrink: 0;">
+            <div style="font-size: 13px; font-weight: 600; margin-bottom: 10px;">文件</div>
+            <div style="border: 1px solid #e2e6ec; border-radius: 6px; background: #ffffff; overflow: hidden; margin-bottom: 18px;">
+              <sc-for list="{{files}}" as="f" hint-placeholder-count="3">
+                <div style="display: flex; align-items: center; gap: 10px; padding: 11px 13px; border-bottom: 1px solid #eef1f5;">
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 1.5H4.5A1.5 1.5 0 0 0 3 3v10a1.5 1.5 0 0 0 1.5 1.5h7A1.5 1.5 0 0 0 13 13V5.5z"/><path d="M9 1.5v4h4"/></svg>
+                  <div style="flex-grow: 1; min-width: 0;">
+                    <div style="font-size: 12px; line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{f.name}}</div>
+                    <div class="m" style="font-size: 10.5px; color: #a2acb9; margin-top: 2px;">{{f.size}}</div>
+                  </div>
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.6" stroke-linecap="round" style="flex-shrink:0;cursor:pointer"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+                </div>
+              </sc-for>
+              <div style="padding: 11px 13px; border-top: 1px dashed #dde3ea;">
+                <span style="font-size: 12px; color: #2f5ccc; cursor: pointer;">+ 继续添加　</span>
+                <span style="font-size: 11px; color: #8a95a3;">PDF · Word · Excel · 图片，单文件上限 50 MB</span>
+              </div>
+            </div>
+
+            <!-- FR-1.1：未选择知识库与密级不允许提交 -->
+            <div style="font-size: 13px; font-weight: 600; margin-bottom: 10px;">去向</div>
+            <div style="padding: 14px 15px; background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px;">
+              <div class="fg">
+                <div class="fl">目标知识库 <span class="req">*</span></div>
+                <div class="fi"><span>本公司私有库</span><div style="flex-grow:1"></div><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+              </div>
+              <div style="margin-bottom: 0;">
+                <div class="fl">密级 <span class="req">*</span> <span class="vocab">受控</span></div>
+                <div style="display: flex; gap: 7px;">
+                  <span style="{{cls.c}}">机密</span>
+                  <span style="{{cls.i}}">内部</span>
+                  <span style="{{cls.p}}">公开</span>
+                </div>
+                <div style="font-size: 10.5px; color: #8a95a3; line-height: 1.65; margin-top: 7px;">密级在入库时确定，决定哪些角色能检索到它。与知识库的分级是两回事——同一个私有库里可以有不同密级的文档。</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 元数据 -->
+          <div style="flex-grow: 1; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 10px;">
+              <span style="font-size: 13px; font-weight: 600;">元数据</span>
+              <span style="font-size: 11.5px; color: #8a95a3;">三个文件统一填写，也可逐个调整</span>
+            </div>
+
+            <div style="padding: 16px 18px; background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px;">
+
+              <div style="display: flex; gap: 14px;" class="fg">
+                <div style="flex: 1 1 0;">
+                  <div class="fl">文档类别 <span class="req">*</span> <span class="vocab">受控词表</span></div>
+                  <div class="fi"><span style="font-weight: 500;">{{v.cat}}</span><div style="flex-grow:1"></div><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+                </div>
+                <div style="flex: 1 1 0;">
+                  <div class="fl">设备类型 <span class="req">*</span> <span class="vocab">受控词表</span></div>
+                  <div class="fi"><span>高压反应釜</span><div style="flex-grow:1"></div><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+                </div>
+                <div style="flex: 1 1 0;">
+                  <div class="fl">年份 <span class="req">*</span></div>
+                  <div class="fi m">2025</div>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 14px;" class="fg">
+                <div style="flex: 1 1 0;">
+                  <div class="fl">客户名称 <span class="req">*</span> <span class="vocab">受控关联</span></div>
+                  <div class="fi"><span>华东理工大学</span><div style="flex-grow:1"></div><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+                  <div style="font-size: 10.5px; color: #8a95a3; line-height: 1.6; margin-top: 5px;">使用客户全称，简称存入别名字段</div>
+                </div>
+                <div style="flex: 1 1 0;">
+                  <div class="fl">项目编号 {{v.projMark}} <span class="vocab">受控关联</span></div>
+                  <div style="{{v.projBox}}">{{v.projValue}}</div>
+                  <div style="{{v.projHintStyle}}">{{v.projHint}}</div>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 14px;" class="fg">
+                <div style="flex: 1 1 0;">
+                  <div class="fl">负责人</div>
+                  <div class="fi"><span>陈工</span><div style="flex-grow:1"></div><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+                </div>
+                <div style="flex: 1 1 0;">
+                  <div class="fl">版本</div>
+                  <div class="fi" style="color: #a2acb9;">如 V3.2</div>
+                </div>
+                <div style="flex: 1 1 0;">
+                  <div class="fl">生效日期</div>
+                  <div class="fi" style="color: #a2acb9;">手册与规程适用</div>
+                </div>
+              </div>
+
+              <div style="display: flex; align-items: flex-start; gap: 9px; padding: 12px 13px; background: #f8fafc; border: 1px solid #e9edf2; border-radius: 5px; margin-top: 4px;">
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.6" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.4M8 10.8v.1"/></svg>
+                <div style="font-size: 11.5px; line-height: 1.75; color: #5a6673;">带 <span class="vocab">受控词表</span> 的字段只能选、不能自己写。要加新取值得在「元数据与词表」里由管理员扩充——放开自由输入，半年后同一种设备会有五六种写法，筛选和元数据对齐全都失效。</div>
+              </div>
+            </div>
+
+            <!-- FR-3.1：必填项未填不允许提交解析 -->
+            <div style="{{v.gateBox}}">
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><circle cx="10" cy="10" r="7.6"/><path d="M10 6.1v4.5M10 13.5v.1"/></svg>
+              <div style="font-size: 11.5px; line-height: 1.75;">{{v.gateText}}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "docCategory": {
+    "editor": "enum",
+    "default": "手册",
+    "options": ["手册", "方案"],
+    "section": "文档类别"
+  }
+}'>
+class Component extends DCLogic {
+  renderVals() {
+    const accent = '#2f5ccc';
+    const soft = 'color-mix(in oklab, ' + accent + ' 9%, #ffffff)';
+    const line = 'color-mix(in oklab, ' + accent + ' 26%, #ffffff)';
+    const cat = this.props.docCategory ?? '手册';
+
+    // 表 4-5：项目编号为「条件必填」——文档类别为方案、合同、报价、图纸、
+    // 交付报告、故障记录时必填并关联台账；手册与资料类不填。
+    const needProj = cat === '方案';
+
+    const chip = (on, fg, bg, bd) => 'display:inline-flex;align-items:center;height:30px;padding:0 13px;border-radius:4px;font-size:12.5px;cursor:pointer;font-weight:' +
+      (on ? '500' : '400') + ';' + (on ? 'background:' + bg + ';color:' + fg + ';border:1px solid ' + bd + ';'
+                                       : 'background:#ffffff;color:#5a6673;border:1px solid #dde3ea;');
+
+    return {
+      files: [
+        { name: 'CJF 系列高压反应釜日常保养手册.pdf', size: '3.2 MB' },
+        { name: 'CJF 系列常见故障速查表.pdf', size: '1.1 MB' },
+        { name: 'CJF-5L 备件清单 2025.xlsx', size: '5.3 MB' }
+      ],
+      cls: {
+        c: chip(false, '#b3261e', '#fdeceb', '#f5cdc9'),
+        i: chip(true, '#8a5a00', '#fdf4e3', '#f0dcb4'),
+        p: chip(false, '#00696b', '#e3f4f4', '#b8dedd')
+      },
+      v: {
+        cat: cat,
+        projMark: needProj ? '*' : '',
+        projValue: needProj ? '尚未填写' : '本类别不填',
+        projBox: needProj
+          ? 'height:30px;display:flex;align-items:center;padding:0 10px;border-radius:4px;font-size:12.5px;background:#ffffff;border:1px solid #f5cdc9;color:#b3261e;'
+          : 'height:30px;display:flex;align-items:center;padding:0 10px;border-radius:4px;font-size:12.5px;background:#f8fafc;border:1px solid #e9edf2;color:#a2acb9;',
+        projHint: needProj
+          ? '文档类别为方案时必填，并与项目台账关联'
+          : '手册与资料类不填。改成方案、合同、报价、图纸、交付报告或故障记录时会变为必填',
+        projHintStyle: 'font-size:10.5px;line-height:1.6;margin-top:5px;color:' + (needProj ? '#b3261e' : '#8a95a3') + ';',
+        submitText: needProj ? '补齐必填项后可提交' : '上传并登记',
+        submitBtn: needProj
+          ? 'display:inline-flex;align-items:center;height:28px;padding:0 13px;border-radius:5px;font-size:13px;font-weight:500;color:#ffffff;background:#a8b4c4;cursor:not-allowed;'
+          : 'display:inline-flex;align-items:center;height:28px;padding:0 13px;border-radius:5px;font-size:13px;font-weight:500;color:#ffffff;background:' + accent + ';cursor:pointer;',
+        gateText: needProj
+          ? '「项目编号」未填。必填元数据未填齐时不允许提交——元数据缺失的文档进了库，检索时筛不出来、也无法与台账对齐，事后补比一开始就填难得多。'
+          : '上传只是入库，不会自动开始解析。登记完成后文档进入「待解析」，在文档列表里挑选并提交后才排队。',
+        gateBox: 'display:flex;align-items:flex-start;gap:10px;padding:13px 14px;border-radius:5px;margin-top:14px;' +
+          (needProj ? 'background:#fdeceb;border:1px solid #f5cdc9;color:#b3261e;'
+                    : 'background:' + soft + ';border:1px solid ' + line + ';color:#3c4653;')
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
