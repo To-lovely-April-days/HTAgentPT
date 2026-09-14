@@ -1,0 +1,401 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .sc::-webkit-scrollbar-track { background: transparent; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <!-- ─────────── 顶栏 ─────────── -->
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 28px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="{{t.logo}}">HT</div>
+      <div style="font-size: 14px; font-weight: 600; letter-spacing: 0.01em;">霍桐实验仪器 · 企业智能体</div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 2px;">
+      <div style="{{t.navOn}}">问答</div>
+      <div style="{{t.navOff}}">项目查询</div>
+      <div style="{{t.navOff}}">方案生成</div>
+      <div style="{{t.navOff}}">报价合同</div>
+      <div style="{{t.navOff}}">翻译</div>
+    </div>
+
+    <div style="flex-grow: 1;"></div>
+
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span style="font-size: 12px; color: #8a95a3;">可见密级</span>
+      <span style="display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; background: #fdeceb; color: #b3261e; border: 1px solid #f5cdc9;">机密</span>
+      <span style="display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; background: #fdf4e3; color: #8a5a00; border: 1px solid #f0dcb4;">内部</span>
+      <span style="display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; background: #e3f4f4; color: #00696b; border: 1px solid #b8dedd;">公开</span>
+    </div>
+
+    <div style="width: 1px; height: 20px; background: #e2e6ec;"></div>
+
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">张</div>
+      <div style="line-height: 1.25;">
+        <div style="font-size: 12px; font-weight: 500;">张伟</div>
+        <div style="font-size: 11px; color: #8a95a3;">售前工程师</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <!-- ─────────── 左：会话历史 ─────────── -->
+    <div style="width: 240px; flex-shrink: 0; background: #ffffff; border-right: 1px solid #e2e6ec; display: flex; flex-direction: column; min-height: 0;">
+      <div style="padding: 12px 12px 8px;">
+        <div style="{{t.newBtn}}">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"/></svg>
+          <span>新建会话</span>
+        </div>
+      </div>
+
+      <div class="sc" style="flex-grow: 1; min-height: 0; padding: 4px 8px 12px;">
+        <div style="padding: 8px 6px 5px; font-size: 11px; font-weight: 500; color: #8a95a3; letter-spacing: 0.04em;">今天</div>
+        <sc-for list="{{convToday}}" as="c" hint-placeholder-count="2">
+          <div style="{{c.style}}" onClick="{{c.pick}}">{{c.title}}</div>
+        </sc-for>
+
+        <div style="padding: 14px 6px 5px; font-size: 11px; font-weight: 500; color: #8a95a3; letter-spacing: 0.04em;">本周</div>
+        <sc-for list="{{convWeek}}" as="c" hint-placeholder-count="3">
+          <div style="{{c.style}}" onClick="{{c.pick}}">{{c.title}}</div>
+        </sc-for>
+
+        <div style="padding: 14px 6px 5px; font-size: 11px; font-weight: 500; color: #8a95a3; letter-spacing: 0.04em;">更早</div>
+        <sc-for list="{{convOld}}" as="c" hint-placeholder-count="2">
+          <div style="{{c.style}}" onClick="{{c.pick}}">{{c.title}}</div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- ─────────── 中：问答 ─────────── -->
+    <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+      <!-- 筛选条 -->
+      <div style="height: 44px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 20px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5h12L9.5 8.6v4.2l-3 1.7V8.6z"/></svg>
+        <sc-for list="{{filters}}" as="f" hint-placeholder-count="4">
+          <div style="{{f.style}}" onClick="{{f.pick}}">
+            <span>{{f.label}}</span>
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>
+          </div>
+        </sc-for>
+        <div style="flex-grow: 1;"></div>
+        <span style="font-size: 12px; color: #8a95a3;">检索范围内可用文档 <span style="font-family: 'IBM Plex Mono', monospace; color: #5a6673;">1,284</span> 份</span>
+      </div>
+
+      <!-- 会话流 -->
+      <div class="sc" style="flex-grow: 1; min-height: 0; padding: 24px 20px 8px;">
+
+        <!-- 提问 -->
+        <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 9px;">
+          <span style="font-size: 12px; font-weight: 500; color: #5a6673;">张伟</span>
+          <span style="font-size: 11px; color: #8a95a3; font-family: 'IBM Plex Mono', monospace;">14:32</span>
+        </div>
+        <div style="font-size: 15px; font-weight: 500; line-height: 1.6; letter-spacing: 0.005em; margin-bottom: 16px;">CJF-5L 高压反应釜的设计压力和爆破压力是按什么定的？客户现场是防爆区，有额外要求吗？</div>
+
+        <!-- 处理过程 -->
+        <sc-if value="{{showTrace}}" hint-placeholder-val="{{ true }}">
+          <div style="border: 1px solid #e2e6ec; border-radius: 5px; background: #f8fafc; margin-bottom: 16px;">
+
+            <div style="display: flex; align-items: center; gap: 10px; padding: 9px 12px;">
+              <span style="width: 40px; flex-shrink: 0; font-size: 11px; color: #8a95a3;">意图</span>
+              <span style="{{t.intentChip}}" onClick="{{toggleIntent}}">
+                知识问答
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>
+              </span>
+              <span style="font-size: 11px; color: #8a95a3;">判定有误可改选</span>
+            </div>
+
+            <sc-if value="{{intentOpen}}" hint-placeholder-val="{{ false }}">
+              <div style="padding: 0 12px 10px 62px; display: flex; gap: 6px;">
+                <span style="{{t.intentAlt}}">项目台账查询</span>
+                <span style="{{t.intentAlt}}">文档生成</span>
+                <span style="{{t.intentAlt}}">中英翻译</span>
+              </div>
+            </sc-if>
+
+            <div style="height: 1px; background: #e9edf2; margin: 0 12px;"></div>
+
+            <div style="display: flex; align-items: flex-start; gap: 10px; padding: 9px 12px;">
+              <span style="width: 40px; flex-shrink: 0; font-size: 11px; color: #8a95a3; line-height: 1.5;">改写</span>
+              <span style="flex-grow: 1; font-size: 12px; line-height: 1.6; color: #5a6673; font-family: 'IBM Plex Mono', monospace;">CJF-5L 高压反应釜 设计压力 爆破压力 取值依据 <span style="{{t.termHit}}">防爆等级</span> <span style="{{t.termHit}}">Ex 防爆</span> 要求</span>
+            </div>
+            <div style="padding: 0 12px 9px 62px; font-size: 11px; color: #8a95a3;">已注入术语表同义表述 2 条（防爆等级 ≈ Ex 防爆）</div>
+
+            <div style="height: 1px; background: #e9edf2; margin: 0 12px;"></div>
+
+            <div style="display: flex; align-items: center; gap: 10px; padding: 9px 12px;">
+              <span style="width: 40px; flex-shrink: 0; font-size: 11px; color: #8a95a3;">检索</span>
+              <span style="font-size: 12px; color: #5a6673;">混合召回 <span style="font-family: 'IBM Plex Mono', monospace;">24</span> 块 · 重排保留 <span style="font-family: 'IBM Plex Mono', monospace;">5</span> 块 · 最高分 <span style="font-family: 'IBM Plex Mono', monospace; color: #1c6b45; font-weight: 500;">0.87</span> · 阈值 <span style="font-family: 'IBM Plex Mono', monospace;">0.62</span></span>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- 回答 -->
+        <div style="background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px; padding: 18px 20px 14px;">
+
+          <p style="margin: 0 0 13px; font-size: 14px; line-height: 1.85; letter-spacing: 0.005em; text-wrap: pretty;">设计压力按使用压力的 1.1 倍确定并向上取整至 0.5 MPa 的整数倍。CJF-5L 标准配置使用压力 10 MPa，对应设计压力 11 MPa<span style="{{c1.style}}" onClick="{{c1.pick}}">1</span>。爆破压力按设计压力的 2.5 倍校核，即 27.5 MPa，爆破片依此选型<span style="{{c1.style}}" onClick="{{c1.pick}}">1</span>。</p>
+
+          <p style="margin: 0 0 13px; font-size: 14px; line-height: 1.85; letter-spacing: 0.005em; text-wrap: pretty;">防爆区另有三项要求：搅拌电机与就地仪表须选用 Ex d ⅡB T4 及以上等级<span style="{{c3.style}}" onClick="{{c3.pick}}">3</span>；加热改为油浴控夹套，不使用明装电加热棒<span style="{{c3.style}}" onClick="{{c3.pick}}">3</span>；控制柜置于非防爆区，与釜体之间采用分体式接线<span style="{{c2.style}}" onClick="{{c2.pick}}">2</span>。</p>
+
+          <p style="margin: 0 0 16px; font-size: 14px; line-height: 1.85; letter-spacing: 0.005em; text-wrap: pretty;">可参考同类情形：2025-0312 项目客户现场为甲类厂房，设计压力上浮至 12 MPa 并增加了氮气吹扫接口<span style="{{c2.style}}" onClick="{{c2.pick}}">2</span>。本次若工况相近，建议按同一取值提交技术方案。</p>
+
+          <div style="height: 1px; background: #eef1f5; margin-bottom: 11px;"></div>
+
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <div style="{{fbUp}}" onClick="{{pickUp}}">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M4.5 14V7l3.2-5c.9 0 1.5.7 1.4 1.6L8.7 6h3.6c.9 0 1.5.8 1.3 1.6l-1.1 5c-.1.8-.8 1.4-1.6 1.4z"/><path d="M4.5 7H2v7h2.5z"/></svg>
+              <span>有用</span>
+            </div>
+            <div style="{{fbDown}}" onClick="{{pickDown}}">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M11.5 2v7l-3.2 5c-.9 0-1.5-.7-1.4-1.6L7.3 10H3.7c-.9 0-1.5-.8-1.3-1.6l1.1-5C3.6 2.6 4.3 2 5.1 2z"/><path d="M11.5 9H14V2h-2.5z"/></svg>
+              <span>无效</span>
+            </div>
+            <div style="{{t.ghostBtn}}">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 3.5v-.5a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5"/></svg>
+              <span>复制</span>
+            </div>
+            <div style="flex-grow: 1;"></div>
+            <span style="font-size: 11px; color: #8a95a3;">引用 3 处 · 首字 <span style="font-family: 'IBM Plex Mono', monospace;">1.4s</span> · 全文 <span style="font-family: 'IBM Plex Mono', monospace;">4.2s</span></span>
+          </div>
+
+          <sc-if value="{{fbDownOpen}}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top: 11px; padding: 11px 12px; background: #fdf4e3; border: 1px solid #f0dcb4; border-radius: 5px;">
+              <div style="font-size: 12px; font-weight: 500; color: #8a5a00; margin-bottom: 8px;">无效原因（供后续调优与阈值标定）</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                <span style="{{t.reason}}">来源不相关</span>
+                <span style="{{t.reason}}">回答与来源不符</span>
+                <span style="{{t.reason}}">应有资料未被检索到</span>
+                <span style="{{t.reason}}">内容过时</span>
+                <span style="{{t.reason}}">其他</span>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <!-- 提问框 -->
+      <div style="flex-shrink: 0; padding: 12px 20px 14px; background: #f2f4f7; border-top: 1px solid #e2e6ec;">
+        <div style="background: #ffffff; border: 1px solid #cfd6df; border-radius: 6px; padding: 11px 12px 9px;">
+          <div style="font-size: 14px; color: #a2acb9; line-height: 1.5; margin-bottom: 10px;">继续追问，或换个问题…</div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <div style="{{t.ghostBtn}}">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5h12L9.5 8.6v4.2l-3 1.7V8.6z"/></svg>
+              <span>附加筛选</span>
+            </div>
+            <div style="{{t.ghostBtn}}">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2H4.5A1.5 1.5 0 0 0 3 3.5v9A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6z"/><path d="M9 2v4h4"/></svg>
+              <span>上传附件提问</span>
+            </div>
+            <div style="flex-grow: 1;"></div>
+            <div style="{{t.sendBtn}}">
+              <span>发送</span>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top: 8px; font-size: 11px; color: #8a95a3; line-height: 1.5;">回答仅依据检索到的内部资料生成，未检索到依据时会明确告知未找到。对外使用前请核对来源。</div>
+      </div>
+    </div>
+
+    <!-- ─────────── 右：来源面板 ─────────── -->
+    <div style="width: 360px; flex-shrink: 0; background: #ffffff; border-left: 1px solid #e2e6ec; display: flex; flex-direction: column; min-height: 0;">
+      <div style="height: 44px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 14px 0 16px; border-bottom: 1px solid #e2e6ec;">
+        <span style="font-size: 13px; font-weight: 600;">来源</span>
+        <span style="font-size: 12px; color: #8a95a3;">本轮命中 5 块，引用 3 块</span>
+        <div style="flex-grow: 1;"></div>
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4l-4 4 4 4"/></svg>
+      </div>
+
+      <div class="sc" style="flex-grow: 1; min-height: 0; padding: 10px 12px 12px;">
+        <sc-for list="{{sources}}" as="s" hint-placeholder-count="3">
+          <div style="{{s.card}}">
+            <div style="display: flex; align-items: flex-start; gap: 8px; padding: 11px 12px; cursor: pointer;" onClick="{{s.toggle}}">
+              <span style="{{s.num}}">{{s.n}}</span>
+              <div style="flex-grow: 1; min-width: 0;">
+                <div style="font-size: 12.5px; font-weight: 500; line-height: 1.45; margin-bottom: 4px;">{{s.title}}</div>
+                <div style="font-size: 11px; color: #8a95a3; line-height: 1.5; margin-bottom: 7px;">{{s.locus}}</div>
+                <div style="display: flex; align-items: center; gap: 7px;">
+                  <span style="{{s.clsChip}}">{{s.cls}}</span>
+                  <div style="width: 44px; height: 3px; border-radius: 2px; background: #e9edf2; overflow: hidden;">
+                    <div style="{{s.bar}}"></div>
+                  </div>
+                  <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #5a6673;">{{s.score}}</span>
+                </div>
+              </div>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="{{s.chev}}"><path d="M4 6l4 4 4-4"/></svg>
+            </div>
+
+            <sc-if value="{{s.open}}" hint-placeholder-val="{{ true }}">
+              <div style="padding: 0 12px 11px;">
+                <div style="padding: 10px 11px; background: #f8fafc; border: 1px solid #e9edf2; border-radius: 4px; font-size: 12px; line-height: 1.75; color: #3c4653;">{{s.snippet}}</div>
+                <div style="display: flex; gap: 6px; margin-top: 8px;">
+                  <div style="{{t.miniBtn}}">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3H3.5v9.5h9.5V9.5"/><path d="M9.5 2.5H13V6M13 2.5L7.5 8"/></svg>
+                    <span>跳转原文</span>
+                  </div>
+                  <div style="{{t.miniBtn}}">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 9.5a1.5 1.5 0 0 1-1.5 1.5H5l-3 2.5v-11A1.5 1.5 0 0 1 3.5 1h8.5A1.5 1.5 0 0 1 13.5 2.5z"/></svg>
+                    <span>在此文档内追问</span>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+
+        <div style="margin-top: 4px; padding: 10px 12px; border: 1px dashed #dde3ea; border-radius: 5px;">
+          <div style="font-size: 11px; color: #8a95a3; line-height: 1.65;">另有 2 块通过重排但未被引用，最低分 <span style="font-family: 'IBM Plex Mono', monospace;">0.66</span>。<a href="#">展开查看</a></div>
+        </div>
+      </div>
+
+      <div style="flex-shrink: 0; padding: 10px 16px; border-top: 1px solid #e2e6ec; background: #f8fafc; font-size: 11px; color: #8a95a3; line-height: 1.6;">
+        权限过滤已在检索查询内完成 · 本轮排除机密外资料 <span style="font-family: 'IBM Plex Mono', monospace;">0</span> 块
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "accent": {"editor": "color", "default": "#2f5ccc", "options": ["#2f5ccc", "#1f6b52", "#8a4b12", "#4a3f8f"], "section": "主题"},
+  "showTrace": {"editor": "boolean", "default": true, "section": "行为"}
+}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { hl: 1, open: 1, fb: null, intentOpen: false, conv: 'c1', filter: 'dev' };
+  }
+
+  renderVals() {
+    const accent = this.props.accent ?? '#2f5ccc';
+    const soft = 'color-mix(in oklab, ' + accent + ' 9%, #ffffff)';
+    const line = 'color-mix(in oklab, ' + accent + ' 26%, #ffffff)';
+    const deep = 'color-mix(in oklab, ' + accent + ' 78%, #000000)';
+    const mono = "'IBM Plex Mono', ui-monospace, Consolas, monospace";
+
+    const chipBase = 'display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 9px;border-radius:4px;font-size:12px;cursor:pointer;white-space:nowrap;';
+    const ghost = 'display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px;border-radius:4px;font-size:12px;color:#5a6673;background:#ffffff;border:1px solid #dde3ea;cursor:pointer;';
+
+    const t = {
+      logo: 'width:24px;height:24px;border-radius:4px;background:' + accent + ';color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;letter-spacing:0.03em;',
+      navOn: 'height:28px;padding:0 11px;display:flex;align-items:center;border-radius:4px;font-size:13px;font-weight:500;color:' + accent + ';background:' + soft + ';cursor:pointer;',
+      navOff: 'height:28px;padding:0 11px;display:flex;align-items:center;border-radius:4px;font-size:13px;color:#5a6673;cursor:pointer;',
+      newBtn: 'display:flex;align-items:center;justify-content:center;gap:6px;height:32px;border-radius:5px;font-size:13px;font-weight:500;color:' + accent + ';background:' + soft + ';border:1px solid ' + line + ';cursor:pointer;',
+      intentChip: chipBase + 'height:24px;font-weight:500;color:' + accent + ';background:' + soft + ';border:1px solid ' + line + ';',
+      intentAlt: 'display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:4px;font-size:12px;color:#5a6673;background:#ffffff;border:1px solid #dde3ea;cursor:pointer;',
+      termHit: 'background:' + soft + ';color:' + deep + ';border-radius:3px;padding:1px 3px;',
+      ghostBtn: ghost,
+      miniBtn: 'display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:4px;font-size:11.5px;color:#5a6673;background:#ffffff;border:1px solid #dde3ea;cursor:pointer;',
+      sendBtn: 'display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 13px;border-radius:5px;font-size:13px;font-weight:500;color:#ffffff;background:' + accent + ';cursor:pointer;',
+      reason: 'display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:4px;font-size:12px;color:#8a5a00;background:#ffffff;border:1px solid #f0dcb4;cursor:pointer;'
+    };
+
+    // 元数据筛选
+    const fdefs = [
+      { k: 'cust', label: '客户：全部' },
+      { k: 'year', label: '年份：全部' },
+      { k: 'dev', label: '设备类型：高压反应釜' },
+      { k: 'cat', label: '文档类别：全部' }
+    ];
+    const filters = fdefs.map((f) => ({
+      label: f.label,
+      style: chipBase + (this.state.filter === f.k
+        ? 'font-weight:500;color:' + accent + ';background:' + soft + ';border:1px solid ' + line + ';'
+        : 'color:#5a6673;background:#ffffff;border:1px solid #dde3ea;'),
+      pick: () => this.setState({ filter: f.k })
+    }));
+
+    // 来源
+    const sdefs = [
+      { n: 1, title: 'CJF 系列高压反应釜使用说明书 V3.2', locus: '第 2 章 技术参数 › 2.1 设计参数 · 第 7 页', cls: '内部', score: '0.87', w: 87,
+        snippet: '2.1.3 设计压力取使用压力的 1.1 倍，向上取整至 0.5 MPa 的整数倍。CJF-5L 使用压力 10 MPa，设计压力 11 MPa，爆破压力按设计压力 2.5 倍校核为 27.5 MPa。爆破片依爆破压力选型，泄放面积见表 2-4。' },
+      { n: 2, title: '2025-0312 华东理工大学 5L 高压釜技术方案', locus: '第 3 章 设计依据 › 3.2 设计参数选取 · 第 12 页', cls: '机密', score: '0.81', w: 81,
+        snippet: '客户现场为甲类厂房，按 GB 50160 划为爆炸危险 2 区。经与客户技术确认，设计压力自 11 MPa 上浮至 12 MPa，并在釜盖增设 DN15 氮气吹扫接口。控制柜移至隔壁控制室，与釜体分体式接线。' },
+      { n: 3, title: '防爆区域设备选型内部汇编（2024 修订）', locus: '第 1 章 电气防爆 › 1.4 等级选取 · 第 3 页', cls: '内部', score: '0.74', w: 74,
+        snippet: '1.4.2 2 区场所内的搅拌电机、就地压力与温度仪表，防爆等级不低于 Ex d ⅡB T4。加热方式应避免明装电加热元件，优先采用油浴控夹套。凡就地仪表无法满足等级要求的，一律外移至非防爆区。' }
+    ];
+    const clsMap = {
+      '机密': 'background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;',
+      '内部': 'background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;',
+      '公开': 'background:#e3f4f4;color:#00696b;border:1px solid #b8dedd;'
+    };
+    const sources = sdefs.map((s) => {
+      const on = this.state.hl === s.n;
+      const open = this.state.open === s.n;
+      return {
+        n: s.n, title: s.title, locus: s.locus, cls: s.cls, score: s.score, snippet: s.snippet, open: open,
+        card: 'border-radius:5px;margin-bottom:8px;background:' + (on ? soft : '#ffffff') + ';border:1px solid ' + (on ? line : '#e2e6ec') + ';',
+        num: 'flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-top:1px;border-radius:3px;font-family:' + mono + ';font-size:11px;font-weight:500;background:' + (on ? accent : '#eef1f5') + ';color:' + (on ? '#ffffff' : '#5a6673') + ';',
+        clsChip: 'display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:3px;font-size:10.5px;font-weight:500;' + clsMap[s.cls],
+        bar: 'height:100%;width:' + s.w + '%;background:' + accent + ';',
+        chev: 'flex-shrink:0;margin-top:3px;transition:transform .15s;transform:rotate(' + (open ? 180 : 0) + 'deg);',
+        toggle: () => this.setState({ open: open ? 0 : s.n, hl: s.n })
+      };
+    });
+
+    const mkCite = (n) => {
+      const on = this.state.hl === n;
+      return {
+        style: 'display:inline-flex;align-items:center;justify-content:center;min-width:15px;height:15px;padding:0 3px;margin:0 2px;border-radius:3px;font-family:' + mono + ';font-size:10px;font-weight:500;line-height:1;vertical-align:3px;cursor:pointer;background:' + (on ? accent : soft) + ';color:' + (on ? '#ffffff' : accent) + ';border:1px solid ' + (on ? accent : line) + ';',
+        pick: () => this.setState({ hl: n, open: n })
+      };
+    };
+
+    const convDefs = {
+      today: [['c1', 'CJF-5L 设计压力与爆破压力取值'], ['c2', '双层玻璃反应釜夹套换热面积怎么算']],
+      week: [['c3', '华东理工 5L 项目交付周期'], ['c4', '磁力搅拌密封件更换周期'], ['c5', '3L 快开结构适用压力上限']],
+      old: [['c6', '投标技术偏差表怎么写'], ['c7', 'D 类售后改造报价构成']]
+    };
+    const mkConv = (rows) => rows.map(([id, title]) => ({
+      title: title,
+      style: 'padding:7px 10px;margin-bottom:1px;border-radius:4px;font-size:12.5px;line-height:1.45;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' +
+        (this.state.conv === id ? 'font-weight:500;color:' + accent + ';background:' + soft + ';' : 'color:#5a6673;'),
+      pick: () => this.setState({ conv: id })
+    }));
+
+    const fbStyle = (on, color) => ghost + (on ? 'color:' + color + ';background:' + soft + ';border-color:' + line + ';font-weight:500;' : '');
+
+    return {
+      t: t,
+      showTrace: this.props.showTrace ?? true,
+      intentOpen: this.state.intentOpen,
+      toggleIntent: () => this.setState({ intentOpen: !this.state.intentOpen }),
+      filters: filters,
+      sources: sources,
+      c1: mkCite(1), c2: mkCite(2), c3: mkCite(3),
+      convToday: mkConv(convDefs.today),
+      convWeek: mkConv(convDefs.week),
+      convOld: mkConv(convDefs.old),
+      fbUp: fbStyle(this.state.fb === 'up', '#1c6b45'),
+      fbDown: fbStyle(this.state.fb === 'down', '#8a5a00'),
+      fbDownOpen: this.state.fb === 'down',
+      pickUp: () => this.setState({ fb: this.state.fb === 'up' ? null : 'up' }),
+      pickDown: () => this.setState({ fb: this.state.fb === 'down' ? null : 'down' })
+    };
+  }
+}
+</script>
+</body>
+</html>
