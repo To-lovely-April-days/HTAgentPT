@@ -1,8 +1,8 @@
 {
   "artboards": [
-    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 900, "title": "C1 登录（内网工作台）", "is_interactive": true },
-    { "file": "Forbidden.dc.html", "x": 1560, "y": 0, "w": 1440, "h": 900, "title": "C4-b 无权访问（整页）", "is_interactive": true },
-    { "file": "ServiceDown.dc.html", "x": 0, "y": 1080, "w": 840, "h": 680, "title": "C4-a 服务不可用（页面内降级，非整页）", "is_interactive": true },
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 900, "title": "C1 登录（内网工作台）" },
+    { "file": "Forbidden.dc.html", "x": 1560, "y": 0, "w": 1440, "h": 900, "title": "C4-b 无权访问（整页）" },
+    { "file": "ServiceDown.dc.html", "x": 0, "y": 1080, "w": 840, "h": 680, "title": "C4-a 服务不可用（页面内降级，非整页）" },
     { "file": "FrameVariants.dc.html", "x": 960, "y": 1080, "w": 1520, "h": 1150, "title": "C2 全局框架 · 四种角色变体" }
   ],
   "annotations": [

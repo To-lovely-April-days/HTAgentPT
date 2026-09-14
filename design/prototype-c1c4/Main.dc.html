@@ -51,7 +51,7 @@
 
       <div style="margin-bottom: 15px;">
         <div style="font-size: 12px; color: #5a6673; margin-bottom: 6px;">账号</div>
-        <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; background: #ffffff; border: 1px solid #cfd6df; border-radius: 5px; font-size: 14px; color: #a2acb9;">工号或域账号</div>
+        <div style="height: 32px; display: flex; align-items: center; padding: 0 11px; background: #ffffff; border: 1px solid #cfd6df; border-radius: 5px; font-size: 14px; color: #a2acb9;">工号或域账号</div>
       </div>
 
       <div style="margin-bottom: 16px;">
@@ -153,7 +153,7 @@ class Component extends DCLogic {
       },
       '账号已停用': {
         title: '该账号已停用',
-        hint: '停用后立即失去全部访问权（FR-7.1）。重新登录不会恢复，请联系系统管理员 ' + p.support + '。',
+        hint: '停用后账号立即失去全部访问权。重新登录不会恢复，请联系系统管理员 ' + p.support + '。',
         fg: '#8a5a00', bg: '#fdf4e3', bd: '#f0dcb4'
       }
     };
@@ -167,7 +167,7 @@ class Component extends DCLogic {
         mark: p.mark,
         name: p.name,
         support: p.support,
-        logoStyle: 'width:40px;height:40px;border-radius:7px;background:' + accent + ';color:#ffffff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;letter-spacing:0.04em;' + outline
+        logoStyle: 'width:40px;height:40px;border-radius:6px;background:' + accent + ';color:#ffffff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;letter-spacing:0.04em;' + outline
       },
       k: {
         chip: chipBase,
@@ -175,9 +175,9 @@ class Component extends DCLogic {
         tierRun: tierBase + 'color:#5a6673;font-weight:500;'
       },
       f: {
-        pwd: 'height:36px;display:flex;align-items:center;padding:0 11px;background:#ffffff;border:1px solid ' + (e ? e.bd : '#cfd6df') + ';border-radius:5px;font-size:14px;',
+        pwd: 'height:32px;display:flex;align-items:center;padding:0 11px;background:#ffffff;border:1px solid ' + (e ? e.bd : '#cfd6df') + ';border-radius:5px;font-size:14px;',
         pwdDots: state === '正常' ? '' : '••••••••••',
-        btn: 'height:36px;display:flex;align-items:center;justify-content:center;border-radius:5px;font-size:14px;font-weight:500;color:#ffffff;background:' + accent + ';cursor:pointer;' + outline
+        btn: 'height:32px;display:flex;align-items:center;justify-content:center;border-radius:5px;font-size:14px;font-weight:500;color:#ffffff;background:' + accent + ';cursor:pointer;' + outline
       },
       err: e
         ? { show: true, title: e.title, hint: e.hint,
