@@ -1,0 +1,133 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <!-- 售后工作台顶栏：可见密级只有内部与公开 -->
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 28px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: 0.03em;">HT</div>
+      <div style="font-size: 14px; font-weight: 600; letter-spacing: 0.01em;">霍桐实验仪器 · 企业智能体</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 2px;">
+      <div style="height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; color: #5a6673;">问答</div>
+      <div style="height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; color: #5a6673;">案例检索</div>
+      <div style="height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; color: #5a6673;">案例录入</div>
+      <div style="height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; color: #5a6673;">报修工单</div>
+      <div style="height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; color: #5a6673;">翻译</div>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span style="font-size: 12px; color: #8a95a3;">可见密级</span>
+      <span style="display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; background: #fdf4e3; color: #8a5a00; border: 1px solid #f0dcb4;">内部</span>
+      <span style="display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; background: #e3f4f4; color: #00696b; border: 1px solid #b8dedd;">公开</span>
+    </div>
+    <div style="width: 1px; height: 20px; background: #e2e6ec;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">李</div>
+      <div style="line-height: 1.25;">
+        <div style="font-size: 12px; font-weight: 500;">李敏</div>
+        <div style="font-size: 11px; color: #8a95a3;">售后工程师</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 403 -->
+  <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; min-height: 0;">
+    <div style="width: 560px; background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px; padding: 28px 30px 24px;">
+
+      <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 18px;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#b3261e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/><path d="M12 14.5v2.2"/></svg>
+        <div>
+          <div style="font-size: 16px; font-weight: 600; line-height: 1.45; margin-bottom: 6px;">无权访问</div>
+          <div style="font-size: 13.5px; line-height: 1.75; color: #5a6673;">{{cause.text}}</div>
+        </div>
+      </div>
+
+      <div style="padding: 13px 14px; background: #f8fafc; border: 1px solid #e9edf2; border-radius: 5px; margin-bottom: 16px;">
+        <div style="font-size: 11.5px; color: #8a95a3; margin-bottom: 8px;">本账号可访问密级</div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; background: #fdf4e3; color: #8a5a00; border: 1px solid #f0dcb4;">内部</span>
+          <span style="display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; background: #e3f4f4; color: #00696b; border: 1px solid #b8dedd;">公开</span>
+          <span style="font-size: 11.5px; color: #8a95a3; margin-left: 2px;">由角色「售后工程师」推导，不逐库配置（3.1）</span>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: #f8fafc; border: 1px solid #e9edf2; border-radius: 5px; margin-bottom: 18px;">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M9 1.5H4.5A1.5 1.5 0 0 0 3 3v10a1.5 1.5 0 0 0 1.5 1.5h7A1.5 1.5 0 0 0 13 13V5.5z"/><path d="M9 1.5v4h4"/><path d="M5.8 8.6h4.4M5.8 11h3"/></svg>
+        <span style="font-size: 11.5px; color: #5a6673;">本次访问已记入审计日志</span>
+        <div style="flex-grow: 1;"></div>
+        <span class="m" style="font-size: 11.5px; color: #1c2530;">AUD-2026-0914-7731</span>
+        <div style="display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 4px; font-size: 11px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer;">
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3A1.5 1.5 0 0 0 9 1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h1.5"/></svg>
+          <span>复制</span>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border-radius: 5px; font-size: 13px; font-weight: 500; color: #ffffff; background: #2f5ccc; cursor: pointer;">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8H3M7 4L3 8l4 4"/></svg>
+          <span>返回问答</span>
+        </div>
+        <div style="flex-grow: 1;"></div>
+        <span style="font-size: 11.5px; color: #8a95a3; line-height: 1.6;">{{cause.next}}</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "cause": {
+    "editor": "enum",
+    "default": "密级范围之外",
+    "options": ["密级范围之外", "公司归属不符", "数据范围之外"],
+    "section": "成因"
+  }
+}'>
+class Component extends DCLogic {
+  renderVals() {
+    // FR-4.4：密级、公司归属、数据范围三项同为检索查询条件，越权成因也是这三类。
+    // 三类的文案与后续动作不同，不得合并为一句「您没有权限」。
+    //
+    // 本页刻意不回显被访问对象的任何元数据（标题、所属知识库、密级、负责人、项目编号）：
+    // 回显即确认该对象存在，会把本页变成逐链接试探对象密级的探测工具。
+    const CAUSES = {
+      '密级范围之外': {
+        text: '该资料的密级超出本账号可访问范围。密级是资料入库时确定的属性，角色是开户时确定的属性，两者相交才构成可访问范围。',
+        next: '确需访问请联系系统管理员调整角色，本页不受理申请'
+      },
+      '公司归属不符': {
+        text: '该资料归属其他公司。各公司私有库物理上部署于各自服务器，不存在跨公司访问通道——这是架构级约束，不通过策略配置开放。',
+        next: '该资料无法在本部署内开放访问'
+      },
+      '数据范围之外': {
+        text: '该资料不在本账号的数据范围内。同一角色内仍有进一步的可见范围限制，例如客户账号仅可见本人名下项目。',
+        next: '如归属判断有误，请联系系统管理员核对台账'
+      }
+    };
+    const c = this.props.cause ?? '密级范围之外';
+    return { cause: CAUSES[c] || CAUSES['密级范围之外'] };
+  }
+}
+</script>
+</body>
+</html>

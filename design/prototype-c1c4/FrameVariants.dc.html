@@ -1,0 +1,181 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .lbl { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+    .sub { font-size: 11.5px; color: #8a95a3; line-height: 1.6; margin-bottom: 9px; }
+    .note { font-size: 11.5px; color: #5a6673; line-height: 1.65; margin-top: 8px; }
+    .bar { height: 48px; display: flex; align-items: center; gap: 28px; padding: 0 16px;
+      background: #ffffff; border: 1px solid #e2e6ec; border-radius: 5px; }
+    .brand { display: flex; align-items: center; gap: 9px; }
+    .mark { width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff;
+      display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: .03em; }
+    .nm { font-size: 14px; font-weight: 600; letter-spacing: .01em; }
+    .nav { display: flex; align-items: center; gap: 2px; }
+    .n { height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .non { height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px;
+      font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .sp { flex-grow: 1; }
+    .cl { font-size: 12px; color: #8a95a3; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px;
+      font-size: 11px; font-weight: 500; }
+    .cf { background: #fdeceb; color: #b3261e; border: 1px solid #f5cdc9; }
+    .in { background: #fdf4e3; color: #8a5a00; border: 1px solid #f0dcb4; }
+    .pb { background: #e3f4f4; color: #00696b; border: 1px solid #b8dedd; }
+    .nt { background: #eef1f5; color: #5a6673; border: 1px solid #dde3ea; }
+    .div { width: 1px; height: 20px; background: #e2e6ec; }
+    .who { display: flex; align-items: center; gap: 8px; }
+    .av { width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673;
+      display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; }
+    .grp { padding: 12px 10px 5px; font-size: 11px; font-weight: 500; color: #8a95a3; letter-spacing: .04em; }
+    .item { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .iton { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+  </style>
+</helmet>
+
+<div style="width: 1520px; height: 1150px; background: #f2f4f7; padding: 34px 40px 30px; display: flex; flex-direction: column; gap: 24px; overflow: hidden;">
+
+  <div>
+    <div style="font-size: 17px; font-weight: 600; letter-spacing: .01em;">C2 全局框架 · 角色变体</div>
+    <div style="font-size: 12px; color: #5a6673; line-height: 1.7; margin-top: 5px; max-width: 1000px;">一套框架、一份导航数据，不是四套模板。导航项与可见密级由权限矩阵推导（表 3-1 / 3-2），FR-7.2 要求新增角色不改代码——所以下面四种变体的差异全部来自数据，框架结构完全相同。</div>
+  </div>
+
+  <!-- 售前 -->
+  <div>
+    <div class="lbl">售前工作台 · 顶栏导航</div>
+    <div class="sub">五项。表 3-2 售前列：检索问答、历史项目检索、方案与投标书生成、报价与合同拼装、中英翻译均为 ✓。</div>
+    <div class="bar">
+      <div class="brand"><div class="mark">HT</div><div class="nm">霍桐实验仪器 · 企业智能体</div></div>
+      <div class="nav"><div class="non">问答</div><div class="n">项目查询</div><div class="n">方案生成</div><div class="n">报价合同</div><div class="n">翻译</div></div>
+      <div class="sp"></div>
+      <span class="cl">可见密级</span>
+      <div style="display: flex; gap: 6px;"><span class="pill cf">机密</span><span class="pill in">内部</span><span class="pill pb">公开</span></div>
+      <div class="div"></div>
+      <div class="who"><div class="av">张</div><div style="line-height:1.25"><div style="font-size:12px;font-weight:500">张伟</div><div style="font-size:11px;color:#8a95a3">售前工程师</div></div></div>
+    </div>
+  </div>
+
+  <!-- 售后 -->
+  <div>
+    <div class="lbl">售后工作台 · 顶栏导航</div>
+    <div class="sub">五项，且导航层就断掉方案生成与报价合同——表 11-1 M4 判定标准明写「售后账号检索不到任何报价与合同内容」。机密徽标在售后框架内任何位置都不出现。</div>
+    <div class="bar">
+      <div class="brand"><div class="mark">HT</div><div class="nm">霍桐实验仪器 · 企业智能体</div></div>
+      <div class="nav"><div class="non">问答</div><div class="n">案例检索</div><div class="n">案例录入</div><div class="n">报修工单</div><div class="n">翻译</div></div>
+      <div class="sp"></div>
+      <span class="cl">可见密级</span>
+      <div style="display: flex; gap: 6px;"><span class="pill in">内部</span><span class="pill pb">公开</span></div>
+      <div class="div"></div>
+      <div class="who"><div class="av">李</div><div style="line-height:1.25"><div style="font-size:12px;font-weight:500">李敏</div><div style="font-size:11px;color:#8a95a3">售后工程师</div></div></div>
+    </div>
+  </div>
+
+  <!-- 管理后台 -->
+  <div style="flex-grow: 1; min-height: 0; display: flex; gap: 28px;">
+
+    <div style="width: 760px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;">
+      <div class="lbl">管理后台 · 左栏导航（不是顶栏）</div>
+      <div class="sub">表 9-1 管理后台八行，且每项自带多级子功能，48px 顶栏放不下也无处挂二级。顶栏只留品牌、后台标识与用户菜单。</div>
+
+      <div style="flex-grow: 1; min-height: 0; border: 1px solid #e2e6ec; border-radius: 5px; overflow: hidden; background: #ffffff; display: flex; flex-direction: column;">
+        <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid #e2e6ec;">
+          <div class="brand"><div class="mark">HT</div><div class="nm">霍桐实验仪器</div></div>
+          <span class="pill nt">管理后台</span>
+          <div class="sp"></div>
+          <span class="cl">可访问密级</span>
+          <span class="pill nt">按需授权</span>
+          <div class="div"></div>
+          <div class="who"><div class="av">陈</div><div style="line-height:1.25"><div style="font-size:12px;font-weight:500">陈工</div><div style="font-size:11px;color:#8a95a3">系统管理员</div></div></div>
+        </div>
+
+        <div style="flex-grow: 1; display: flex; min-height: 0;">
+          <div style="width: 240px; flex-shrink: 0; border-right: 1px solid #e2e6ec; background: #ffffff;">
+            <div class="grp">语料域</div>
+            <div class="iton">语料管理</div>
+            <div class="item">知识库管理</div>
+            <div class="item">元数据与词表</div>
+            <div class="grp">能力域</div>
+            <div class="item">模板管理</div>
+            <div class="grp">治理域</div>
+            <div class="item">用户与权限</div>
+            <div class="item">系统设置</div>
+            <div class="item">审计与统计</div>
+          </div>
+          <div style="flex-grow: 1; background: #f8fafc; display: flex; align-items: center; justify-content: center;">
+            <span style="font-size: 12px; color: #a2acb9;">内容区</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="note"><strong style="font-weight:600">七项，不是八项。</strong>表 9-1 把「审核台」列在管理后台下，但表 3-2 管理员列的「故障案例审核」是 —，审核权只有总部审核人有。审核台属下方的审核人变体，不在管理员左栏。<span style="color:#8a5a00">此处需需求方确认。</span></div>
+    </div>
+
+    <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 20px;">
+
+      <!-- 审核人 -->
+      <div style="flex-grow: 1; min-height: 0; display: flex; flex-direction: column;">
+        <div class="lbl">总部审核台 · 审核人变体</div>
+        <div class="sub">同一份代码在总部节点以另一组 org.* 配置渲染。公司位显示范围标识而非公司名——审核人账号不存在于任何一家公司的部署里（3.4 第一条）。</div>
+        <div style="flex-grow: 1; min-height: 0; border: 1px solid #e2e6ec; border-radius: 5px; overflow: hidden; background: #ffffff; display: flex; flex-direction: column;">
+          <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid #e2e6ec;">
+            <div class="brand"><div class="mark" style="background:#5a6673">集团</div><div class="nm">集团共享库 · 总部节点</div></div>
+            <div class="sp"></div>
+            <div style="display: flex; gap: 6px;"><span class="pill in">内部</span><span class="pill pb">公开</span></div>
+            <div class="div"></div>
+            <div class="who"><div class="av">周</div><div style="line-height:1.25"><div style="font-size:12px;font-weight:500">周工</div><div style="font-size:11px;color:#8a95a3">总部审核人</div></div></div>
+          </div>
+          <div style="flex-grow: 1; display: flex; min-height: 0;">
+            <div style="width: 240px; flex-shrink: 0; border-right: 1px solid #e2e6ec;">
+              <div class="grp">审核</div>
+              <div class="iton">审核台</div>
+              <div class="grp">共享库</div>
+              <div class="item">共享库问答</div>
+              <div class="item">公开库发布</div>
+            </div>
+            <div style="flex-grow: 1; background: #f8fafc;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 用户菜单 -->
+      <div style="flex-shrink: 0;">
+        <div class="lbl">用户菜单</div>
+        <div class="sub">只读，不是切换器。一个账号绑定一个角色、一家公司。</div>
+        <div style="width: 264px; background: #ffffff; border: 1px solid #cfd6df; border-radius: 6px; padding: 12px 13px 9px;">
+          <div style="font-size: 13px; font-weight: 600; line-height: 1.4;">张伟</div>
+          <div style="font-size: 11.5px; color: #8a95a3; margin-top: 2px;">售前工程师</div>
+          <div style="height: 1px; background: #eef1f5; margin: 10px 0;"></div>
+          <div style="font-size: 11px; color: #8a95a3; margin-bottom: 4px;">所属公司</div>
+          <div style="font-size: 12px; line-height: 1.5; margin-bottom: 9px;">上海霍桐实验仪器有限公司</div>
+          <div style="font-size: 11px; color: #8a95a3; margin-bottom: 5px;">可访问密级</div>
+          <div style="display: flex; gap: 5px;"><span class="pill cf">机密</span><span class="pill in">内部</span><span class="pill pb">公开</span></div>
+          <div style="height: 1px; background: #eef1f5; margin: 11px 0 4px;"></div>
+          <div style="display: flex; align-items: center; gap: 7px; padding: 7px 8px; border-radius: 4px; outline: 1px dashed #f0dcb4; outline-offset: -1px;">
+            <span style="font-size: 12.5px; color: #5a6673;">修改口令</span>
+            <div class="sp"></div>
+            <span class="pill in" style="height:17px;font-size:10px">待确认</span>
+          </div>
+          <div style="padding: 7px 8px; font-size: 12.5px; color: #5a6673;">注销</div>
+        </div>
+        <div class="note" style="width: 380px;">全文无自助改密流程，且数据不出域意味着没有邮件短信重置通道——两者相加，口令一经管理员下发便永远无法更换，「一人一号」会退化成共用初始口令。<span style="color:#8a5a00">建议补此入口，需需求方确认。</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

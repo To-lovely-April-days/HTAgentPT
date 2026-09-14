@@ -1,0 +1,151 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+  </style>
+</helmet>
+
+<div style="width: 840px; height: 680px; background: #f2f4f7; padding: 20px 20px 18px; display: flex; flex-direction: column; overflow: hidden;">
+
+  <!-- 降级条：紧接筛选条之下，跨页面常驻 -->
+  <div style="{{d.bar}}">
+    <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" style="flex-shrink: 0; margin-top: 1px;"><circle cx="10" cy="10" r="7.6"/><path d="M10 6.1v4.5M10 13.5v.1"/></svg>
+    <div style="flex-grow: 1; min-width: 0;">
+      <div style="font-size: 13px; font-weight: 600; line-height: 1.5;">{{d.title}}</div>
+      <div style="font-size: 11.5px; line-height: 1.65; margin-top: 3px; opacity: 0.9;">{{d.body}}</div>
+    </div>
+    <div style="{{d.btn}}">查看服务状态</div>
+  </div>
+
+  <!-- 已提交的提问：请求没有被丢弃 -->
+  <div style="display: flex; align-items: baseline; gap: 8px; margin: 14px 0 8px;">
+    <span style="font-size: 12px; font-weight: 500; color: #5a6673;">张伟</span>
+    <span class="m" style="font-size: 11px; color: #8a95a3;">15:07</span>
+  </div>
+  <div style="font-size: 15px; font-weight: 500; line-height: 1.6; margin-bottom: 14px;">CJF-2L 磁力搅拌密封件的更换周期是多久？</div>
+
+  <!-- 等待卡 -->
+  <div style="background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px; padding: 15px 17px 13px; margin-bottom: 12px;">
+    <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 10px;">
+      <div style="{{d.dot}}"></div>
+      <span style="font-size: 13px; font-weight: 600;">{{d.queueTitle}}</span>
+      <div style="flex-grow: 1;"></div>
+      <span class="m" style="font-size: 11.5px; color: #5a6673;">已等待 00:42</span>
+    </div>
+    <div style="font-size: 12.5px; line-height: 1.75; color: #5a6673; margin-bottom: 12px;">{{d.queueBody}}</div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <div style="display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 4px; font-size: 12px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer;">
+        <span>取消本次提问</span>
+      </div>
+      <div style="flex-grow: 1;"></div>
+      <span style="font-size: 11px; color: #8a95a3;">服务恢复后自动继续，无需重新提问</span>
+    </div>
+  </div>
+
+  <!-- 降级可用部分：检索优先于生成，检索还活着就先给来源 -->
+  <sc-if value="{{d.partial}}" hint-placeholder-val="{{ true }}">
+    <div style="background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px; padding: 14px 17px 13px; margin-bottom: 12px;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+        <span style="font-size: 13px; font-weight: 600;">检索结果已就绪</span>
+        <span style="display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; background: #e6f2ec; color: #1c6b45; border: 1px solid #c2ded1;">检索服务正常</span>
+      </div>
+      <div style="font-size: 11.5px; line-height: 1.65; color: #8a95a3; margin-bottom: 11px;">本系统检索优先于生成。回答暂时无法组织，但命中的原始依据可以先看。</div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; align-items: center; gap: 9px; padding: 9px 11px; border: 1px solid #e9edf2; border-radius: 4px; background: #f8fafc;">
+          <span class="m" style="flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 3px; font-size: 11px; font-weight: 500; background: #eef1f5; color: #5a6673;">1</span>
+          <div style="flex-grow: 1; min-width: 0;">
+            <div style="font-size: 12.5px; font-weight: 500; line-height: 1.45;">CJF 系列高压反应釜维护保养规程 V2.1</div>
+            <div style="font-size: 11px; color: #8a95a3; margin-top: 3px;">第 4 章 易损件更换 › 4.2 磁力耦合密封 · 第 18 页</div>
+          </div>
+          <span style="display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; background: #fdf4e3; color: #8a5a00; border: 1px solid #f0dcb4;">内部</span>
+          <span class="m" style="font-size: 11px; color: #5a6673; width: 30px; text-align: right;">0.84</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 9px; padding: 9px 11px; border: 1px solid #e9edf2; border-radius: 4px; background: #f8fafc;">
+          <span class="m" style="flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 3px; font-size: 11px; font-weight: 500; background: #eef1f5; color: #5a6673;">2</span>
+          <div style="flex-grow: 1; min-width: 0;">
+            <div style="font-size: 12.5px; font-weight: 500; line-height: 1.45;">2024-0877 南京工业大学 2L 釜维修记录</div>
+            <div style="font-size: 11px; color: #8a95a3; margin-top: 3px;">处理步骤 · 第 2 页</div>
+          </div>
+          <span style="display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; background: #fdf4e3; color: #8a5a00; border: 1px solid #f0dcb4;">内部</span>
+          <span class="m" style="font-size: 11px; color: #5a6673; width: 30px; text-align: right;">0.79</span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <div style="flex-grow: 1;"></div>
+
+  <!-- 提问框：半句草稿仍在，未被清空 -->
+  <div style="background: #ffffff; border: 1px solid #cfd6df; border-radius: 6px; padding: 11px 12px 9px;">
+    <div style="font-size: 14px; color: #1c2530; line-height: 1.5; margin-bottom: 10px;">顺带问一下，这个密封件的备件号是</div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span style="font-size: 11px; color: #8a95a3;">草稿已保留在本页</span>
+      <div style="flex-grow: 1;"></div>
+      <div style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 13px; border-radius: 5px; font-size: 13px; font-weight: 500; color: #ffffff; background: #a8b4c4; cursor: not-allowed;">
+        <span>发送</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "downService": {
+    "editor": "enum",
+    "default": "对话模型服务",
+    "options": ["对话模型服务", "检索服务"],
+    "section": "故障组件"
+  }
+}'>
+class Component extends DCLogic {
+  renderVals() {
+    // 10.4 第 2 条 / 8.2 末段：界面只用能力名，绝不出现实现选型字样
+    //（不得写 Qwen / MinerU / vLLM / pgvector / 蒲公英，也不得暴露服务地址与端口）。
+    // 能力名本身也是配置项——换引擎后名称可能变化。
+    const CASES = {
+      '对话模型服务': {
+        title: '对话模型服务暂不可用，本次提问已进入等待队列',
+        body: '请求未被丢弃，也不会返回空结果。检索服务仍在正常工作，命中的依据可以先看。',
+        queueTitle: '排队中 · 队列第 2 位',
+        queueBody: '服务恢复后将自动继续组织回答，本次提问与筛选条件都已保留。期间可以正常使用项目查询与翻译。',
+        partial: true
+      },
+      '检索服务': {
+        title: '检索服务暂不可用，本次提问已进入等待队列',
+        body: '请求未被丢弃，也不会返回空结果。检索不可用时不会改由模型凭常识作答——无依据即不作答。',
+        queueTitle: '排队中 · 等待检索服务恢复',
+        queueBody: '检索是回答的前提，本次提问在检索恢复前不会进入生成环节。提问与筛选条件都已保留。',
+        partial: false
+      }
+    };
+    const s = this.props.downService ?? '对话模型服务';
+    const c = CASES[s] || CASES['对话模型服务'];
+    return {
+      d: {
+        title: c.title, body: c.body,
+        queueTitle: c.queueTitle, queueBody: c.queueBody, partial: c.partial,
+        bar: 'display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:5px;background:#fdf4e3;border:1px solid #f0dcb4;color:#8a5a00;',
+        btn: 'flex-shrink:0;display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:4px;font-size:12px;font-weight:500;color:#8a5a00;background:#ffffff;border:1px solid #f0dcb4;cursor:pointer;',
+        dot: 'width:8px;height:8px;border-radius:50%;background:#8a5a00;flex-shrink:0;'
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,204 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; align-items: center; background: #f2f4f7; overflow: hidden;">
+
+  <div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 22px; width: 100%;">
+
+    <!-- 品牌区 -->
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 11px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="{{org.logoStyle}}">{{org.mark}}</div>
+        <sc-if value="{{xray}}" hint-placeholder-val="{{ false }}">
+          <span style="{{k.chip}}">org.logo<span style="{{k.tier}}">部署期</span></span>
+        </sc-if>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="font-size: 18px; font-weight: 600; letter-spacing: 0.01em;">{{org.name}}</div>
+        <sc-if value="{{xray}}" hint-placeholder-val="{{ false }}">
+          <span style="{{k.chip}}">org.display_name<span style="{{k.tier}}">部署期</span></span>
+        </sc-if>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="font-size: 13px; color: #5a6673;">企业内部智能体系统</div>
+        <sc-if value="{{xray}}" hint-placeholder-val="{{ false }}">
+          <span style="{{k.chip}}">app.display_name<span style="{{k.tier}}">部署期</span></span>
+        </sc-if>
+      </div>
+    </div>
+
+    <!-- 登录卡 -->
+    <div style="width: 400px; background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px; padding: 26px 28px 22px;">
+
+      <div style="margin-bottom: 15px;">
+        <div style="font-size: 12px; color: #5a6673; margin-bottom: 6px;">账号</div>
+        <div style="height: 36px; display: flex; align-items: center; padding: 0 11px; background: #ffffff; border: 1px solid #cfd6df; border-radius: 5px; font-size: 14px; color: #a2acb9;">工号或域账号</div>
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <div style="font-size: 12px; color: #5a6673; margin-bottom: 6px;">口令</div>
+        <div style="{{f.pwd}}">
+          <span style="font-family: 'IBM Plex Mono', ui-monospace, Consolas, monospace; letter-spacing: 0.18em; color: #1c2530;">{{f.pwdDots}}</span>
+          <div style="flex-grow: 1;"></div>
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8S3.8 3.8 8 3.8 14.5 8 14.5 8 12.2 12.2 8 12.2 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="1.9"/></svg>
+        </div>
+      </div>
+
+      <sc-if value="{{err.show}}" hint-placeholder-val="{{ true }}">
+        <div style="{{err.box}}">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" style="flex-shrink: 0; margin-top: 1px;"><circle cx="10" cy="10" r="7.6"/><path d="M10 6.1v4.5M10 13.5v.1"/></svg>
+          <div style="flex-grow: 1; min-width: 0;">
+            <div style="font-size: 12.5px; font-weight: 600; line-height: 1.5;">{{err.title}}</div>
+            <div style="font-size: 11.5px; line-height: 1.6; margin-top: 3px; opacity: 0.88;">{{err.hint}}</div>
+          </div>
+        </div>
+      </sc-if>
+
+      <div style="{{f.btn}}">登录</div>
+
+      <div style="height: 1px; background: #eef1f5; margin: 16px 0 12px;"></div>
+
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <span style="font-size: 11.5px; color: #8a95a3; line-height: 1.6;">忘记口令请联系系统管理员　{{org.support}}</span>
+        <sc-if value="{{xray}}" hint-placeholder-val="{{ false }}">
+          <span style="{{k.chip}}">auth.support_contact<span style="{{k.tierRun}}">运行期</span></span>
+        </sc-if>
+      </div>
+    </div>
+
+    <!-- 接入说明 -->
+    <div style="display: flex; align-items: center; gap: 8px; max-width: 460px;">
+      <span style="font-size: 11.5px; color: #8a95a3; line-height: 1.65; text-align: center;">本系统仅限公司内网及经授权的远程接入访问。全部推理与语料存储在企业内网完成。</span>
+      <sc-if value="{{xray}}" hint-placeholder-val="{{ false }}">
+        <span style="{{k.chip}}">auth.notice<span style="{{k.tierRun}}">运行期</span></span>
+      </sc-if>
+    </div>
+  </div>
+
+  <!-- 页脚 -->
+  <div style="flex-shrink: 0; width: 100%; padding: 0 24px 20px; display: flex; align-items: center; justify-content: center; gap: 10px;">
+    <span style="display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; background: #e3f4f4; color: #00696b; border: 1px solid #b8dedd;">内部系统</span>
+    <sc-if value="{{xray}}" hint-placeholder-val="{{ false }}">
+      <span style="{{k.chip}}">site.classification_label<span style="{{k.tierRun}}">运行期</span></span>
+    </sc-if>
+    <span style="font-size: 11px; color: #8a95a3;">{{org.name}}　软件技术部</span>
+  </div>
+
+  <sc-if value="{{xray}}" hint-placeholder-val="{{ false }}">
+    <div style="position: absolute; left: 24px; top: 24px; width: 268px; background: #ffffff; border: 1px solid #cfd6df; border-radius: 5px; padding: 12px 13px;">
+      <div style="font-size: 12px; font-weight: 600; margin-bottom: 3px;">配置项透视</div>
+      <div style="font-size: 11px; color: #5a6673; line-height: 1.65; margin-bottom: 10px;">10.4 要求：全新服务器上除填写配置外不改代码即可运行。虚线框内均为配置项，非硬编码。</div>
+      <div style="display: flex; flex-direction: column; gap: 5px;">
+        <sc-for list="{{keys}}" as="row" hint-placeholder-count="7">
+          <div style="display: flex; align-items: baseline; gap: 6px;">
+            <span style="font-family: 'IBM Plex Mono', ui-monospace, Consolas, monospace; font-size: 10.5px; color: #1c2530; flex-grow: 1;">{{row.k}}</span>
+            <span style="{{row.badge}}">{{row.tier}}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="margin-top: 10px; padding-top: 9px; border-top: 1px solid #eef1f5; font-size: 10.5px; color: #8a95a3; line-height: 1.6;">部署期＝配置文件，改动需重新部署；运行期＝数据库配置项，管理界面可改、即时生效（FR-9.6）。</div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "configXray": {"editor": "boolean", "default": false, "section": "演示"},
+  "orgPreset": {"editor": "enum", "default": "霍桐实验仪器", "options": ["霍桐实验仪器", "示例公司乙（新部署）"], "section": "演示"},
+  "loginState": {"editor": "enum", "default": "正常", "options": ["正常", "口令错误", "账号已停用"], "section": "状态"}
+}'>
+class Component extends DCLogic {
+  renderVals() {
+    const xray = this.props.configXray ?? false;
+    const preset = this.props.orgPreset ?? '霍桐实验仪器';
+    const state = this.props.loginState ?? '正常';
+    const mono = "'IBM Plex Mono', ui-monospace, Consolas, monospace";
+
+    // 同一份 DOM，两套 org.* 配置 —— 这就是 10.4 判定标准的可视化
+    const PRESETS = {
+      '霍桐实验仪器': { mark: 'HT', name: '上海霍桐实验仪器有限公司', accent: '#2f5ccc', support: '分机 8021 · 王工' },
+      '示例公司乙（新部署）': { mark: 'YZ', name: '示例公司乙机械有限公司', accent: '#1f6b52', support: '分机 6140 · 李工' }
+    };
+    const p = PRESETS[preset] || PRESETS['霍桐实验仪器'];
+    const accent = p.accent;
+
+    const chipBase = 'display:inline-flex;align-items:center;gap:5px;height:19px;padding:0 6px;border-radius:3px;font-size:11px;font-weight:500;white-space:nowrap;font-family:' + mono + ';background:#ffffff;border:1px solid #cfd6df;color:#5a6673;';
+    const tierBase = 'font-family:"IBM Plex Sans",sans-serif;font-size:10px;font-weight:400;';
+
+    // 错误态：口令错误与账号已停用必须分开，不得合并为「登录失败」
+    const ERR = {
+      '口令错误': {
+        title: '账号或口令不正确',
+        hint: '请确认大小写与输入法状态。',
+        fg: '#b3261e', bg: '#fdeceb', bd: '#f5cdc9'
+      },
+      '账号已停用': {
+        title: '该账号已停用',
+        hint: '停用后立即失去全部访问权（FR-7.1）。重新登录不会恢复，请联系系统管理员 ' + p.support + '。',
+        fg: '#8a5a00', bg: '#fdf4e3', bd: '#f0dcb4'
+      }
+    };
+    const e = ERR[state];
+
+    const outline = xray ? 'outline:1px dashed #cfd6df;outline-offset:4px;' : '';
+
+    return {
+      xray: xray,
+      org: {
+        mark: p.mark,
+        name: p.name,
+        support: p.support,
+        logoStyle: 'width:40px;height:40px;border-radius:7px;background:' + accent + ';color:#ffffff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;letter-spacing:0.04em;' + outline
+      },
+      k: {
+        chip: chipBase,
+        tier: tierBase + 'color:#8a95a3;',
+        tierRun: tierBase + 'color:' + accent + ';'
+      },
+      f: {
+        pwd: 'height:36px;display:flex;align-items:center;padding:0 11px;background:#ffffff;border:1px solid ' + (e ? e.bd : '#cfd6df') + ';border-radius:5px;font-size:14px;',
+        pwdDots: state === '正常' ? '' : '••••••••••',
+        btn: 'height:36px;display:flex;align-items:center;justify-content:center;border-radius:5px;font-size:14px;font-weight:500;color:#ffffff;background:' + accent + ';cursor:pointer;' + outline
+      },
+      err: e
+        ? { show: true, title: e.title, hint: e.hint,
+            box: 'display:flex;align-items:flex-start;gap:8px;padding:10px 11px;margin-bottom:14px;border-radius:5px;background:' + e.bg + ';border:1px solid ' + e.bd + ';color:' + e.fg + ';' }
+        : { show: false, title: '', hint: '', box: '' },
+      keys: [
+        ['org.logo', '部署期'], ['org.display_name', '部署期'], ['app.display_name', '部署期'],
+        ['theme.accent', '部署期'], ['auth.notice', '运行期'],
+        ['auth.support_contact', '运行期'], ['site.classification_label', '运行期']
+      ].map(function (r) {
+        return {
+          k: r[0], tier: r[1],
+          badge: 'display:inline-flex;align-items:center;height:17px;padding:0 5px;border-radius:3px;font-size:10px;font-weight:500;' +
+            (r[1] === '部署期'
+              ? 'background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;'
+              : 'background:#ffffff;color:' + accent + ';border:1px solid ' + accent + '55;')
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>
