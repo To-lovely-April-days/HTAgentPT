@@ -1,0 +1,225 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .n { height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .non { height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .fl { font-size: 11.5px; color: #8a95a3; margin-bottom: 5px; }
+    .fi { height: 28px; display: flex; align-items: center; padding: 0 9px; background: #ffffff;
+      border: 1px solid #cfd6df; border-radius: 4px; font-size: 12.5px; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    th { font-size: 11.5px; font-weight: 500; color: #5a6673; text-align: left; padding: 0 12px; height: 36px;
+      background: #f8fafc; border-bottom: 1px solid #e2e6ec; white-space: nowrap; position: sticky; top: 0; }
+    td { font-size: 12.5px; padding: 0 12px; height: 40px; border-bottom: 1px solid #eef1f5; white-space: nowrap; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <!-- 售前工作台顶栏 -->
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 28px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: .03em;">HT</div>
+      <div style="font-size: 14px; font-weight: 600;">霍桐实验仪器 · 企业智能体</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 2px;">
+      <div class="n">问答</div><div class="non">项目查询</div><div class="n">方案生成</div><div class="n">报价合同</div><div class="n">翻译</div>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span style="font-size: 12px; color: #8a95a3;">可访问密级</span>
+      <span class="pill" style="background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;">机密</span>
+      <span class="pill" style="background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;">内部</span>
+      <span class="pill" style="background:#e3f4f4;color:#00696b;border:1px solid #b8dedd;">公开</span>
+    </div>
+    <div style="width: 1px; height: 20px; background: #e2e6ec;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">张</div>
+      <div style="line-height: 1.25;"><div style="font-size:12px;font-weight:500">张伟</div><div style="font-size:11px;color:#8a95a3">售前工程师</div></div>
+    </div>
+  </div>
+
+  <!-- 筛选 -->
+  <div style="flex-shrink: 0; background: #ffffff; border-bottom: 1px solid #e2e6ec; padding: 14px 18px 12px;">
+    <div style="display: flex; gap: 12px; margin-bottom: 11px;">
+      <div style="width: 220px;">
+        <div class="fl">客户名称</div>
+        <div class="fi"><span>华东理工大学</span><div style="flex-grow:1"></div><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.6" stroke-linecap="round"><path d="M11.5 11.5L14 14"/><circle cx="7" cy="7" r="4.6"/></svg></div>
+      </div>
+      <div style="width: 120px;">
+        <div class="fl">年份</div>
+        <div class="fi"><span>2025</span><div style="flex-grow:1"></div><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+      </div>
+      <div style="width: 150px;">
+        <div class="fl">设备类型　<span style="color:#2f5ccc">受控词表</span></div>
+        <div class="fi"><span>全部</span><div style="flex-grow:1"></div><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+      </div>
+      <div style="width: 130px;">
+        <div class="fl">交付状态</div>
+        <div class="fi"><span>全部</span><div style="flex-grow:1"></div><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+      </div>
+      <div style="width: 130px;">
+        <div class="fl">负责人</div>
+        <div class="fi"><span>全部</span><div style="flex-grow:1"></div><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+      </div>
+      <div style="width: 210px;">
+        <div class="fl">合同金额区间　<span class="pill" style="height:16px;padding:0 5px;font-size:10px;background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;">机密</span></div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <div class="fi m" style="flex-grow:1">不限</div>
+          <span style="font-size: 12px; color: #8a95a3;">—</span>
+          <div class="fi m" style="flex-grow:1">不限</div>
+          <span style="font-size: 11.5px; color: #8a95a3;">万</span>
+        </div>
+      </div>
+      <div style="flex-grow: 1;"></div>
+      <div style="display: flex; align-items: flex-end; gap: 8px; padding-bottom: 0;">
+        <div class="gbtn">重置</div>
+        <div style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 15px;border-radius:4px;font-size:13px;font-weight:500;color:#ffffff;background:#2f5ccc;cursor:pointer;">查询</div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <span style="font-size: 11px; color: #8a95a3;">结构化查询，条件为「与」关系，结果直接来自台账，不经模型生成</span>
+      <span style="font-size: 11px; color: #8a95a3;">·</span>
+      <span style="font-size: 11px; color: #8a95a3;">合同金额为机密字段，售后账号查询同一台账时该列与该筛选项均不出现（不是置灰）</span>
+    </div>
+  </div>
+
+  <!-- 结果 -->
+  <div style="flex-grow: 1; display: flex; flex-direction: column; min-height: 0;">
+    <sc-if value="{{hasResult}}" hint-placeholder-val="{{ true }}">
+      <div style="height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+        <span style="font-size: 12.5px;">命中 <span class="m" style="font-weight: 500;">4</span> 个项目</span>
+        <span style="font-size: 11.5px; color: #8a95a3;">按年份倒序</span>
+        <div style="flex-grow: 1;"></div>
+        <span style="font-size: 11.5px; color: #8a95a3;">合计 <span class="m">¥ 1,200,600</span></span>
+        <div class="gbtn" style="height: 26px;">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M5 7.2l3 3 3-3M2.5 13h11"/></svg>
+          <span>导出</span>
+        </div>
+      </div>
+
+      <div class="sc" style="flex-grow: 1; min-height: 0; background: #ffffff;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th style="width: 110px;">项目编号</th>
+              <th style="width: 190px;">客户名称</th>
+              <th style="width: 64px;">年份</th>
+              <th style="width: 120px;">设备类型</th>
+              <th style="width: 100px;">设备型号</th>
+              <th>规模参数</th>
+              <th style="width: 96px;">交付状态</th>
+              <th style="width: 130px; text-align: right;">合同金额</th>
+              <th style="width: 90px;">负责人</th>
+            </tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="4">
+              <tr style="{{r.tr}}" onClick="{{r.pick}}">
+                <td class="m" style="color: #2f5ccc; font-weight: 500;">{{r.no}}</td>
+                <td>{{r.cust}}</td>
+                <td class="m">{{r.year}}</td>
+                <td>{{r.type}}</td>
+                <td class="m">{{r.model}}</td>
+                <td style="color: #5a6673;">{{r.spec}}</td>
+                <td><span style="{{r.stStyle}}">{{r.status}}</span></td>
+                <td class="m" style="text-align: right;">{{r.amount}}</td>
+                <td>{{r.owner}}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="height: 44px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 18px; background: #ffffff; border-top: 1px solid #e2e6ec;">
+        <span style="font-size: 11.5px; color: #8a95a3;">第 1 页，共 1 页</span>
+        <div style="flex-grow: 1;"></div>
+        <span style="font-size: 11.5px; color: #8a95a3;">点击任一行查看项目详情与关联文档</span>
+      </div>
+    </sc-if>
+
+    <!-- 无结果：精确匹配没命中，与问答的阈值拦截不是一回事 -->
+    <sc-if value="{{noResult}}" hint-placeholder-val="{{ false }}">
+      <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; padding: 40px;">
+        <div style="width: 540px; background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px; padding: 24px 26px 20px;">
+          <div style="font-size: 15px; font-weight: 600; line-height: 1.45; margin-bottom: 7px;">没有符合条件的项目</div>
+          <div style="font-size: 13px; line-height: 1.75; color: #5a6673; margin-bottom: 16px;">台账查询是按字段精确匹配，不存在相关度与阈值——没有命中就是台账里确实没有这样的记录，不是"可能相关但分数不够"。</div>
+          <div style="padding: 12px 13px; background: #f8fafc; border: 1px solid #e9edf2; border-radius: 5px; margin-bottom: 14px;">
+            <div style="font-size: 11.5px; color: #8a95a3; margin-bottom: 8px;">当前条件</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <span class="gbtn" style="height: 24px; font-size: 11.5px;">客户 = 华东理工大学　✕</span>
+              <span class="gbtn" style="height: 24px; font-size: 11.5px;">年份 = 2025　✕</span>
+              <span class="gbtn" style="height: 24px; font-size: 11.5px;">设备类型 = 冻干机　✕</span>
+            </div>
+          </div>
+          <div style="font-size: 12px; line-height: 1.7; color: #5a6673;">可以去掉某个条件重试。若确认该项目存在但查不到，多半是台账尚未登记——联系管理员在「元数据与词表 › 项目台账」中补录。</div>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "emptyResult": {"editor": "boolean", "default": false, "section": "结果状态"}
+}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sel: '2025-0312' }; }
+
+  renderVals() {
+    const accent = '#2f5ccc';
+    const soft = 'color-mix(in oklab, ' + accent + ' 7%, #ffffff)';
+    const empty = this.props.emptyResult ?? false;
+
+    const ST = {
+      '已结项': 'background:#e6f2ec;color:#1c6b45;border:1px solid #c2ded1;',
+      '已交付': 'background:#e6f2ec;color:#1c6b45;border:1px solid #c2ded1;',
+      '进行中': 'background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;'
+    };
+
+    // 表 4-6 项目台账字段。合同金额属机密，仅售前可见（3.4 第五条）
+    const defs = [
+      { no: '2025-1108', cust: '华东理工大学', year: 2025, type: '高压反应釜', model: 'CJF-5L', spec: '5 L × 4 联 · 10 MPa', status: '进行中', amount: '¥ 712,000', owner: '张伟' },
+      { no: '2025-0701', cust: '华东理工大学', year: 2025, type: '玻璃反应釜', model: 'SF-20L', spec: '20 L · 双层夹套', status: '已交付', amount: '¥ 48,600', owner: '孙工' },
+      { no: '2025-0489', cust: '华东理工大学', year: 2025, type: '高压反应釜', model: 'CJF-2L', spec: '2 L · 10 MPa', status: '已结项', amount: '¥ 154,000', owner: '张伟' },
+      { no: '2025-0312', cust: '华东理工大学', year: 2025, type: '高压反应釜', model: 'CJF-5L', spec: '5 L · 12 MPa · 防爆', status: '已结项', amount: '¥ 286,000', owner: '张伟' }
+    ];
+
+    return {
+      hasResult: !empty,
+      noResult: empty,
+      rows: defs.map((d) => {
+        const on = this.state.sel === d.no;
+        return {
+          no: d.no, cust: d.cust, year: d.year, type: d.type, model: d.model,
+          spec: d.spec, status: d.status, amount: d.amount, owner: d.owner,
+          stStyle: 'display:inline-flex;align-items:center;height:19px;padding:0 7px;border-radius:3px;font-size:11px;font-weight:500;' + ST[d.status],
+          tr: 'cursor:pointer;' + (on ? 'background:' + soft + ';' : ''),
+          pick: () => this.setState({ sel: d.no })
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>
