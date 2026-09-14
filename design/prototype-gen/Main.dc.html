@@ -1,0 +1,213 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .n { height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .non { height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 5px;
+      font-size: 12.5px; background: #ffffff; border: 1px solid #cfd6df; }
+    .ck { font-size: 11px; color: #8a95a3; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 28px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: .03em;">HT</div>
+      <div style="font-size: 14px; font-weight: 600;">霍桐实验仪器 · 企业智能体</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 2px;">
+      <div class="n">问答</div><div class="n">项目查询</div><div class="non">方案生成</div><div class="n">报价合同</div><div class="n">翻译</div>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span style="font-size: 12px; color: #8a95a3;">可访问密级</span>
+      <span class="pill" style="background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;">机密</span>
+      <span class="pill" style="background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;">内部</span>
+      <span class="pill" style="background:#e3f4f4;color:#00696b;border:1px solid #b8dedd;">公开</span>
+    </div>
+    <div style="width: 1px; height: 20px; background: #e2e6ec;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">张</div>
+      <div style="line-height: 1.25;"><div style="font-size:12px;font-weight:500">张伟</div><div style="font-size:11px;color:#8a95a3">售前工程师</div></div>
+    </div>
+  </div>
+
+  <!-- 步骤条 -->
+  <div style="height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <sc-for list="{{steps}}" as="s" hint-placeholder-count="4">
+      <div style="display: flex; align-items: center; gap: 4px;">
+        <div style="{{s.box}}"><span class="m" style="font-size: 11px;">{{s.n}}</span><span>{{s.label}}</span></div>
+        <sc-if value="{{s.hasArrow}}" hint-placeholder-val="{{ true }}">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#cfd6df" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5l4.5 4.5L6 12.5"/></svg>
+        </sc-if>
+      </div>
+    </sc-for>
+    <div style="flex-grow: 1;"></div>
+    <span style="font-size: 11.5px; color: #8a95a3;">草稿自动保留，可随时退出后继续</span>
+  </div>
+
+  <div class="sc" style="flex-grow: 1; min-height: 0; padding: 18px 18px 24px;">
+    <div style="max-width: 1100px;">
+
+      <!-- FR-5.1：识别结果须展示给用户确认，不得直接据以执行 -->
+      <div style="background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px; margin-bottom: 16px; overflow: hidden;">
+        <div style="padding: 14px 18px 12px; border-bottom: 1px solid #eef1f5;">
+          <div style="font-size: 11.5px; color: #8a95a3; margin-bottom: 6px;">你的描述</div>
+          <div style="font-size: 14px; line-height: 1.75;">给华东理工做一台 5L 高压釜的技术方案，他们现场是防爆区，设计压力要 12 兆帕，带磁力搅拌</div>
+        </div>
+        <div style="padding: 14px 18px 15px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+            <span style="font-size: 13px; font-weight: 600;">识别到的要点</span>
+            <span style="font-size: 11.5px; color: #8a95a3;">将作为后续检索条件，确认无误后再继续。识别有偏差请直接改。</span>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <sc-for list="{{facts}}" as="f" hint-placeholder-count="5">
+              <div class="chip">
+                <span class="ck">{{f.k}}</span>
+                <span style="font-weight: 500;">{{f.v}}</span>
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.2 2.8a1.7 1.7 0 0 1 2.4 2.4L6 12.8l-3.2.8.8-3.2z"/></svg>
+              </div>
+            </sc-for>
+            <div class="chip" style="color: #2f5ccc; border-color: #c9d6f6; cursor: pointer;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5v9M3.5 8h9"/></svg>
+              <span>补充要点</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FR-5.2：按文档类别与设备类型推荐模板，显示适用范围与最近使用时间 -->
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+        <span style="font-size: 14px; font-weight: 600;">选择模板</span>
+        <span style="font-size: 11.5px; color: #8a95a3;">按文档类别与设备类型推荐，可改选</span>
+        <div style="flex-grow: 1;"></div>
+        <div class="gbtn"><span style="color:#8a95a3">文档类别</span><span>技术方案</span><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 9px;">
+        <sc-for list="{{tpls}}" as="t" hint-placeholder-count="4">
+          <div style="{{t.card}}" onClick="{{t.pick}}">
+            <div style="{{t.dot}}"></div>
+            <div style="flex-grow: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+                <span style="font-size: 13.5px; font-weight: 600;">{{t.name}}</span>
+                <sc-if value="{{t.isRec}}" hint-placeholder-val="{{ true }}">
+                  <span class="pill" style="background:#eef2fd;color:#2f5ccc;border:1px solid #c9d6f6;">推荐</span>
+                </sc-if>
+              </div>
+              <div style="font-size: 11.5px; color: #5a6673; line-height: 1.65;">适用：{{t.scope}}</div>
+            </div>
+            <div style="width: 110px; flex-shrink: 0;">
+              <div class="ck">槽位</div>
+              <div class="m" style="font-size: 14px; font-weight: 600; margin-top: 2px;">{{t.slots}}</div>
+            </div>
+            <div style="width: 130px; flex-shrink: 0;">
+              <div class="ck">最近使用</div>
+              <div style="font-size: 13px; margin-top: 3px;">{{t.used}}</div>
+            </div>
+            <div style="width: 96px; flex-shrink: 0;">
+              <div class="ck">状态</div>
+              <div style="margin-top: 3px;"><span style="{{t.stStyle}}">{{t.status}}</span></div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 10px; margin-top: 18px;">
+        <span style="font-size: 11.5px; color: #8a95a3;">槽位定义不完整的模板不会出现在这里，需在管理后台「模板管理」中补全后启用。</span>
+        <div style="flex-grow: 1;"></div>
+        <div style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 16px;border-radius:5px;font-size:13px;font-weight:500;color:#ffffff;background:#2f5ccc;cursor:pointer;">
+          <span>下一步：选基准项目</span>
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tpl: 'ts-v4-autoclave' }; }
+
+  renderVals() {
+    const accent = '#2f5ccc';
+    const soft = 'color-mix(in oklab, ' + accent + ' 9%, #ffffff)';
+    const line = 'color-mix(in oklab, ' + accent + ' 26%, #ffffff)';
+    const pill = 'display:inline-flex;align-items:center;height:19px;padding:0 6px;border-radius:3px;font-size:11px;font-weight:500;';
+
+    const STEPS = [
+      { n: 1, label: '模板', at: true },
+      { n: 2, label: '基准项目', at: false },
+      { n: 3, label: '填写', at: false },
+      { n: 4, label: '预览与输出', at: false }
+    ];
+
+    const TPL = [
+      { id: 'ts-v4-autoclave', name: '技术方案模板 V4（高压反应釜）', scope: '高压反应釜 · 技术方案',
+        slots: 58, used: '3 天前', status: '已启用', rec: true },
+      { id: 'ts-v4-general', name: '技术方案模板 V4（通用）', scope: '全部设备类型 · 技术方案',
+        slots: 44, used: '2 周前', status: '已启用', rec: false },
+      { id: 'bid-v2', name: '投标书模板 V2', scope: '全部设备类型 · 投标书',
+        slots: 96, used: '1 个月前', status: '已启用', rec: false },
+      { id: 'wo-c', name: '非标产品生产任务单（C 类）', scope: 'C 类标准釜小非标 · 任务单',
+        slots: 47, used: '昨天', status: '已启用', rec: false }
+    ];
+
+    return {
+      steps: STEPS.map(function (s, i) {
+        return {
+          n: s.n, label: s.label, hasArrow: i < STEPS.length - 1,
+          box: 'display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px;border-radius:5px;font-size:13px;' +
+            (s.at ? 'font-weight:500;color:' + accent + ';background:' + soft + ';border:1px solid ' + line + ';'
+                  : 'color:#8a95a3;background:#ffffff;border:1px solid #e2e6ec;')
+        };
+      }),
+      facts: [
+        { k: '客户', v: '华东理工大学' },
+        { k: '设备类型', v: '高压反应釜' },
+        { k: '规模', v: '5 L' },
+        { k: '设计压力', v: '12 MPa' },
+        { k: '特殊要求', v: '防爆 2 区 · 磁力搅拌' }
+      ],
+      tpls: TPL.map((t) => {
+        const on = this.state.tpl === t.id;
+        return {
+          name: t.name, scope: t.scope, slots: t.slots, used: t.used, status: t.status, isRec: t.rec,
+          card: 'display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:6px;cursor:pointer;background:' +
+            (on ? soft : '#ffffff') + ';border:1px solid ' + (on ? line : '#e2e6ec') + ';',
+          dot: 'flex-shrink:0;width:15px;height:15px;border-radius:50%;border:1px solid ' +
+            (on ? accent : '#cfd6df') + ';background:' + (on ? accent : '#ffffff') +
+            ';box-shadow:' + (on ? 'inset 0 0 0 3.5px #ffffff' : 'none') + ';',
+          stStyle: pill + 'background:#e6f2ec;color:#1c6b45;border:1px solid #c2ded1;',
+          pick: () => this.setState({ tpl: t.id })
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>
