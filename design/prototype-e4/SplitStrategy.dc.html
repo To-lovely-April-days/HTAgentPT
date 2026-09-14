@@ -1,0 +1,171 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 4px;
+      font-size: 12px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+  </style>
+</helmet>
+
+<div style="width: 660px; height: 800px; background: #f2f4f7; padding: 20px; overflow: hidden;">
+  <div style="height: 100%; background: #ffffff; border: 1px solid #cfd6df; border-radius: 7px; display: flex; flex-direction: column; overflow: hidden;">
+
+    <div style="flex-shrink: 0; padding: 16px 20px 13px; border-bottom: 1px solid #e2e6ec;">
+      <div style="font-size: 15px; font-weight: 600; line-height: 1.4;">切分策略</div>
+      <div style="font-size: 11.5px; color: #8a95a3; margin-top: 3px;">CJF 系列高压反应釜使用说明书 V3.2</div>
+    </div>
+
+    <div style="flex-grow: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 8px;">
+
+      <!-- 作用范围：策略为知识库级配置，亦可在单份文档上覆盖 -->
+      <div style="font-size: 12px; font-weight: 600; margin-bottom: 8px;">作用范围</div>
+      <div style="display: flex; flex-direction: column; gap: 7px; margin-bottom: 18px;">
+        <div style="{{sc.kbBox}}">
+          <div style="{{sc.kbDot}}"></div>
+          <div style="flex-grow: 1; min-width: 0;">
+            <div style="font-size: 12.5px; font-weight: 500;">沿用知识库配置</div>
+            <div style="font-size: 11px; color: #8a95a3; line-height: 1.55; margin-top: 2px;">私有库当前为「按章节层级」。改动会影响该库内所有未单独覆盖的文档。</div>
+          </div>
+        </div>
+        <div style="{{sc.docBox}}">
+          <div style="{{sc.docDot}}"></div>
+          <div style="flex-grow: 1; min-width: 0;">
+            <div style="font-size: 12.5px; font-weight: 500;">仅对本文档覆盖</div>
+            <div style="font-size: 11px; color: #8a95a3; line-height: 1.55; margin-top: 2px;">只改这一份，知识库配置不变。</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size: 12px; font-weight: 600; margin-bottom: 8px;">切分方式</div>
+      <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px;">
+        <sc-for list="{{strategies}}" as="s" hint-placeholder-count="5">
+          <div style="{{s.box}}" onClick="{{s.pick}}">
+            <div style="{{s.dot}}"></div>
+            <div style="flex-grow: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 7px;">
+                <span style="font-size: 12.5px; font-weight: 500;">{{s.name}}</span>
+                <span style="font-size: 10.5px; color: #8a95a3;">{{s.fit}}</span>
+              </div>
+              <div style="font-size: 11px; color: #5a6673; line-height: 1.6; margin-top: 3px;">{{s.desc}}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="font-size: 12px; font-weight: 600; margin-bottom: 8px;">参数</div>
+      <div style="border: 1px solid #e2e6ec; border-radius: 5px; overflow: hidden; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px; padding: 11px 13px; border-bottom: 1px solid #eef1f5;">
+          <div style="flex-grow: 1;">
+            <div style="font-size: 12.5px;">小节过长时的二次切分阈值</div>
+            <div style="font-size: 11px; color: #8a95a3; margin-top: 2px;">超过此长度按段落再切，标题作为前缀保留</div>
+          </div>
+          <div style="display: flex; align-items: center; height: 28px; padding: 0 10px; border: 1px solid #cfd6df; border-radius: 4px;">
+            <span class="m" style="font-size: 12.5px;">800</span>
+            <span style="font-size: 11px; color: #8a95a3; margin-left: 4px;">字</span>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; padding: 11px 13px;">
+          <div style="flex-grow: 1;">
+            <div style="font-size: 12.5px;">相邻块重叠长度</div>
+            <div style="font-size: 11px; color: #8a95a3; margin-top: 2px;">避免答案恰好落在切分边界被截断。默认为块长的一成</div>
+          </div>
+          <div style="display: flex; align-items: center; height: 28px; padding: 0 10px; border: 1px solid #cfd6df; border-radius: 4px;">
+            <span class="m" style="font-size: 12.5px;">10</span>
+            <span style="font-size: 11px; color: #8a95a3; margin-left: 4px;">%</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 10px; padding: 11px 13px; background: #f8fafc; border: 1px solid #e9edf2; border-radius: 5px; margin-bottom: 14px;">
+        <span style="font-size: 12px; color: #5a6673;">按当前设置预估</span>
+        <span class="m" style="font-size: 13px; font-weight: 500;">{{est}}</span>
+        <span style="font-size: 12px; color: #5a6673;">块</span>
+        <span style="font-size: 11.5px; color: #8a95a3;">（当前 <span class="m">64</span> 块）</span>
+      </div>
+
+      <div style="display: flex; align-items: flex-start; gap: 9px; padding: 11px 13px; background: #fdf4e3; border: 1px solid #f0dcb4; border-radius: 5px; color: #8a5a00;">
+        <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><circle cx="10" cy="10" r="7.6"/><path d="M10 6.1v4.5M10 13.5v.1"/></svg>
+        <div style="font-size: 11.5px; line-height: 1.7;">重新解析会作废现有 64 块并重建，<strong style="font-weight:600">其中 3 块的手工编辑将一并丢失</strong>。重建期间本文档暂不参与检索，其余文档不受影响。</div>
+      </div>
+    </div>
+
+    <div style="flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 13px 20px; border-top: 1px solid #e2e6ec; background: #f8fafc;">
+      <span style="font-size: 11px; color: #8a95a3;">策略与参数均为配置项，改后即时生效</span>
+      <div style="flex-grow: 1;"></div>
+      <div class="gbtn" style="height: 28px;">取消</div>
+      <div style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 13px; border-radius: 5px; font-size: 13px; font-weight: 500; color: #ffffff; background: #2f5ccc; cursor: pointer;">开始重新解析</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "scope": {"editor": "enum", "default": "仅对本文档覆盖", "options": ["沿用知识库配置", "仅对本文档覆盖"], "section": "作用范围"}
+}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { pick: '按章节层级' };
+  }
+
+  renderVals() {
+    const accent = '#2f5ccc';
+    const soft = 'color-mix(in oklab, ' + accent + ' 9%, #ffffff)';
+    const line = 'color-mix(in oklab, ' + accent + ' 26%, #ffffff)';
+    const scope = this.props.scope ?? '仅对本文档覆盖';
+
+    const box = (on) => 'display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:5px;cursor:pointer;background:' +
+      (on ? soft : '#ffffff') + ';border:1px solid ' + (on ? line : '#e2e6ec') + ';';
+    const dot = (on) => 'flex-shrink:0;width:14px;height:14px;margin-top:2px;border-radius:50%;border:1px solid ' +
+      (on ? accent : '#cfd6df') + ';background:' + (on ? accent : '#ffffff') + ';box-shadow:' + (on ? 'inset 0 0 0 3px #ffffff' : 'none') + ';';
+
+    // 表 4-2：按文档类别选择切分策略
+    const defs = [
+      { name: '按章节层级', fit: '设备手册 · 操作规程 · 技术方案 · 投标书', est: 58,
+        desc: '以标题层级为边界，同一小节尽量不拆分；小节过长时按段落二次切分并保留标题作为前缀。' },
+      { name: '按条款', fit: '合同 · 报价单', est: 96,
+        desc: '以条款编号为边界，每条独立成块，便于拼装时按条引用。' },
+      { name: '按行', fit: '参数表 · 物料清单', est: 412,
+        desc: '每行一条记录，表头作为每块的前缀，避免脱离表头后无法理解。' },
+      { name: '按语义段落', fit: '技术论文 · 英文资料', est: 71,
+        desc: '固定窗口配合重叠，窗口与重叠长度可配置。' },
+      { name: '通用', fit: '其他', est: 66,
+        desc: '语义段落优先，超长时按固定窗口切分。' }
+    ];
+
+    const cur = defs.filter((d) => d.name === this.state.pick)[0] || defs[0];
+
+    return {
+      est: cur.est,
+      strategies: defs.map((d) => {
+        const on = this.state.pick === d.name;
+        return {
+          name: d.name, fit: d.fit, desc: d.desc,
+          box: box(on), dot: dot(on),
+          pick: () => this.setState({ pick: d.name })
+        };
+      }),
+      sc: {
+        kbBox: box(scope === '沿用知识库配置'), kbDot: dot(scope === '沿用知识库配置'),
+        docBox: box(scope === '仅对本文档覆盖'), docDot: dot(scope === '仅对本文档覆盖')
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

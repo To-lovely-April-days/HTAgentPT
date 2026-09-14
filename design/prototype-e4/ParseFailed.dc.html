@@ -1,0 +1,153 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .kv { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid #eef1f5; }
+    .k { width: 76px; flex-shrink: 0; font-size: 11.5px; color: #8a95a3; line-height: 1.6; }
+    .v { flex-grow: 1; min-width: 0; font-size: 12px; line-height: 1.6; }
+  </style>
+</helmet>
+
+<div style="width: 660px; height: 620px; background: #f2f4f7; padding: 20px; overflow: hidden;">
+  <div style="height: 100%; background: #ffffff; border: 1px solid #cfd6df; border-radius: 7px; display: flex; flex-direction: column; overflow: hidden;">
+
+    <div style="flex-shrink: 0; display: flex; align-items: flex-start; gap: 11px; padding: 16px 20px 14px; border-bottom: 1px solid #e2e6ec;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b3261e" stroke-width="1.7" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="9"/><path d="M12 7.4v5.4M12 16.2v.1"/></svg>
+      <div style="flex-grow: 1; min-width: 0;">
+        <div style="font-size: 15px; font-weight: 600; line-height: 1.4;">{{f.title}}</div>
+        <div style="font-size: 11.5px; color: #8a95a3; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{f.file}}</div>
+      </div>
+      <span style="display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; background: #fdeceb; color: #b3261e; border: 1px solid #f5cdc9;">{{f.kind}}</span>
+    </div>
+
+    <div style="flex-grow: 1; min-height: 0; overflow-y: auto; padding: 15px 20px 10px;">
+
+      <div style="font-size: 12.5px; line-height: 1.8; color: #3c4653; margin-bottom: 15px;">{{f.detail}}</div>
+
+      <div style="border: 1px solid #e2e6ec; border-radius: 5px; padding: 3px 13px 5px; margin-bottom: 15px;">
+        <div class="kv">
+          <div class="k">失败环节</div>
+          <div class="v">{{f.stage}}</div>
+        </div>
+        <div class="kv">
+          <div class="k">引擎返回</div>
+          <div class="v m" style="font-size: 11.5px; color: #5a6673; word-break: break-all;">{{f.raw}}</div>
+        </div>
+        <div class="kv">
+          <div class="k">发生时间</div>
+          <div class="v m" style="font-size: 11.5px;">2026-09-14 10:22:41</div>
+        </div>
+        <div class="kv" style="border-bottom: none;">
+          <div class="k">已重试</div>
+          <div class="v"><span class="m">{{f.retries}}</span> 次 <span style="color: #8a95a3;">（上限为配置项，当前 3 次）</span></div>
+        </div>
+      </div>
+
+      <div style="font-size: 12px; font-weight: 600; margin-bottom: 8px;">怎么处理</div>
+      <div style="padding: 12px 14px; background: #f8fafc; border: 1px solid #e9edf2; border-radius: 5px;">
+        <div style="font-size: 12.5px; line-height: 1.8; color: #3c4653;">{{f.fix}}</div>
+      </div>
+    </div>
+
+    <div style="flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 13px 20px; border-top: 1px solid #e2e6ec; background: #f8fafc;">
+      <span style="font-size: 11px; color: #8a95a3;">原始文件已留存，未被删除</span>
+      <div style="flex-grow: 1;"></div>
+      <div class="gbtn">下载原始文件</div>
+      <div class="gbtn">移出队列</div>
+      <div style="{{f.primaryStyle}}">{{f.primary}}</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "cause": {
+    "editor": "enum",
+    "default": "引擎异常",
+    "options": ["文件损坏", "格式不支持", "超时", "引擎异常"],
+    "section": "失败原因"
+  }
+}'>
+class Component extends DCLogic {
+  renderVals() {
+    // FR-1.7：失败时记录具体原因（文件损坏、格式不支持、超时、引擎异常）并允许修正后重试，
+    // 不得仅显示失败二字。四类原因的信息、可采取的动作与主按钮各不相同。
+    //
+    // 10.3：解析引擎不可用时任务进入等待而非失败——所以「引擎异常」这一类里，
+    // 引擎不可达属于等待态，不进本弹层；进本弹层的是引擎接收了任务但处理出错。
+    //
+    // 8.2 末段：界面只用能力名，不得出现实现选型字样与服务地址端口。
+    const CASES = {
+      '文件损坏': {
+        title: '文件损坏，无法读取',
+        kind: '文件损坏',
+        file: '2023-0455 客户验收报告（扫描件）.pdf · 8.1 MB',
+        detail: '文件头可识别为 PDF，但第 14 页之后的数据流无法解码，很可能在上传或此前的传输中被截断。已读到的前 13 页不予保留——部分入库会让检索结果缺页而无从察觉。',
+        stage: '文件读取',
+        raw: 'stream decode failed at object 214, offset 0x3F8A12',
+        retries: 1,
+        fix: '请用原始文件重新上传。若手头只有这一份，可先用 PDF 工具尝试修复后再传。重传会覆盖本条记录，无需先删除。',
+        primary: '重新上传'
+      },
+      '格式不支持': {
+        title: '格式不受支持',
+        kind: '格式不支持',
+        file: '反应釜装配图 A-2024-117.dwg · 4.6 MB',
+        detail: '图纸的结构化解析属二期范围，本期解析引擎不处理 CAD 类文件。该文件已存入对象存储并保留，只是不进入分块与向量化。',
+        stage: '格式识别',
+        raw: 'unsupported media type: image/vnd.dwg',
+        retries: 0,
+        fix: '本期可行的做法是导出为 PDF 后再上传，图面会作为扫描页解析，文字与标题可被检索，尺寸标注不保证。也可以只登记元数据供台账关联，不做解析。',
+        primary: '仅登记元数据'
+      },
+      '超时': {
+        title: '解析超时',
+        kind: '超时',
+        file: '集团设备技术资料汇编 2024.pdf · 186 MB · 1,240 页',
+        detail: '单文件解析超过配置的时限。该文件页数与体积都远高于队列中其他文档，长时间占用会拖住后面的任务。',
+        stage: '版面分析',
+        raw: 'task exceeded 1800s limit at page 612 / 1240',
+        retries: 2,
+        fix: '建议按章拆分为若干份后分别上传——这也更利于切分与检索，整本汇编切出的分块会因跨主题而相关度偏低。若确需整本处理，可在系统设置中调高单文件时限，但会影响队列中其他任务的等待时长。',
+        primary: '调整时限后重试'
+      },
+      '引擎异常': {
+        title: '解析引擎处理出错',
+        kind: '引擎异常',
+        file: 'CJF 系列高压反应釜使用说明书 V3.2.pdf · 2.4 MB',
+        detail: '引擎接收了任务但在表格结构识别环节出错。同一份文件此前解析成功过，问题很可能出在本次识别到的某个跨页表格上，而非文件本身。',
+        stage: '表格结构识别',
+        raw: 'table recognition error: row span exceeds page boundary (p.31-32)',
+        retries: 3,
+        fix: '已达重试上限，不再自动重试。可改用「按语义段落」策略重新解析绕过表格识别——代价是第 31 至 32 页的表格会被拆成文本行，检索时可能脱离表头。也可将该情况连同页码反馈给运维排查后再试。',
+        primary: '换策略重新解析'
+      }
+    };
+    const c = this.props.cause ?? '引擎异常';
+    const f = CASES[c] || CASES['引擎异常'];
+    return {
+      f: Object.assign({}, f, {
+        primaryStyle: 'display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 13px;border-radius:5px;font-size:13px;font-weight:500;color:#ffffff;background:#2f5ccc;cursor:pointer;'
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

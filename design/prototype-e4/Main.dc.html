@@ -1,0 +1,305 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .grp { padding: 12px 10px 5px; font-size: 11px; font-weight: 500; color: #8a95a3; letter-spacing: .04em; }
+    .item { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .iton { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 4px;
+      font-size: 12px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .abtn { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px;
+      font-size: 11.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .pt { font-size: 12.5px; line-height: 1.8; color: #3c4653; margin: 0 0 8px; }
+    th, td { border: 1px solid #dde3ea; padding: 5px 8px; font-size: 11.5px; text-align: left; }
+    th { background: #f2f4f7; font-weight: 500; color: #5a6673; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <!-- 管理后台顶栏 -->
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: .03em;">HT</div>
+      <div style="font-size: 14px; font-weight: 600;">霍桐实验仪器</div>
+    </div>
+    <span class="pill" style="background: #eef1f5; color: #5a6673; border: 1px solid #dde3ea;">管理后台</span>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span style="font-size: 12px; color: #8a95a3;">可访问密级</span>
+      <span class="pill" style="background: #eef1f5; color: #5a6673; border: 1px solid #dde3ea;">按需授权</span>
+    </div>
+    <div style="width: 1px; height: 20px; background: #e2e6ec;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">陈</div>
+      <div style="line-height: 1.25;">
+        <div style="font-size: 12px; font-weight: 500;">陈工</div>
+        <div style="font-size: 11px; color: #8a95a3;">系统管理员</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <!-- 左栏 -->
+    <div style="width: 240px; flex-shrink: 0; background: #ffffff; border-right: 1px solid #e2e6ec;">
+      <div class="grp">落地</div>
+      <div class="item">后台首页</div>
+      <div class="grp">语料域</div>
+      <div class="iton">语料管理</div>
+      <div class="item">知识库管理</div>
+      <div class="item">元数据与词表</div>
+      <div class="grp">能力域</div>
+      <div class="item">模板管理</div>
+      <div class="grp">治理域</div>
+      <div class="item">用户与权限</div>
+      <div class="item">系统设置</div>
+      <div class="item">审计与统计</div>
+    </div>
+
+    <!-- 主区 -->
+    <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+      <!-- 文档头条 -->
+      <div style="height: 56px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M13 8H3M7 4L3 8l4 4"/></svg>
+        <div style="min-width: 0;">
+          <div style="font-size: 14px; font-weight: 600; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CJF 系列高压反应釜使用说明书 V3.2</div>
+          <div style="display: flex; align-items: center; gap: 7px; margin-top: 3px;">
+            <span class="pill" style="background: #fdf4e3; color: #8a5a00; border: 1px solid #f0dcb4;">内部</span>
+            <span style="font-size: 11px; color: #8a95a3;">私有库 · PDF · <span class="m">48</span> 页 · 2.4 MB</span>
+          </div>
+        </div>
+        <div style="flex-grow: 1;"></div>
+        <div class="gbtn">
+          <span style="color: #8a95a3;">切分策略</span>
+          <span style="font-weight: 500; color: #1c2530;">按章节层级</span>
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>
+        </div>
+        <div style="{{t.reparse}}">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 8a5.5 5.5 0 1 1-1.9-4.2"/><path d="M13.5 2.5V6H10"/></svg>
+          <span>重新解析</span>
+        </div>
+      </div>
+
+      <!-- 重新解析中：该文档暂不参与检索 -->
+      <sc-if value="{{rebuilding}}" hint-placeholder-val="{{ false }}">
+        <div style="flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 11px 18px; background: #fdf4e3; border-bottom: 1px solid #f0dcb4; color: #8a5a00;">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" style="flex-shrink:0"><circle cx="10" cy="10" r="7.6"/><path d="M10 6.1v4.5M10 13.5v.1"/></svg>
+          <span style="font-size: 12.5px; font-weight: 500;">正在按新策略重建分块　<span class="m">23 / 64</span></span>
+          <span style="font-size: 11.5px;">原分块已作废。重建期间本文档暂不参与检索，其余文档不受影响。</span>
+          <div style="flex-grow: 1;"></div>
+          <div class="abtn" style="border-color: #f0dcb4; color: #8a5a00;">中止并保留原分块</div>
+        </div>
+      </sc-if>
+
+      <!-- 统计条 -->
+      <div style="height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 16px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+        <span style="font-size: 12px; color: #5a6673;">分块 <span class="m" style="font-weight: 500;">64</span> 块</span>
+        <span style="font-size: 12px; color: #5a6673;">已编辑 <span class="m" style="font-weight: 500;">3</span></span>
+        <span style="font-size: 12px; color: #5a6673;">平均 <span class="m" style="font-weight: 500;">386</span> 字</span>
+        <span style="font-size: 12px; color: #5a6673;">重叠 <span class="m" style="font-weight: 500;">一成</span></span>
+        <div style="width: 1px; height: 16px; background: #e2e6ec;"></div>
+        <div style="{{t.ovToggle}}">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.2l3.4 3.3L13 4.8"/></svg>
+          <span>显示重叠区</span>
+        </div>
+        <div style="flex-grow: 1;"></div>
+        <span style="font-size: 11.5px; color: #8a95a3;">编辑单块仅重算该块向量，不触发整份重解析</span>
+      </div>
+
+      <!-- 原文 ｜ 分块 -->
+      <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+        <!-- 原文预览 -->
+        <div style="width: 520px; flex-shrink: 0; border-right: 1px solid #e2e6ec; background: #ffffff; display: flex; flex-direction: column; min-height: 0;">
+          <div style="height: 38px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-bottom: 1px solid #e2e6ec;">
+            <span style="font-size: 12px; font-weight: 600;">原文</span>
+            <span style="font-size: 11.5px; color: #8a95a3;">第 <span class="m" style="color: #1c2530;">{{sel.page}}</span> 页 / 48</span>
+            <div style="flex-grow: 1;"></div>
+            <span style="font-size: 11px; color: #8a95a3;">随选中分块自动定位</span>
+          </div>
+
+          <div class="sc" style="flex-grow: 1; min-height: 0; padding: 16px; background: #f8fafc;">
+            <div style="background: #ffffff; border: 1px solid #e2e6ec; border-radius: 3px; padding: 26px 28px; box-shadow: 0 1px 2px rgba(28,37,48,.04);">
+              <div style="font-size: 10.5px; color: #a2acb9; letter-spacing: .04em; margin-bottom: 16px;">CJF 系列高压反应釜使用说明书　·　{{sel.page}}</div>
+              <div style="font-size: 14px; font-weight: 600; margin-bottom: 10px;">2.1　技术参数</div>
+              <p class="pt">本章给出 CJF 系列各规格的技术参数。设备选型时应以本表数值为准，现场工况超出表列范围的须经技术部门确认后方可使用。</p>
+
+              <div style="{{sel.hl}}">
+                <div style="{{sel.hlTag}}">分块 #{{sel.n}} 范围</div>
+                <div style="font-size: 13px; font-weight: 600; margin-bottom: 7px;">2.1.3　压力参数</div>
+                <p class="pt" style="margin-bottom: 9px;">设计压力取使用压力的 1.1 倍，向上取整至 0.5 MPa 的整数倍。爆破压力按设计压力的 2.5 倍校核，爆破片依爆破压力选型，泄放面积见表 2-4。</p>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 4px;">
+                  <thead><tr><th>规格</th><th>使用压力</th><th>设计压力</th><th>爆破压力</th></tr></thead>
+                  <tbody>
+                    <tr><td class="m">CJF-2L</td><td class="m">10 MPa</td><td class="m">11 MPa</td><td class="m">27.5 MPa</td></tr>
+                    <tr><td class="m">CJF-5L</td><td class="m">10 MPa</td><td class="m">11 MPa</td><td class="m">27.5 MPa</td></tr>
+                    <tr><td class="m">CJF-10L</td><td class="m">8 MPa</td><td class="m">9 MPa</td><td class="m">22.5 MPa</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div style="font-size: 13px; font-weight: 600; margin: 14px 0 7px;">2.1.4　温度参数</div>
+              <p class="pt">使用温度上限 300 ℃，设计温度按使用温度加 30 ℃ 取值。夹套导热油温度不得超过介质闪点。</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 分块列表 -->
+        <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0; background: #f2f4f7;">
+          <div style="height: 38px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+            <span style="font-size: 12px; font-weight: 600;">分块</span>
+            <span style="font-size: 11.5px; color: #8a95a3;">点击定位原文</span>
+            <div style="flex-grow: 1;"></div>
+            <div class="abtn">批量操作</div>
+          </div>
+
+          <div class="sc" style="flex-grow: 1; min-height: 0; padding: 12px 16px 16px;">
+            <sc-for list="{{chunks}}" as="c" hint-placeholder-count="4">
+              <div style="{{c.card}}" onClick="{{c.pick}}">
+
+                <div style="display: flex; align-items: center; gap: 8px; padding: 10px 13px 0;">
+                  <span style="{{c.num}}">#{{c.n}}</span>
+                  <span class="m" style="font-size: 11px; color: #5a6673;">P{{c.page}}</span>
+                  <span style="font-size: 11.5px; color: #5a6673;">{{c.sec}}</span>
+                  <div style="flex-grow: 1;"></div>
+                  <sc-if value="{{c.edited}}" hint-placeholder-val="{{ false }}">
+                    <span class="pill" style="background: #e6f2ec; color: #1c6b45; border: 1px solid #c2ded1;">已编辑 · 向量已重算</span>
+                  </sc-if>
+                  <span class="m" style="font-size: 11px; color: #8a95a3;">{{c.chars}} 字</span>
+                </div>
+
+                <sc-if value="{{c.ov}}" hint-placeholder-val="{{ true }}">
+                  <div style="margin: 8px 13px 0; padding: 6px 9px; background: #f2f4f7; border-left: 2px solid #cfd6df; border-radius: 0 3px 3px 0;">
+                    <div style="font-size: 10.5px; color: #8a95a3; margin-bottom: 2px;">与 #{{c.prev}} 重叠 {{c.ovChars}} 字</div>
+                    <div style="font-size: 11.5px; line-height: 1.6; color: #8a95a3;">{{c.ovText}}</div>
+                  </div>
+                </sc-if>
+
+                <div style="padding: 9px 13px 0; font-size: 12.5px; line-height: 1.8; color: #1c2530;">{{c.body}}</div>
+
+                <sc-if value="{{c.isTable}}" hint-placeholder-val="{{ false }}">
+                  <div style="margin: 9px 13px 0;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                      <thead><tr><th>规格</th><th>使用压力</th><th>设计压力</th><th>爆破压力</th></tr></thead>
+                      <tbody>
+                        <tr><td class="m">CJF-2L</td><td class="m">10 MPa</td><td class="m">11 MPa</td><td class="m">27.5 MPa</td></tr>
+                        <tr><td class="m">CJF-5L</td><td class="m">10 MPa</td><td class="m">11 MPa</td><td class="m">27.5 MPa</td></tr>
+                        <tr><td class="m">CJF-10L</td><td class="m">8 MPa</td><td class="m">9 MPa</td><td class="m">22.5 MPa</td></tr>
+                      </tbody>
+                    </table>
+                    <div style="font-size: 10.5px; color: #8a95a3; margin-top: 5px;">表格结构随解析保留，未被拆散为文本行</div>
+                  </div>
+                </sc-if>
+
+                <div style="display: flex; align-items: center; gap: 6px; padding: 11px 13px 11px;">
+                  <div class="abtn">编辑</div>
+                  <div class="abtn">与上块合并</div>
+                  <div class="abtn">在光标处拆分</div>
+                  <div style="flex-grow: 1;"></div>
+                  <div class="abtn" style="color: #b3261e; border-color: #f5cdc9;">删除</div>
+                </div>
+              </div>
+            </sc-for>
+
+            <div style="padding: 10px 0 0; text-align: center; font-size: 11.5px; color: #8a95a3;">以上为第 11–14 块，共 64 块</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "docState": {"editor": "enum", "default": "正常", "options": ["正常", "重新解析中"], "section": "文档状态"},
+  "showOverlap": {"editor": "boolean", "default": true, "section": "显示"}
+}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { sel: 12 };
+  }
+
+  renderVals() {
+    const accent = '#2f5ccc';
+    const soft = 'color-mix(in oklab, ' + accent + ' 9%, #ffffff)';
+    const line = 'color-mix(in oklab, ' + accent + ' 26%, #ffffff)';
+    const mono = "'IBM Plex Mono', ui-monospace, Consolas, monospace";
+    const rebuilding = (this.props.docState ?? '正常') === '重新解析中';
+    const showOv = this.props.showOverlap ?? true;
+
+    // 表 4-2：设备手册按章节层级切分，小节过长时按段落二次切分并保留标题作为前缀。
+    // 所有策略统一保留相邻块之间的重叠，默认为块长的一成。
+    const defs = [
+      { n: 11, page: 6, sec: '2.0 概述', chars: 288, edited: false, isTable: false,
+        prev: 10, ovChars: 31, ovText: '…本手册适用于 CJF 系列全部规格，使用前应通读第 1 章安全须知。',
+        body: '2.0 概述　CJF 系列为磁力搅拌高压反应釜，适用于加氢、氧化、聚合等中高压工艺的实验室与中试研究。本章说明设备的适用范围与基本构成，各规格的具体参数见 2.1 节。' },
+      { n: 12, page: 7, sec: '2.1 技术参数', chars: 412, edited: true, isTable: true,
+        prev: 11, ovChars: 38, ovText: '…各规格的具体参数见 2.1 节。本章给出 CJF 系列各规格的技术参数。',
+        body: '2.1.3 压力参数　设计压力取使用压力的 1.1 倍，向上取整至 0.5 MPa 的整数倍。爆破压力按设计压力的 2.5 倍校核，爆破片依爆破压力选型，泄放面积见表 2-4。' },
+      { n: 13, page: 7, sec: '2.1 技术参数', chars: 356, edited: false, isTable: false,
+        prev: 12, ovChars: 35, ovText: '…爆破片依爆破压力选型，泄放面积见表 2-4。',
+        body: '2.1.4 温度参数　使用温度上限 300 ℃，设计温度按使用温度加 30 ℃ 取值。夹套导热油温度不得超过介质闪点。低温工况需另行选配冷却盘管，见 3.4 节。' },
+      { n: 14, page: 8, sec: '2.2 安全附件', chars: 401, edited: false, isTable: false,
+        prev: 13, ovChars: 33, ovText: '…低温工况需另行选配冷却盘管，见 3.4 节。',
+        body: '2.2 安全附件　每台设备出厂配置爆破片一组、压力表一只、安全阀一只。爆破片为一次性元件，动作后须整片更换，不得修复使用。压力表每年校验一次。' }
+    ];
+
+    const chunks = defs.map((d) => {
+      const on = this.state.sel === d.n;
+      return {
+        n: d.n, page: d.page, sec: d.sec, chars: d.chars, edited: d.edited, isTable: d.isTable,
+        prev: d.prev, ovChars: d.ovChars, ovText: d.ovText, body: d.body,
+        ov: showOv,
+        card: 'margin-bottom:10px;border-radius:6px;background:#ffffff;border:1px solid ' + (on ? line : '#e2e6ec') + ';' +
+          (on ? 'box-shadow:0 0 0 2px ' + soft + ';' : '') + 'cursor:pointer;' + (rebuilding ? 'opacity:.45;' : ''),
+        num: 'display:inline-flex;align-items:center;justify-content:center;height:19px;padding:0 6px;border-radius:3px;font-family:' + mono +
+          ';font-size:11px;font-weight:500;background:' + (on ? accent : '#eef1f5') + ';color:' + (on ? '#ffffff' : '#5a6673') + ';',
+        pick: () => this.setState({ sel: d.n })
+      };
+    });
+
+    const cur = defs.filter((d) => d.n === this.state.sel)[0] || defs[1];
+
+    return {
+      chunks: chunks,
+      rebuilding: rebuilding,
+      sel: {
+        n: cur.n,
+        page: cur.page,
+        hl: 'position:relative;margin:6px 0;padding:12px 13px 10px;border-radius:5px;background:' + soft + ';outline:1px solid ' + line + ';',
+        hlTag: 'position:absolute;top:-9px;right:10px;display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:3px;font-family:' + mono +
+          ';font-size:10px;font-weight:500;color:#ffffff;background:' + accent + ';'
+      },
+      t: {
+        reparse: 'display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;border-radius:5px;font-size:12.5px;font-weight:500;color:#ffffff;background:' + accent + ';cursor:pointer;',
+        ovToggle: 'display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:4px;font-size:11.5px;cursor:pointer;' +
+          (showOv ? 'color:' + accent + ';background:' + soft + ';border:1px solid ' + line + ';'
+                  : 'color:#8a95a3;background:#ffffff;border:1px solid #dde3ea;')
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
