@@ -1,0 +1,261 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .n { height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .non { height: 28px; padding: 0 11px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .h2 { font-size: 14px; font-weight: 600; margin: 0 0 8px; }
+    .h3 { font-size: 13px; font-weight: 600; margin: 14px 0 6px; }
+    .p { font-size: 12.5px; line-height: 1.85; margin: 0 0 11px; }
+    .tm { background: color-mix(in oklab, #2f5ccc 9%, #ffffff); border-bottom: 1px solid color-mix(in oklab, #2f5ccc 32%, #ffffff); padding: 0 1px; border-radius: 2px; }
+    th, td { border: 1px solid #dde3ea; padding: 5px 8px; font-size: 11.5px; text-align: left; }
+    th { background: #f8fafc; font-weight: 500; color: #5a6673; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 28px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: .03em;">HT</div>
+      <div style="font-size: 14px; font-weight: 600;">霍桐实验仪器 · 企业智能体</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 2px;">
+      <div class="n">问答</div><div class="n">案例检索</div><div class="n">案例录入</div><div class="n">报修工单</div><div class="non">翻译</div>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span style="font-size: 12px; color: #8a95a3;">可访问密级</span>
+      <span class="pill" style="background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;">内部</span>
+      <span class="pill" style="background:#e3f4f4;color:#00696b;border:1px solid #b8dedd;">公开</span>
+    </div>
+    <div style="width: 1px; height: 20px; background: #e2e6ec;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">李</div>
+      <div style="line-height: 1.25;"><div style="font-size:12px;font-weight:500">李敏</div><div style="font-size:11px;color:#8a95a3">售后工程师</div></div>
+    </div>
+  </div>
+
+  <!-- 任务条 -->
+  <div style="height: 56px; flex-shrink: 0; display: flex; align-items: center; gap: 11px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 1.5H4.5A1.5 1.5 0 0 0 3 3v10a1.5 1.5 0 0 0 1.5 1.5h7A1.5 1.5 0 0 0 13 13V5.5z"/><path d="M9 1.5v4h4"/></svg>
+    <div style="min-width: 0;">
+      <div style="font-size: 13.5px; font-weight: 600; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{doc.name}}</div>
+      <div style="font-size: 11px; color: #8a95a3; margin-top: 2px;">DOCX · 34 页 · 18,400 词</div>
+    </div>
+    <div style="width: 14px;"></div>
+    <div class="gbtn"><span style="color:#8a95a3">方向</span><span>英 → 中</span></div>
+    <div class="gbtn"><span style="color:#8a95a3">术语域</span><span>反应釜 · 通用机械</span><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+    <div style="flex-grow: 1;"></div>
+    <div style="{{t.viewSingle}}" onClick="{{pickSingle}}">仅译文</div>
+    <div style="{{t.viewDual}}" onClick="{{pickDual}}">双语对照</div>
+    <div style="width: 1px; height: 20px; background: #e2e6ec;"></div>
+    <div style="{{t.dl}}">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M5 7.2l3 3 3-3M2.5 13h11"/></svg>
+      <span>下载译文</span>
+    </div>
+  </div>
+
+  <!-- 合同类提示（FR-6.6） -->
+  <sc-if value="{{doc.isContract}}" hint-placeholder-val="{{ false }}">
+    <div style="flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 11px 18px; background: #fdf4e3; border-bottom: 1px solid #f0dcb4; color: #8a5a00;">
+      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" style="flex-shrink:0"><circle cx="10" cy="10" r="7.6"/><path d="M10 6.1v4.5M10 13.5v.1"/></svg>
+      <span style="font-size: 12.5px; font-weight: 500;">本文档识别为合同类</span>
+      <span style="font-size: 11.5px;">法律文本的译文须经人工复核后方可对外使用。该提示同时写入下载文件的页眉。</span>
+    </div>
+  </sc-if>
+
+  <!-- 分批进度（FR-6.2） -->
+  <sc-if value="{{running}}" hint-placeholder-val="{{ false }}">
+    <div style="flex-shrink: 0; padding: 11px 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+        <span style="font-size: 12.5px; font-weight: 500;">分批翻译中</span>
+        <span class="m" style="font-size: 12px; color: #5a6673;">第 7 / 23 批</span>
+        <span style="font-size: 11.5px; color: #8a95a3;">单批 1,200 词（可配置），按段落边界切分后合并，不在句中断开</span>
+        <div style="flex-grow: 1;"></div>
+        <div class="gbtn" style="height: 24px; font-size: 11.5px;">中止</div>
+      </div>
+      <div style="height: 4px; border-radius: 2px; background: #eef1f5; overflow: hidden;">
+        <div style="height: 100%; width: 30%; background: #2f5ccc;"></div>
+      </div>
+    </div>
+  </sc-if>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <!-- 译文 / 对照 -->
+    <div class="sc" style="flex-grow: 1; min-width: 0; background: #ffffff; padding: 18px 22px 24px;">
+      <div style="display: flex; gap: 22px;">
+
+        <sc-if value="{{dual}}" hint-placeholder-val="{{ true }}">
+          <div style="flex: 1 1 0; min-width: 0;">
+            <div style="font-size: 11px; color: #8a95a3; letter-spacing: .04em; margin-bottom: 12px;">原文 · EN</div>
+            <p class="h2">3.2　Magnetic Drive Assembly</p>
+            <p class="p">The <span class="tm">magnetic drive</span> transmits torque from the motor to the impeller shaft without a mechanical seal penetrating the pressure boundary. This eliminates the principal leakage path of a packed-gland <span class="tm">autoclave</span>.</p>
+            <p class="p">Before each run, verify that the coupling bearing has not exceeded its service interval. Operating beyond 1,800 hours markedly increases the risk of crystalline deposits seizing the inner rotor.</p>
+            <p class="h3">3.2.1　Service Limits</p>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 11px;">
+              <thead><tr><th>Item</th><th>Limit</th></tr></thead>
+              <tbody>
+                <tr><td>Coupling bearing</td><td class="m">1,800 h</td></tr>
+                <tr><td>Max <span class="tm">stirring speed</span></td><td class="m">1,200 rpm</td></tr>
+                <tr><td><span class="tm">Jacket</span> oil temp.</td><td class="m">300 ℃</td></tr>
+              </tbody>
+            </table>
+            <p class="p">Should the <span class="tm">burst disc</span> actuate, the entire disc assembly must be replaced; field repair is not permitted under any circumstances.</p>
+          </div>
+        </sc-if>
+
+        <div style="flex: 1 1 0; min-width: 0;">
+          <div style="font-size: 11px; color: #8a95a3; letter-spacing: .04em; margin-bottom: 12px;">译文 · 中文</div>
+          <p class="h2">3.2　磁力传动组件</p>
+          <p class="p"><span class="tm">磁力传动</span>将电机扭矩传递至搅拌轴，无需机械密封穿越压力边界，由此消除了填料密封式<span class="tm">高压反应釜</span>的主要泄漏通道。</p>
+          <p class="p">每次运行前应确认耦合轴承未超出保养周期。运行超过 1,800 小时后，结晶沉积卡滞内磁转子的风险显著升高。</p>
+          <p class="h3">3.2.1　使用限值</p>
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 11px;">
+            <thead><tr><th>项目</th><th>限值</th></tr></thead>
+            <tbody>
+              <tr><td>耦合轴承</td><td class="m">1,800 h</td></tr>
+              <tr><td>最高<span class="tm">转速</span></td><td class="m">1,200 rpm</td></tr>
+              <tr><td><span class="tm">夹套</span>导热油温度</td><td class="m">300 ℃</td></tr>
+            </tbody>
+          </table>
+          <p class="p"><span class="tm">爆破片</span>一旦动作，须整组更换；任何情况下均不允许现场修复。</p>
+          <sc-if value="{{running}}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top: 14px; padding: 14px; border: 1px dashed #dde3ea; border-radius: 5px; text-align: center;">
+              <span style="font-size: 12px; color: #a2acb9;">3.3 之后的内容尚在翻译中（第 7 / 23 批）</span>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右栏：术语 + 无法回填 -->
+    <div style="width: 380px; flex-shrink: 0; border-left: 1px solid #e2e6ec; background: #ffffff; display: flex; flex-direction: column; min-height: 0;">
+      <div class="sc" style="flex-grow: 1; min-height: 0; padding: 16px 16px 18px;">
+
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+          <span style="font-size: 13px; font-weight: 600;">命中术语</span>
+          <span class="pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">5 条</span>
+        </div>
+        <div style="font-size: 11.5px; color: #5a6673; line-height: 1.7; margin-bottom: 11px;">以强制对照形式写入提示词，保证同一设备或工艺在全文译名一致。正文中已标出。</div>
+
+        <div style="border: 1px solid #e2e6ec; border-radius: 5px; overflow: hidden; margin-bottom: 20px;">
+          <sc-for list="{{terms}}" as="tm" hint-placeholder-count="5">
+            <div style="padding: 10px 12px; border-bottom: 1px solid #eef1f5;">
+              <div style="display: flex; align-items: baseline; gap: 8px;">
+                <span style="font-size: 12.5px; font-weight: 500;">{{tm.zh}}</span>
+                <span style="font-size: 11.5px; color: #5a6673;">{{tm.en}}</span>
+                <div style="flex-grow: 1;"></div>
+                <span class="pill" style="background:#f8fafc;color:#8a95a3;border:1px solid #e9edf2;">{{tm.domain}}</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+                <span style="font-size: 11px; color: #8a95a3;">全文 {{tm.count}} 处，译法一致</span>
+                <div style="flex-grow: 1;"></div>
+                <span style="font-size: 11px; color: #2f5ccc; cursor: pointer;">译法不当</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- FR-6.3 末句：无法回填的元素在结果中列出 -->
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+          <span style="font-size: 13px; font-weight: 600;">无法回填的元素</span>
+          <span class="pill" style="background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;">3 处</span>
+        </div>
+        <div style="font-size: 11.5px; color: #5a6673; line-height: 1.7; margin-bottom: 11px;">这些位置的原文保持不变，需人工处理。回填范围覆盖正文、表格单元格、页眉页脚与文本框。</div>
+
+        <div style="display: flex; flex-direction: column; gap: 7px;">
+          <sc-for list="{{unfilled}}" as="u" hint-placeholder-count="3">
+            <div style="padding: 10px 12px; background: #fdf4e3; border: 1px solid #f0dcb4; border-radius: 5px;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                <span class="m" style="font-size: 11.5px; font-weight: 500; color: #8a5a00;">{{u.at}}</span>
+                <span class="pill" style="background:#ffffff;color:#8a5a00;border:1px solid #f0dcb4;">{{u.kind}}</span>
+              </div>
+              <div style="font-size: 11.5px; line-height: 1.65; color: #8a5a00; opacity: .92;">{{u.why}}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "stage": {"editor": "enum", "default": "已完成", "options": ["翻译中", "已完成"], "section": "任务状态"},
+  "docType": {"editor": "enum", "default": "技术资料", "options": ["技术资料", "合同"], "section": "文档类别"}
+}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { view: '双语对照' }; }
+
+  renderVals() {
+    const accent = '#2f5ccc';
+    const soft = 'color-mix(in oklab, ' + accent + ' 9%, #ffffff)';
+    const line = 'color-mix(in oklab, ' + accent + ' 26%, #ffffff)';
+    const running = (this.props.stage ?? '已完成') === '翻译中';
+    const isContract = (this.props.docType ?? '技术资料') === '合同';
+    const dual = this.state.view === '双语对照';
+
+    const tab = (on) => 'display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:4px;font-size:12px;cursor:pointer;' +
+      (on ? 'font-weight:500;color:' + accent + ';background:' + soft + ';border:1px solid ' + line + ';'
+          : 'color:#5a6673;background:#ffffff;border:1px solid #dde3ea;');
+
+    return {
+      running: running,
+      dual: dual,
+      doc: {
+        isContract: isContract,
+        name: isContract
+          ? 'Equipment Supply Agreement – HT-2025-0312 (EN).docx'
+          : 'CJF Series Autoclave – Operation & Maintenance Manual Rev.4.docx'
+      },
+      // FR-6.1：翻译前先检索术语表，命中的术语以强制对照写入提示词
+      terms: [
+        { zh: '高压反应釜', en: 'autoclave', domain: '设备', count: 14 },
+        { zh: '磁力传动', en: 'magnetic drive', domain: '部件', count: 9 },
+        { zh: '爆破片', en: 'burst disc', domain: '安全附件', count: 6 },
+        { zh: '夹套', en: 'jacket', domain: '部件', count: 11 },
+        { zh: '转速', en: 'stirring speed', domain: '工艺参数', count: 7 }
+      ],
+      // FR-6.3 末句要求把无法回填的元素列出来，否则用户以为全文都译了
+      unfilled: [
+        { at: 'P.3 图 2', kind: '图片内文字', why: '文字嵌在位图里，没有可替换的文本层。需重新出图或另附译文对照表。' },
+        { at: 'P.7 式 (2-1)', kind: '公式对象', why: 'OMML 公式对象整体不参与回填，其中的变量说明文字未译。' },
+        { at: '页眉', kind: '自动编号域', why: '域代码在打开时才求值，回填会破坏编号。原文保留。' }
+      ],
+      t: {
+        viewSingle: tab(!dual),
+        viewDual: tab(dual),
+        dl: running
+          ? 'display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 13px;border-radius:5px;font-size:13px;font-weight:500;color:#ffffff;background:#a8b4c4;cursor:not-allowed;'
+          : 'display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 13px;border-radius:5px;font-size:13px;font-weight:500;color:#ffffff;background:' + accent + ';cursor:pointer;'
+      },
+      pickSingle: () => this.setState({ view: '仅译文' }),
+      pickDual: () => this.setState({ view: '双语对照' })
+    };
+  }
+}
+</script>
+</body>
+</html>
