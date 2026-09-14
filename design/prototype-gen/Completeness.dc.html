@@ -1,0 +1,111 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .jump { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px;
+      font-size: 11.5px; color: #2f5ccc; background: #ffffff; border: 1px solid #c9d6f6; cursor: pointer; }
+  </style>
+</helmet>
+
+<div style="width: 700px; height: 660px; background: #f2f4f7; padding: 20px; overflow: hidden;">
+  <div style="height: 100%; background: #ffffff; border: 1px solid #cfd6df; border-radius: 7px; display: flex; flex-direction: column; overflow: hidden;">
+
+    <div style="flex-shrink: 0; display: flex; align-items: flex-start; gap: 11px; padding: 16px 20px 14px; border-bottom: 1px solid #e2e6ec;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b3261e" stroke-width="1.7" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="9"/><path d="M12 7.4v5.4M12 16.2v.1"/></svg>
+      <div>
+        <div style="font-size: 15px; font-weight: 600; line-height: 1.4;">还有 3 项必填未完成，暂时不能生成</div>
+        <div style="font-size: 11.5px; color: #8a95a3; margin-top: 3px;">技术方案 · 华东理工大学 5L 高压釜 · 55 / 58</div>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; min-height: 0; overflow-y: auto; padding: 15px 20px 10px;">
+
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 9px;">
+        <span style="font-size: 12.5px; font-weight: 600;">待填</span>
+        <span class="pill" style="background:#ffffff;color:#8a5a00;border:1px dashed #f0dcb4;">2 项</span>
+      </div>
+      <div style="border: 1px solid #e2e6ec; border-radius: 5px; overflow: hidden; margin-bottom: 18px;">
+        <sc-for list="{{todo}}" as="x" hint-placeholder-count="2">
+          <div style="display: flex; align-items: center; gap: 11px; padding: 11px 13px; border-bottom: 1px solid #eef1f5;">
+            <div style="flex-grow: 1; min-width: 0;">
+              <div style="display: flex; align-items: baseline; gap: 8px;">
+                <span style="font-size: 12.5px; font-weight: 500;">{{x.name}}</span>
+                <span class="m" style="font-size: 10.5px; color: #a2acb9;">{{x.key}}</span>
+              </div>
+              <div style="font-size: 11px; color: #8a95a3; margin-top: 3px;">{{x.sec}}　·　{{x.why}}</div>
+            </div>
+            <span class="jump">跳转<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5l4.5 4.5L6 12.5"/></svg></span>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 9px;">
+        <span style="font-size: 12.5px; font-weight: 600;">待确认</span>
+        <span class="pill" style="background:#f1edfb;color:#6b4fbb;border:1px solid #d9cef2;">1 项</span>
+        <span style="font-size: 11px; color: #8a95a3;">AI 建议未经采纳的也算未完成</span>
+      </div>
+      <div style="border: 1px solid #d9cef2; border-radius: 5px; overflow: hidden; margin-bottom: 18px;">
+        <div style="display: flex; align-items: center; gap: 11px; padding: 11px 13px; background: #f1edfb;">
+          <div style="flex-grow: 1; min-width: 0;">
+            <div style="display: flex; align-items: baseline; gap: 8px;">
+              <span style="font-size: 12.5px; font-weight: 500; color: #4a3580;">爆破压力</span>
+              <span class="m" style="font-size: 10.5px; color: #6b4fbb; opacity: .7;">pressure_burst</span>
+            </div>
+            <div style="font-size: 11px; color: #6b4fbb; margin-top: 3px;">3　主体设备　·　建议 30 MPa 尚未采纳或忽略</div>
+          </div>
+          <span class="jump" style="color:#6b4fbb;border-color:#d9cef2;">跳转<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5l4.5 4.5L6 12.5"/></svg></span>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 9px;">
+        <span style="font-size: 12.5px; font-weight: 600; color: #8a95a3;">非必填未完成</span>
+        <span class="pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">4 项</span>
+        <span style="font-size: 11px; color: #8a95a3;">不影响生成</span>
+      </div>
+      <div style="border: 1px solid #e2e6ec; border-radius: 5px; padding: 11px 13px;">
+        <div style="font-size: 11.5px; color: #5a6673; line-height: 1.8;">粘度范围　·　内置冷却　·　防爆等级要求（补充说明）　·　其他特殊要求</div>
+        <div style="font-size: 11px; color: #8a95a3; line-height: 1.65; margin-top: 7px;">这四项在模板里标了「留空处理」，生成时按各自的规则整段留空或删除该段。</div>
+      </div>
+    </div>
+
+    <div style="flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 13px 20px; border-top: 1px solid #e2e6ec; background: #f8fafc;">
+      <span style="font-size: 11px; color: #8a95a3;">必填项全部完成后「生成文档」才可用</span>
+      <div style="flex-grow: 1;"></div>
+      <div class="gbtn">关闭</div>
+      <div style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 13px;border-radius:5px;font-size:13px;font-weight:500;color:#ffffff;background:#2f5ccc;cursor:pointer;">跳到第一项</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      todo: [
+        { name: '占地尺寸要求', key: 'footprint', sec: '4　配套系统', why: '禁止继承，暂无可参考数据' },
+        { name: '单价', key: 'unit_price', sec: '6　交付与服务', why: '报价金额禁止继承' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
