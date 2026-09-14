@@ -1,0 +1,279 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .grp { padding: 12px 10px 5px; font-size: 11px; font-weight: 500; color: #8a95a3; letter-spacing: .04em; }
+    .item { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .iton { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .abtn { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px;
+      font-size: 11.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .step { height: 44px; padding: 0 14px; display: flex; align-items: center; gap: 7px; font-size: 13px; }
+    th { font-size: 11.5px; font-weight: 500; color: #5a6673; text-align: left; padding: 0 12px; height: 34px;
+      background: #f8fafc; border-bottom: 1px solid #e2e6ec; white-space: nowrap; }
+    td { font-size: 12.5px; padding: 0 12px; height: 40px; border-bottom: 1px solid #eef1f5; }
+    .para { font-size: 12.5px; line-height: 1.85; padding: 9px 12px; border-radius: 4px; margin-bottom: 7px; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: .03em;">HT</div>
+      <div style="font-size: 14px; font-weight: 600;">霍桐实验仪器</div>
+    </div>
+    <span class="pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">管理后台</span>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">陈</div>
+      <div style="line-height: 1.25;"><div style="font-size:12px;font-weight:500">陈工</div><div style="font-size:11px;color:#8a95a3">系统管理员</div></div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <div style="width: 240px; flex-shrink: 0; background: #ffffff; border-right: 1px solid #e2e6ec;">
+      <div class="grp">落地</div><div class="item">后台首页</div>
+      <div class="grp">语料域</div><div class="item">语料管理</div><div class="iton">知识库管理</div><div class="item">元数据与词表</div>
+      <div class="grp">能力域</div><div class="item">模板管理</div>
+      <div class="grp">治理域</div><div class="item">用户与权限</div><div class="item">系统设置</div><div class="item">审计与统计</div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+      <div style="height: 56px; flex-shrink: 0; display: flex; align-items: center; gap: 11px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M13 8H3M7 4L3 8l4 4"/></svg>
+        <div>
+          <div style="font-size: 14px; font-weight: 600; line-height: 1.4;">对外公开库 · 发布</div>
+          <div style="font-size: 11.5px; color: #8a95a3; margin-top: 2px;">自共享库或私有库选取内容，经审定后发布至隔离区</div>
+        </div>
+        <div style="flex-grow: 1;"></div>
+        <div style="display: flex; align-items: center; gap: 2px; background: #f8fafc; border: 1px solid #e2e6ec; border-radius: 5px; padding: 2px;">
+          <div style="{{s.t1}}">1 选取内容</div>
+          <div style="{{s.t2}}">2 副本编辑</div>
+          <div style="{{s.t3}}">3 发布记录</div>
+        </div>
+      </div>
+
+      <!-- 阶段一：选取 -->
+      <sc-if value="{{s.isPick}}" hint-placeholder-val="{{ true }}">
+        <div style="flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 11px 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+          <div class="gbtn"><span style="color:#8a95a3">来源库</span><span>本公司私有库</span><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+          <div class="gbtn"><span style="color:#8a95a3">文档类别</span><span>手册 · 资料</span><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+          <div style="flex-grow: 1;"></div>
+          <span style="font-size: 11.5px; color: #8a95a3;">已选 <span class="m" style="color:#1c2530;font-weight:500">2</span> 份</span>
+          <div style="display:inline-flex;align-items:center;height:28px;padding:0 13px;border-radius:5px;font-size:13px;font-weight:500;color:#ffffff;background:#2f5ccc;cursor:pointer;">下一步：编辑副本</div>
+        </div>
+        <div class="sc" style="flex-grow: 1; min-height: 0; background: #ffffff;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead><tr><th style="width:44px"></th><th>文档</th><th style="width:110px">类别</th><th style="width:90px">密级</th><th style="width:110px">更新</th><th style="width:130px">公开库中</th></tr></thead>
+            <tbody>
+              <sc-for list="{{pickRows}}" as="r" hint-placeholder-count="5">
+                <tr style="{{r.tr}}">
+                  <td><div style="{{r.cb}}"><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.4l3 3L12.5 5"/></svg></div></td>
+                  <td>{{r.name}}</td>
+                  <td style="color: #5a6673;">{{r.cat}}</td>
+                  <td><span style="{{r.clsStyle}}">{{r.cls}}</span></td>
+                  <td class="m" style="color: #8a95a3; font-size: 11.5px;">{{r.at}}</td>
+                  <td><span style="{{r.pubStyle}}">{{r.pub}}</span></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+          <div style="padding: 14px 18px;">
+            <div style="padding: 12px 14px; background: #f8fafc; border: 1px solid #e9edf2; border-radius: 5px; font-size: 11.5px; line-height: 1.75; color: #5a6673;">发布不会动原文档。系统会在公开库中创建一份独立副本并单独解析入库——原文档留在原库，密级、分块、向量都不受影响。之后修改原文档也不会自动同步到已发布的副本。</div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- 阶段二：副本编辑 -->
+      <sc-if value="{{s.isEdit}}" hint-placeholder-val="{{ false }}">
+        <div style="flex-shrink: 0; display: flex; align-items: center; gap: 9px; padding: 11px 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+          <span style="font-size: 13px; font-weight: 600;">真空冷冻干燥机通用报警代码表（2023）</span>
+          <span class="pill" style="background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;">原文密级 内部</span>
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+          <span class="pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">副本将以 公开 入库</span>
+          <div style="flex-grow: 1;"></div>
+          <span style="font-size: 11.5px; color: #8a95a3;">已删除 <span class="m" style="color:#b3261e;font-weight:500">2</span> 段</span>
+          <div class="gbtn">上一步</div>
+          <div style="display:inline-flex;align-items:center;height:28px;padding:0 13px;border-radius:5px;font-size:13px;font-weight:500;color:#ffffff;background:#2f5ccc;cursor:pointer;">发布至公开库</div>
+        </div>
+        <div style="flex-grow: 1; display: flex; min-height: 0;">
+          <div class="sc" style="flex: 1 1 0; min-width: 0; border-right: 1px solid #e2e6ec; background: #f8fafc; padding: 16px 18px;">
+            <div style="font-size: 11px; color: #8a95a3; letter-spacing: .04em; margin-bottom: 11px;">原文（只读，不会被改动）</div>
+            <sc-for list="{{src}}" as="p" hint-placeholder-count="5">
+              <div class="para" style="background: #ffffff; border: 1px solid #e2e6ec; color: #5a6673;">{{p.text}}</div>
+            </sc-for>
+          </div>
+          <div class="sc" style="flex: 1 1 0; min-width: 0; background: #ffffff; padding: 16px 18px;">
+            <div style="font-size: 11px; color: #8a95a3; letter-spacing: .04em; margin-bottom: 11px;">公开库副本（可删段）</div>
+            <sc-for list="{{copy}}" as="p" hint-placeholder-count="5">
+              <div style="{{p.box}}">
+                <div style="display: flex; align-items: flex-start; gap: 9px;">
+                  <div style="flex-grow: 1; min-width: 0; font-size: 12.5px; line-height: 1.85;">{{p.text}}</div>
+                  <span style="{{p.btn}}">{{p.action}}</span>
+                </div>
+                <sc-if value="{{p.hasWhy}}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size: 11px; line-height: 1.65; margin-top: 6px; opacity: .9;">{{p.why}}</div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- 阶段三：发布记录与撤回 -->
+      <sc-if value="{{s.isLog}}" hint-placeholder-val="{{ false }}">
+        <div class="sc" style="flex-grow: 1; min-height: 0; background: #ffffff;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead><tr><th>文档</th><th style="width:110px">发布</th><th style="width:96px">操作人</th><th style="width:110px">状态</th><th style="width:230px">撤回原因</th><th style="width:150px">操作</th></tr></thead>
+            <tbody>
+              <sc-for list="{{logRows}}" as="r" hint-placeholder-count="5">
+                <tr>
+                  <td>{{r.name}}</td>
+                  <td class="m" style="color: #8a95a3; font-size: 11.5px;">{{r.at}}</td>
+                  <td style="font-size: 12px;">{{r.who}}</td>
+                  <td><span style="{{r.stStyle}}">{{r.status}}</span></td>
+                  <td style="font-size: 11.5px; color: #5a6673; line-height: 1.55;">{{r.reason}}</td>
+                  <td><div style="display: flex; gap: 6px;"><span class="abtn">内容快照</span><span style="{{r.actStyle}}">{{r.act}}</span></div></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+          <div style="padding: 14px 18px;">
+            <div style="padding: 12px 14px; background: #f8fafc; border: 1px solid #e9edf2; border-radius: 5px; font-size: 11.5px; line-height: 1.75; color: #5a6673;">撤回即删除公开库中的副本，对外立即不可见。内网这边看到的始终是原库中的正本，不受影响——所以内网不存在「浏览时撞上已撤回」这种情况，「已撤回」只是这张记录表里的一个状态。<br>对客户侧而言，撤回的内容一律表现为未找到，不提示「已下架」——那等于把撤回行为本身泄露出去。</div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "stage": {
+    "editor": "enum",
+    "default": "1 选取内容",
+    "options": ["1 选取内容", "2 副本编辑", "3 发布记录"],
+    "section": "阶段"
+  }
+}'>
+class Component extends DCLogic {
+  renderVals() {
+    const accent = '#2f5ccc';
+    const soft = 'color-mix(in oklab, ' + accent + ' 9%, #ffffff)';
+    const stage = this.props.stage ?? '1 选取内容';
+    const pill = 'display:inline-flex;align-items:center;height:19px;padding:0 6px;border-radius:3px;font-size:11px;font-weight:500;';
+    const CLS = {
+      '内部': 'background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;',
+      '公开': 'background:#e3f4f4;color:#00696b;border:1px solid #b8dedd;'
+    };
+    const tab = (on) => 'height:26px;padding:0 11px;display:flex;align-items:center;border-radius:4px;font-size:12.5px;cursor:pointer;' +
+      (on ? 'font-weight:500;color:' + accent + ';background:#ffffff;border:1px solid ' + soft + ';box-shadow:0 1px 2px rgba(28,37,48,.06);'
+          : 'color:#8a95a3;');
+
+    const PICK = [
+      { name: '真空冷冻干燥机通用报警代码表（2023）', cat: '资料', cls: '内部', at: '2025-06-11', pub: '未发布', on: true },
+      { name: 'CJF 系列高压反应釜日常保养手册', cat: '手册', cls: '内部', at: '2025-09-02', pub: '未发布', on: true },
+      { name: 'CJF 系列高压反应釜使用说明书 V3.2', cat: '手册', cls: '内部', at: '2025-11-18', pub: '已发布 V3.1', on: false },
+      { name: '玻璃反应釜安全操作规程', cat: '手册', cls: '内部', at: '2025-04-20', pub: '已发布', on: false },
+      { name: '反应釜选型指南（2025）', cat: '资料', cls: '内部', at: '2025-10-08', pub: '未发布', on: false }
+    ];
+
+    const SRC = [
+      { text: '第 1 章 报警代码总览。本表适用于 SRTU 系列全部规格，代码含义与处理建议见下节。' },
+      { text: 'E-17 压缩机过载。检查冷凝器散热是否受阻，环境温度是否超过 32 ℃。' },
+      { text: 'E-22 真空度达不到设定值。检查密封圈、管路接头，必要时更换真空泵油。' },
+      { text: '备件采购联系：采购部 王工 分机 8107，供应商联系人张经理 139-XXXX-XXXX。' },
+      { text: '本表由技术部维护，内部版本号 TD-2023-0114，修订记录见 OA 系统流程 #4471。' }
+    ];
+
+    const COPY = [
+      { text: SRC[0].text, del: false },
+      { text: SRC[1].text, del: false },
+      { text: SRC[2].text, del: false },
+      { text: SRC[3].text, del: true, why: '含内部分机与供应商联系人，不宜对外。' },
+      { text: SRC[4].text, del: true, why: '含内部版本号与 OA 流程编号，对客户无意义且暴露内部系统。' }
+    ];
+
+    const LOG = [
+      { name: 'CJF 系列高压反应釜使用说明书 V3.1', at: '2025-09-14', who: '陈工', status: '对外可见', reason: '—' },
+      { name: '玻璃反应釜安全操作规程', at: '2025-05-06', who: '陈工', status: '对外可见', reason: '—' },
+      { name: '真空冷冻干燥机通用报警代码表（2022）', at: '2024-08-19', who: '陈工', status: '对外可见', reason: '—' },
+      { name: 'SRTU 系列安装调试记录汇编', at: '2025-02-11', who: '陈工', status: '已撤回', reason: '第 3 节含客户单位名称与现场联系人电话' },
+      { name: '反应釜选型指南（2023 版）', at: '2023-11-30', who: '周工', status: '已撤回', reason: '已被 2025 版替代，避免客户拿到过期参数' }
+    ];
+
+    return {
+      s: {
+        isPick: stage === '1 选取内容',
+        isEdit: stage === '2 副本编辑',
+        isLog: stage === '3 发布记录',
+        t1: tab(stage === '1 选取内容'),
+        t2: tab(stage === '2 副本编辑'),
+        t3: tab(stage === '3 发布记录')
+      },
+      pickRows: PICK.map(function (r) {
+        return {
+          name: r.name, cat: r.cat, cls: r.cls, at: r.at, pub: r.pub,
+          tr: r.on ? 'background:' + soft + ';' : '',
+          cb: r.on
+            ? 'width:14px;height:14px;border-radius:3px;border:1px solid ' + accent + ';background:' + accent + ';display:flex;align-items:center;justify-content:center;'
+            : 'width:14px;height:14px;border-radius:3px;border:1px solid #cfd6df;background:#ffffff;',
+          clsStyle: pill + CLS[r.cls],
+          pubStyle: pill + (r.pub === '未发布'
+            ? 'background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;'
+            : 'background:#e6f2ec;color:#1c6b45;border:1px solid #c2ded1;')
+        };
+      }),
+      src: SRC,
+      copy: COPY.map(function (p) {
+        return {
+          text: p.text, why: p.why || '', hasWhy: !!p.del,
+          box: p.del
+            ? 'font-size:12.5px;padding:9px 12px;border-radius:4px;margin-bottom:7px;background:#fdeceb;border:1px solid #f5cdc9;color:#b3261e;text-decoration:line-through;text-decoration-color:rgba(179,38,30,.4);'
+            : 'font-size:12.5px;padding:9px 12px;border-radius:4px;margin-bottom:7px;background:#ffffff;border:1px solid #e2e6ec;color:#1c2530;',
+          btn: p.del
+            ? 'flex-shrink:0;display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:4px;font-size:11px;color:#b3261e;background:#ffffff;border:1px solid #f5cdc9;cursor:pointer;text-decoration:none;'
+            : 'flex-shrink:0;display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:4px;font-size:11px;color:#5a6673;background:#ffffff;border:1px solid #dde3ea;cursor:pointer;',
+          action: p.del ? '恢复' : '删除此段'
+        };
+      }),
+      logRows: LOG.map(function (r) {
+        const out = r.status === '已撤回';
+        return {
+          name: r.name, at: r.at, who: r.who, status: r.status, reason: r.reason,
+          stStyle: pill + (out
+            ? 'background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;'
+            : 'background:#e6f2ec;color:#1c6b45;border:1px solid #c2ded1;'),
+          act: out ? '重新发布' : '撤回',
+          actStyle: 'display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:4px;font-size:11.5px;cursor:pointer;background:#ffffff;' +
+            (out ? 'color:#5a6673;border:1px solid #dde3ea;' : 'color:#b3261e;border:1px solid #f5cdc9;')
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

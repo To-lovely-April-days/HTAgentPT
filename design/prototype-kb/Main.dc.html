@@ -1,0 +1,268 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .grp { padding: 12px 10px 5px; font-size: 11px; font-weight: 500; color: #8a95a3; letter-spacing: .04em; }
+    .item { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .iton { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .stat { flex: 1 1 0; min-width: 0; padding: 11px 13px; border-right: 1px solid #eef1f5; }
+    .sn { font-size: 11px; color: #8a95a3; margin-bottom: 4px; }
+    .sv { font-size: 17px; font-weight: 600; line-height: 1.2; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: .03em;">HT</div>
+      <div style="font-size: 14px; font-weight: 600;">霍桐实验仪器</div>
+    </div>
+    <span class="pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">管理后台</span>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span style="font-size: 12px; color: #8a95a3;">可访问密级</span>
+      <span class="pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">按需授权</span>
+    </div>
+    <div style="width: 1px; height: 20px; background: #e2e6ec;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">陈</div>
+      <div style="line-height: 1.25;"><div style="font-size:12px;font-weight:500">陈工</div><div style="font-size:11px;color:#8a95a3">系统管理员</div></div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <div style="width: 240px; flex-shrink: 0; background: #ffffff; border-right: 1px solid #e2e6ec;">
+      <div class="grp">落地</div><div class="item">后台首页</div>
+      <div class="grp">语料域</div><div class="item">语料管理</div><div class="iton">知识库管理</div><div class="item">元数据与词表</div>
+      <div class="grp">能力域</div><div class="item">模板管理</div>
+      <div class="grp">治理域</div><div class="item">用户与权限</div><div class="item">系统设置</div><div class="item">审计与统计</div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+      <div style="height: 56px; flex-shrink: 0; display: flex; align-items: center; gap: 11px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+        <div>
+          <div style="font-size: 14px; font-weight: 600; line-height: 1.4;">知识库管理</div>
+          <div style="font-size: 11.5px; color: #8a95a3; margin-top: 2px;">按三级密级建库，每个库绑定唯一密级与所属公司</div>
+        </div>
+        <div style="flex-grow: 1;"></div>
+        <div style="{{t.newBtn}}">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5v9M3.5 8h9"/></svg>
+          <span>新建知识库</span>
+        </div>
+      </div>
+
+      <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+        <div class="sc" style="flex-grow: 1; min-width: 0; padding: 16px 18px 20px;">
+
+          <sc-for list="{{kbs}}" as="k" hint-placeholder-count="3">
+            <div style="background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px; margin-bottom: 12px; overflow: hidden;">
+              <div style="display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-bottom: 1px solid #eef1f5;">
+                <span style="font-size: 14px; font-weight: 600;">{{k.name}}</span>
+                <span style="{{k.tierStyle}}">{{k.tier}}</span>
+                <span class="m" style="font-size: 11px; color: #8a95a3;">{{k.id}}</span>
+                <span style="{{k.lockStyle}}">
+                  <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3.5" y="7" width="9" height="6.5" rx="1.4"/><path d="M5.8 7V5.2a2.2 2.2 0 0 1 4.4 0V7"/></svg>
+                  密级不可修改
+                </span>
+                <div style="flex-grow: 1;"></div>
+                <span style="font-size: 11.5px; color: #8a95a3;">{{k.access}}</span>
+              </div>
+
+              <div style="display: flex;">
+                <div class="stat"><div class="sn">文档</div><div class="sv m">{{k.docs}}</div></div>
+                <div class="stat"><div class="sn">分块</div><div class="sv m">{{k.chunks}}</div></div>
+                <div class="stat"><div class="sn">最近更新</div><div class="sv m" style="font-size: 14px; padding-top: 3px;">{{k.updated}}</div></div>
+                <div class="stat" style="border-right: none;"><div class="sn">近 30 天检索命中</div><div class="sv m">{{k.hits}}</div></div>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 8px; padding: 11px 16px; border-top: 1px solid #eef1f5; background: #f8fafc;">
+                <span style="font-size: 11.5px; color: #5a6673; line-height: 1.6; flex-grow: 1;">{{k.note}}</span>
+                <sc-for list="{{k.actions}}" as="a" hint-placeholder-count="2">
+                  <span class="gbtn" style="height: 26px;">{{a.label}}</span>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+
+          <div style="margin-top: 4px; padding: 13px 15px; background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px;">
+            <div style="font-size: 12.5px; font-weight: 600; margin-bottom: 8px;">近期变更</div>
+            <sc-for list="{{events}}" as="e" hint-placeholder-count="4">
+              <div style="display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #eef1f5;">
+                <span class="m" style="width: 108px; flex-shrink: 0; font-size: 11.5px; color: #8a95a3;">{{e.at}}</span>
+                <span style="{{e.kindStyle}}">{{e.kind}}</span>
+                <span style="flex-grow: 1; min-width: 0; font-size: 12.5px;">{{e.what}}</span>
+                <span style="font-size: 11.5px; color: #8a95a3;">{{e.who}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- 新建库：密级是一次性选择 -->
+        <sc-if value="{{creating}}" hint-placeholder-val="{{ false }}">
+          <div style="width: 420px; flex-shrink: 0; border-left: 1px solid #e2e6ec; background: #ffffff; display: flex; flex-direction: column; min-height: 0;">
+            <div style="flex-shrink: 0; padding: 15px 18px 13px; border-bottom: 1px solid #e2e6ec;">
+              <div style="font-size: 14px; font-weight: 600;">新建知识库</div>
+            </div>
+            <div class="sc" style="flex-grow: 1; min-height: 0; padding: 16px 18px;">
+
+              <div style="margin-bottom: 16px;">
+                <div style="font-size: 11.5px; color: #5a6673; margin-bottom: 6px;">库名称 <span style="color:#b3261e">*</span></div>
+                <div style="height: 30px; display: flex; align-items: center; padding: 0 10px; background: #ffffff; border: 1px solid #cfd6df; border-radius: 4px; font-size: 13px; color: #a2acb9;">如「研发私有库」</div>
+              </div>
+
+              <div style="margin-bottom: 6px;">
+                <div style="font-size: 11.5px; color: #5a6673; margin-bottom: 6px;">密级 <span style="color:#b3261e">*</span></div>
+                <div style="display: flex; flex-direction: column; gap: 7px;">
+                  <sc-for list="{{tiers}}" as="ti" hint-placeholder-count="3">
+                    <div style="{{ti.box}}">
+                      <div style="{{ti.dot}}"></div>
+                      <div style="flex-grow: 1; min-width: 0;">
+                        <div style="display: flex; align-items: center; gap: 7px;">
+                          <span style="font-size: 12.5px; font-weight: 500;">{{ti.name}}</span>
+                          <span class="m" style="font-size: 10.5px; color: #8a95a3;">{{ti.key}}</span>
+                        </div>
+                        <div style="font-size: 11px; color: #5a6673; line-height: 1.6; margin-top: 3px;">{{ti.desc}}</div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+
+              <div style="margin-top: 14px; padding: 12px 13px; background: #fdeceb; border: 1px solid #f5cdc9; border-radius: 5px;">
+                <div style="display: flex; align-items: flex-start; gap: 9px;">
+                  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="#b3261e" stroke-width="1.7" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><circle cx="10" cy="10" r="7.6"/><path d="M10 6.1v4.5M10 13.5v.1"/></svg>
+                  <div style="font-size: 11.5px; line-height: 1.75; color: #b3261e;"><strong style="font-weight:600">密级一经创建不可修改。</strong>需要变更时只能新建一个库再把内容迁过去。库里每一份文档的可见范围都由它推导，改动密级等于改动全部历史文档的权限边界。</div>
+                </div>
+              </div>
+
+              <div style="margin-top: 14px;">
+                <div style="font-size: 11.5px; color: #5a6673; margin-bottom: 6px;">默认切分策略</div>
+                <div style="height: 30px; display: flex; align-items: center; padding: 0 10px; background: #ffffff; border: 1px solid #cfd6df; border-radius: 4px; font-size: 13px;">
+                  <span>按章节层级</span><div style="flex-grow:1"></div>
+                  <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>
+                </div>
+                <div style="font-size: 11px; color: #8a95a3; line-height: 1.6; margin-top: 6px;">库级默认值，单份文档可覆盖。与密级不同，这一项随时可改。</div>
+              </div>
+            </div>
+            <div style="flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 13px 18px; border-top: 1px solid #e2e6ec; background: #f8fafc;">
+              <div style="flex-grow: 1;"></div>
+              <div class="gbtn">取消</div>
+              <div style="display:inline-flex;align-items:center;height:28px;padding:0 13px;border-radius:5px;font-size:13px;font-weight:500;color:#ffffff;background:#2f5ccc;cursor:pointer;">创建</div>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "newLibrary": {"editor": "boolean", "default": false, "section": "新建知识库面板"}
+}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tier: 'private' }; }
+
+  renderVals() {
+    const accent = '#2f5ccc';
+    const soft = 'color-mix(in oklab, ' + accent + ' 9%, #ffffff)';
+    const line = 'color-mix(in oklab, ' + accent + ' 26%, #ffffff)';
+    const creating = this.props.newLibrary ?? false;
+    const pill = 'display:inline-flex;align-items:center;height:19px;padding:0 6px;border-radius:3px;font-size:11px;font-weight:500;';
+
+    const TIER = {
+      '共享': 'background:#e3f4f4;color:#00696b;border:1px solid #b8dedd;',
+      '私有': 'background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;',
+      '公开': 'background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;'
+    };
+    const KIND = {
+      '同步': 'background:#e3f4f4;color:#00696b;border:1px solid #b8dedd;',
+      '发布': 'background:#e6f2ec;color:#1c6b45;border:1px solid #c2ded1;',
+      '撤回': 'background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;',
+      '入库': 'background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;'
+    };
+
+    const lockPill = 'display:inline-flex;align-items:center;gap:4px;height:19px;padding:0 6px;border-radius:3px;font-size:10.5px;font-weight:500;background:#f8fafc;color:#8a95a3;border:1px solid #e9edf2;';
+
+    const KB = [
+        { name: '集团共享库', tier: '共享', id: 'kb_shared', docs: '3,914', chunks: '148,220',
+          updated: '11-15 03:00', hits: '12,405', access: '售前 · 售后 · 审核人',
+          note: '自总部单向同步。本地不可直接修改内容——任何本地改动都会在下次同步时被覆盖。',
+          actions: [{ label: '立即同步' }, { label: '同步记录' }] },
+        { name: '本公司私有库', tier: '私有', id: 'kb_private', docs: '1,284', chunks: '52,610',
+          updated: '11-18 16:42', hits: '28,731', access: '售前 · 售后（按密级裁剪）',
+          note: '本公司自有语料与故障案例。不出本机，不存在跨公司访问通道。',
+          actions: [{ label: '查看文档' }, { label: '切分策略' }] },
+        { name: '对外公开库', tier: '公开', id: 'kb_public', docs: '86', chunks: '2,140',
+          updated: '11-12 10:05', hits: '3,962', access: '外部客户（隔离区）',
+          note: '部署于隔离区。内容为经审定后发布的独立副本，与原文档互不影响。',
+          actions: [{ label: '发布内容' }, { label: '发布记录' }] }
+    ];
+
+    const EV = [
+        { at: '11-18 16:42', kind: '入库', what: 'CJF 系列高压反应釜使用说明书 V3.2 解析完成，64 块', who: '陈工' },
+        { at: '11-15 03:00', kind: '同步', what: '共享库增量同步：新增 124 · 更新 38 · 撤回 6', who: '系统' },
+        { at: '11-12 10:05', kind: '发布', what: '真空冷冻干燥机通用报警代码表 发布至对外公开库', who: '陈工' },
+      { at: '11-08 14:20', kind: '撤回', what: 'SRTU 系列安装调试记录汇编 自公开库撤回（含内部联系方式）', who: '陈工' }
+    ];
+
+    return {
+      creating: creating,
+      kbs: KB.map(function (k) {
+        return Object.assign({}, k, {
+          tierStyle: pill + TIER[k.tier],
+          lockStyle: lockPill
+        });
+      }),
+      events: EV.map(function (e) {
+        return Object.assign({}, e, { kindStyle: pill + KIND[e.kind] });
+      }),
+      tiers: [
+        { key: 'shared', name: '共享', desc: '自总部单向同步，本地不可修改' },
+        { key: 'private', name: '私有', desc: '本公司自有语料，不出本机' },
+        { key: 'public', name: '公开', desc: '经审定发布，隔离区对外可见' }
+      ].map((x) => {
+        const on = this.state.tier === x.key;
+        return {
+          key: x.key, name: x.name, desc: x.desc,
+          box: 'display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:5px;cursor:pointer;background:' +
+            (on ? soft : '#ffffff') + ';border:1px solid ' + (on ? line : '#e2e6ec') + ';',
+          dot: 'flex-shrink:0;width:14px;height:14px;margin-top:2px;border-radius:50%;border:1px solid ' +
+            (on ? accent : '#cfd6df') + ';background:' + (on ? accent : '#ffffff') + ';box-shadow:' + (on ? 'inset 0 0 0 3px #ffffff' : 'none') + ';'
+        };
+      }).map((x) => ({ ...x, key: x.key })),
+      t: {
+        newBtn: 'display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 13px;border-radius:5px;font-size:13px;font-weight:500;cursor:pointer;' +
+          (creating ? 'color:' + accent + ';background:' + soft + ';border:1px solid ' + line + ';'
+                    : 'color:#ffffff;background:' + accent + ';')
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
