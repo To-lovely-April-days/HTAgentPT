@@ -1,0 +1,111 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #ffffff; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    /* 客户侧显式例外：命中区 >=44，输入框 >=16px（低于 16 会触发 iOS 聚焦自动放大），正文 15，主按钮 44 */
+    .hd { height: 52px; display: flex; align-items: center; gap: 9px; padding: 0 16px; border-bottom: 1px solid #e2e6ec; }
+    .inp { height: 44px; display: flex; align-items: center; gap: 9px; padding: 0 13px;
+      background: #f2f4f7; border: 1px solid #e2e6ec; border-radius: 8px; font-size: 16px; }
+    .row { min-height: 56px; display: flex; align-items: center; gap: 11px; padding: 12px 16px;
+      border-bottom: 1px solid #eef1f5; }
+    .pbtn { height: 44px; display: flex; align-items: center; justify-content: center; gap: 7px;
+      border-radius: 8px; font-size: 15px; font-weight: 500; color: #ffffff; background: #2f5ccc; }
+    .sbtn { height: 44px; display: flex; align-items: center; justify-content: center; gap: 7px;
+      border-radius: 8px; font-size: 15px; color: #2f5ccc; background: #ffffff; border: 1px solid #c9d6f6; }
+    .ft { padding: 18px 16px 20px; border-top: 1px solid #eef1f5; }
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 844px; display: flex; flex-direction: column; background: #ffffff; overflow: hidden;">
+
+  <div class="hd">
+    <div style="width: 26px; height: 26px; border-radius: 6px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">HT</div>
+    <div style="font-size: 15px; font-weight: 600;">霍桐实验仪器　服务支持</div>
+  </div>
+
+  <div style="flex-grow: 1; overflow-y: auto;">
+
+    <div style="padding: 18px 16px 16px;">
+      <div style="font-size: 20px; font-weight: 600; line-height: 1.4; margin-bottom: 6px;">遇到什么问题？</div>
+      <div style="font-size: 13px; color: #5a6673; line-height: 1.65; margin-bottom: 14px;">输入设备面板上的报警代码，或直接描述现象。</div>
+      <div class="inp">
+        <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.6" stroke-linecap="round" style="flex-shrink:0"><path d="M11.5 11.5L14 14"/><circle cx="7" cy="7" r="4.6"/></svg>
+        <span style="color: #a2acb9;">例如 E-17，或「搅拌停了」</span>
+      </div>
+    </div>
+
+    <div style="padding: 4px 16px 10px;">
+      <div style="font-size: 13px; font-weight: 600; color: #5a6673;">常见问题</div>
+    </div>
+
+    <sc-for list="{{faq}}" as="q" hint-placeholder-count="5">
+      <div class="row">
+        <sc-if value="{{q.hasCode}}" hint-placeholder-val="{{ true }}">
+          <span class="m" style="flex-shrink: 0; display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 4px; font-size: 12.5px; font-weight: 500; background: #fdeceb; color: #b3261e;">{{q.code}}</span>
+        </sc-if>
+        <div style="flex-grow: 1; min-width: 0;">
+          <div style="font-size: 15px; line-height: 1.5;">{{q.title}}</div>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#a2acb9" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M6 3.5l4.5 4.5L6 12.5"/></svg>
+      </div>
+    </sc-for>
+
+    <div style="padding: 20px 16px 8px; display: flex; flex-direction: column; gap: 10px;">
+      <div class="pbtn">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5v9M3.5 8h9"/></svg>
+        <span>提交报修</span>
+      </div>
+      <div class="sbtn">查询报修进度</div>
+    </div>
+
+    <div style="padding: 14px 16px 4px;">
+      <div style="padding: 13px 14px; background: #f8fafc; border: 1px solid #e9edf2; border-radius: 8px;">
+        <div style="font-size: 13.5px; font-weight: 500; line-height: 1.5; margin-bottom: 4px;">已有账号？</div>
+        <div style="font-size: 12.5px; color: #5a6673; line-height: 1.7;">登录后可查看名下设备的交付与维修记录。账号由为您服务的售后工程师开通。</div>
+        <div style="font-size: 13.5px; color: #2f5ccc; margin-top: 9px; min-height: 24px; display: flex; align-items: center;">登录 →</div>
+      </div>
+    </div>
+
+    <div class="ft">
+      <div style="font-size: 12px; color: #8a95a3; line-height: 1.85;">
+        上海霍桐实验仪器有限公司<br>
+        服务热线 400-XXX-XXXX　·　工作日 8:30–17:30<br>
+        沪ICP备XXXXXXXX号
+      </div>
+      <div style="margin-top: 9px; font-size: 11px; color: #a2acb9; line-height: 1.6;">公司名称、热线、备案号均为部署期配置项</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      faq: [
+        { code: 'E-17', hasCode: true, title: '搅拌电机过载停机' },
+        { code: 'E-04', hasCode: true, title: '升温达不到设定温度' },
+        { code: 'E-22', hasCode: true, title: '压力超限报警' },
+        { code: '', hasCode: false, title: '釜盖法兰处渗漏怎么办' },
+        { code: '', hasCode: false, title: '日常保养要做哪些' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

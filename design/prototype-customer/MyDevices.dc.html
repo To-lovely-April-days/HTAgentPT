@@ -1,0 +1,93 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .hd { height: 52px; display: flex; align-items: center; gap: 11px; padding: 0 16px;
+      background: #ffffff; border-bottom: 1px solid #e2e6ec; }
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 844px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <div class="hd">
+    <div style="font-size: 15px; font-weight: 600;">我的设备</div>
+    <div style="flex-grow: 1;"></div>
+    <span style="font-size: 13px; color: #5a6673;">王老师</span>
+    <div style="width: 30px; height: 30px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 500;">王</div>
+  </div>
+
+  <div style="flex-grow: 1; overflow-y: auto; padding: 14px 16px 20px;">
+
+    <sc-for list="{{devices}}" as="d" hint-placeholder-count="3">
+      <div style="background: #ffffff; border: 1px solid #e2e6ec; border-radius: 10px; margin-bottom: 12px; overflow: hidden;">
+        <div style="padding: 14px 15px 12px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+            <span class="m" style="font-size: 15px; font-weight: 600;">{{d.model}}</span>
+            <span style="{{d.wStyle}}">{{d.warranty}}</span>
+          </div>
+          <div style="font-size: 13px; color: #5a6673; line-height: 1.7;">{{d.name}}</div>
+          <div class="m" style="font-size: 12.5px; color: #8a95a3; line-height: 1.7; margin-top: 2px;">{{d.sn}}</div>
+        </div>
+
+        <div style="display: flex; border-top: 1px solid #eef1f5;">
+          <div style="flex: 1 1 0; min-height: 52px; display: flex; flex-direction: column; justify-content: center; padding: 8px 15px; border-right: 1px solid #eef1f5;">
+            <div style="font-size: 12px; color: #8a95a3;">交付</div>
+            <div class="m" style="font-size: 13.5px; margin-top: 2px;">{{d.delivered}}</div>
+          </div>
+          <div style="flex: 1 1 0; min-height: 52px; display: flex; flex-direction: column; justify-content: center; padding: 8px 15px;">
+            <div style="font-size: 12px; color: #8a95a3;">维修记录</div>
+            <div style="font-size: 13.5px; margin-top: 2px;">{{d.repairs}} 次</div>
+          </div>
+        </div>
+
+        <div style="min-height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 15px; border-top: 1px solid #eef1f5;">
+          <span style="font-size: 13.5px; color: #2f5ccc;">查看交付与维修记录</span>
+          <div style="flex-grow: 1;"></div>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#a2acb9" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5l4.5 4.5L6 12.5"/></svg>
+        </div>
+      </div>
+    </sc-for>
+
+    <div style="padding: 8px 2px 0;">
+      <div style="font-size: 12.5px; color: #8a95a3; line-height: 1.8;">这里只显示您名下的设备。若有设备未列出，请联系为您服务的工程师核对。</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const pill = 'display:inline-flex;align-items:center;height:21px;padding:0 8px;border-radius:4px;font-size:11.5px;font-weight:500;';
+    return {
+      devices: [
+        { model: 'CJF-5L', name: '高压反应釜　5 L · 12 MPa · 防爆', sn: 'HT-CJF5L-2025-0312-01',
+          delivered: '2025-11-20', repairs: 1, warranty: '保修中',
+          wStyle: pill + 'background:#e6f2ec;color:#1c6b45;' },
+        { model: 'SF-20L', name: '玻璃反应釜　20 L · 双层夹套', sn: 'HT-SF20L-2025-0701-03',
+          delivered: '2025-09-08', repairs: 0, warranty: '保修中',
+          wStyle: pill + 'background:#e6f2ec;color:#1c6b45;' },
+        { model: 'CJF-2L', name: '高压反应釜　2 L · 10 MPa', sn: 'HT-CJF2L-2023-0455-02',
+          delivered: '2023-07-14', repairs: 3, warranty: '保修已过',
+          wStyle: pill + 'background:#eef1f5;color:#5a6673;' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

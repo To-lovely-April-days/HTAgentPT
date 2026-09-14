@@ -1,0 +1,121 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #ffffff; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; }
+    a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .hd { height: 52px; display: flex; align-items: center; gap: 11px; padding: 0 16px; border-bottom: 1px solid #e2e6ec; }
+    .inp { height: 44px; display: flex; align-items: center; padding: 0 13px;
+      background: #ffffff; border: 1px solid #cfd6df; border-radius: 8px; font-size: 16px; }
+    .pbtn { height: 44px; display: flex; align-items: center; justify-content: center; gap: 7px;
+      border-radius: 8px; font-size: 15px; font-weight: 500; color: #ffffff; background: #2f5ccc; }
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 844px; display: flex; flex-direction: column; background: #ffffff; overflow: hidden;">
+
+  <div class="hd">
+    <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="#1c2530" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M10 3.5L5.5 8l4.5 4.5"/></svg>
+    <div style="font-size: 15px; font-weight: 600;">报修进度</div>
+  </div>
+
+  <div style="flex-grow: 1; overflow-y: auto;">
+
+    <!-- 匿名：凭单号查询 -->
+    <sc-if value="{{anon}}" hint-placeholder-val="{{ true }}">
+      <div style="padding: 18px 16px 6px;">
+        <div style="font-size: 13.5px; font-weight: 500; margin-bottom: 7px;">输入报修单号</div>
+        <div class="inp m" style="margin-bottom: 10px;">WO-2025-0891</div>
+        <div class="pbtn">查询</div>
+        <div style="font-size: 12.5px; color: #8a95a3; line-height: 1.75; margin-top: 11px;">没有账号也能查。单号在提交报修时生成，也可以向为您服务的工程师索取。</div>
+      </div>
+      <div style="height: 8px; background: #f2f4f7; margin: 18px 0;"></div>
+    </sc-if>
+
+    <div style="padding: 4px 16px 0;">
+      <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 3px;">
+        <span class="m" style="font-size: 16px; font-weight: 600;">WO-2025-0891</span>
+        <span style="display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 4px; font-size: 12px; font-weight: 500; background: #fdf4e3; color: #8a5a00;">处理中</span>
+      </div>
+      <div style="font-size: 13px; color: #5a6673; line-height: 1.7; margin-bottom: 4px;">CJF-5L 高压反应釜　·　设备编号 <span class="m">…0312-01</span></div>
+      <div style="font-size: 13px; color: #5a6673; line-height: 1.7;">搅拌启动五分钟后自停，面板显示 E-17</div>
+    </div>
+
+    <div style="padding: 20px 16px 8px;">
+      <div style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">处理进度</div>
+      <sc-for list="{{steps}}" as="s" hint-placeholder-count="4">
+        <div style="display: flex; gap: 12px;">
+          <div style="display: flex; flex-direction: column; align-items: center; flex-shrink: 0;">
+            <div style="{{s.dot}}"></div>
+            <div style="{{s.bar}}"></div>
+          </div>
+          <div style="padding-bottom: 18px; flex-grow: 1; min-width: 0;">
+            <div style="{{s.name}}">{{s.label}}</div>
+            <div class="m" style="font-size: 12px; color: #8a95a3; margin-top: 2px;">{{s.at}}</div>
+            <sc-if value="{{s.hasNote}}" hint-placeholder-val="{{ true }}">
+              <div style="margin-top: 7px; padding: 11px 12px; background: #f8fafc; border: 1px solid #e9edf2; border-radius: 8px; font-size: 13.5px; line-height: 1.75; color: #3c4653;">{{s.note}}</div>
+            </sc-if>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="padding: 6px 16px 24px;">
+      <div style="padding: 13px 14px; background: #f8fafc; border: 1px solid #e9edf2; border-radius: 8px;">
+        <div style="font-size: 13px; color: #5a6673; line-height: 1.8;">有疑问可直接联系工程师 李敏　<span style="color:#2f5ccc">138-XXXX-XXXX</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "entry": {"editor": "enum", "default": "凭单号查询", "options": ["凭单号查询", "已登录"], "section": "进入方式"}
+}'>
+class Component extends DCLogic {
+  renderVals() {
+    const anon = (this.props.entry ?? '凭单号查询') === '凭单号查询';
+
+    // 给客户看的是状态节点 + 工程师主动留言，不是售后的内部处理记录。
+    // 内部记录里有技术判断与备件信息，原样透出既没用也不合适。
+    const STEP = [
+      { label: '已提交', at: '11-02 09:14', note: '', hasNote: false, done: true },
+      { label: '已受理', at: '11-02 10:20', hasNote: true, done: true,
+        note: '您好，我是负责处理的工程师李敏。已安排明天上午上门，出发前会先电话联系您。' },
+      { label: '现场处理中', at: '11-03 08:40', hasNote: true, done: false, now: true,
+        note: '已确认是搅拌部件卡滞，不是电机损坏。备件已带到，预计今天能修好。' },
+      { label: '待您确认', at: '预计 11-03 下午', note: '', hasNote: false, done: false }
+    ];
+
+    const accent = '#2f5ccc';
+    return {
+      anon: anon,
+      steps: STEP.map((s, i) => {
+        const color = s.now ? accent : (s.done ? '#1c6b45' : '#cfd6df');
+        return {
+          label: s.label, at: s.at, note: s.note, hasNote: s.hasNote,
+          dot: 'width:12px;height:12px;border-radius:50%;margin-top:4px;flex-shrink:0;background:' +
+            ((s.done || s.now) ? color : '#ffffff') + ';border:1.5px solid ' + color + ';',
+          bar: 'width:1.5px;flex-grow:1;min-height:20px;background:' + (s.done ? '#c2ded1' : '#e9edf2') + ';',
+          name: 'font-size:15px;line-height:1.5;' +
+            (s.now ? 'font-weight:600;color:' + accent + ';' : (s.done ? 'color:#1c2530;' : 'color:#a2acb9;'))
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>
