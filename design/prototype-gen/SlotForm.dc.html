@@ -63,7 +63,7 @@
       </div>
       <div style="height: 5px; border-radius: 3px; background: #eef1f5; overflow: hidden; display: flex;">
         <div style="width: 79%; background: #1c6b45;"></div>
-        <div style="width: 5%; background: #6b4fbb;"></div>
+        <div style="width: 5%; background: #8f3d74;"></div>
       </div>
     </div>
     <div style="flex-grow: 1;"></div>
@@ -172,7 +172,7 @@ class Component extends DCLogic {
     const MARK = {
       '模板固定': 'background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;',
       '继承自 2025-0312': 'background:#eef2fd;color:#2f5ccc;border:1px solid #c9d6f6;',
-      'AI 建议待确认': 'background:#f1edfb;color:#6b4fbb;border:1px solid #d9cef2;',
+      'AI 建议待确认': 'background:#fbeff7;color:#8f3d74;border:1px solid #edd2e3;',
       '已确认': 'background:#e6f2ec;color:#1c6b45;border:1px solid #c2ded1;',
       '待填 · 禁止继承': 'background:#ffffff;color:#8a5a00;border:1px dashed #f0dcb4;',
       '后续阶段': 'background:#f8fafc;color:#a2acb9;border:1px solid #e9edf2;'
@@ -180,10 +180,10 @@ class Component extends DCLogic {
 
     const V = { plain: 'font-size:13px;line-height:1.8;color:#1c2530;',
                 muted: 'font-size:13px;line-height:1.8;color:#a2acb9;',
-                sug: 'font-size:13px;line-height:1.8;color:#6b4fbb;font-weight:500;' };
+                sug: 'font-size:13px;line-height:1.8;color:#8f3d74;font-weight:500;' };
 
     const act = (kind) => kind === 'primary'
-      ? 'display:inline-flex;align-items:center;height:26px;padding:0 11px;border-radius:4px;font-size:12px;font-weight:500;color:#ffffff;background:#6b4fbb;cursor:pointer;'
+      ? 'display:inline-flex;align-items:center;height:26px;padding:0 11px;border-radius:4px;font-size:12px;font-weight:500;color:#ffffff;background:#8f3d74;cursor:pointer;'
       : 'display:inline-flex;align-items:center;height:26px;padding:0 11px;border-radius:4px;font-size:12px;color:#5a6673;background:#ffffff;border:1px solid #dde3ea;cursor:pointer;';
 
     const ALL = [
@@ -234,7 +234,7 @@ class Component extends DCLogic {
     const TONE = {
       grey: 'margin-top:9px;padding:9px 11px;border-radius:4px;background:#f8fafc;border:1px solid #e9edf2;color:#5a6673;',
       blue: 'margin-top:9px;padding:9px 11px;border-radius:4px;background:' + soft + ';border:1px solid ' + line + ';color:#3c4653;',
-      violet: 'margin-top:9px;padding:10px 12px;border-radius:4px;background:#f1edfb;border:1px solid #d9cef2;color:#4a3580;',
+      violet: 'margin-top:9px;padding:10px 12px;border-radius:4px;background:#fbeff7;border:1px solid #edd2e3;color:#6d2d58;',
       amber: 'margin-top:9px;padding:9px 11px;border-radius:4px;background:#fdf4e3;border:1px solid #f0dcb4;color:#8a5a00;'
     };
 
@@ -279,7 +279,7 @@ class Component extends DCLogic {
           markStyle: pill + MARK[s.mark],
           valueStyle: V[s.vs],
           card: 'padding:14px 16px;border-radius:6px;margin-bottom:10px;background:#ffffff;border:1px solid ' +
-            (s.mark === 'AI 建议待确认' ? '#d9cef2' : '#e2e6ec') + ';',
+            (s.mark === 'AI 建议待确认' ? '#edd2e3' : '#e2e6ec') + ';',
           hasWhy: !!s.why,
           why: s.why || '',
           whyBox: TONE[s.whyTone] || TONE.grey,
@@ -287,7 +287,7 @@ class Component extends DCLogic {
           refs: (s.refs || []).map(function (r) {
             return {
               no: r,
-              style: 'display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:3px;font-family:\'IBM Plex Mono\', ui-monospace, Consolas, monospace;font-size:11px;font-weight:500;background:#ffffff;color:#6b4fbb;border:1px solid #d9cef2;cursor:pointer;'
+              style: 'display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:3px;font-family:\'IBM Plex Mono\', ui-monospace, Consolas, monospace;font-size:11px;font-weight:500;background:#ffffff;color:#8f3d74;border:1px solid #edd2e3;cursor:pointer;'
             };
           }),
           hasActions: !!(s.actions && s.actions.length),

@@ -1,0 +1,241 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #2f5ccc; text-decoration: none; } a:hover { color: #1f43a0; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .grp { padding: 12px 10px 5px; font-size: 11px; font-weight: 500; color: #8a95a3; letter-spacing: .04em; }
+    .item { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .iton { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .sec { font-size: 11.5px; color: #8a95a3; margin: 0 0 6px; }
+    .bd { font-size: 13px; line-height: 1.85; color: #1c2530; margin: 0 0 16px; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <!-- 总部节点：公司位显示范围标识而非公司名 -->
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #5a6673; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">集团</div>
+      <div style="font-size: 14px; font-weight: 600;">集团共享库 · 总部节点</div>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span style="font-size: 12px; color: #8a95a3;">可访问密级</span>
+      <span class="pill" style="background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;">内部</span>
+      <span class="pill" style="background:#e3f4f4;color:#00696b;border:1px solid #b8dedd;">公开</span>
+    </div>
+    <div style="width: 1px; height: 20px; background: #e2e6ec;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">周</div>
+      <div style="line-height: 1.25;"><div style="font-size:12px;font-weight:500">周工</div><div style="font-size:11px;color:#8a95a3">总部审核人</div></div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <div style="width: 240px; flex-shrink: 0; background: #ffffff; border-right: 1px solid #e2e6ec;">
+      <div class="grp">审核</div><div class="iton">审核台</div>
+      <div class="grp">共享库</div><div class="item">共享库问答</div><div class="item">公开库发布</div>
+      <div style="margin: 14px 16px 0; padding-top: 12px; border-top: 1px solid #eef1f5;">
+        <div style="font-size: 11px; color: #8a95a3; line-height: 1.75;">本节点只有共享库。各公司的私有库不存在访问通道——不是权限没给，是架构上就没有这条路。</div>
+      </div>
+    </div>
+
+    <!-- 待审列表 -->
+    <div style="width: 380px; flex-shrink: 0; border-right: 1px solid #e2e6ec; background: #ffffff; display: flex; flex-direction: column; min-height: 0;">
+      <div style="height: 46px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 15px; border-bottom: 1px solid #e2e6ec;">
+        <span style="font-size: 13px; font-weight: 600;">待审案例</span>
+        <span class="pill" style="background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;">6</span>
+        <div style="flex-grow: 1;"></div>
+        <div class="gbtn" style="height: 26px;"><span style="color:#8a95a3">公司</span><span>全部</span><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+      </div>
+      <div class="sc" style="flex-grow: 1; min-height: 0;">
+        <sc-for list="{{list}}" as="c" hint-placeholder-count="6">
+          <div style="{{c.row}}" onClick="{{c.pick}}">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+              <span class="m pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">{{c.model}}</span>
+              <sc-if value="{{c.hasCode}}" hint-placeholder-val="{{ true }}">
+                <span class="m pill" style="background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;">{{c.code}}</span>
+              </sc-if>
+              <div style="flex-grow: 1;"></div>
+              <span class="m" style="font-size: 11px; color: #8a95a3;">{{c.at}}</span>
+            </div>
+            <div style="font-size: 12.5px; line-height: 1.5; margin-bottom: 5px;">{{c.phenom}}</div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 11px; color: #8a95a3;">{{c.from}} · {{c.who}}</span>
+              <div style="flex-grow: 1;"></div>
+              <sc-if value="{{c.dup}}" hint-placeholder-val="{{ false }}">
+                <span class="pill" style="background:#fbeff7;color:#8f3d74;border:1px solid #edd2e3;">疑似重复</span>
+              </sc-if>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- 审核详情 -->
+    <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+      <div style="height: 54px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+        <span class="m" style="font-size: 14px; font-weight: 600;">FC-2025-0442</span>
+        <span class="m pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">CJF-5L</span>
+        <span class="m pill" style="background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;">E-17</span>
+        <span style="font-size: 11.5px; color: #8a95a3;">上海霍桐 · 李敏 · 2025-11-05 提交</span>
+        <div style="flex-grow: 1;"></div>
+        <div class="gbtn">查共享库是否已有</div>
+        <div class="gbtn">修改后通过</div>
+        <div style="{{v.rejectBtn}}">驳回</div>
+        <div style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 13px;border-radius:5px;font-size:13px;font-weight:500;color:#ffffff;background:#1c6b45;cursor:pointer;">通过并入库</div>
+      </div>
+
+      <!-- 驳回原因（H4）：须填写原因并回传至提交人 -->
+      <sc-if value="{{v.rejecting}}" hint-placeholder-val="{{ false }}">
+        <div style="flex-shrink: 0; background: #fdeceb; border-bottom: 1px solid #f5cdc9; padding: 14px 18px 15px;">
+          <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 5px;">
+            <span style="font-size: 13px; font-weight: 600; color: #b3261e;">驳回原因</span>
+            <span style="font-size: 11.5px; color: #b3261e; opacity: .85;">必填。将原样回传给提交人李敏，他能看到你写的每一个字。</span>
+          </div>
+          <div style="padding: 10px 12px; background: #ffffff; border: 1px solid #f5cdc9; border-radius: 5px; font-size: 12.5px; line-height: 1.8; color: #1c2530; margin-bottom: 10px;">处理步骤第 4 步的力矩值 45 N·m 与 CJF 系列装配规范中的 38 N·m 不符，请核实后重新提交。若确为现场实测值，请在补充说明中注明依据。</div>
+          <div style="display: flex; align-items: center; gap: 7px;">
+            <span style="font-size: 11px; color: #b3261e; opacity: .85;">驳回不会影响该案例在上海霍桐本地的检索——它仍然有效，只是进不了共享库。</span>
+            <div style="flex-grow: 1;"></div>
+            <div class="gbtn" style="height: 26px;">取消</div>
+            <span style="display:inline-flex;align-items:center;height:26px;padding:0 12px;border-radius:4px;font-size:12.5px;font-weight:500;color:#ffffff;background:#b3261e;cursor:pointer;">确认驳回并回传</span>
+          </div>
+        </div>
+      </sc-if>
+
+      <div style="flex-grow: 1; display: flex; min-height: 0;">
+        <div class="sc" style="flex-grow: 1; min-width: 0; padding: 18px 22px 24px; background: #ffffff;">
+          <div style="max-width: 700px;">
+            <p class="sec">故障现象</p>
+            <p class="bd">某高校用户现场，客户反映搅拌电机过载停机，复位后运行数分钟再次跳停。釜内介质为高黏度聚合物浆料，事发前连续运行 26 小时。</p>
+            <p class="sec">原因判断</p>
+            <p class="bd">磁力耦合内磁转子与釜内介质结晶卡滞，导致电机负载骤增触发过载保护。复位后短时运行即再次跳停，符合机械卡滞而非电气故障的特征。</p>
+            <p class="sec">处理步骤</p>
+            <p class="bd">1. 停机泄压至常压，切断动力电源并挂牌。<br>2. 拆卸磁缸上盖，取出内磁转子，可见轴承位有结晶附着。<br>3. 用工业酒精清洗磁缸内壁与转子，清除结晶。<br>4. 更换耦合轴承一套，<span style="background:#fdeceb;padding:0 2px;border-radius:2px;">按 45 N·m 力矩复装</span>。<br>5. 空载试运行 30 分钟，电流稳定在 2.1 A，无异响。</p>
+            <p class="sec">所用备件 · 处理结果</p>
+            <p class="bd">磁力耦合轴承 MC-5L-B 一套　·　已解决</p>
+          </div>
+        </div>
+
+        <div class="sc" style="width: 320px; flex-shrink: 0; border-left: 1px solid #e2e6ec; background: #ffffff; padding: 16px 16px 20px;">
+          <div style="font-size: 12.5px; font-weight: 600; margin-bottom: 9px;">核对要点</div>
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px;">
+            <sc-for list="{{checks}}" as="k" hint-placeholder-count="4">
+              <div style="{{k.box}}">
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                  <div style="{{k.dot}}"></div>
+                  <div style="flex-grow: 1; min-width: 0;">
+                    <div style="font-size: 12px; font-weight: 500; line-height: 1.5;">{{k.name}}</div>
+                    <div style="font-size: 11px; line-height: 1.65; margin-top: 3px; opacity: .9;">{{k.note}}</div>
+                  </div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="font-size: 12.5px; font-weight: 600; margin-bottom: 8px;">共享库中的同型案例</div>
+          <div style="border: 1px solid #e2e6ec; border-radius: 5px; overflow: hidden;">
+            <sc-for list="{{similar}}" as="s" hint-placeholder-count="2">
+              <div style="padding: 10px 12px; border-bottom: 1px solid #eef1f5;">
+                <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 4px;">
+                  <span class="m pill" style="background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;">{{s.code}}</span>
+                  <span style="font-size: 10.5px; color: #8a95a3;">{{s.from}} · {{s.at}}</span>
+                </div>
+                <div style="font-size: 11.5px; line-height: 1.6;">{{s.text}}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-size: 11px; color: #8a95a3; line-height: 1.7; margin-top: 8px;">同代码不同成因，不算重复。判为重复时请在驳回原因里写明与哪一条重复。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "action": {"editor": "enum", "default": "查看", "options": ["查看", "填写驳回原因"], "section": "审核动作"}
+}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sel: 'FC-2025-0442' }; }
+
+  renderVals() {
+    const accent = '#2f5ccc';
+    const soft = 'color-mix(in oklab, ' + accent + ' 7%, #ffffff)';
+    const rejecting = (this.props.action ?? '查看') === '填写驳回原因';
+
+    const L = [
+      { id: 'FC-2025-0442', model: 'CJF-5L', code: 'E-17', hasCode: true, at: '11-05',
+        phenom: '搅拌电机过载停机，复位后运行数分钟再次跳停', from: '上海霍桐', who: '李敏', dup: false },
+      { id: 'FC-2025-0438', model: 'CJF-2L', code: 'E-17', hasCode: true, at: '11-04',
+        phenom: '低温工况下搅拌启动困难，电流冲击大', from: '华东分公司', who: '王工', dup: true },
+      { id: 'FC-2025-0431', model: 'SF-20L', code: '', hasCode: false, at: '11-02',
+        phenom: '夹套冷凝水析出，视镜起雾影响观察', from: '上海霍桐', who: '李敏', dup: false },
+      { id: 'FC-2025-0427', model: 'CJF-10L', code: 'E-04', hasCode: true, at: '10-30',
+        phenom: '升温速率达不到设定值，夹套油温正常', from: '西北分公司', who: '赵工', dup: false },
+      { id: 'FC-2025-0419', model: 'SRTU-200', code: 'E-22', hasCode: true, at: '10-28',
+        phenom: '真空度达不到设定值，泵温偏高', from: '华东分公司', who: '孙工', dup: false },
+      { id: 'FC-2025-0412', model: 'CJF-5L', code: '', hasCode: false, at: '10-25',
+        phenom: '磁力密封件渗漏，釜体法兰处有介质析出', from: '西北分公司', who: '赵工', dup: true }
+    ];
+
+    return {
+      list: L.map((c) => ({
+        model: c.model, code: c.code, hasCode: c.hasCode, at: c.at,
+        phenom: c.phenom, from: c.from, who: c.who, dup: c.dup,
+        row: 'padding:12px 15px;border-bottom:1px solid #eef1f5;cursor:pointer;' +
+          (this.state.sel === c.id ? 'background:' + soft + ';' : ''),
+        pick: () => this.setState({ sel: c.id })
+      })),
+      // FR-8.3 的检测在提交端做过一次，审核端仍需人工核对——检测只做格式与词表匹配，不理解语义
+      checks: [
+        { name: '客户信息已去除', ok: true, note: '提交端检测通过，人工复核未见客户名称、项目编号、联系方式' },
+        { name: '技术准确性', ok: false, note: '力矩值 45 N·m 与 CJF 系列装配规范的 38 N·m 不符，正文已标出' },
+        { name: '是否与共享库重复', ok: true, note: '同代码 2 条，但成因不同，不算重复' },
+        { name: '表述可跨公司复用', ok: true, note: '未出现本公司特有的内部编号或流程' }
+      ].map(function (k) {
+        return {
+          name: k.name, note: k.note,
+          box: 'padding:10px 12px;border-radius:5px;' + (k.ok
+            ? 'background:#e6f2ec;border:1px solid #c2ded1;color:#1c6b45;'
+            : 'background:#fdeceb;border:1px solid #f5cdc9;color:#b3261e;'),
+          dot: 'flex-shrink:0;width:8px;height:8px;border-radius:50%;margin-top:5px;background:' + (k.ok ? '#1c6b45' : '#b3261e') + ';'
+        };
+      }),
+      similar: [
+        { code: 'E-17', from: '华东分公司', at: '2023-09-14', text: '搅拌轴弯曲导致周期性过载，整轴更换' },
+        { code: 'E-17', from: '总部技术部', at: '2022-11-08', text: '变频器参数漂移误触发过载保护，重设参数' }
+      ],
+      v: {
+        rejecting: rejecting,
+        rejectBtn: rejecting
+          ? 'display:inline-flex;align-items:center;height:28px;padding:0 11px;border-radius:4px;font-size:12.5px;font-weight:500;color:#ffffff;background:#b3261e;cursor:pointer;'
+          : 'display:inline-flex;align-items:center;height:28px;padding:0 11px;border-radius:4px;font-size:12.5px;color:#b3261e;background:#ffffff;border:1px solid #f5cdc9;cursor:pointer;'
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

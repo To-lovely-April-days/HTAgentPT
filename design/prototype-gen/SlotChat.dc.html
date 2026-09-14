@@ -32,7 +32,7 @@
       <div style="display: flex; align-items: center; gap: 9px;">
         <span style="font-size: 14px; font-weight: 600;">设计压力</span>
         <span class="m" style="font-size: 10.5px; color: #a2acb9;">pressure_design</span>
-        <span class="pill" style="background:#f1edfb;color:#6b4fbb;border:1px solid #d9cef2;">AI 建议待确认</span>
+        <span class="pill" style="background:#fbeff7;color:#8f3d74;border:1px solid #edd2e3;">AI 建议待确认</span>
         <div style="flex-grow: 1;"></div>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.6" stroke-linecap="round" style="cursor:pointer"><path d="M4 4l8 8M12 4l-8 8"/></svg>
       </div>
@@ -41,12 +41,12 @@
 
     <div style="flex-grow: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 10px;">
 
-      <div style="padding: 12px 14px; background: #f1edfb; border: 1px solid #d9cef2; border-radius: 6px; margin-bottom: 18px;">
+      <div style="padding: 12px 14px; background: #fbeff7; border: 1px solid #edd2e3; border-radius: 6px; margin-bottom: 18px;">
         <div style="display: flex; align-items: baseline; gap: 9px; margin-bottom: 6px;">
-          <span style="font-size: 11.5px; color: #6b4fbb;">当前建议</span>
-          <span class="m" style="font-size: 16px; font-weight: 600; color: #4a3580;">12 MPa</span>
+          <span style="font-size: 11.5px; color: #8f3d74;">当前建议</span>
+          <span class="m" style="font-size: 16px; font-weight: 600; color: #6d2d58;">12 MPa</span>
         </div>
-        <div style="font-size: 11.5px; line-height: 1.75; color: #4a3580;">4 个同类项目中 3 个按使用压力 1.1 倍取值并上调至 0.5 MPa 整数倍。其中 2025-0312 因现场为甲类厂房自 11 MPa 上浮至 12 MPa。</div>
+        <div style="font-size: 11.5px; line-height: 1.75; color: #6d2d58;">4 个同类项目中 3 个按使用压力 1.1 倍取值并上调至 0.5 MPa 整数倍。其中 2025-0312 因现场为甲类厂房自 11 MPa 上浮至 12 MPa。</div>
       </div>
 
       <sc-for list="{{turns}}" as="t" hint-placeholder-count="4">
@@ -73,7 +73,7 @@
         <div class="gbtn">换一个建议</div>
         <div style="flex-grow: 1;"></div>
         <div class="gbtn">采纳 11 MPa</div>
-        <div style="display:inline-flex;align-items:center;height:28px;padding:0 13px;border-radius:5px;font-size:13px;font-weight:500;color:#ffffff;background:#6b4fbb;cursor:pointer;">采纳 12 MPa</div>
+        <div style="display:inline-flex;align-items:center;height:28px;padding:0 13px;border-radius:5px;font-size:13px;font-weight:500;color:#ffffff;background:#8f3d74;cursor:pointer;">采纳 12 MPa</div>
       </div>
       <div style="font-size: 11px; color: #8a95a3; line-height: 1.65; margin-top: 9px;">采纳后该槽位转为「已确认」，本次对话记入生成记录，可在追溯时看到当时问了什么。</div>
     </div>

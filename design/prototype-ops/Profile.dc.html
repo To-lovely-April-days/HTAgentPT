@@ -1,0 +1,236 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .navOff { padding: 0 11px; height: 30px; display: flex; align-items: center; border-radius: 4px; font-size: 13px; color: #5a6673; cursor: pointer; }
+    .card { background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px; }
+    .ct { font-size: 12.5px; font-weight: 600; }
+    .cs { font-size: 11px; color: #8a95a3; line-height: 1.75; }
+    .k { font-size: 11.5px; color: #8a95a3; }
+    .val { font-size: 13px; margin-top: 3px; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 28px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: .03em;">HT</div>
+      <div style="font-size: 14px; font-weight: 600; letter-spacing: .01em;">霍桐实验仪器 · 企业智能体</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 2px;">
+      <div class="navOff">问答</div><div class="navOff">项目查询</div><div class="navOff">方案生成</div><div class="navOff">报价合同</div><div class="navOff">翻译</div>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span style="font-size: 12px; color: #8a95a3;">可访问密级</span>
+      <span class="pill" style="background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;">机密</span>
+      <span class="pill" style="background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;">内部</span>
+      <span class="pill" style="background:#e3f4f4;color:#00696b;border:1px solid #b8dedd;">公开</span>
+    </div>
+    <div style="width: 1px; height: 20px; background: #e2e6ec;"></div>
+    <div style="display: flex; align-items: center; gap: 8px; padding: 3px 7px 3px 3px; border-radius: 5px; background: #eef2fd;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #2f5ccc; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">张</div>
+      <div style="line-height: 1.25;"><div style="font-size:12px;font-weight:500">张伟</div><div style="font-size:11px;color:#8a95a3">售前工程师</div></div>
+    </div>
+  </div>
+
+  <div class="sc" style="flex-grow: 1; min-height: 0;">
+    <div style="max-width: 1000px; margin: 0 auto; padding: 22px 20px 30px;">
+
+      <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 15px;">
+        <div style="font-size: 16px; font-weight: 600;">个人中心</div>
+        <span class="cs">这里能看的都是关于你自己的。改不了的地方下面都写了该找谁。</span>
+      </div>
+
+      <div style="display: flex; gap: 14px; margin-bottom: 14px;">
+
+        <div class="card" style="flex: 1; min-width: 0; padding: 16px 18px 18px;">
+          <div class="ct" style="margin-bottom: 13px;">我的信息</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 16px 34px;">
+            <sc-for list="{{info}}" as="i" hint-placeholder-count="6">
+              <div style="{{i.w}}">
+                <div class="k">{{i.k}}</div>
+                <div class="val">{{i.v}}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid #eef1f5;">
+            <div class="k" style="margin-bottom: 6px;">可访问密级</div>
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 7px;">
+              <span class="pill" style="background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;">机密</span>
+              <span class="pill" style="background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;">内部</span>
+              <span class="pill" style="background:#e3f4f4;color:#00696b;border:1px solid #b8dedd;">公开</span>
+            </div>
+            <div class="cs">由角色决定，不单独配。检索时看不到的文档并不会以任何形式露出——不是搜到了再挡掉，是根本不进结果集。若你认为某份文档本该能看，找系统管理员调角色，不要找上传人。</div>
+          </div>
+        </div>
+
+        <div style="width: 380px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px;">
+
+          <!-- 决策 2：不做自助改密 -->
+          <div class="card" style="padding: 16px 18px 17px;">
+            <div class="ct" style="margin-bottom: 10px;">登录口令</div>
+            <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 9px;">
+              <span class="m" style="font-size: 15px; letter-spacing: .18em; color: #5a6673;">••••••••</span>
+              <div style="flex-grow: 1;"></div>
+              <span class="pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">不可自助修改</span>
+            </div>
+            <div style="padding: 10px 12px; background: #f8fafc; border: 1px solid #eef1f5; border-radius: 5px;">
+              <div style="font-size: 12px; line-height: 1.8; color: #5a6673;">本系统不提供自助改密。要换口令，联系系统管理员 <span style="font-weight: 500; color: #1c2530;">陈工</span> 重置——重置这件事本身会写进审计，谁在什么时候给谁重置的，有据可查。</div>
+              <div style="display: flex; align-items: center; gap: 7px; margin-top: 9px; padding-top: 9px; border-top: 1px solid #e2e6ec;">
+                <span class="k">上次重置</span>
+                <span class="m" style="font-size: 11.5px;">2025-06-18</span>
+                <span class="k">由</span>
+                <span style="font-size: 11.5px;">陈工</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 决策 4：同账号多终端互斥 -->
+          <div class="card" style="padding: 16px 18px 17px;">
+            <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 10px;">
+              <div class="ct">当前登录</div>
+              <span class="pill" style="background:#e6f2ec;color:#1c6b45;border:1px solid #c2ded1;">仅此一处在线</span>
+            </div>
+            <div style="padding: 11px 13px; background: #fbfcfd; border: 1px solid #eef1f5; border-radius: 5px; margin-bottom: 9px;">
+              <div style="font-size: 12.5px; font-weight: 500; margin-bottom: 3px;">笔记本 · ThinkPad T14</div>
+              <div class="m" style="font-size: 11px; color: #8a95a3;">D-8F21A0C4 · 10.20.31.86 · 今日 08:52 登录</div>
+            </div>
+            <div class="cs">一个账号同一时刻只能在一处登录。你在别的电脑上登进去，这一处会立刻退出并明确告诉你原因——不是超时，是被顶下线。要绑新终端找管理员。</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="padding: 16px 18px 18px;">
+        <div style="display: flex; align-items: baseline; gap: 9px; margin-bottom: 3px;">
+          <div class="ct">我的操作记录</div>
+          <span class="cs">留存十二个月，只写不改，你自己也改不了</span>
+          <div style="flex-grow: 1;"></div>
+          <div class="gbtn" style="height: 26px;"><span style="color:#8a95a3">类型</span><span>全部</span><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+          <div class="gbtn" style="height: 26px;"><span style="color:#8a95a3">区间</span><span>近 30 天</span></div>
+          <div style="display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 12px;border-radius:4px;font-size:12.5px;font-weight:500;color:#ffffff;background:#2f5ccc;cursor:pointer;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v8M5 8.2l3 3 3-3M2.5 13.5h11"/></svg>
+            <span>导出</span>
+          </div>
+        </div>
+        <div class="cs" style="margin-bottom: 12px;">导出的是这张表的全量，字段与管理员在审计里导你的那一份完全一致——同一份数据，两个入口。离职交接时不必再单独跑一遍。</div>
+
+        <div style="display: flex; flex-direction: column;">
+          <sc-for list="{{logs}}" as="g" hint-placeholder-count="3">
+            <div>
+              <div style="display: flex; align-items: center; gap: 9px; padding: 9px 0 7px;">
+                <span class="m" style="font-size: 11.5px; font-weight: 500; color: #5a6673;">{{g.day}}</span>
+                <div style="flex-grow: 1; height: 1px; background: #eef1f5;"></div>
+                <span class="k">{{g.count}}</span>
+              </div>
+              <sc-for list="{{g.items}}" as="e" hint-placeholder-count="4">
+                <div style="display: flex; align-items: flex-start; gap: 11px; padding: 8px 11px; border-radius: 5px; background: #fbfcfd; border: 1px solid #eef1f5; margin-bottom: 5px;">
+                  <span class="m" style="flex-shrink: 0; width: 44px; font-size: 11.5px; color: #8a95a3; padding-top: 1px;">{{e.at}}</span>
+                  <span style="{{e.kindStyle}}">{{e.kind}}</span>
+                  <div style="flex-grow: 1; min-width: 0; font-size: 12.5px; line-height: 1.6;">{{e.text}}</div>
+                  <sc-if value="{{e.hasCls}}" hint-placeholder-val="{{ false }}">
+                    <span style="{{e.clsStyle}}">{{e.cls}}</span>
+                  </sc-if>
+                  <span style="flex-shrink: 0; font-size: 11.5px; color: #5a6673;">{{e.result}}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="margin-top: 12px; padding: 10px 12px; background: #f8fafc; border: 1px solid #eef1f5; border-radius: 5px;">
+          <div style="font-size: 11.5px; color: #5a6673; line-height: 1.8;">被拒的越权请求也在这张表里，写明当时申请的是什么、为什么没给——这不是给你留污点，是免得日后争执「我明明打开过」。上面 09-11 那条就是。</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const pill = 'display:inline-flex;align-items:center;height:19px;padding:0 6px;border-radius:3px;font-size:11px;font-weight:500;flex-shrink:0;';
+    const KIND = {
+      '检索': pill + 'background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;',
+      '生成': pill + 'background:#eef2fd;color:#2f5ccc;border:1px solid #c9d8f7;',
+      '上传': pill + 'background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;',
+      '翻译': pill + 'background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;',
+      '拒绝': pill + 'background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;'
+    };
+    const CLS = {
+      '机密': pill + 'background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;',
+      '内部': pill + 'background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;',
+      '公开': pill + 'background:#e3f4f4;color:#00696b;border:1px solid #b8dedd;'
+    };
+
+    const G = [
+      { day: '2025-09-14 今天', items: [
+        { at: '09:12', kind: '检索', text: 'CJF-5L 磁力耦合的最大工作压力', cls: '内部', result: '4 条来源' },
+        { at: '08:58', kind: '生成', text: '为「华东理工 10L 中试反应釜」生成技术方案，基准项目 P-2024-0186', cls: '', result: '草稿' }
+      ] },
+      { day: '2025-09-12', items: [
+        { at: '16:31', kind: '翻译', text: 'CJF-5L 操作手册第 3 章 中译英', cls: '公开', result: '完成' },
+        { at: '14:07', kind: '检索', text: 'SRTU 系列真空度达不到设定值怎么排查', cls: '内部', result: '6 条来源' },
+        { at: '10:22', kind: '上传', text: '上传《2025 年 CJF 系列装配规范（修订）》至本公司私有库', cls: '机密', result: '待解析' }
+      ] },
+      { day: '2025-09-11', items: [
+        { at: '15:44', kind: '拒绝', text: '尝试打开《XX 客户三方检测报告》——该文档密级为机密且限技术负责人，你的角色不在范围内', cls: '机密', result: '已拒绝' },
+        { at: '11:03', kind: '检索', text: '反应釜夹套设计压力的标准要求', cls: '内部', result: '未找到' }
+      ] }
+    ];
+
+    return {
+      info: [
+        { k: '姓名', v: '张伟', wide: false },
+        { k: '工号', v: 'HT-0231', wide: false },
+        { k: '所属公司', v: '上海霍桐实验仪器有限公司', wide: true },
+        { k: '部门', v: '销售部', wide: false },
+        { k: '角色', v: '售前工程师', wide: false },
+        { k: '账号启用', v: '2023-04-10', wide: false },
+        { k: '联系方式', v: '由管理员维护，如有变更请联系人事', wide: true }
+      ].map(function (i) {
+        return { k: i.k, v: i.v, w: i.wide ? 'width:100%;' : 'min-width:118px;' };
+      }),
+      logs: G.map(function (g) {
+        return {
+          day: g.day,
+          count: g.items.length + ' 条',
+          items: g.items.map(function (e) {
+            return {
+              at: e.at, kind: e.kind, text: e.text, result: e.result,
+              kindStyle: KIND[e.kind],
+              hasCls: e.cls !== '',
+              cls: e.cls,
+              clsStyle: e.cls === '' ? pill : CLS[e.cls]
+            };
+          })
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

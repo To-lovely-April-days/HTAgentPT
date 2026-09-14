@@ -1,0 +1,325 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .grp { padding: 12px 10px 5px; font-size: 11px; font-weight: 500; color: #8a95a3; letter-spacing: .04em; }
+    .item { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .iton { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .tab { height: 44px; padding: 0 14px; display: flex; align-items: center; font-size: 13px; color: #5a6673; border-bottom: 2px solid transparent; cursor: pointer; }
+    .tabon { height: 44px; padding: 0 14px; display: flex; align-items: center; font-size: 13px; font-weight: 500; color: #2f5ccc; border-bottom: 2px solid #2f5ccc; cursor: pointer; }
+    .card { background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px; }
+    .fl { font-size: 12px; color: #5a6673; }
+    .fh { font-size: 11px; color: #8a95a3; line-height: 1.7; margin-top: 4px; }
+    .inp { display: flex; align-items: center; height: 30px; padding: 0 10px; border: 1px solid #cfd6df; border-radius: 4px;
+      background: #ffffff; font-size: 12.5px; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: .03em;">HT</div>
+      <div style="font-size: 14px; font-weight: 600;">霍桐实验仪器</div>
+    </div>
+    <span class="pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">管理后台</span>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">陈</div>
+      <div style="line-height: 1.25;"><div style="font-size:12px;font-weight:500">陈工</div><div style="font-size:11px;color:#8a95a3">系统管理员</div></div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <div style="width: 240px; flex-shrink: 0; background: #ffffff; border-right: 1px solid #e2e6ec;">
+      <div class="grp">落地</div><div class="item">后台首页</div>
+      <div class="grp">语料域</div><div class="item">语料管理</div><div class="item">知识库管理</div><div class="item">元数据与词表</div>
+      <div class="grp">能力域</div><div class="item">模板管理</div>
+      <div class="grp">治理域</div><div class="item">用户与权限</div><div class="iton">系统设置</div><div class="item">审计与统计</div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+      <div style="flex-shrink: 0; display: flex; align-items: center; gap: 2px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+        <div style="{{v.t1}}" onClick="{{v.go1}}">模型接口</div>
+        <div style="{{v.t2}}" onClick="{{v.go2}}">运行参数</div>
+        <div class="tab">备份与远程接入</div>
+        <div style="flex-grow: 1;"></div>
+        <span style="font-size: 11.5px; color: #8a95a3;">保存后即时生效，无需重启</span>
+        <div style="margin-left: 10px; display:inline-flex;align-items:center;height:28px;padding:0 13px;border-radius:5px;font-size:13px;font-weight:500;color:#ffffff;background:#2f5ccc;cursor:pointer;">保存</div>
+      </div>
+
+      <div class="sc" style="flex-grow: 1; min-height: 0; padding: 16px 18px 26px;">
+
+        <sc-if value="{{v.isModel}}" hint-placeholder-val="{{ true }}">
+          <div style="max-width: 940px;">
+
+            <div class="card" style="padding: 15px 18px 17px; margin-bottom: 12px;">
+              <div style="font-size: 12.5px; font-weight: 600; margin-bottom: 3px;">三类模型接口</div>
+              <div class="fh" style="margin-bottom: 14px;">地址、模型名与调用参数都是部署配置，换一台服务器只改这里，不改代码。</div>
+
+              <sc-for list="{{models}}" as="m" hint-placeholder-count="3">
+                <div style="{{m.box}}">
+                  <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 11px;">
+                    <span style="font-size: 13px; font-weight: 600;">{{m.name}}</span>
+                    <span style="{{m.stStyle}}">{{m.st}}</span>
+                    <div style="flex-grow: 1;"></div>
+                    <div class="gbtn" style="height: 26px;">测试连通</div>
+                  </div>
+                  <div style="display: flex; gap: 14px;">
+                    <div style="flex: 1.5; min-width: 0;">
+                      <div class="fl">接口地址</div>
+                      <div class="inp m" style="margin-top: 5px;">{{m.url}}</div>
+                    </div>
+                    <div style="flex: 1; min-width: 0;">
+                      <div class="fl">模型名称</div>
+                      <div class="inp m" style="margin-top: 5px;">{{m.model}}</div>
+                    </div>
+                    <div style="width: 132px; flex-shrink: 0;">
+                      <div class="fl">{{m.p1n}}</div>
+                      <div class="inp m" style="margin-top: 5px;">{{m.p1v}}</div>
+                    </div>
+                    <div style="width: 132px; flex-shrink: 0;">
+                      <div class="fl">{{m.p2n}}</div>
+                      <div class="inp m" style="margin-top: 5px;">{{m.p2v}}</div>
+                    </div>
+                  </div>
+                  <sc-if value="{{m.locked}}" hint-placeholder-val="{{ false }}">
+                    <div style="margin-top: 11px; padding: 10px 12px; background: #fdf4e3; border: 1px solid #f0dcb4; border-radius: 5px;">
+                      <div style="display: flex; align-items: flex-start; gap: 8px;">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#8a5a00" stroke-width="1.7" stroke-linecap="round" style="flex-shrink:0;margin-top:2px"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></svg>
+                        <div style="flex-grow: 1; min-width: 0;">
+                          <div style="font-size: 12px; font-weight: 500; color: #8a5a00; margin-bottom: 3px;">改这一项要全量重建索引</div>
+                          <div style="font-size: 11.5px; color: #8a5a00; line-height: 1.8;">库里 <span class="m">218,400</span> 个分块的向量是当前模型算出来的。换模型后新旧向量不在同一个空间里，拿新问题去比旧向量，出来的相关度是没有意义的数——检索会持续返回错的结果，而且不报错。所以换模型必须连带重建，重建期间检索降级为关键词匹配，预计 <span class="m">6.5 小时</span>。</div>
+                          <div style="margin-top: 9px;">
+                            <span style="display:inline-flex;align-items:center;height:26px;padding:0 12px;border-radius:4px;font-size:12.5px;font-weight:500;color:#8a5a00;background:#ffffff;border:1px solid #f0dcb4;cursor:pointer;">更换并重建（需二次确认）</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+
+            <div class="card" style="padding: 14px 17px 15px;">
+              <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 8px;">
+                <div style="font-size: 12.5px; font-weight: 600;">当前索引口径</div>
+                <span class="pill" style="background:#e6f2ec;color:#1c6b45;border:1px solid #c2ded1;">一致</span>
+              </div>
+              <div style="display: flex; gap: 34px;">
+                <div><div class="fl">向量化模型</div><div class="m" style="font-size: 12.5px; margin-top: 3px;">bge-m3 · v1.5</div></div>
+                <div><div class="fl">向量维度</div><div class="m" style="font-size: 12.5px; margin-top: 3px;">1024</div></div>
+                <div><div class="fl">已向量化分块</div><div class="m" style="font-size: 12.5px; margin-top: 3px;">218,400</div></div>
+                <div><div class="fl">与当前模型不一致的分块</div><div class="m" style="font-size: 12.5px; margin-top: 3px; color: #1c6b45;">0</div></div>
+              </div>
+              <div class="fh" style="margin-top: 9px;">每个分块都记着算它的模型与版本。这一行若不为 0，说明有分块是旧模型算的，它们在检索里会悄悄给出错的排序——所以这个数必须留在界面上，不能只写在日志里。</div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{v.isParam}}" hint-placeholder-val="{{ false }}">
+          <div style="max-width: 940px;">
+
+            <div class="card" style="padding: 15px 18px 17px; margin-bottom: 12px;">
+              <div style="font-size: 12.5px; font-weight: 600; margin-bottom: 3px;">检索链路参数</div>
+              <div class="fh" style="margin-bottom: 14px;">从一句提问到一段回答，中间这几个数决定了取多少、留多少、什么时候不答。</div>
+
+              <div style="display: flex; flex-wrap: wrap; gap: 14px;">
+                <sc-for list="{{params}}" as="p" hint-placeholder-count="6">
+                  <div style="width: 286px;">
+                    <div style="display: flex; align-items: baseline; gap: 7px;">
+                      <span class="fl" style="font-weight: 500; color: #1c2530;">{{p.name}}</span>
+                      <span class="m" style="font-size: 11px; color: #8a95a3;">{{p.key}}</span>
+                    </div>
+                    <div class="inp m" style="margin-top: 5px; justify-content: space-between;">
+                      <span>{{p.v}}</span><span style="color: #8a95a3; font-size: 11px;">{{p.unit}}</span>
+                    </div>
+                    <div class="fh">{{p.hint}}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <!-- 4.3 阈值拦截：重排分值非标定值，阈值须以真实问题集标定 -->
+            <div class="card" style="padding: 15px 18px 17px; margin-bottom: 12px; border-color: #cfd6df;">
+              <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 4px;">
+                <div style="font-size: 12.5px; font-weight: 600;">相似度阈值 · 标定记录</div>
+                <span style="{{v.calStyle}}">{{v.calState}}</span>
+              </div>
+              <div class="fh" style="margin-bottom: 13px;">重排分值不是标定过的物理量——0.62 在这套语料上是「勉强相关」，换一批语料可能就是「明显相关」。所以阈值不能照抄别家的推荐值，只能拿本公司的真实问题集跑出来。</div>
+
+              <div style="display: flex; gap: 14px; align-items: stretch;">
+                <div style="width: 250px; flex-shrink: 0;">
+                  <div class="fl" style="font-weight: 500; color: #1c2530;">当前阈值</div>
+                  <div style="display: flex; align-items: baseline; gap: 8px; margin-top: 6px;">
+                    <span class="m" style="font-size: 26px; font-weight: 500;">{{v.thr}}</span>
+                    <span style="font-size: 11.5px; color: #8a95a3;">低于此分不进生成</span>
+                  </div>
+                  <div style="height: 6px; border-radius: 3px; background: #eef1f5; margin-top: 10px; position: relative; overflow: hidden;">
+                    <div style="{{v.thrBar}}"></div>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; margin-top: 4px;">
+                    <span class="m" style="font-size: 10.5px; color: #a2acb9;">0.30</span>
+                    <span class="m" style="font-size: 10.5px; color: #a2acb9;">0.90</span>
+                  </div>
+                </div>
+
+                <div style="width: 1px; background: #eef1f5; flex-shrink: 0;"></div>
+
+                <div style="flex-grow: 1; min-width: 0;">
+                  <div class="fl" style="font-weight: 500; color: #1c2530; margin-bottom: 8px;">上次标定：2025-08-26 · 问题集「售前常见问题 v3」共 <span class="m">240</span> 题</div>
+                  <div style="display: flex; gap: 10px;">
+                    <sc-for list="{{cal}}" as="c" hint-placeholder-count="3">
+                      <div style="flex: 1; padding: 10px 12px; background: #fbfcfd; border: 1px solid #eef1f5; border-radius: 5px;">
+                        <div style="font-size: 11px; color: #8a95a3;">{{c.name}}</div>
+                        <div class="m" style="font-size: 17px; font-weight: 500; margin-top: 3px;">{{c.v}}</div>
+                        <div style="font-size: 10.5px; color: #8a95a3; line-height: 1.6; margin-top: 3px;">{{c.note}}</div>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 9px; margin-top: 11px;">
+                    <div class="gbtn" style="height: 26px;">重新标定</div>
+                    <div class="gbtn" style="height: 26px;">管理问题集</div>
+                    <div style="flex-grow: 1;"></div>
+                    <span style="font-size: 11px; color: #8a95a3;">语料增量超过 20% 后应重标一次</span>
+                  </div>
+                </div>
+              </div>
+
+              <sc-if value="{{v.dirty}}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top: 13px; padding: 11px 13px; background: #fdf4e3; border: 1px solid #f0dcb4; border-radius: 5px;">
+                  <div style="font-size: 12px; font-weight: 500; color: #8a5a00; margin-bottom: 3px;">阈值已由 0.62 改为 0.75，但没有重新标定</div>
+                  <div style="font-size: 11.5px; color: #8a5a00; line-height: 1.8;">按上次标定的分布推算，调到 0.75 会让 <span class="m">240</span> 题里多出 <span class="m">31</span> 题返回「未找到」——其中 <span class="m">22</span> 题原本答对了。可以这么存，但请知道多拦掉的是什么。</div>
+                  <div style="margin-top: 9px; display: flex; gap: 8px;">
+                    <span style="display:inline-flex;align-items:center;height:26px;padding:0 12px;border-radius:4px;font-size:12.5px;font-weight:500;color:#ffffff;background:#8a5a00;cursor:pointer;">先跑一次标定</span>
+                    <div class="gbtn" style="height: 26px; border-color: #f0dcb4;">仍然保存</div>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+
+            <div class="card" style="padding: 15px 18px 16px;">
+              <div style="font-size: 12.5px; font-weight: 600; margin-bottom: 3px;">切分参数</div>
+              <div class="fh" style="margin-bottom: 13px;">改这里只影响此后新解析的文档。已经切好的分块不会自动重切——要让旧文档用新参数，得去语料管理里挑出来重新解析。</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 14px;">
+                <sc-for list="{{split}}" as="s" hint-placeholder-count="4">
+                  <div style="width: 218px;">
+                    <div class="fl">{{s.name}}</div>
+                    <div class="inp m" style="margin-top: 5px; justify-content: space-between;">
+                      <span>{{s.v}}</span><span style="color: #8a95a3; font-size: 11px;">{{s.unit}}</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="margin-top: 12px; padding: 9px 11px; background: #f8fafc; border: 1px solid #eef1f5; border-radius: 5px; font-size: 11.5px; color: #5a6673; line-height: 1.75;">
+                受影响的旧文档：<span class="m" style="font-weight: 500;">1,842</span> 份，按当前参数重切约需 <span class="m">9 小时</span>。<span style="color:#2f5ccc;cursor:pointer;">去语料管理批量重解析 →</span>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "tab": {"editor": "enum", "default": "模型接口", "options": ["模型接口", "运行参数"], "section": "页签"},
+  "embedChange": {"editor": "boolean", "default": false, "section": "模型接口"},
+  "thresholdEdited": {"editor": "boolean", "default": false, "section": "运行参数"}
+}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: null }; }
+
+  renderVals() {
+    const tab = this.state.tab ?? (this.props.tab ?? '模型接口');
+    const isModel = tab === '模型接口';
+    const locked = this.props.embedChange ?? false;
+    const dirty = this.props.thresholdEdited ?? false;
+    const thr = dirty ? '0.75' : '0.62';
+
+    const tabOff = 'height:44px;padding:0 14px;display:flex;align-items:center;font-size:13px;color:#5a6673;border-bottom:2px solid transparent;cursor:pointer;';
+    const tabOn = 'height:44px;padding:0 14px;display:flex;align-items:center;font-size:13px;font-weight:500;color:#2f5ccc;border-bottom:2px solid #2f5ccc;cursor:pointer;';
+    const pill = 'display:inline-flex;align-items:center;height:19px;padding:0 6px;border-radius:3px;font-size:11px;font-weight:500;';
+    const ok = pill + 'background:#e6f2ec;color:#1c6b45;border:1px solid #c2ded1;';
+    const warn = pill + 'background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;';
+
+    const M = [
+      { name: '对话模型', st: '已连通', url: 'http://10.20.8.11:8000/v1', model: 'qwen3-27b-instruct',
+        p1n: '温度', p1v: '0.2', p2n: '最大输出', p2v: '2048', locked: false },
+      { name: '向量化模型', st: '已连通', url: 'http://10.20.8.12:8080/embed', model: 'bge-m3',
+        p1n: '向量维度', p1v: '1024', p2n: '批大小', p2v: '32', locked: locked },
+      { name: '重排序模型', st: '已连通', url: 'http://10.20.8.12:8081/rerank', model: 'bge-reranker-v2-m3',
+        p1n: '重排输入', p1v: '50', p2n: '批大小', p2v: '16', locked: false }
+    ];
+
+    return {
+      models: M.map(function (m) {
+        return {
+          name: m.name, st: m.st, url: m.url, model: m.model,
+          p1n: m.p1n, p1v: m.p1v, p2n: m.p2n, p2v: m.p2v, locked: m.locked,
+          stStyle: ok,
+          box: 'padding:14px 15px 15px;border-radius:5px;margin-bottom:10px;' + (m.locked
+            ? 'background:#fffdf8;border:1px solid #f0dcb4;'
+            : 'background:#fbfcfd;border:1px solid #eef1f5;')
+        };
+      }),
+      params: [
+        { name: '召回条数', key: 'recall_top_k', v: '50', unit: '条', hint: '向量与关键词各取这么多条，合并后去重再送重排' },
+        { name: '重排保留条数', key: 'rerank_top_n', v: '8', unit: '条', hint: '重排后留几条进上下文。调大更全，也更容易把噪声一起带进去' },
+        { name: '上下文窗口长度', key: 'context_tokens', v: '6000', unit: '', hint: '留给检索结果的长度上限，超出按重排分从低往高截' },
+        { name: '单轮最大检索次数', key: 'max_retrieval', v: '3', unit: '次', hint: '一轮里允许改写问题重查几次。到上限还没过阈值就返回未找到' },
+        { name: '会话历史保留轮数', key: 'history_turns', v: '6', unit: '轮', hint: '多轮追问时带几轮上文。与槽位填充的多轮共用这个值' },
+        { name: '关键词与向量权重', key: 'hybrid_alpha', v: '0.6', unit: '', hint: '0 是纯关键词，1 是纯向量。型号与代码类提问靠关键词那一半兜底' }
+      ],
+      cal: [
+        { name: '命中率', v: '82.6%', note: '198 / 240 题答对且来源正确' },
+        { name: '误拦率', v: '4.2%', note: '10 题库里有答案却被拦成未找到' },
+        { name: '错答率', v: '1.3%', note: '3 题分数过了阈值但答错，比误拦更该压' }
+      ],
+      split: [
+        { name: '目标分块长度', v: '800', unit: '字' },
+        { name: '重叠长度', v: '120', unit: '字' },
+        { name: '最小分块长度', v: '200', unit: '字' },
+        { name: '表格处理', v: '整表不切', unit: '' }
+      ],
+      v: {
+        isModel: isModel, isParam: !isModel,
+        t1: isModel ? tabOn : tabOff,
+        t2: isModel ? tabOff : tabOn,
+        go1: () => this.setState({ tab: '模型接口' }),
+        go2: () => this.setState({ tab: '运行参数' }),
+        thr: thr,
+        dirty: dirty,
+        thrBar: 'position:absolute;left:0;top:0;height:100%;border-radius:3px;background:' +
+          (dirty ? '#8a5a00' : '#2f5ccc') + ';width:' + Math.round(((parseFloat(thr) - 0.3) / 0.6) * 100) + '%;',
+        calState: dirty ? '与标定不符' : '已标定',
+        calStyle: dirty ? warn : ok
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

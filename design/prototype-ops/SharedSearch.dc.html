@@ -1,0 +1,249 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .grp { padding: 12px 10px 5px; font-size: 11px; font-weight: 500; color: #8a95a3; letter-spacing: .04em; }
+    .item { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .iton { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .sec { font-size: 11px; color: #8a95a3; margin: 0 0 4px; letter-spacing: .03em; }
+    th { font-size: 11.5px; font-weight: 500; color: #5a6673; text-align: left; padding: 0 12px; height: 34px;
+      background: #f8fafc; border-bottom: 1px solid #e2e6ec; white-space: nowrap; }
+    td { font-size: 12.5px; padding: 11px 12px; border-bottom: 1px solid #eef1f5; vertical-align: top; line-height: 1.7; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #5a6673; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">集团</div>
+      <div style="font-size: 14px; font-weight: 600;">集团共享库 · 总部节点</div>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span style="font-size: 12px; color: #8a95a3;">可访问密级</span>
+      <span class="pill" style="background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;">内部</span>
+      <span class="pill" style="background:#e3f4f4;color:#00696b;border:1px solid #b8dedd;">公开</span>
+    </div>
+    <div style="width: 1px; height: 20px; background: #e2e6ec;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">周</div>
+      <div style="line-height: 1.25;"><div style="font-size:12px;font-weight:500">周工</div><div style="font-size:11px;color:#8a95a3">总部审核人</div></div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <div style="width: 240px; flex-shrink: 0; background: #ffffff; border-right: 1px solid #e2e6ec;">
+      <div class="grp">审核</div><div class="item">审核台 <span class="m" style="margin-left:5px;color:#8a5a00">6</span></div>
+      <div class="grp">共享库</div><div class="iton">共享库问答</div><div class="item">公开库发布</div>
+      <div style="margin: 14px 16px 0; padding-top: 12px; border-top: 1px solid #eef1f5;">
+        <div class="sec">检索范围</div>
+        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+          <span class="pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">集团共享库</span>
+        </div>
+        <div style="font-size: 11px; color: #8a95a3; line-height: 1.75;">这里没有知识库下拉框——本节点只有这一个库。各公司私有库不在检索范围内，也不在权限范围内。</div>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+      <div style="height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 9px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+        <div style="flex-grow: 1; max-width: 620px; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 11px; border: 1px solid #cfd6df; border-radius: 5px; background: #ffffff;">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.6" stroke-linecap="round"><path d="M11.5 11.5L14 14"/><circle cx="7" cy="7" r="4.6"/></svg>
+          <span style="font-size: 13px;">搅拌电机过载停机 复位后再次跳停</span>
+        </div>
+        <div class="gbtn"><span style="color:#8a95a3">型号</span><span>CJF-5L</span></div>
+        <div class="gbtn"><span style="color:#8a95a3">代码</span><span>E-17</span></div>
+        <div style="flex-grow: 1;"></div>
+        <div style="{{v.tabA}}" onClick="{{v.goList}}">检索结果</div>
+        <div style="{{v.tabB}}" onClick="{{v.goCmp}}">逐项对照</div>
+      </div>
+
+      <!-- 查重入口带来的上下文：从审核台 FC-2025-0438 点「查共享库是否已有」进来 -->
+      <div style="flex-shrink: 0; display: flex; align-items: center; gap: 9px; padding: 9px 18px; background: #fbeff7; border-bottom: 1px solid #edd2e3;">
+        <span class="pill" style="background:#ffffff;color:#8f3d74;border:1px solid #edd2e3;">查重中</span>
+        <span style="font-size: 11.5px; color: #6d2d58; line-height: 1.6;">正在为待审案例 <span class="m" style="font-weight:500">FC-2025-0438</span>（华东分公司 · 王工）查重。检索词由该案例的故障现象自动填入，可改。</span>
+        <div style="flex-grow: 1;"></div>
+        <span style="font-size: 11px; color: #8f3d74;">退出查重</span>
+      </div>
+
+      <sc-if value="{{v.isList}}" hint-placeholder-val="{{ true }}">
+        <div class="sc" style="flex-grow: 1; min-height: 0; padding: 16px 18px 24px;">
+
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+            <span style="font-size: 12px; color: #5a6673;">共 <span class="m" style="font-weight:500;color:#1c2530">4</span> 条，按相关度排序</span>
+            <div style="flex-grow: 1;"></div>
+            <span style="font-size: 11px; color: #8a95a3;">相关度是检索给的分，重复与否是人判的</span>
+          </div>
+
+          <sc-for list="{{hits}}" as="h" hint-placeholder-count="4">
+            <div style="background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px; padding: 14px 16px 13px; margin-bottom: 10px;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 7px;">
+                <span class="m pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">{{h.model}}</span>
+                <span class="m pill" style="background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;">{{h.code}}</span>
+                <span style="font-size: 11.5px; color: #8a95a3;">{{h.from}} · {{h.at}} 入库</span>
+                <div style="flex-grow: 1;"></div>
+                <span style="font-size: 11px; color: #8a95a3;">相关度</span>
+                <span class="m" style="font-size: 12px; font-weight: 500; color: #5a6673;">{{h.score}}</span>
+                <div style="width: 66px; height: 5px; border-radius: 3px; background: #eef1f5; overflow: hidden;">
+                  <div style="{{h.bar}}"></div>
+                </div>
+              </div>
+              <div style="font-size: 12.5px; line-height: 1.75; margin-bottom: 8px;">{{h.phenom}}</div>
+              <div style="display: flex; gap: 22px; padding-top: 9px; border-top: 1px solid #eef1f5;">
+                <div style="flex: 1; min-width: 0;">
+                  <div class="sec">原因判断</div>
+                  <div style="font-size: 12px; line-height: 1.7; color: #5a6673;">{{h.cause}}</div>
+                </div>
+                <div style="width: 150px; flex-shrink: 0;">
+                  <div class="sec">处理结果</div>
+                  <div style="font-size: 12px; line-height: 1.7; color: #5a6673;">{{h.result}}</div>
+                </div>
+                <div style="width: 92px; flex-shrink: 0; display: flex; align-items: flex-end; justify-content: flex-end;">
+                  <div class="gbtn" style="height: 26px;" onClick="{{v.goCmp}}">逐项对照</div>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+
+          <div style="margin-top: 14px; padding: 13px 15px; background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px;">
+            <div style="font-size: 12.5px; font-weight: 600; margin-bottom: 6px;">相关度高不等于重复</div>
+            <div style="font-size: 12px; color: #5a6673; line-height: 1.85;">上面四条相关度都在 0.7 以上，因为它们的现象描述几乎一样——同一型号、同一报警代码，现象本来就写得像。判定重复要看的是原因判断与处理步骤：成因不同的两条，即便现象一字不差也都得留。所以本页不给「判为重复」的一键按钮，只给逐项对照。</div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{v.isCmp}}" hint-placeholder-val="{{ false }}">
+        <div class="sc" style="flex-grow: 1; min-height: 0; padding: 16px 18px 24px;">
+          <div style="background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px; overflow: hidden;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr>
+                  <th style="width: 96px;">字段</th>
+                  <th style="width: 46%;">待审 · FC-2025-0438<div style="font-weight:400;color:#8a95a3;margin-top:2px">华东分公司 · 王工 · 2025-11-04</div></th>
+                  <th style="width: 46%;">共享库 · FC-2023-0117<div style="font-weight:400;color:#8a95a3;margin-top:2px">总部技术部 · 2023-09-14</div></th>
+                  <th style="width: 82px;">对照</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{cmp}}" as="c" hint-placeholder-count="6">
+                  <tr>
+                    <td style="color: #5a6673; font-size: 12px; background: #fbfcfd;">{{c.field}}</td>
+                    <td>{{c.a}}</td>
+                    <td>{{c.b}}</td>
+                    <td style="text-align: center;"><span style="{{c.tagStyle}}">{{c.tag}}</span></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+
+          <div style="display: flex; gap: 12px; margin-top: 14px;">
+            <div style="flex: 1; padding: 13px 15px; background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px;">
+              <div style="font-size: 12.5px; font-weight: 600; margin-bottom: 6px;">这两条不是重复</div>
+              <div style="font-size: 12px; color: #5a6673; line-height: 1.85;">现象与代码一致，但成因一个是机械卡滞、一个是变频器参数漂移，处理步骤没有一步相同。两条都该留在库里——检索时归并展示（FR-8.6），但不是合并成一条。</div>
+            </div>
+            <div style="width: 300px; flex-shrink: 0; padding: 13px 15px; background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px;">
+              <div style="font-size: 12.5px; font-weight: 600; margin-bottom: 8px;">带着结论回审核台</div>
+              <div style="display: flex; flex-direction: column; gap: 7px;">
+                <div class="gbtn" style="justify-content: center;">记为「已对照 · 不重复」</div>
+                <div class="gbtn" style="justify-content: center; color: #b3261e; border-color: #f5cdc9;">记为「与 FC-2023-0117 重复」</div>
+              </div>
+              <div style="font-size: 11px; color: #8a95a3; line-height: 1.7; margin-top: 9px;">判为重复时，这条对照记录会作为驳回原因的附件一起回传给王工——让他看到是跟哪一条重的。</div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "view": {"editor": "enum", "default": "检索结果", "options": ["检索结果", "逐项对照"], "section": "视图"}
+}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { view: null }; }
+
+  renderVals() {
+    const view = this.state.view ?? (this.props.view ?? '检索结果');
+    const isList = view === '检索结果';
+
+    const tabOff = 'display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:4px;font-size:12.5px;color:#5a6673;background:#ffffff;border:1px solid #dde3ea;cursor:pointer;';
+    const tabOn = 'display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:4px;font-size:12.5px;font-weight:500;color:#2f5ccc;background:#eef2fd;border:1px solid #c9d8f7;cursor:pointer;';
+
+    const H = [
+      { model: 'CJF-5L', code: 'E-17', from: '总部技术部', at: '2023-09-14', score: '0.86',
+        phenom: '搅拌电机运行中过载报警停机，手动复位后可启动，运行数分钟再次跳停',
+        cause: '变频器过载保护参数随温升漂移，实际负载未超限即误触发', result: '重设参数，已解决' },
+      { model: 'CJF-5L', code: 'E-17', from: '上海霍桐', at: '2024-03-22', score: '0.81',
+        phenom: '高黏度物料下搅拌电机过载停机，复位后短时运行又停',
+        cause: '搅拌轴弯曲导致周期性偏载，轴承位磨损加剧', result: '整轴更换，已解决' },
+      { model: 'CJF-10L', code: 'E-17', from: '西北分公司', at: '2024-08-09', score: '0.74',
+        phenom: '搅拌启动即报过载，复位无效',
+        cause: '釜内介质固化结块，转子完全卡死', result: '清釜后恢复，已解决' },
+      { model: 'CJF-5L', code: 'E-04', from: '总部技术部', at: '2022-05-30', score: '0.71',
+        phenom: '搅拌运行电流偏高但未达停机阈值，长时间运行后温升异常',
+        cause: '联轴器同心度超差', result: '重新找正，已解决' }
+    ];
+
+    const C = [
+      { field: '设备型号', a: 'CJF-5L', b: 'CJF-5L', same: true },
+      { field: '报警代码', a: 'E-17', b: 'E-17', same: true },
+      { field: '故障现象', a: '低温工况下搅拌启动困难，电流冲击大，随后过载停机', b: '搅拌电机运行中过载报警停机，手动复位后可启动，运行数分钟再次跳停', same: false },
+      { field: '原因判断', a: '低温下介质黏度上升，启动扭矩需求超出电机短时过载能力', b: '变频器过载保护参数随温升漂移，实际负载未超限即误触发', same: false },
+      { field: '处理步骤', a: '1. 夹套预热至 15 ℃ 以上再启动\n2. 将启动方式改为变频软启，斜坡时间 8 s\n3. 复核低温工况下的最小启动温度并写入操作规程', b: '1. 读取变频器过载曲线实际触发点\n2. 按环境温度重新标定过载保护参数\n3. 连续运行 4 h 验证不再误触发', same: false },
+      { field: '所用备件', a: '无', b: '无', same: true },
+      { field: '处理结果', a: '已解决', b: '已解决', same: true }
+    ];
+
+    return {
+      hits: H.map(function (h) {
+        return {
+          model: h.model, code: h.code, from: h.from, at: h.at, score: h.score,
+          phenom: h.phenom, cause: h.cause, result: h.result,
+          bar: 'height:100%;border-radius:3px;background:#2f5ccc;width:' + Math.round(parseFloat(h.score) * 100) + '%;'
+        };
+      }),
+      cmp: C.map(function (c) {
+        return {
+          field: c.field, a: c.a, b: c.b,
+          tag: c.same ? '相同' : '不同',
+          tagStyle: 'display:inline-flex;align-items:center;height:19px;padding:0 6px;border-radius:3px;font-size:11px;font-weight:500;' + (c.same
+            ? 'background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;'
+            : 'background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;')
+        };
+      }),
+      v: {
+        isList: isList, isCmp: !isList,
+        tabA: isList ? tabOn : tabOff,
+        tabB: isList ? tabOff : tabOn,
+        goList: () => this.setState({ view: '检索结果' }),
+        goCmp: () => this.setState({ view: '逐项对照' })
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

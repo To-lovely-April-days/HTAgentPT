@@ -1,0 +1,352 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .grp { padding: 12px 10px 5px; font-size: 11px; font-weight: 500; color: #8a95a3; letter-spacing: .04em; }
+    .item { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .iton { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .tab { height: 44px; padding: 0 14px; display: flex; align-items: center; font-size: 13px; color: #5a6673; border-bottom: 2px solid transparent; cursor: pointer; }
+    .tabon { height: 44px; padding: 0 14px; display: flex; align-items: center; font-size: 13px; font-weight: 500; color: #2f5ccc; border-bottom: 2px solid #2f5ccc; cursor: pointer; }
+    .card { background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px; }
+    .ct { font-size: 12.5px; font-weight: 600; }
+    .cs { font-size: 11px; color: #8a95a3; line-height: 1.7; }
+    th { font-size: 11.5px; font-weight: 500; color: #5a6673; text-align: left; padding: 0 12px; height: 34px;
+      background: #f8fafc; border-bottom: 1px solid #e2e6ec; white-space: nowrap; }
+    td { font-size: 12.5px; padding: 10px 12px; border-bottom: 1px solid #eef1f5; line-height: 1.65; vertical-align: top; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: .03em;">HT</div>
+      <div style="font-size: 14px; font-weight: 600;">霍桐实验仪器</div>
+    </div>
+    <span class="pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">管理后台</span>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">陈</div>
+      <div style="line-height: 1.25;"><div style="font-size:12px;font-weight:500">陈工</div><div style="font-size:11px;color:#8a95a3">系统管理员</div></div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <div style="width: 240px; flex-shrink: 0; background: #ffffff; border-right: 1px solid #e2e6ec;">
+      <div class="grp">落地</div><div class="item">后台首页</div>
+      <div class="grp">语料域</div><div class="item">语料管理</div><div class="item">知识库管理</div><div class="item">元数据与词表</div>
+      <div class="grp">能力域</div><div class="item">模板管理</div>
+      <div class="grp">治理域</div><div class="item">用户与权限</div><div class="item">系统设置</div><div class="iton">审计与统计</div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+      <div style="flex-shrink: 0; display: flex; align-items: center; gap: 2px; padding: 0 18px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+        <div class="tab">审计日志</div><div class="tabon">使用统计</div>
+        <div style="flex-grow: 1;"></div>
+        <div class="gbtn" style="height: 26px;"><span style="color:#8a95a3">周期</span><span>近 8 周</span><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></div>
+        <div style="margin-left: 8px; display: flex; gap: 2px;">
+          <div style="{{v.vChart}}" onClick="{{v.goChart}}">图</div>
+          <div style="{{v.vTable}}" onClick="{{v.goTable}}">数据表</div>
+        </div>
+        <div class="gbtn" style="height: 26px; margin-left: 8px;">导出本周</div>
+      </div>
+
+      <div class="sc" style="flex-grow: 1; min-height: 0; padding: 16px 18px 26px;">
+
+        <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 13px;">
+          <div style="font-size: 15px; font-weight: 600;">本周（09-08 至 09-14）</div>
+          <span class="cs">按周输出。周一 00:00 结算上一周，下面每个数都以周为单位，不看日波动。</span>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+          <sc-for list="{{tiles}}" as="t" hint-placeholder-count="4">
+            <div class="card" style="flex: 1; min-width: 0; padding: 13px 15px 14px;">
+              <div class="cs" style="margin-bottom: 6px;">{{t.name}}</div>
+              <div style="display: flex; align-items: baseline; gap: 5px;">
+                <span class="m" style="font-size: 27px; font-weight: 500; line-height: 1;">{{t.v}}</span>
+                <span style="font-size: 12px; color: #8a95a3;">{{t.unit}}</span>
+                <div style="flex-grow: 1;"></div>
+                <span style="font-size: 11.5px; color: #5a6673;">{{t.delta}}</span>
+              </div>
+              <div style="font-size: 10.5px; color: #8a95a3; line-height: 1.65; margin-top: 7px;">{{t.note}}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <sc-if value="{{v.isChart}}" hint-placeholder-val="{{ true }}">
+          <div>
+
+            <div class="card" style="padding: 15px 17px 16px; margin-bottom: 12px;">
+              <div style="display: flex; align-items: baseline; gap: 9px; margin-bottom: 4px;">
+                <div class="ct">各模块调用次数 · 近 8 周</div>
+                <span class="cs">六张小图各自一条序列，纵轴各自独立——比的是每个模块自己的走势，不是模块之间谁高谁低</span>
+              </div>
+              <div style="display: flex; gap: 10px; margin-top: 13px;">
+                <sc-for list="{{facets}}" as="f" hint-placeholder-count="6">
+                  <div style="flex: 1; min-width: 0;">
+                    <div style="display: flex; align-items: baseline; gap: 6px; margin-bottom: 2px;">
+                      <span style="font-size: 12px; font-weight: 500;">{{f.name}}</span>
+                    </div>
+                    <div style="display: flex; align-items: baseline; gap: 4px; margin-bottom: 8px;">
+                      <span class="m" style="font-size: 15px; font-weight: 500;">{{f.last}}</span>
+                      <span style="font-size: 10.5px; color: #8a95a3;">本周</span>
+                    </div>
+                    <div style="height: 64px; display: flex; align-items: flex-end; gap: 3px;">
+                      <sc-for list="{{f.bars}}" as="b" hint-placeholder-count="8">
+                        <div title="{{b.tip}}" style="{{b.style}}"></div>
+                      </sc-for>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 5px; padding-top: 5px; border-top: 1px solid #eef1f5;">
+                      <span class="m" style="font-size: 10px; color: #a2acb9;">7/21</span>
+                      <span class="m" style="font-size: 10px; color: #a2acb9;">9/8</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <div class="cs" style="margin-top: 11px;">深色是本周，浅色是此前七周。同一色相的深浅只表示时间远近，不代表任何分类——本系统里颜色一旦用于分类就只有密级那三种含义。</div>
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+              <sc-for list="{{lines}}" as="l" hint-placeholder-count="2">
+                <div class="card" style="flex: 1; min-width: 0; padding: 15px 17px 14px;">
+                  <div class="ct" style="margin-bottom: 3px;">{{l.title}}</div>
+                  <div class="cs" style="margin-bottom: 10px;">{{l.sub}}</div>
+                  <svg width="100%" viewBox="0 0 520 148" style="display: block;">
+                    <sc-for list="{{l.grid}}" as="g" hint-placeholder-count="4">
+                      <line x1="38" y1="{{g.y}}" x2="516" y2="{{g.y}}" stroke="#eef1f5" stroke-width="1"></line>
+                      <text x="32" y="{{g.ty}}" text-anchor="end" font-size="10" fill="#a2acb9" font-family="IBM Plex Mono, monospace">{{g.label}}</text>
+                    </sc-for>
+                    <polyline points="{{l.points}}" fill="none" stroke="#2f5ccc" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></polyline>
+                    <sc-for list="{{l.dots}}" as="d" hint-placeholder-count="8">
+                      <circle cx="{{d.x}}" cy="{{d.y}}" r="4" fill="#ffffff" stroke="#2f5ccc" stroke-width="2"><title>{{d.tip}}</title></circle>
+                      <text x="{{d.x}}" y="142" text-anchor="middle" font-size="10" fill="#a2acb9" font-family="IBM Plex Mono, monospace">{{d.wk}}</text>
+                    </sc-for>
+                    <circle cx="{{l.lx}}" cy="{{l.ly}}" r="5.5" fill="#2f5ccc" stroke="#ffffff" stroke-width="2"></circle>
+                    <text x="{{l.tx}}" y="{{l.ty}}" text-anchor="{{l.anchor}}" font-size="12" font-weight="500" fill="#1c2530" font-family="IBM Plex Mono, monospace">{{l.lastLabel}}</text>
+                  </svg>
+                  <div class="cs" style="margin-top: 8px; padding-top: 9px; border-top: 1px solid #eef1f5;">{{l.foot}}</div>
+                </div>
+              </sc-for>
+            </div>
+
+            <!-- FR-9.8 的「无结果比例」到此才真正有用：它要指向语料缺口，而不是被当成故障率 -->
+            <div class="card" style="padding: 15px 17px 17px;">
+              <div style="display: flex; align-items: baseline; gap: 9px; margin-bottom: 3px;">
+                <div class="ct">本周返回「未找到」的问题</div>
+                <span class="pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">117 次 · 归并为 9 类</span>
+                <div style="flex-grow: 1;"></div>
+                <span style="font-size: 11.5px; color: #2f5ccc; cursor: pointer;">全部导出 →</span>
+              </div>
+              <div class="cs" style="margin-bottom: 12px;">「未找到」不是故障。检索分低于阈值时不生成、如实说没有，这正是设计要的行为——所以这个比例要读成语料缺口清单，不是错误率。下面每一行都是一条待补语料的线索。</div>
+              <div style="border: 1px solid #e2e6ec; border-radius: 5px; overflow: hidden;">
+                <table style="width: 100%; border-collapse: collapse;">
+                  <thead>
+                    <tr>
+                      <th style="width: 46px;">次数</th>
+                      <th>问的是什么</th>
+                      <th style="width: 96px;">提问模块</th>
+                      <th style="width: 300px;">库里缺什么</th>
+                      <th style="width: 116px;">处置</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <sc-for list="{{gaps}}" as="g" hint-placeholder-count="6">
+                      <tr>
+                        <td class="m" style="font-weight: 500;">{{g.n}}</td>
+                        <td>{{g.q}}</td>
+                        <td style="color: #5a6673;">{{g.mod}}</td>
+                        <td style="color: #5a6673;">{{g.miss}}</td>
+                        <td><span style="{{g.actStyle}}">{{g.act}}</span></td>
+                      </tr>
+                    </sc-for>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{v.isTable}}" hint-placeholder-val="{{ false }}">
+          <div class="card" style="padding: 15px 17px 17px;">
+            <div class="ct" style="margin-bottom: 3px;">近 8 周原始数据</div>
+            <div class="cs" style="margin-bottom: 12px;">图上看得见的每个点，这里都有对应的数。导出的 CSV 与本表一致。</div>
+            <div style="border: 1px solid #e2e6ec; border-radius: 5px; overflow: hidden;">
+              <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                  <tr>
+                    <th style="width: 78px;">周起始</th>
+                    <sc-for list="{{cols}}" as="c" hint-placeholder-count="8">
+                      <th style="text-align: right;">{{c.name}}</th>
+                    </sc-for>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{tableRows}}" as="r" hint-placeholder-count="8">
+                    <tr style="{{r.tr}}">
+                      <td class="m" style="font-size: 11.5px; color: #5a6673;">{{r.wk}}</td>
+                      <sc-for list="{{r.cells}}" as="x" hint-placeholder-count="8">
+                        <td class="m" style="text-align: right; font-size: 12px;">{{x.v}}</td>
+                      </sc-for>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </sc-if>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "view": {"editor": "enum", "default": "图", "options": ["图", "数据表"], "section": "视图"}
+}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { view: null }; }
+
+  renderVals() {
+    const view = this.state.view ?? (this.props.view ?? '图');
+    const isChart = view === '图';
+
+    const HUE = '#2f5ccc';
+    const HUE_PAST = '#b9c9ee';
+    const WK = ['7/21', '7/28', '8/4', '8/11', '8/18', '8/25', '9/1', '9/8'];
+
+    const MODULES = [
+      { name: '检索问答', d: [982, 1046, 1103, 1015, 1168, 1204, 1241, 1284] },
+      { name: '项目查询', d: [212, 238, 251, 229, 264, 276, 268, 291] },
+      { name: '方案生成', d: [34, 41, 38, 47, 52, 49, 58, 63] },
+      { name: '报价合同', d: [18, 22, 19, 26, 24, 29, 31, 34] },
+      { name: '翻译', d: [76, 68, 91, 84, 97, 88, 104, 112] },
+      { name: '故障案例', d: [45, 52, 48, 61, 57, 66, 72, 69] }
+    ];
+
+    const HIT = [79.1, 80.4, 79.8, 81.2, 80.6, 81.9, 82.1, 82.6];
+    const NONE = [12.8, 12.1, 12.4, 11.3, 11.6, 10.4, 9.8, 9.1];
+
+    // 折线图：520×148 视口，左留 38 给刻度，底留 26 给周标签
+    function lineChart(title, sub, data, unit, lo, hi, foot) {
+      const x0 = 46, x1 = 508, y0 = 14, y1 = 118;
+      const n = data.length;
+      const px = function (i) { return x0 + (x1 - x0) * i / (n - 1); };
+      const py = function (v) { return y1 - (y1 - y0) * (v - lo) / (hi - lo); };
+      const dots = data.map(function (v, i) {
+        return { x: px(i).toFixed(1), y: py(v).toFixed(1), wk: WK[i], tip: WK[i] + ' 当周　' + v.toFixed(1) + unit };
+      });
+      const grid = [0, 1, 2, 3].map(function (k) {
+        const v = lo + (hi - lo) * k / 3;
+        const y = py(v);
+        return { y: y.toFixed(1), ty: (y + 3.5).toFixed(1), label: v.toFixed(0) + unit };
+      });
+      const last = data[n - 1];
+      return {
+        title: title, sub: sub, foot: foot,
+        points: dots.map(function (d) { return d.x + ',' + d.y; }).join(' '),
+        dots: dots, grid: grid,
+        lx: px(n - 1).toFixed(1), ly: py(last).toFixed(1),
+        tx: (px(n - 1) - 10).toFixed(1), ty: (py(last) - 11).toFixed(1),
+        anchor: 'end', lastLabel: last.toFixed(1) + unit
+      };
+    }
+
+    const pill = 'display:inline-flex;align-items:center;height:19px;padding:0 6px;border-radius:3px;font-size:11px;font-weight:500;';
+    const vOff = 'display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:4px;font-size:12px;color:#5a6673;background:#ffffff;border:1px solid #dde3ea;cursor:pointer;';
+    const vOn = 'display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:4px;font-size:12px;font-weight:500;color:#2f5ccc;background:#eef2fd;border:1px solid #c9d8f7;cursor:pointer;';
+
+    return {
+      tiles: [
+        { name: '调用次数', v: '1,853', unit: '次', delta: '较上周 +4.2%', note: '六个模块合计。周内工作日占 94%，周末几乎没人用' },
+        { name: '活跃人数', v: '37', unit: '人', delta: '较上周 +2 人', note: '在册 44 人。一周没登录过的 7 人，其中 3 人在出差' },
+        { name: '检索命中率', v: '82.6', unit: '%', delta: '较上周 +0.5 pt', note: '重排分过阈值且有来源标注的占比' },
+        { name: '无结果比例', v: '9.1', unit: '%', delta: '较上周 −0.7 pt', note: '低于阈值、如实回未找到的占比。这个数不追求归零' }
+      ],
+      facets: MODULES.map(function (mod) {
+        const max = Math.max.apply(null, mod.d);
+        return {
+          name: mod.name,
+          last: mod.d[mod.d.length - 1].toLocaleString('en-US'),
+          bars: mod.d.map(function (v, i) {
+            const isLast = i === mod.d.length - 1;
+            const h = Math.max(3, Math.round(64 * v / max));
+            return {
+              tip: WK[i] + ' 当周　' + v.toLocaleString('en-US') + ' 次',
+              style: 'flex:1;min-width:0;height:' + h + 'px;border-radius:3px 3px 0 0;background:' +
+                (isLast ? HUE : HUE_PAST) + ';'
+            };
+          })
+        };
+      }),
+      lines: [
+        lineChart('检索命中率', '单条序列，纵轴只有一个——不与其他指标叠在同一张图上', HIT, '%', 74, 86,
+          '八周里涨了 3.5 个点，主要来自 8 月那批装配规范入库。命中率的分母是所有提问，包含本来就问不出答案的那些。'),
+        lineChart('无结果比例', '与左图同为单条序列，刻意不合并——两者量纲相同也不该共轴', NONE, '%', 6, 16,
+          '在降，但降到某个值就不该再降了。继续压只有两条路：调低阈值放行低相关的答案，或者真的把缺的语料补上。前者是把问题藏起来。')
+      ],
+      gaps: [
+        { n: '31', q: 'CJF 系列在 −40 ℃ 低温工况下的最小启动扭矩是多少', mod: '检索问答',
+          miss: '低温工况附录只有 −20 ℃ 以上的曲线，更低温段未出过文档', act: '待补语料' },
+        { n: '24', q: 'SRTU-200 与 SRTU-200B 的接口是否兼容', mod: '检索问答',
+          miss: 'B 型改款的差异说明在研发手里，尚未上传', act: '已通知' },
+        { n: '18', q: '这台设备的三方检测报告能不能给客户', mod: '检索问答',
+          miss: '不是缺语料——检测报告是机密，提问人只到内部级', act: '非缺口' },
+        { n: '15', q: '进口磁力耦合的备件到货周期', mod: '项目查询',
+          miss: '供应链数据不在本系统内，台账里没有这一列', act: '范围外' },
+        { n: '15', q: 'GB/T 35510 在反应釜上的适用条款', mod: '检索问答',
+          miss: '标准原文未采购，只有引用它的内部技术要求', act: '待补语料' },
+        { n: '14', q: '西班牙语的操作面板术语怎么译', mod: '翻译',
+          miss: '术语表只维护了中英与中德，西语尚未建', act: '待补语料' }
+      ].map(function (g) {
+        const map = {
+          '待补语料': pill + 'background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;',
+          '已通知': pill + 'background:#eef2fd;color:#2f5ccc;border:1px solid #c9d8f7;',
+          '非缺口': pill + 'background:#e6f2ec;color:#1c6b45;border:1px solid #c2ded1;',
+          '范围外': pill + 'background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;'
+        };
+        return { n: g.n, q: g.q, mod: g.mod, miss: g.miss, act: g.act, actStyle: map[g.act] };
+      }),
+      cols: MODULES.map(function (mod) { return { name: mod.name }; })
+        .concat([{ name: '命中率' }, { name: '无结果' }]),
+      tableRows: WK.map(function (w, i) {
+        return {
+          wk: w,
+          tr: i === WK.length - 1 ? 'background:#f8fafc;' : '',
+          cells: MODULES.map(function (mod) { return { v: mod.d[i].toLocaleString('en-US') }; })
+            .concat([{ v: HIT[i].toFixed(1) + '%' }, { v: NONE[i].toFixed(1) + '%' }])
+        };
+      }),
+      v: {
+        isChart: isChart, isTable: !isChart,
+        vChart: isChart ? vOn : vOff,
+        vTable: isChart ? vOff : vOn,
+        goChart: () => this.setState({ view: '图' }),
+        goTable: () => this.setState({ view: '数据表' })
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,294 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #f2f4f7; color: #1c2530;
+      font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+    .sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cfd6df transparent; }
+    .sc::-webkit-scrollbar { width: 8px; }
+    .sc::-webkit-scrollbar-thumb { background: #cfd6df; border-radius: 4px; }
+    .grp { padding: 12px 10px 5px; font-size: 11px; font-weight: 500; color: #8a95a3; letter-spacing: .04em; }
+    .item { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; color: #5a6673; }
+    .iton { padding: 7px 10px; margin: 0 8px 1px; border-radius: 4px; font-size: 13px; font-weight: 500; color: #2f5ccc; background: #eef2fd; }
+    .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 4px;
+      font-size: 12.5px; color: #5a6673; background: #ffffff; border: 1px solid #dde3ea; cursor: pointer; }
+    .card { background: #ffffff; border: 1px solid #e2e6ec; border-radius: 6px; }
+    .ch { font-size: 12.5px; font-weight: 600; }
+    .lbl { font-size: 11.5px; color: #8a95a3; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #f2f4f7; overflow: hidden;">
+
+  <div style="height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e2e6ec;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #2f5ccc; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; letter-spacing: .03em;">HT</div>
+      <div style="font-size: 14px; font-weight: 600;">霍桐实验仪器</div>
+    </div>
+    <span class="pill" style="background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;">管理后台</span>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #e6ebf2; color: #5a6673; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">陈</div>
+      <div style="line-height: 1.25;"><div style="font-size:12px;font-weight:500">陈工</div><div style="font-size:11px;color:#8a95a3">系统管理员</div></div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <div style="width: 240px; flex-shrink: 0; background: #ffffff; border-right: 1px solid #e2e6ec;">
+      <div class="grp">落地</div><div class="iton">后台首页</div>
+      <div class="grp">语料域</div><div class="item">语料管理</div><div class="item">知识库管理</div><div class="item">元数据与词表</div>
+      <div class="grp">能力域</div><div class="item">模板管理</div>
+      <div class="grp">治理域</div><div class="item">用户与权限</div><div class="item">系统设置</div><div class="item">审计与统计</div>
+    </div>
+
+    <div class="sc" style="flex-grow: 1; min-width: 0;">
+
+      <!-- FR-9.3：任务失败须告警，不得仅写日志 -->
+      <sc-if value="{{v.hasAlert}}" hint-placeholder-val="{{ true }}">
+        <div style="background: #fdeceb; border-bottom: 1px solid #f5cdc9; padding: 13px 22px 14px;">
+          <div style="display: flex; align-items: flex-start; gap: 10px;">
+            <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="#b3261e" stroke-width="1.7" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><path d="M8 1.6L15 14H1L8 1.6z"/><path d="M8 6v3.4M8 11.6v.1"/></svg>
+            <div style="flex-grow: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 4px;">
+                <span style="font-size: 13.5px; font-weight: 600; color: #b3261e;">异地全量备份连续 2 次失败</span>
+                <span class="m pill" style="background:#ffffff;color:#b3261e;border:1px solid #f5cdc9;">09-12 02:00</span>
+                <span class="m pill" style="background:#ffffff;color:#b3261e;border:1px solid #f5cdc9;">09-13 02:00</span>
+              </div>
+              <div style="font-size: 12px; color: #8c2f28; line-height: 1.8;">异地存储目标 <span class="m">backup-remote-01</span> 连接超时。本地增量与本地全量正常，当前数据未失去保护，但异地副本已停在 09-11 的版本。</div>
+              <div style="display: flex; align-items: center; gap: 9px; margin-top: 10px;">
+                <span style="display:inline-flex;align-items:center;height:26px;padding:0 12px;border-radius:4px;font-size:12.5px;font-weight:500;color:#ffffff;background:#b3261e;cursor:pointer;">查看备份任务</span>
+                <div class="gbtn" style="height: 26px; border-color: #f5cdc9;" onClick="{{v.ack}}">我已知悉</div>
+                <div style="flex-grow: 1;"></div>
+                <span style="font-size: 11px; color: #b3261e; opacity: .8;">「我已知悉」只记一条审计，不会让这条告警消失——它要等异地备份跑成功一次才撤。</span>
+              </div>
+            </div>
+          </div>
+          <sc-if value="{{v.acked}}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top: 11px; padding-top: 10px; border-top: 1px solid #f5cdc9; display: flex; align-items: center; gap: 7px;">
+              <span class="pill" style="background:#ffffff;color:#b3261e;border:1px solid #f5cdc9;">已知悉</span>
+              <span class="m" style="font-size: 11.5px; color: #8c2f28;">陈工 · 2025-09-14 09:14</span>
+              <span style="font-size: 11.5px; color: #8c2f28;">已记入审计，告警保持显示。</span>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <div style="padding: 18px 22px 26px;">
+
+        <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px;">
+          <div style="font-size: 16px; font-weight: 600;">后台首页</div>
+          <span class="m" style="font-size: 11.5px; color: #8a95a3;">2025-09-14 星期日 09:14</span>
+          <div style="flex-grow: 1;"></div>
+          <span style="{{v.healthStyle}}">{{v.health}}</span>
+        </div>
+
+        <!-- 需要人动手的事 -->
+        <div class="card" style="padding: 15px 17px 6px; margin-bottom: 14px;">
+          <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 11px;">
+            <div class="ch">等着你处理的</div>
+            <span class="lbl">这些不处理就一直卡在这儿，不会自己走完</span>
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <sc-for list="{{todos}}" as="t" hint-placeholder-count="5">
+              <div style="{{t.box}}">
+                <div style="display: flex; align-items: baseline; gap: 7px;">
+                  <span class="m" style="{{t.numStyle}}">{{t.n}}</span>
+                  <span style="font-size: 12px; color: #5a6673;">{{t.unit}}</span>
+                </div>
+                <div style="font-size: 12.5px; font-weight: 500; margin-top: 4px;">{{t.name}}</div>
+                <div style="font-size: 11px; color: #8a95a3; line-height: 1.6; margin-top: 3px;">{{t.note}}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="height: 9px;"></div>
+        </div>
+
+        <div style="display: flex; gap: 14px;">
+
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px;">
+
+            <div class="card" style="padding: 15px 17px 16px;">
+              <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 12px;">
+                <div class="ch">备份状态</div>
+                <span class="lbl">最近一次各类备份</span>
+                <div style="flex-grow: 1;"></div>
+                <span style="font-size: 11.5px; color: #2f5ccc; cursor: pointer;">备份与远程接入 →</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <sc-for list="{{backups}}" as="b" hint-placeholder-count="3">
+                  <div style="{{b.row}}">
+                    <div style="width: 92px; flex-shrink: 0; font-size: 12.5px; font-weight: 500;">{{b.kind}}</div>
+                    <div class="m" style="width: 128px; flex-shrink: 0; font-size: 11.5px;">{{b.at}}</div>
+                    <div style="width: 74px; flex-shrink: 0;"><span style="{{b.stStyle}}">{{b.st}}</span></div>
+                    <div class="m" style="width: 70px; flex-shrink: 0; font-size: 11.5px; color: #8a95a3;">{{b.size}}</div>
+                    <div style="flex-grow: 1; min-width: 0; font-size: 11.5px; color: #8a95a3; line-height: 1.6;">{{b.note}}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="margin-top: 11px; padding: 9px 11px; background: #f8fafc; border: 1px solid #eef1f5; border-radius: 5px; font-size: 11.5px; color: #5a6673; line-height: 1.75;">向量索引不在备份范围内。它由原始文件重建，备份它等于备份一份可再生的中间产物——真正要保住的是 <span class="m">原始文件 + 业务库</span>，上面三行都含这两样。</div>
+            </div>
+
+            <div class="card" style="padding: 15px 17px 16px;">
+              <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 12px;">
+                <div class="ch">近 7 日</div>
+                <span class="lbl">按周输出的统计在「审计与统计」里</span>
+                <div style="flex-grow: 1;"></div>
+                <span style="font-size: 11.5px; color: #2f5ccc; cursor: pointer;">使用统计 →</span>
+              </div>
+              <div style="display: flex; gap: 26px;">
+                <sc-for list="{{stats}}" as="s" hint-placeholder-count="4">
+                  <div>
+                    <div class="lbl" style="margin-bottom: 5px;">{{s.name}}</div>
+                    <div style="display: flex; align-items: baseline; gap: 4px;">
+                      <span class="m" style="font-size: 21px; font-weight: 500;">{{s.v}}</span>
+                      <span style="font-size: 11.5px; color: #8a95a3;">{{s.unit}}</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+          </div>
+
+          <div style="width: 420px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px;">
+
+            <div class="card" style="padding: 15px 17px 16px;">
+              <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 12px;">
+                <div class="ch">运行中的任务</div>
+                <span class="lbl">解析与向量化共用算力</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 11px;">
+                <sc-for list="{{jobs}}" as="j" hint-placeholder-count="3">
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 5px;">
+                      <span style="font-size: 12.5px; font-weight: 500;">{{j.name}}</span>
+                      <span style="{{j.stStyle}}">{{j.st}}</span>
+                      <div style="flex-grow: 1;"></div>
+                      <span class="m" style="font-size: 11.5px; color: #8a95a3;">{{j.detail}}</span>
+                    </div>
+                    <div style="height: 5px; border-radius: 3px; background: #eef1f5; overflow: hidden;">
+                      <div style="{{j.bar}}"></div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div class="card" style="padding: 15px 17px 16px;">
+              <div class="ch" style="margin-bottom: 11px;">最近的权限变更</div>
+              <div style="display: flex; flex-direction: column; gap: 9px;">
+                <sc-for list="{{audit}}" as="a" hint-placeholder-count="4">
+                  <div style="display: flex; align-items: flex-start; gap: 9px;">
+                    <span class="m" style="flex-shrink: 0; font-size: 11px; color: #8a95a3; width: 78px;">{{a.at}}</span>
+                    <span style="font-size: 12px; line-height: 1.6;">{{a.text}}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="margin-top: 11px; padding-top: 10px; border-top: 1px solid #eef1f5; font-size: 11px; color: #8a95a3; line-height: 1.7;">只列权限变更。检索、生成、上传等操作量太大，进「审计与统计」按条件查。</div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "alert": {"editor": "boolean", "default": true, "section": "告警条"},
+  "acked": {"editor": "boolean", "default": false, "section": "告警条"}
+}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { acked: null }; }
+
+  renderVals() {
+    const hasAlert = this.props.alert ?? true;
+    const acked = hasAlert && (this.state.acked ?? (this.props.acked ?? false));
+
+    const pill = 'display:inline-flex;align-items:center;height:19px;padding:0 6px;border-radius:3px;font-size:11px;font-weight:500;';
+    const ok = pill + 'background:#e6f2ec;color:#1c6b45;border:1px solid #c2ded1;';
+    const bad = pill + 'background:#fdeceb;color:#b3261e;border:1px solid #f5cdc9;';
+    const warn = pill + 'background:#fdf4e3;color:#8a5a00;border:1px solid #f0dcb4;';
+    const neutral = pill + 'background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;';
+
+    const T = [
+      { n: '7', unit: '份', name: '待解析文档', note: '上传后未提交解析', level: 'warn' },
+      { n: '3', unit: '份', name: '解析失败', note: '需换策略或换源文件', level: 'bad' },
+      { n: '2', unit: '份', name: '待补元数据', note: '缺密级，暂不参与检索', level: 'warn' },
+      { n: '4', unit: '条', name: '待审定条款', note: '未通过前不进报价', level: 'warn' },
+      { n: '1', unit: '人', name: '待指派角色', note: '账号已建，登录后无处可去', level: 'bad' }
+    ];
+
+    return {
+      todos: T.map(function (t) {
+        const c = t.level === 'bad' ? '#b3261e' : '#8a5a00';
+        const bg = t.level === 'bad' ? '#fdeceb' : '#fdf4e3';
+        const bc = t.level === 'bad' ? '#f5cdc9' : '#f0dcb4';
+        return {
+          n: t.n, unit: t.unit, name: t.name, note: t.note,
+          box: 'width:196px;padding:11px 13px 12px;border-radius:5px;background:' + bg + ';border:1px solid ' + bc + ';cursor:pointer;',
+          numStyle: 'font-size:22px;font-weight:500;line-height:1;color:' + c + ';'
+        };
+      }),
+      backups: [
+        { kind: '本地增量', at: '2025-09-14 06:00', st: '成功', size: '1.2 GB', note: '每 6 小时一次', ok: true },
+        { kind: '本地全量', at: '2025-09-08 02:00', st: '成功', size: '184 GB', note: '每周日 02:00', ok: true },
+        { kind: '异地全量', at: '2025-09-13 02:00', st: '失败', size: '—', note: '连接超时，连续第 2 次', ok: false }
+      ].map(function (b) {
+        return {
+          kind: b.kind, at: b.at, st: b.st, size: b.size, note: b.note,
+          row: 'display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:5px;' + (b.ok
+            ? 'background:#fbfcfd;border:1px solid #eef1f5;'
+            : 'background:#fdeceb;border:1px solid #f5cdc9;'),
+          stStyle: b.ok ? ok : bad
+        };
+      }),
+      stats: [
+        { name: '检索问答', v: '1,284', unit: '次' },
+        { name: '活跃人数', v: '37', unit: '人' },
+        { name: '命中率', v: '82.6', unit: '%' },
+        { name: '无结果', v: '9.1', unit: '%' }
+      ],
+      jobs: [
+        { name: '文档解析', st: '进行中', level: 'neutral', detail: '4 / 11 份', pct: 36 },
+        { name: '向量化', st: '进行中', level: 'neutral', detail: '820 / 2,140 块', pct: 38 },
+        { name: '共享库同步', st: '等待', level: 'warn', detail: '排在解析之后', pct: 0 }
+      ].map(function (j) {
+        return {
+          name: j.name, st: j.st, detail: j.detail,
+          stStyle: j.level === 'warn' ? warn : neutral,
+          bar: 'height:100%;border-radius:3px;background:' + (j.level === 'warn' ? '#cfd6df' : '#2f5ccc') + ';width:' + j.pct + '%;'
+        };
+      }),
+      audit: [
+        { at: '09-13 16:42', text: '陈工 将 王工 的可访问密级由「内部」调整为「机密」' },
+        { at: '09-12 11:07', text: '陈工 为 李敏 重置口令' },
+        { at: '09-11 09:30', text: '陈工 停用 刘工（离职），已导出其历史操作记录' },
+        { at: '09-09 14:15', text: '陈工 新建账号 孙工，尚未指派角色' }
+      ],
+      v: {
+        hasAlert: hasAlert,
+        acked: acked,
+        ack: () => this.setState({ acked: true }),
+        health: hasAlert ? '1 项告警' : '全部正常',
+        healthStyle: hasAlert ? bad : ok
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
