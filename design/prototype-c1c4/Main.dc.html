@@ -96,11 +96,11 @@
 
   <!-- 页脚 -->
   <div style="flex-shrink: 0; width: 100%; padding: 0 24px 20px; display: flex; align-items: center; justify-content: center; gap: 10px;">
-    <span style="display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; background: #e3f4f4; color: #00696b; border: 1px solid #b8dedd;">内部系统</span>
+    <span style="display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 500; background: #fdf4e3; color: #8a5a00; border: 1px solid #f0dcb4;">内部系统</span>
     <sc-if value="{{xray}}" hint-placeholder-val="{{ false }}">
       <span style="{{k.chip}}">site.classification_label<span style="{{k.tierRun}}">运行期</span></span>
     </sc-if>
-    <span style="font-size: 11px; color: #8a95a3;">{{org.name}}　软件技术部</span>
+    <span style="font-size: 11px; color: #8a95a3;">{{org.name}}</span>
   </div>
 
   <sc-if value="{{xray}}" hint-placeholder-val="{{ false }}">
@@ -172,7 +172,7 @@ class Component extends DCLogic {
       k: {
         chip: chipBase,
         tier: tierBase + 'color:#8a95a3;',
-        tierRun: tierBase + 'color:' + accent + ';'
+        tierRun: tierBase + 'color:#5a6673;font-weight:500;'
       },
       f: {
         pwd: 'height:36px;display:flex;align-items:center;padding:0 11px;background:#ffffff;border:1px solid ' + (e ? e.bd : '#cfd6df') + ';border-radius:5px;font-size:14px;',
@@ -190,10 +190,10 @@ class Component extends DCLogic {
       ].map(function (r) {
         return {
           k: r[0], tier: r[1],
-          badge: 'display:inline-flex;align-items:center;height:17px;padding:0 5px;border-radius:3px;font-size:10px;font-weight:500;' +
+          badge: 'display:inline-flex;align-items:center;height:19px;padding:0 6px;border-radius:3px;font-size:11px;font-weight:500;' +
             (r[1] === '部署期'
               ? 'background:#eef1f5;color:#5a6673;border:1px solid #dde3ea;'
-              : 'background:#ffffff;color:' + accent + ';border:1px solid ' + accent + '55;')
+              : 'background:#ffffff;color:#5a6673;border:1px solid #cfd6df;')
         };
       })
     };
