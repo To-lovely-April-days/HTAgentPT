@@ -101,8 +101,10 @@
 
         <div style="flex-grow: 1; display: flex; min-height: 0;">
           <div style="width: 240px; flex-shrink: 0; border-right: 1px solid #e2e6ec; background: #ffffff;">
+            <div class="grp">落地</div>
+            <div class="iton">后台首页</div>
             <div class="grp">语料域</div>
-            <div class="iton">语料管理</div>
+            <div class="item">语料管理</div>
             <div class="item">知识库管理</div>
             <div class="item">元数据与词表</div>
             <div class="grp">能力域</div>
@@ -112,13 +114,22 @@
             <div class="item">系统设置</div>
             <div class="item">审计与统计</div>
           </div>
-          <div style="flex-grow: 1; background: #f8fafc; display: flex; align-items: center; justify-content: center;">
-            <span style="font-size: 12px; color: #a2acb9;">内容区</span>
+          <div style="flex-grow: 1; background: #f8fafc; display: flex; flex-direction: column; min-width: 0;">
+            <div style="flex-shrink: 0; display: flex; align-items: center; gap: 9px; margin: 12px 14px 0; padding: 10px 12px; border-radius: 5px; background: #fdeceb; border: 1px solid #f5cdc9; color: #b3261e;">
+              <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" style="flex-shrink:0"><circle cx="10" cy="10" r="7.6"/><path d="M10 6.1v4.5M10 13.5v.1"/></svg>
+              <span style="font-size: 12px; font-weight: 500;">异地全量备份连续 2 次失败</span>
+              <div class="sp"></div>
+              <span style="display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:4px;font-size:12px;color:#b3261e;background:#ffffff;border:1px solid #f5cdc9;">查看备份详情</span>
+              <span style="display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:4px;font-size:12px;color:#5a6673;background:#ffffff;border:1px solid #dde3ea;">标记为已知悉</span>
+            </div>
+            <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center;">
+              <span style="font-size: 12px; color: #a2acb9;">内容区</span>
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="note"><strong style="font-weight:600">七项，不是八项。</strong>表 9-1 把「审核台」列在管理后台下，但表 3-2 管理员列的「故障案例审核」是 —，审核权只有总部审核人有。审核台属下方的审核人变体，不在管理员左栏。<span style="color:#8a5a00">此处需需求方确认。</span></div>
+      <div class="note"><strong style="font-weight:600">功能项七项，另加一个落地页。</strong>表 9-1 八行去掉「审核台」剩七项——表 3-2 管理员列的「故障案例审核」是 —，审核权只有总部审核人有，审核台属下方的审核人变体。「后台首页」是表 9-1 之外新增的落地页：FR-9.3/9.4 要求备份与任务失败告警不得仅写日志、须突出提示，管理员每次登录先落在语料列表并不合适。已确认。</div>
     </div>
 
     <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 20px;">
@@ -161,14 +172,9 @@
           <div style="font-size: 11px; color: #8a95a3; margin-bottom: 5px;">可访问密级</div>
           <div style="display: flex; gap: 5px;"><span class="pill cf">机密</span><span class="pill in">内部</span><span class="pill pb">公开</span></div>
           <div style="height: 1px; background: #eef1f5; margin: 11px 0 4px;"></div>
-          <div style="display: flex; align-items: center; gap: 7px; padding: 7px 8px; border-radius: 4px; outline: 1px dashed #cfd6df; outline-offset: -1px;">
-            <span style="font-size: 12.5px; color: #5a6673;">修改口令</span>
-            <div class="sp"></div>
-            <span class="pill nt">待确认</span>
-          </div>
           <div style="padding: 7px 8px; font-size: 12.5px; color: #5a6673;">注销</div>
         </div>
-        <div class="note" style="width: 380px;">全文无自助改密流程，且数据不出域意味着没有邮件短信重置通道——两者相加，口令一经管理员下发便永远无法更换，「一人一号」会退化成共用初始口令。<span style="color:#8a5a00">建议补此入口，需需求方确认。</span></div>
+        <div class="note" style="width: 380px;"><strong style="font-weight:600">已确认不做自助改密</strong>，菜单为五项。口令改由管理员在「用户与权限」页重置并进审计。连带后果：无法做首次登录强制改密，管理员长期知悉全员口令，此项须以制度而非界面补偿。</div>
       </div>
     </div>
   </div>
