@@ -34,4 +34,27 @@ public class CasesController(IFaultCaseService cases) : ControllerBase
     [RequirePermission(PermissionKeys.CaseRead)]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
         => await cases.GetAsync(id, ct) is { } detail ? Ok(detail) : NotFound();
+
+    /// <summary>同型归并（FR-8.6）。</summary>
+    [HttpPost("search-grouped")]
+    [RequirePermission(PermissionKeys.CaseRead)]
+    public async Task<IActionResult> SearchGrouped([FromBody] CaseSearchRequest req, CancellationToken ct)
+        => Ok(await cases.SearchGroupedAsync(req, ct));
+
+    /// <summary>提交前敏感检测（FR-8.3，B4 界面的高亮提示数据源）。</summary>
+    [HttpPost("{id:guid}/check-sensitive")]
+    [RequirePermission(PermissionKeys.CaseWrite)]
+    public async Task<IActionResult> CheckSensitive(Guid id, CancellationToken ct)
+        => Ok(await cases.CheckSensitiveAsync(id, ct));
+
+    public record SubmitBody(bool Acknowledged);
+
+    /// <summary>提交总部（表 8-1 POST /api/cases/{id}/submit）。</summary>
+    [HttpPost("{id:guid}/submit")]
+    [RequirePermission(PermissionKeys.CaseWrite)]
+    public async Task<IActionResult> Submit(Guid id, [FromBody] SubmitBody body, CancellationToken ct)
+    {
+        await cases.SubmitAsync(id, body.Acknowledged, ct);
+        return NoContent();
+    }
 }

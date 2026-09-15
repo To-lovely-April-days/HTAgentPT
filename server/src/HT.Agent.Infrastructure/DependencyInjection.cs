@@ -71,10 +71,13 @@ public static class DependencyInjection
         services.AddScoped<ITemplateService, TemplateService>();
         services.AddScoped<IGenerationService, GenerationService>();
         services.AddScoped<IClauseService, ClauseService>();
+        services.AddScoped<ICaseReviewService, CaseReviewService>();
         services.AddScoped<IRetrievalService, RetrievalService>();
         services.AddScoped<IQaService, QaService>();
 
+        services.AddScoped<BackupService>();
         services.AddHostedService<ParseWorker>();
+        services.AddHostedService<BackupWorker>();
         return services;
     }
 }

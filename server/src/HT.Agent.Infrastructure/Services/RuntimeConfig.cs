@@ -58,7 +58,12 @@ public class RuntimeConfig(IServiceScopeFactory scopeFactory, IMemoryCache cache
         [ConfigKeys.SyncHqUrl] = "",
         [ConfigKeys.SyncToken] = "",
         [ConfigKeys.SyncAcceptToken] = "",
-        [ConfigKeys.PdfConverterUrl] = ""
+        [ConfigKeys.PdfConverterUrl] = "",
+        [ConfigKeys.BackupDir] = "data/backup",
+        [ConfigKeys.BackupRemoteDir] = "",
+        [ConfigKeys.BackupLocalIncrementalHours] = "6",
+        [ConfigKeys.BackupLocalFullDays] = "7",
+        [ConfigKeys.BackupRemoteFullDays] = "3"
     };
 
     public async Task<string?> GetAsync(string key, CancellationToken ct = default)

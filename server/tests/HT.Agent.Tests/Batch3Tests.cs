@@ -89,3 +89,45 @@ public class DocxTranslatorTests
         Assert.Contains("[EN] 原文段落", reopened.MainDocumentPart!.Document.InnerText);
     }
 }
+
+public class SensitiveScannerTests
+{
+    private static readonly string[] Customers = ["华东理工", "南方药业"];
+
+    [Fact]
+    public void 四类命中全检出且去重()
+    {
+        var hits = SensitiveScanner.Scan(new Dictionary<string, string?>
+        {
+            ["现象"] = "华东理工现场，联系张工 13812345678，邮箱 z@ht.com，参考 P-2025-0186",
+            ["步骤"] = "拨 021-55556666 报备；华东理工确认"
+        }, Customers, @"P-\d{4}-\d+");
+        Assert.Contains(hits, h => h.Kind == "客户名称" && h.Field == "现象");
+        Assert.Contains(hits, h => h.Kind == "客户名称" && h.Field == "步骤");
+        Assert.Contains(hits, h => h.Kind == "电话" && h.Match == "13812345678");
+        Assert.Contains(hits, h => h.Kind == "电话" && h.Match == "021-55556666");
+        Assert.Contains(hits, h => h.Kind == "邮箱");
+        Assert.Contains(hits, h => h.Kind == "项目编号" && h.Match == "P-2025-0186");
+    }
+
+    [Fact]
+    public void 干净文本零命中()
+    {
+        var hits = SensitiveScanner.Scan(new Dictionary<string, string?>
+        {
+            ["现象"] = "搅拌电机过载停机，复位后再次跳停，力矩 38 N·m 复装"
+        }, Customers, @"P-\d{4}-\d+");
+        Assert.Empty(hits);
+    }
+
+    [Fact]
+    public void 非法项目编号正则不阻断其余检测()
+    {
+        var hits = SensitiveScanner.Scan(new Dictionary<string, string?>
+        {
+            ["x"] = "电话 13800001111"
+        }, Customers, "((");
+        Assert.Single(hits);
+        Assert.Equal("电话", hits[0].Kind);
+    }
+}

@@ -13,6 +13,7 @@ namespace HT.Agent.Infrastructure.Services;
 public class FaultCaseService(
     AppDbContext db,
     IRuntimeConfig config,
+    IHttpClientFactory httpFactory,
     IAuditWriter audit,
     ICurrentUser me) : IFaultCaseService
 {
@@ -155,6 +156,91 @@ public class FaultCaseService(
         return new CaseDetail(c.Id, c.CaseNo, c.DeviceModel, c.AlarmCode, c.Phenomenon,
             c.CauseAnalysis, c.Steps, c.SpareParts, c.Result, extra, c.SyncStatus, c.RejectReason,
             c.SourceCompany, c.CreatedById, c.CreatedAt, c.UpdatedAt, c.ChunkId);
+    }
+
+    public async Task<IReadOnlyList<SensitiveScanner.Hit>> CheckSensitiveAsync(Guid caseId, CancellationToken ct = default)
+    {
+        var c = await db.FaultCases.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == caseId && x.CompanyId == me.CompanyId, ct)
+            ?? throw new DomainRuleException("CASE_NOT_FOUND", "案例不存在");
+        var customerRows = await db.VocabTerms.AsNoTracking()
+            .Where(v => v.VocabKey == VocabKeys.CustomerName)
+            .Select(v => new { v.Value, v.Aliases })
+            .ToListAsync(ct);
+        var customers = customerRows
+            .SelectMany(v => v.Aliases == null ? new[] { v.Value } : new[] { v.Value, v.Aliases })
+            .ToList();
+        var pattern = await config.GetAsync(ConfigKeys.IntentProjectNoPattern, ct);
+        return SensitiveScanner.Scan(new Dictionary<string, string?>
+        {
+            ["故障现象"] = c.Phenomenon,
+            ["原因判断"] = c.CauseAnalysis,
+            ["处理步骤"] = c.Steps,
+            ["所用备件"] = c.SpareParts,
+            ["处理结果"] = c.Result,
+            ["扩展字段"] = c.Extra
+        }, customers, pattern);
+    }
+
+    public async Task SubmitAsync(Guid caseId, bool acknowledged, CancellationToken ct = default)
+    {
+        var c = await db.FaultCases.FirstOrDefaultAsync(
+            x => x.Id == caseId && x.CompanyId == me.CompanyId, ct)
+            ?? throw new DomainRuleException("CASE_NOT_FOUND", "案例不存在");
+        if (c.SyncStatus == CaseSyncStatus.Pending)
+            throw new DomainRuleException("CASE_ALREADY_SUBMITTED", "该案例已在总部待审");
+        if (c.SyncStatus == CaseSyncStatus.Shared)
+            throw new DomainRuleException("CASE_ALREADY_SHARED", "该案例已并入共享库；修改后如需重新共享请再次提交");
+
+        // 检测有命中且用户未确认 → 拒（FR-8.3：确认后方可提交）
+        var hits = await CheckSensitiveAsync(caseId, ct);
+        if (hits.Count > 0 && !acknowledged)
+            throw new DomainRuleException("SENSITIVE_HITS",
+                "检测到疑似敏感内容，请核对命中项；确认无泄漏后带 acknowledged=true 重新提交：" +
+                string.Join("；", hits.Take(6).Select(h => $"{h.Field}·{h.Kind}「{h.Match}」")));
+
+        var hqUrl = (await config.GetStringAsync(ConfigKeys.SyncHqUrl, "", ct)).TrimEnd('/');
+        var token = await config.GetStringAsync(ConfigKeys.SyncToken, "", ct);
+        if (hqUrl.Length == 0)
+            throw new DomainRuleException("SYNC_NOT_CONFIGURED", "尚未配置总部节点地址（sync.hq_url）");
+        var company = await db.Companies.AsNoTracking().FirstAsync(x => x.Id == me.CompanyId, ct);
+
+        var payload = new SubmittedCase(c.Id, c.CaseNo, company.ShortName ?? company.Name, me.Username,
+            c.DeviceModel, c.AlarmCode, c.Phenomenon, c.CauseAnalysis, c.Steps, c.SpareParts, c.Result,
+            c.Extra, c.CreatedAt);
+        var http = httpFactory.CreateClient("sync");
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"{hqUrl}/api/sync/cases")
+            { Content = System.Net.Http.Json.JsonContent.Create(payload) };
+            req.Headers.Add("X-Sync-Token", token);
+            var resp = await http.SendAsync(req, ct);
+            if (!resp.IsSuccessStatusCode)
+                throw new DomainRuleException("SUBMIT_HQ_REFUSED", $"总部节点拒收（HTTP {(int)resp.StatusCode}）");
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new DomainRuleException("SUBMIT_HQ_UNREACHABLE",
+                $"总部节点不可达：{ex.Message}。案例仍在本地生效，稍后重新提交即可（10.3）");
+        }
+        c.SyncStatus = CaseSyncStatus.Pending;
+        c.SubmittedAt = DateTimeOffset.UtcNow;
+        c.RejectReason = null;
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(new AuditEntry("case.submit", AuditResult.Success,
+            UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+            TargetType: "fault_case", TargetId: caseId.ToString(),
+            Detail: new { c.CaseNo, sensitiveHits = hits.Count, acknowledged }), ct);
+    }
+
+    /// <summary>同型归并（FR-8.6）：同一设备型号折叠，组内按时间倒序取前三。</summary>
+    public async Task<IReadOnlyList<CaseModelGroup>> SearchGroupedAsync(CaseSearchRequest req, CancellationToken ct = default)
+    {
+        var rows = await SearchAsync(req with { Limit = 500 }, ct);
+        return rows.GroupBy(r => r.DeviceModel)
+            .Select(g => new CaseModelGroup(g.Key, g.Count(), g.Take(3).ToList()))
+            .OrderByDescending(g => g.Count)
+            .ToList();
     }
 
     private static void Validate(CaseEdit e)

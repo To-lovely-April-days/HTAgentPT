@@ -150,7 +150,12 @@ public class SharedSyncService(
             // 原始文件（FR-2.2）：新文档或版本变化时拉取
             var doc = await db.Documents.Include(d => d.Metadata).FirstOrDefaultAsync(d => d.Id == sd.Id, ct);
             string? fileKey = doc?.FileKey;
-            if (doc is null || doc.ParseVersion != sd.ParseVersion)
+            var isVirtual = sd.ContentType == "application/x-ht-virtual";
+            if (isVirtual)
+            {
+                fileKey = $"virtual:synced:{sd.Id}"; // 无原始文件；前缀保持语料管理写保护生效
+            }
+            else if (doc is null || doc.ParseVersion != sd.ParseVersion)
             {
                 try
                 {
@@ -273,11 +278,45 @@ public class SharedSyncService(
                 .ExecuteUpdateAsync(u => u.SetProperty(d => d.IsWithdrawn, true), ct);
         }
 
+        // 案例审核状态回传（FR-8.4/8.5）：本公司在总部待审的案例，随同一通道回查结果
+        var caseUpdates = 0;
+        var pendingIds = await db.FaultCases
+            .Where(c => c.SyncStatus == CaseSyncStatus.Pending)
+            .Select(c => c.Id).ToListAsync(ct);
+        if (pendingIds.Count > 0)
+        {
+            try
+            {
+                using var sreq = new HttpRequestMessage(HttpMethod.Get,
+                    $"{hqUrl}/api/sync/cases/status?ids={string.Join(',', pendingIds)}");
+                sreq.Headers.Add("X-Sync-Token", token);
+                var sresp = await http.SendAsync(sreq, ct);
+                if (sresp.IsSuccessStatusCode)
+                {
+                    var statuses = await sresp.Content.ReadFromJsonAsync<List<CaseStatusRow>>(WireJson, ct) ?? [];
+                    foreach (var st in statuses)
+                    {
+                        var c = await db.FaultCases.FirstOrDefaultAsync(x => x.Id == st.CaseId, ct);
+                        if (c is null || !Enum.TryParse<CaseSyncStatus>(st.SyncStatus, out var parsed)) continue;
+                        if (parsed == c.SyncStatus) continue;
+                        c.SyncStatus = parsed;
+                        c.RejectReason = st.RejectReason; // 驳回原因原样回传
+                        caseUpdates++;
+                    }
+                    await db.SaveChangesAsync(ct);
+                }
+            }
+            catch (HttpRequestException)
+            {
+                warnings.Add("案例审核状态回查失败，下次同步补查");
+            }
+        }
+
         log.FinishedAt = DateTimeOffset.UtcNow;
         log.Ok = true;
         log.Detail = System.Text.Json.JsonSerializer.Serialize(new
         {
-            upserted, chunksWritten, vectorsReused, queuedEmbed, withdrawn,
+            upserted, chunksWritten, vectorsReused, queuedEmbed, withdrawn, caseUpdates,
             hqTag = package.EmbeddingModelTag, localTag, warnings
         });
         await db.SaveChangesAsync(ct);
