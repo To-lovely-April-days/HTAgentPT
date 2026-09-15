@@ -72,6 +72,15 @@ public class StubChatClient : IChatModelClient
     {
         var user = messages.LastOrDefault(m => m.Role == "user")?.Content ?? "";
         var sys = messages.FirstOrDefault(m => m.Role == "system")?.Content ?? "";
+        // 分段翻译提示词：按哨兵逐段回显伪译文，段数严格一致（翻译链路端到端可验）
+        if (sys.Contains(TextSegmenter.Sentinel))
+        {
+            var prefix = sys.Contains("翻译为英文") ? "[EN] " : "[中] ";
+            var segments = user.Split(TextSegmenter.Sentinel, StringSplitOptions.TrimEntries)
+                .Where(x => x.Length > 0)
+                .Select(x => prefix + x);
+            return Task.FromResult(string.Join($"\n{TextSegmenter.Sentinel}\n", segments));
+        }
         var refStart = sys.IndexOf("[参考内容]", StringComparison.Ordinal);
         var refs = refStart >= 0 ? sys[refStart..] : "（无参考内容）";
         return Task.FromResult($"[桩模型回答] 依据给定参考内容作答。\n{Truncate(refs, 600)}");

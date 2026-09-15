@@ -35,6 +35,16 @@ public class DocumentService(
             throw new DomainRuleException("SHARED_KB_READONLY", "共享库由总部下发，本地不得直接修改（FR-2.2）");
     }
 
+    /// <summary>虚拟容器文档（如故障案例容器）的分块由对应业务模块托管：
+    /// 语料管理的解析与分块写操作动了它，案例行与分块就会失联。</summary>
+    private async Task EnsureNotVirtualAsync(Guid docId, CancellationToken ct)
+    {
+        var fileKey = await db.Documents.Where(d => d.Id == docId).Select(d => d.FileKey).FirstOrDefaultAsync(ct);
+        if (fileKey is not null && fileKey.StartsWith("virtual:", StringComparison.Ordinal))
+            throw new DomainRuleException("VIRTUAL_DOC_MANAGED",
+                "该文档由业务模块自动维护（故障案例等），请在对应模块中修改内容");
+    }
+
     /// <summary>文档类别为这些取值时项目编号必填并须在台账中存在（表 4-5）。</summary>
     private static readonly string[] ProjectLinkedCategories =
         ["方案", "合同", "报价", "图纸", "交付报告", "故障记录"];
@@ -138,6 +148,8 @@ public class DocumentService(
         var docs = await db.Documents.Where(d => docIds.Contains(d.Id)).ToListAsync(ct);
         foreach (var kbId in docs.Select(d => d.KbId).Distinct())
             await EnsureKbWritableAsync(kbId, ct);
+        foreach (var doc in docs.Where(d => d.FileKey.StartsWith("virtual:", StringComparison.Ordinal)))
+            throw new DomainRuleException("VIRTUAL_DOC_MANAGED", $"「{doc.Title}」由业务模块自动维护，不参与解析");
         var queued = 0;
         foreach (var doc in docs)
         {
@@ -165,6 +177,7 @@ public class DocumentService(
     {
         var doc = await db.Documents.FindAsync([docId], ct)
             ?? throw new DomainRuleException("DOC_NOT_FOUND", "文档不存在");
+        await EnsureNotVirtualAsync(docId, ct);
         await EnsureKbWritableAsync(doc.KbId, ct);
         if (newStrategy is not null) doc.ChunkStrategyOverride = newStrategy;
         doc.ParseStatus = ParseStatus.Queued;
@@ -196,6 +209,7 @@ public class DocumentService(
             throw new DomainRuleException("CHUNK_TEXT_EMPTY", "分块内容不能为空；要移除请用删除");
         var chunk = await db.Chunks.FirstOrDefaultAsync(c => c.Id == chunkId, ct)
             ?? throw new DomainRuleException("CHUNK_NOT_FOUND", "分块不存在");
+        await EnsureNotVirtualAsync(chunk.DocId, ct);
         await EnsureKbWritableAsync(chunk.KbId, ct);
         chunk.Text = newText;
         chunk.SearchText = ChineseTokenizer.Tokenize(newText);
@@ -220,6 +234,7 @@ public class DocumentService(
     {
         var chunk = await db.Chunks.FirstOrDefaultAsync(c => c.Id == chunkId, ct)
             ?? throw new DomainRuleException("CHUNK_NOT_FOUND", "分块不存在");
+        await EnsureNotVirtualAsync(chunk.DocId, ct);
         await EnsureKbWritableAsync(chunk.KbId, ct);
         chunk.IsActive = false;
         await db.SaveChangesAsync(ct);
@@ -249,6 +264,7 @@ public class DocumentService(
         for (var i = 1; i < chunks.Count; i++)
             if (chunks[i].Seq != chunks[i - 1].Seq + 1)
                 throw new DomainRuleException("MERGE_NOT_ADJACENT", "只能合并 seq 连续的相邻分块");
+        await EnsureNotVirtualAsync(chunks[0].DocId, ct);
         await EnsureKbWritableAsync(chunks[0].KbId, ct);
 
         var head = chunks[0];
@@ -283,6 +299,7 @@ public class DocumentService(
                 .FromSqlInterpolated($"SELECT * FROM chunk WHERE id = {chunkId} AND is_active FOR UPDATE")
                 .ToListAsync(ct)).FirstOrDefault()
             ?? throw new DomainRuleException("CHUNK_NOT_FOUND", "分块不存在");
+        await EnsureNotVirtualAsync(chunk.DocId, ct);
         await EnsureKbWritableAsync(chunk.KbId, ct);
         IReadOnlyList<string> parts;
         try { parts = ChunkSplitter.Split(chunk.Text, offsets); }
@@ -390,6 +407,9 @@ public class DocumentService(
                 Detail: new { reason = deny }), ct);
             throw new ForbiddenException("FORBIDDEN_DOCUMENT", "你没有查看该文档的权限。本次请求已被记录。");
         }
+
+        if (doc.FileKey.StartsWith("virtual:", StringComparison.Ordinal))
+            throw new DomainRuleException("VIRTUAL_DOC_NO_FILE", "该条目由业务模块自动维护，没有可下载的原始文件");
 
         var stream = await storage.OpenAsync(doc.FileKey, ct);
         await audit.WriteAsync(new AuditEntry("doc.download", AuditResult.Success,

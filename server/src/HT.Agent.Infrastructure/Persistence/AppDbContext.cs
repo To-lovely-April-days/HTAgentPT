@@ -39,6 +39,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
     public DbSet<Ticket> Tickets => Set<Ticket>();
     public DbSet<CustomerDevice> CustomerDevices => Set<CustomerDevice>();
     public DbSet<Term> Terms => Set<Term>();
+    public DbSet<TranslationTask> TranslationTasks => Set<TranslationTask>();
     public DbSet<Clause> Clauses => Set<Clause>();
     public DbSet<Template> Templates => Set<Template>();
     public DbSet<TemplateSlot> TemplateSlots => Set<TemplateSlot>();
@@ -168,6 +169,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
         b.Entity<Term>(e =>
         {
             e.HasIndex(x => new { x.Domain, x.Zh });
+        });
+
+        b.Entity<TranslationTask>(e =>
+        {
+            e.HasIndex(x => new { x.UserId, x.CreatedAt });
+            e.Property(x => x.Report).HasColumnType("jsonb");
         });
 
         b.Entity<Clause>(e =>

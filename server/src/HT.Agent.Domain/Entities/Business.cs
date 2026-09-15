@@ -93,6 +93,22 @@ public class Term
     public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>文档翻译任务（M6）。本期同步执行，落记录供下载与追溯；异步化只改执行端不改表。</summary>
+public class TranslationTask
+{
+    public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+    public Guid CompanyId { get; set; }
+    public required string SourceFileName { get; set; }
+    /// <summary>zh2en / en2zh。</summary>
+    public required string Direction { get; set; }
+    public string? TermDomain { get; set; }
+    public required string OutputFileKey { get; set; }
+    /// <summary>回填报告（jsonb）：段落数、译出数、无法回填的元素清单（FR-6.3 末句）。</summary>
+    public string? Report { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
 /// <summary>合同条款（表 7-1）：仅收录已审定条款；记录审定人与生效日期。
 /// 已审定条款不可就地编辑，修改生成待审新版本（FR-5.18）。</summary>
 public class Clause

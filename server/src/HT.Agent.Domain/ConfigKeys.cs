@@ -49,4 +49,7 @@ public static class ConfigKeys
     public const string TranslateBatchChars = "translate.batch_chars";
     // ── 意图路由（10.4：编号规则不得硬编码）───────────────
     public const string IntentProjectNoPattern = "intent.project_no_pattern";
+    // ── 故障案例 ─────────────────────────────────
+    /// <summary>案例编号前缀（10.4）。编号形如 {前缀}-{年}-{序号:0000}。</summary>
+    public const string CaseNoPrefix = "case.no_prefix";
 }

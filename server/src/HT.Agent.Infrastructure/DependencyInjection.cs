@@ -61,6 +61,9 @@ public static class DependencyInjection
         services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<IProjectService, ProjectService>();
+        services.AddScoped<IFaultCaseService, FaultCaseService>();
+        services.AddScoped<ITranslationService, TranslationService>();
+        services.AddScoped<ITermService, TermService>();
         services.AddScoped<IRetrievalService, RetrievalService>();
         services.AddScoped<IQaService, QaService>();
 
