@@ -108,6 +108,11 @@ public class ParseWorker(
                 await EmbedSingleChunkAsync(db, embedder, job, ct);
                 return;
             }
+            if (job.Kind == ParseJobKind.EmbedDoc)
+            {
+                await EmbedDocChunksAsync(db, embedder, job, ct);
+                return;
+            }
 
             doc.ParseStatus = job.Kind == ParseJobKind.Reparse ? ParseStatus.Reparsing : ParseStatus.Parsing;
             await db.SaveChangesAsync(ct);
@@ -211,6 +216,39 @@ public class ParseWorker(
             await db.SaveChangesAsync(ct);
             logger.LogError(ex, "解析任务 {JobId} 失败", jobId);
         }
+    }
+
+    /// <summary>同步合入后按本机模型重算整篇缺向量的分块（FR-2.2：向量在本地重新生成）。</summary>
+    private static async Task EmbedDocChunksAsync(
+        AppDbContext db, IEmbeddingClient embedder, ParseJob job, CancellationToken ct)
+    {
+        var chunks = await db.Chunks
+            .Where(c => c.DocId == job.DocId && c.IsActive && c.Embedding == null)
+            .OrderBy(c => c.Seq).ToListAsync(ct);
+        if (chunks.Count == 0)
+        {
+            job.Status = JobStatus.Succeeded;
+            job.FinishedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(ct);
+            return;
+        }
+        try
+        {
+            var batch = await embedder.EmbedAsync(chunks.Select(c => c.Text).ToList(), ct);
+            for (var i = 0; i < chunks.Count; i++)
+            {
+                chunks[i].Embedding = new Vector(batch.Vectors[i]);
+                chunks[i].EmbeddingModel = batch.ModelTag;
+            }
+            job.Status = JobStatus.Succeeded;
+            job.FinishedAt = DateTimeOffset.UtcNow;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            job.Status = JobStatus.Waiting;
+            job.LastError = $"向量化服务不可用：{ex.Message}";
+        }
+        await db.SaveChangesAsync(ct);
     }
 
     private static async Task EmbedSingleChunkAsync(

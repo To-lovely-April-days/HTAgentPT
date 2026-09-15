@@ -124,12 +124,14 @@ public enum JobStatus
     Cancelled
 }
 
-/// <summary>解析任务种类。EmbedOnly 用于分块编辑后仅重算该块向量（FR-1.5）。</summary>
+/// <summary>解析任务种类。EmbedOnly 用于分块编辑后仅重算该块向量（FR-1.5）；
+/// EmbedDoc 用于同步合入后按本机模型重算整篇分块向量（FR-2.2：向量在本地重新生成）。</summary>
 public enum ParseJobKind
 {
     Parse,
     Reparse,
-    EmbedOnly
+    EmbedOnly,
+    EmbedDoc
 }
 
 /// <summary>术语状态（FR-6.4：提交补充经管理员确认后生效）。</summary>

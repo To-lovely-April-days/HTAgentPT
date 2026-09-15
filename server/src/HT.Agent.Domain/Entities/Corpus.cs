@@ -132,6 +132,8 @@ public class PublishRecord
     /// <summary>发布时内容快照的存储键。</summary>
     public required string SnapshotKey { get; set; }
     public DateTimeOffset PublishedAt { get; set; }
+    /// <summary>确认时间。副本创建后可先编辑（FR-2.3：删除不宜公开的段落），确认后才对外可见。</summary>
+    public DateTimeOffset? ConfirmedAt { get; set; }
     public DateTimeOffset? WithdrawnAt { get; set; }
     public string? WithdrawReason { get; set; }
     public Guid? WithdrawnBy { get; set; }

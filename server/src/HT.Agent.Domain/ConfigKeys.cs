@@ -52,4 +52,13 @@ public static class ConfigKeys
     // ── 故障案例 ─────────────────────────────────
     /// <summary>案例编号前缀（10.4）。编号形如 {前缀}-{年}-{序号:0000}。</summary>
     public const string CaseNoPrefix = "case.no_prefix";
+    /// <summary>报修工单编号前缀（10.4）。</summary>
+    public const string TicketNoPrefix = "ticket.no_prefix";
+    // ── 共享库同步（FR-2.2）──────────────────────────
+    /// <summary>总部节点地址（公司节点侧配置）。</summary>
+    public const string SyncHqUrl = "sync.hq_url";
+    /// <summary>拉取共享库时携带的令牌（公司节点侧配置）。</summary>
+    public const string SyncToken = "sync.token";
+    /// <summary>接受的拉取令牌（总部节点侧配置）。</summary>
+    public const string SyncAcceptToken = "sync.accept_token";
 }

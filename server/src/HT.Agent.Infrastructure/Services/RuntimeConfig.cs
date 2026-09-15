@@ -53,7 +53,11 @@ public class RuntimeConfig(IServiceScopeFactory scopeFactory, IMemoryCache cache
         [ConfigKeys.TranslateBatchChars] = "3000",
         // 项目编号识别正则（10.4：编号规则随部署配置，不硬编码）
         [ConfigKeys.IntentProjectNoPattern] = "P-\\d{4}-\\d+",
-        [ConfigKeys.CaseNoPrefix] = "FC"
+        [ConfigKeys.CaseNoPrefix] = "FC",
+        [ConfigKeys.TicketNoPrefix] = "RT",
+        [ConfigKeys.SyncHqUrl] = "",
+        [ConfigKeys.SyncToken] = "",
+        [ConfigKeys.SyncAcceptToken] = ""
     };
 
     public async Task<string?> GetAsync(string key, CancellationToken ct = default)

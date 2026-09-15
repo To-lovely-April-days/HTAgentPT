@@ -30,6 +30,7 @@ public static class DependencyInjection
         services.AddMemoryCache();
         services.AddHttpClient("model");
         services.AddHttpClient("parser");
+        services.AddHttpClient("sync");
 
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
         services.AddSingleton<IJwtIssuer, JwtIssuer>();
@@ -64,6 +65,9 @@ public static class DependencyInjection
         services.AddScoped<IFaultCaseService, FaultCaseService>();
         services.AddScoped<ITranslationService, TranslationService>();
         services.AddScoped<ITermService, TermService>();
+        services.AddScoped<ISharedSyncService, SharedSyncService>();
+        services.AddScoped<IPublishService, PublishService>();
+        services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<IRetrievalService, RetrievalService>();
         services.AddScoped<IQaService, QaService>();
 
