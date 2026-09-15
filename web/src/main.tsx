@@ -19,7 +19,10 @@ import CaseDetailPage from './pages/cases/CaseDetailPage'
 import CaseEntryPage from './pages/cases/CaseEntryPage'
 import AdminLayout, { AdminHome, AdminStub } from './pages/admin/AdminLayout'
 import CorpusPage from './pages/admin/CorpusPage'
-import Placeholder from './pages/Placeholder'
+import SettingsPage from './pages/admin/SettingsPage'
+import StatsPage from './pages/admin/StatsPage'
+import ReviewPage from './pages/review/ReviewPage'
+import ProfilePage from './pages/profile/ProfilePage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -71,7 +74,7 @@ function App() {
         <Route path="cases/:caseId" element={<CaseDetailPage />} />
         <Route path="cases/:caseId/edit" element={<CaseEntryPage />} />
         <Route path="tickets" element={<TicketsPage />} />
-        <Route path="review" element={<Placeholder name="共享案例审核台" api="/api/review/*" />} />
+        <Route path="review" element={<ReviewPage />} />
         <Route path="admin" element={<AdminLayout />}>
           <Route index element={<AdminHome />} />
           <Route path="corpus" element={<CorpusPage />} />
@@ -79,10 +82,10 @@ function App() {
           <Route path="meta" element={<AdminStub name="元数据与词表" api="/api/vocab, /api/documents/metadata/batch" />} />
           <Route path="templates" element={<AdminStub name="模板管理" api="/api/templates" />} />
           <Route path="users" element={<AdminStub name="用户与权限" api="/api/users, /api/roles" />} />
-          <Route path="settings" element={<AdminStub name="系统设置" api="/api/config" />} />
-          <Route path="audit" element={<AdminStub name="审计与统计" api="/api/audit, /api/stats" />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="audit" element={<StatsPage />} />
         </Route>
-        <Route path="profile" element={<Placeholder name="个人中心" api="/api/profile" />} />
+        <Route path="profile" element={<ProfilePage />} />
         <Route path="*" element={<HomeRedirect />} />
       </Route>
     </Routes>

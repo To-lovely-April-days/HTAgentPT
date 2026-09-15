@@ -1,7 +1,10 @@
 // E 系管理后台框架：左栏按域分组（落地 / 语料域 / 能力域 / 治理域）。
 // 管理后台七项 + 审核台归总部的划分见决策 1；本壳只承载公司节点的七项。
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { get, post } from '../../lib/api';
+import type { DocRow, TermRow, ClauseRow } from '../../lib/types';
 
 const GROUPS: { label: string; items: { to: string; name: string; end?: boolean }[] }[] = [
   { label: '落地', items: [{ to: '/admin', name: '后台首页', end: true }] },
@@ -47,14 +50,86 @@ export default function AdminLayout() {
   );
 }
 
-/** 后台首页：管理员落地页（决策 3：带告警条的首页在运维批次接入——先给模块导览）。 */
+interface OpsAlert {
+  kind: string; runId: string; startedAt: string; error: string | null;
+  consecutiveFailures: number; acknowledgedBy: string | null; acknowledgedAt: string | null;
+}
+const BACKUP_KIND_LABEL: Record<string, string> = {
+  LocalIncremental: '本地增量备份', LocalFull: '本地全量备份', RemoteFull: '异地全量备份',
+};
+
+/** E0 后台首页：告警条 +「不处理就会一直卡着」的待办。
+ * 「我已知悉」只写审计并追加知悉行，告警条保持显示——同类型备份真正成功一次才撤（FR-9.3）。 */
 export function AdminHome() {
+  const qc = useQueryClient();
+  const [acking, setAcking] = useState(false);
+  const alerts = useQuery({ queryKey: ['ops-alerts'], queryFn: () => get<OpsAlert[]>('/api/ops/alerts') });
+  const notParsed = useQuery({ queryKey: ['docs', '', 'NotParsed', ''], queryFn: () => get<DocRow[]>('/api/documents?status=NotParsed') });
+  const failed = useQuery({ queryKey: ['docs', '', 'Failed', ''], queryFn: () => get<DocRow[]>('/api/documents?status=Failed') });
+  const terms = useQuery({ queryKey: ['terms-pending'], queryFn: () => get<TermRow[]>('/api/terms?status=Pending') });
+  const clauses = useQuery({ queryKey: ['clauses-pending'], queryFn: () => get<ClauseRow[]>('/api/clauses?status=Pending') });
+
+  const ack = async (runId: string) => {
+    setAcking(true);
+    try {
+      await post(`/api/ops/backup/${runId}/ack`);
+      void qc.invalidateQueries({ queryKey: ['ops-alerts'] });
+    } finally {
+      setAcking(false);
+    }
+  };
+
+  const todo: [string, number | undefined, string][] = [
+    ['待解析文档', notParsed.data?.length, '/admin/corpus'],
+    ['解析失败待处理', failed.data?.length, '/admin/corpus'],
+    ['待确认术语', terms.data?.length, '/admin/meta'],
+    ['待审定条款', clauses.data?.length, '/admin/templates'],
+  ];
+
   return (
     <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '22px 26px' }}>
       <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>管理后台</div>
-      <div className="hint" style={{ marginBottom: 18 }}>
-        运行状态告警条（备份 / 解析引擎 / 同步链路）在运维批次接入本页——告警知悉后不撤除，恢复才撤。
+      <div className="hint" style={{ marginBottom: 14 }}>
+        告警知悉后不撤除——要等同类型任务真正成功一次才消。首屏只放不处理就会一直卡着的事。
       </div>
+
+      {/* 告警条（FR-9.3：任务失败须告警，不得仅写日志） */}
+      {(alerts.data ?? []).map((a) => (
+        <div key={a.runId} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 15px', marginBottom: 10, maxWidth: 900, background: 'var(--cls-conf-bg)', border: '1px solid var(--cls-conf-line)', borderRadius: 6 }}>
+          <div style={{ flexGrow: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--cls-conf-fg)' }}>
+              {BACKUP_KIND_LABEL[a.kind] ?? a.kind}失败{a.consecutiveFailures > 1 ? `（连续 ${a.consecutiveFailures} 次）` : ''}
+            </div>
+            <div style={{ fontSize: 12, lineHeight: 1.65, color: 'var(--cls-conf-fg)', marginTop: 3 }}>
+              {a.error ?? '未记录具体原因'}　·　{a.startedAt.slice(0, 16).replace('T', ' ')}
+            </div>
+            {a.acknowledgedAt && (
+              <div style={{ fontSize: 11.5, color: 'var(--cls-conf-fg)', opacity: .8, marginTop: 3 }}>
+                已知悉 · {a.acknowledgedAt.slice(0, 16).replace('T', ' ')}——告警保持显示，直到该类备份成功一次
+              </div>
+            )}
+          </div>
+          {!a.acknowledgedAt && (
+            <button className="gbtn" style={{ flexShrink: 0 }} disabled={acking} onClick={() => void ack(a.runId)}>我已知悉</button>
+          )}
+        </div>
+      ))}
+      {alerts.data && alerts.data.length === 0 && (
+        <div style={{ padding: '10px 15px', marginBottom: 10, maxWidth: 900, background: '#e6f2ec', border: '1px solid #c2ded1', borderRadius: 6, fontSize: 12.5, color: '#1c6b45' }}>
+          备份任务无未消告警。
+        </div>
+      )}
+
+      {/* 待办：不处理就会一直卡着的事 */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', margin: '4px 0 22px', maxWidth: 900 }}>
+        {todo.map(([label, n, to]) => (
+          <NavLink key={label} to={to} className="card" style={{ width: 170, padding: '12px 14px', textDecoration: 'none', color: 'inherit' }}>
+            <div className="m" style={{ fontSize: 20, fontWeight: 600, color: (n ?? 0) > 0 ? 'var(--cls-int-fg)' : 'var(--ink-3)' }}>{n ?? '…'}</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-2)', marginTop: 2 }}>{label}</div>
+          </NavLink>
+        ))}
+      </div>
+
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, maxWidth: 900 }}>
         {[
           ['语料管理', '上传登记、提交解析、失败处理', '/admin/corpus'],

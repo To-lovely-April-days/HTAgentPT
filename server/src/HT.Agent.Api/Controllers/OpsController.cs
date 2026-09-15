@@ -100,6 +100,18 @@ public class OpsController(AppDbContext db, BackupService backup, IRuntimeConfig
         return NoContent();
     }
 
+    /// <summary>向量一致性哨兵（E15 页底常驻行）：与当前向量化模型不一致的分块数。
+    /// 新旧向量不在同一空间，比出来的相关度是没有意义的数且不报错——这行必须常驻界面，不能只写日志。</summary>
+    [HttpGet("embedding-consistency")]
+    public async Task<IActionResult> EmbeddingConsistency(CancellationToken ct)
+    {
+        var current = await config.GetStringAsync(ConfigKeys.EmbeddingModelName, "", ct);
+        var total = await db.Chunks.CountAsync(c => c.IsActive, ct);
+        var inconsistent = await db.Chunks.CountAsync(
+            c => c.IsActive && (c.EmbeddingModel == null || c.EmbeddingModel != current), ct);
+        return Ok(new { currentModel = current, totalChunks = total, inconsistent });
+    }
+
     /// <summary>远程接入综合视图（FR-9.7，E16）：绑定关系 + 最近接入（来自审计，与操作日志同一时间线）。</summary>
     [HttpGet("remote-access")]
     public async Task<IActionResult> RemoteAccess(CancellationToken ct)

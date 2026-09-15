@@ -170,6 +170,20 @@ public class CaseReviewService(
         await Log("case.approve", c, new { edited = edited is not null }, ct);
     }
 
+    public async Task<IReadOnlyList<CaseRow>> SimilarSharedAsync(Guid caseId, CancellationToken ct = default)
+    {
+        EnsureHq();
+        var c = await db.FaultCases.AsNoTracking().FirstOrDefaultAsync(x => x.Id == caseId, ct)
+            ?? throw new DomainRuleException("CASE_NOT_FOUND", "案例不存在");
+        return await db.FaultCases.AsNoTracking()
+            .Where(x => x.Id != caseId && x.DeviceModel == c.DeviceModel && x.SyncStatus == CaseSyncStatus.Shared)
+            .OrderByDescending(x => x.AlarmCode == c.AlarmCode).ThenByDescending(x => x.UpdatedAt)
+            .Take(10)
+            .Select(x => new CaseRow(x.Id, x.CaseNo, x.DeviceModel, x.AlarmCode, x.Phenomenon,
+                x.Result, x.SyncStatus, x.SourceCompany, x.CreatedAt, x.UpdatedAt))
+            .ToListAsync(ct);
+    }
+
     public async Task WithdrawAsync(Guid caseId, CancellationToken ct = default)
     {
         EnsureHq();

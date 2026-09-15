@@ -40,6 +40,9 @@ public interface ICaseReviewService
     Task RejectAsync(Guid caseId, string reason, CancellationToken ct = default);
     /// <summary>公司节点撤回其待审案例：仍在 Pending 则撤下（幂等）；已有结论则拒绝。</summary>
     Task WithdrawAsync(Guid caseId, CancellationToken ct = default);
+    /// <summary>查重对照（H3）：同型号已并入共享库的案例。相关度是机器给的、重复是人判的——
+    /// 只给逐项对照材料，不提供「判为重复」快捷动作。</summary>
+    Task<IReadOnlyList<CaseRow>> SimilarSharedAsync(Guid caseId, CancellationToken ct = default);
 }
 
 public record SubmittedCase(

@@ -72,6 +72,12 @@ public class ReviewController(ICaseReviewService review) : ControllerBase
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
         => await review.GetAsync(id, ct) is { } d ? Ok(d) : NotFound();
 
+    /// <summary>查重对照（H3）：同型号已入共享库案例。没有「判为重复」快捷按钮——
+    /// 成因与处理不同的两条都留（FR-8.6 是归并展示，不是合并成一条）。</summary>
+    [HttpGet("{id:guid}/similar")]
+    public async Task<IActionResult> Similar(Guid id, CancellationToken ct)
+        => Ok(await review.SimilarSharedAsync(id, ct));
+
     public record ApproveBody(CaseEdit? Edited);
 
     [HttpPost("{id:guid}/approve")]
