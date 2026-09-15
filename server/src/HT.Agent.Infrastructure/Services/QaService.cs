@@ -250,7 +250,7 @@ public class QaService(
                 filters = new { customer = f.CustomerName, deviceType = f.DeviceType, yearFrom, yearTo },
                 rows = result.Rows,
                 amountVisible = result.AmountVisible,
-                note = "台账查询为结构化结果，不经模型生成。筛选条件由提问解析而来，可修改后重查，或用 forcedIntent=knowledge 转知识问答。"
+                note = "台账查询为结构化结果，不经模型生成。筛选条件由提问解析而来，可修改后重查；若这不是台账问题，可选择按知识问答重新回答。"
             });
             message.Answer = $"[台账] 按解析出的条件返回 {result.Rows.Count} 条项目记录";
         }

@@ -11,7 +11,11 @@ namespace HT.Agent.Api.Controllers;
 [Authorize]
 public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, ILogger<ChatController> logger) : ControllerBase
 {
-    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+    // SSE 手写响应不走 MVC 序列化管道，枚举转字符串要在这里单独配，否则密级/交付状态吐出来是数字
+    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+    };
 
     public record AskBody(Guid? SessionId, string Question, RetrievalRequest? Filters, string? ForcedIntent);
 

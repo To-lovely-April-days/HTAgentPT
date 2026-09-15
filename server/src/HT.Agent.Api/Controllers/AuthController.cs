@@ -33,17 +33,15 @@ public class AuthController(IAuthService auth, ICurrentUser me) : ControllerBase
         return NoContent();
     }
 
-    /// <summary>当前身份与权限（C2 框架启动时拉取；C3 个人中心「我的信息」）。</summary>
+    /// <summary>当前身份与权限（C2 框架启动时拉取；C3 个人中心「我的信息」）。
+    /// 与登录返回的 profile 同构，前端刷新页面后凭令牌直接恢复工作台。</summary>
     [HttpGet("me")]
     [Authorize]
-    public IActionResult Me() => Ok(new
+    public async Task<IActionResult> Me(CancellationToken ct)
     {
-        me.UserId,
-        me.Username,
-        me.RoleCode,
-        me.CompanyId,
-        classifications = me.Classifications,
-        permissions = me.Permissions,
-        me.CustomerNo
-    });
+        var profile = await auth.ProfileAsync(me.UserId, ct);
+        if (profile is null)
+            return Unauthorized(new { code = "SESSION_EXPIRED", message = "会话已失效，请重新登录" });
+        return Ok(profile);
+    }
 }

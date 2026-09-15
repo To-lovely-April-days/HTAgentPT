@@ -7,6 +7,9 @@ public interface IAuthService
 {
     Task<LoginResult> LoginAsync(LoginRequest request, CancellationToken ct = default);
     Task LogoutAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>当前用户完整档案——与登录返回的 Profile 同构，前端刷新后凭令牌恢复工作台用。</summary>
+    Task<UserProfile?> ProfileAsync(Guid userId, CancellationToken ct = default);
 }
 
 public record LoginRequest(string Username, string Password, string TerminalId, string? TerminalName, string? Ip);

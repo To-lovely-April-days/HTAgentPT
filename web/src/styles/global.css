@@ -1,0 +1,78 @@
+/* ── 设计令牌（design/prototype/README.md 定稿，工程灰蓝·密度优先）────────── */
+:root {
+  --bg: #f2f4f7;
+  --panel: #ffffff;
+  --line: #e2e6ec;
+  --line-strong: #cfd6df;
+  --line-soft: #eef1f5;
+  --ink: #1c2530;
+  --ink-2: #5a6673;
+  --ink-3: #8a95a3;
+  --ink-4: #a2acb9;
+  --accent: #2f5ccc;
+  --accent-bg: #eef2fd;
+  --accent-line: #c9d8f7;
+  /* 密级三色：pill 形态专表密级，不得被非密级语义借用 */
+  --cls-conf: #b3261e; --cls-conf-bg: #fdeceb; --cls-conf-line: #f5cdc9;
+  --cls-int: #8a5a00;  --cls-int-bg: #fdf4e3;  --cls-int-line: #f0dcb4;
+  --cls-pub: #00696b;  --cls-pub-bg: #e3f4f4;  --cls-pub-line: #b8dedd;
+  --ok: #1c6b45; --ok-bg: #e6f2ec; --ok-line: #c2ded1;
+  --pending: #8f3d74; --pending-bg: #fbeff7; --pending-line: #edd2e3;
+  --font: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font);
+  font-size: 14px; -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: #1f43a0; }
+.m { font-family: var(--mono); }
+
+/* ── 原型同名组件类 ─────────────────────────────────────────── */
+.pill { display: inline-flex; align-items: center; height: 19px; padding: 0 6px;
+  border-radius: 3px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+.pill-neutral { background: var(--line-soft); color: var(--ink-2); border: 1px solid #dde3ea; }
+.pill-accent { background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-line); }
+.pill-ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok-line); }
+.pill-pending { background: var(--pending-bg); color: var(--pending); border: 1px solid var(--pending-line); }
+.pill-conf { background: var(--cls-conf-bg); color: var(--cls-conf); border: 1px solid var(--cls-conf-line); }
+.pill-int { background: var(--cls-int-bg); color: var(--cls-int); border: 1px solid var(--cls-int-line); }
+.pill-pub { background: var(--cls-pub-bg); color: var(--cls-pub); border: 1px solid var(--cls-pub-line); }
+
+.gbtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px;
+  border-radius: 4px; font-size: 12.5px; color: var(--ink-2); background: var(--panel);
+  border: 1px solid #dde3ea; cursor: pointer; font-family: var(--font); }
+.gbtn:hover { border-color: var(--line-strong); }
+.gbtn:disabled { opacity: .5; cursor: default; }
+.pbtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 28px;
+  padding: 0 13px; border-radius: 5px; font-size: 13px; font-weight: 500; color: #fff;
+  background: var(--accent); border: none; cursor: pointer; font-family: var(--font); }
+.pbtn:hover { background: #2a52b8; }
+.pbtn:disabled { opacity: .5; cursor: default; }
+.dbtn { composes: gbtn; color: var(--cls-conf); border-color: var(--cls-conf-line); }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+.inp { height: 30px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 4px;
+  background: var(--panel); font-size: 12.5px; font-family: var(--font); color: var(--ink); outline: none; width: 100%; }
+.inp:focus { border-color: var(--accent); }
+select.inp { padding: 0 6px; }
+
+.sc { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.sc::-webkit-scrollbar { width: 8px; }
+.sc::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 4px; }
+
+.grp { padding: 12px 10px 5px; font-size: 11px; font-weight: 500; color: var(--ink-3); letter-spacing: .04em; }
+.item { display: block; width: calc(100% - 16px); text-align: left; padding: 7px 10px; margin: 0 8px 1px;
+  border-radius: 4px; font-size: 13px; color: var(--ink-2); background: none; border: none;
+  cursor: pointer; font-family: var(--font); }
+.item:hover { background: #f6f8fb; }
+.item.on { font-weight: 500; color: var(--accent); background: var(--accent-bg); }
+
+.nav-item { padding: 0 11px; height: 30px; display: inline-flex; align-items: center; border-radius: 4px;
+  font-size: 13px; color: var(--ink-2); cursor: pointer; }
+.nav-item:hover { color: var(--ink); }
+.nav-item.on { color: var(--accent); background: var(--accent-bg); font-weight: 500; }
+
+.hint { font-size: 11.5px; color: var(--ink-3); line-height: 1.7; }
+.sect { font-size: 11px; color: var(--ink-3); letter-spacing: .03em; margin: 0 0 4px; }

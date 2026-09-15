@@ -90,6 +90,18 @@ public class AuthService(
         return new LoginResult(true, Token: token, Profile: profile, SupersededOther: superseded);
     }
 
+    public async Task<UserProfile?> ProfileAsync(Guid userId, CancellationToken ct = default)
+    {
+        var user = await db.Users.AsNoTracking()
+            .Include(u => u.Role).Include(u => u.Company)
+            .FirstOrDefaultAsync(u => u.Id == userId, ct);
+        if (user?.Role is null) return null;
+        return new UserProfile(
+            user.Id, user.Username, user.DisplayName, user.Role.Code, user.Role.Name,
+            user.CompanyId, user.Company?.Name ?? "-",
+            user.Role.Classifications, user.Role.Permissions, user.CustomerNo);
+    }
+
     public async Task LogoutAsync(Guid userId, CancellationToken ct = default)
     {
         var user = await db.Users.FindAsync([userId], ct);
