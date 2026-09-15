@@ -125,6 +125,20 @@ public static class Seeder
                 Id = Guid.NewGuid(), VocabKey = VocabKeys.DeviceType, Value = deviceTypes[i], SortOrder = i
             });
 
+        // 部署期配置种子：Seed:Config 段（部署包用环境变量 Seed__Config__sync.token 这类形式传入）
+        // 在首次初始化时直接落 sys_config，节点同步等跨节点配置起来即可用，不必先进「系统设置」逐项填。
+        // 已初始化的库不会再走到这里——之后改配置一律走界面（改后即时生效）。
+        foreach (var item in config.GetSection("Seed:Config").GetChildren())
+        {
+            if (string.IsNullOrEmpty(item.Value)) continue;
+            db.SysConfigs.Add(new SysConfig
+            {
+                Key = item.Key,
+                Value = System.Text.Json.JsonSerializer.Serialize(item.Value),
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+        }
+
         await db.SaveChangesAsync(ct);
     }
 }

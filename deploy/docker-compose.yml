@@ -1,0 +1,116 @@
+# 企业内部智能体系统——一键部署包
+#
+#   docker compose up -d --build
+#
+# 起六个容器：
+#   pg              PostgreSQL 16 + pgvector（一实例两库：htagent 公司库 / htagent_hq 总部库）
+#   server-company  公司节点后端（业务主节点）
+#   server-hq       总部节点后端（案例审核、共享库下发）
+#   web             公司内网界面        → http://localhost:8080
+#   hq-web          总部审核台          → http://localhost:8081
+#   portal          客户门户（隔离区）  → http://localhost:8082
+#
+# 可调参数放 .env（先 cp .env.example .env）；不建 .env 也能用默认值起来（仅限本机试用）。
+name: htagent
+
+services:
+  pg:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: htagent
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-htagent-docker}
+      POSTGRES_DB: htagent
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # 首次初始化数据卷时执行：补建总部库 htagent_hq
+      - ./pg-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U htagent -d htagent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  server-company:
+    build: ../server
+    image: htagent-server
+    depends_on:
+      pg:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__Default: "Host=pg;Port=5432;Database=htagent;Username=htagent;Password=${POSTGRES_PASSWORD:-htagent-docker}"
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:-htagent-compose-default-signing-key-0123456789}
+      Jwt__AllowInsecureDevKey: "false"
+      Seed__AdminPassword: ${ADMIN_PASSWORD:-Admin@12345}
+      # 首启种子：公司节点指向总部节点并持令牌（仅数据库首次初始化时写入；之后改走「系统设置」）
+      Seed__Config__sync.hq_url: "http://server-hq:8080"
+      Seed__Config__sync.token: ${SYNC_TOKEN:-htagent-sync-token-compose-default}
+    volumes:
+      - company-files:/app/data
+    # 容器内访问宿主机上的本地模型服务（如本地部署的对话模型）用 host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${COMPANY_API_PORT:-8090}:8080"
+    restart: unless-stopped
+
+  server-hq:
+    build: ../server
+    image: htagent-server
+    depends_on:
+      pg:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__Default: "Host=pg;Port=5432;Database=htagent_hq;Username=htagent;Password=${POSTGRES_PASSWORD:-htagent-docker}"
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:-htagent-compose-default-signing-key-0123456789}
+      Jwt__AllowInsecureDevKey: "false"
+      Node__IsHeadquarters: "true"
+      Seed__AdminPassword: ${ADMIN_PASSWORD:-Admin@12345}
+      # 总部节点校验来访节点令牌（与公司节点的 sync.token 一致才放行）
+      Seed__Config__sync.accept_token: ${SYNC_TOKEN:-htagent-sync-token-compose-default}
+    volumes:
+      - hq-files:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${HQ_API_PORT:-8091}:8080"
+    restart: unless-stopped
+
+  web:
+    build: ../web
+    image: htagent-web
+    depends_on:
+      - server-company
+    environment:
+      API_TARGET: "http://server-company:8080"
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    restart: unless-stopped
+
+  # 总部审核台：同一份 web 镜像，只是 API 指向总部节点
+  hq-web:
+    build: ../web
+    image: htagent-web
+    depends_on:
+      - server-hq
+    environment:
+      API_TARGET: "http://server-hq:8080"
+    ports:
+      - "${HQ_WEB_PORT:-8081}:80"
+    restart: unless-stopped
+
+  portal:
+    build: ../portal
+    image: htagent-portal
+    depends_on:
+      - server-company
+    environment:
+      API_TARGET: "http://server-company:8080"
+    ports:
+      - "${PORTAL_PORT:-8082}:80"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  company-files:
+  hq-files:
