@@ -17,8 +17,12 @@ import TranslatePage from './pages/translate/TranslatePage'
 import CasesPage from './pages/cases/CasesPage'
 import CaseDetailPage from './pages/cases/CaseDetailPage'
 import CaseEntryPage from './pages/cases/CaseEntryPage'
-import AdminLayout, { AdminHome, AdminStub } from './pages/admin/AdminLayout'
+import AdminLayout, { AdminHome } from './pages/admin/AdminLayout'
 import CorpusPage from './pages/admin/CorpusPage'
+import KbsPage from './pages/admin/KbsPage'
+import MetaPage from './pages/admin/MetaPage'
+import TemplatesAdminPage from './pages/admin/TemplatesAdminPage'
+import UsersPage from './pages/admin/UsersPage'
 import SettingsPage from './pages/admin/SettingsPage'
 import StatsPage from './pages/admin/StatsPage'
 import ReviewPage from './pages/review/ReviewPage'
@@ -78,10 +82,10 @@ function App() {
         <Route path="admin" element={<AdminLayout />}>
           <Route index element={<AdminHome />} />
           <Route path="corpus" element={<CorpusPage />} />
-          <Route path="kbs" element={<AdminStub name="知识库管理" api="/api/kbs" />} />
-          <Route path="meta" element={<AdminStub name="元数据与词表" api="/api/vocab, /api/documents/metadata/batch" />} />
-          <Route path="templates" element={<AdminStub name="模板管理" api="/api/templates" />} />
-          <Route path="users" element={<AdminStub name="用户与权限" api="/api/users, /api/roles" />} />
+          <Route path="kbs" element={<KbsPage />} />
+          <Route path="meta" element={<MetaPage />} />
+          <Route path="templates" element={<TemplatesAdminPage />} />
+          <Route path="users" element={<UsersPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="audit" element={<StatsPage />} />
         </Route>

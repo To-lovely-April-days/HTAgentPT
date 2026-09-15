@@ -80,6 +80,7 @@ export const post = <T>(path: string, body?: unknown) =>
   api<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) });
 export const put = <T>(path: string, body?: unknown) =>
   api<T>(path, { method: 'PUT', body: JSON.stringify(body) });
+export const del = <T = void>(path: string) => api<T>(path, { method: 'DELETE' });
 
 /** multipart 上传（docx 翻译等）：FormData 由浏览器自带 boundary，不能手动设 Content-Type。 */
 export async function upload<T>(path: string, form: FormData): Promise<T> {

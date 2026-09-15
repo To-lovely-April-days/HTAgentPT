@@ -194,6 +194,27 @@ export const SOURCE_PILL_STYLE: Record<SlotFillSource, React.CSSProperties> = {
   Confirmed: { background: '#e6f2ec', color: '#1c6b45', border: '1px solid #c2ded1' },
 };
 
+// ── 治理域（E5-E16）──────────────────────────────────────────
+export interface UserRow {
+  id: string; username: string; displayName: string; employeeNo: string | null;
+  department: string | null; roleCode: string | null; roleName: string | null;
+  companyName: string; kind: 'Employee' | 'Customer'; customerNo: string | null;
+  isActive: boolean; lastLoginAt: string | null; createdAt: string;
+}
+export interface RoleRow {
+  id: string; code: string; name: string; classifications: Classification[];
+  permissions: string[]; isSystem: boolean;
+}
+export interface PublishRow {
+  recordId: string; sourceDocId: string; sourceTitle: string; publicDocId: string;
+  publicDocStatus: string | null; status: string; operatorName: string;
+  createdAt: string; confirmedAt: string | null; withdrawnAt: string | null; withdrawReason: string | null;
+}
+export interface SyncResult {
+  batchNo: string; docsUpserted: number; chunksWritten: number; vectorsReused: number;
+  docsQueuedForEmbedding: number; withdrawn: number; warnings: string[];
+}
+
 // ── 翻译（D 组）──────────────────────────────────────────────
 export interface TermHit { zh: string; en: string; domain: string; }
 export interface BilingualPair { source: string; target: string; }
