@@ -54,6 +54,8 @@ public static class ConfigKeys
     public const string CaseNoPrefix = "case.no_prefix";
     /// <summary>报修工单编号前缀（10.4）。</summary>
     public const string TicketNoPrefix = "ticket.no_prefix";
+    /// <summary>docx→PDF 转换服务地址（FR-5.14）。空 = 未接入，预览走标色 HTML。</summary>
+    public const string PdfConverterUrl = "pdf.converter_url";
     // ── 共享库同步（FR-2.2）──────────────────────────
     /// <summary>总部节点地址（公司节点侧配置）。</summary>
     public const string SyncHqUrl = "sync.hq_url";

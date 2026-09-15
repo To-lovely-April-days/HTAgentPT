@@ -68,6 +68,9 @@ public static class DependencyInjection
         services.AddScoped<ISharedSyncService, SharedSyncService>();
         services.AddScoped<IPublishService, PublishService>();
         services.AddScoped<ICustomerService, CustomerService>();
+        services.AddScoped<ITemplateService, TemplateService>();
+        services.AddScoped<IGenerationService, GenerationService>();
+        services.AddScoped<IClauseService, ClauseService>();
         services.AddScoped<IRetrievalService, RetrievalService>();
         services.AddScoped<IQaService, QaService>();
 

@@ -57,7 +57,8 @@ public class RuntimeConfig(IServiceScopeFactory scopeFactory, IMemoryCache cache
         [ConfigKeys.TicketNoPrefix] = "RT",
         [ConfigKeys.SyncHqUrl] = "",
         [ConfigKeys.SyncToken] = "",
-        [ConfigKeys.SyncAcceptToken] = ""
+        [ConfigKeys.SyncAcceptToken] = "",
+        [ConfigKeys.PdfConverterUrl] = ""
     };
 
     public async Task<string?> GetAsync(string key, CancellationToken ct = default)
