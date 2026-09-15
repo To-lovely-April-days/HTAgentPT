@@ -24,6 +24,17 @@ public class RetrieveController(IRetrievalService retrieval, ICurrentUser me, IA
                 Detail: new { permission = "qa.*", path = "/api/retrieve" }, Ip: me.Ip), ct);
             return StatusCode(403, new { code = "FORBIDDEN", message = "你的角色没有检索权限。本次请求已被记录。" });
         }
-        return Ok(await retrieval.RetrieveAsync(req, ct));
+        var result = await retrieval.RetrieveAsync(req, ct);
+        // FR-9.1「记录检索…全部操作」：独立检索口与问答口同等留痕
+        await audit.WriteAsync(new AuditEntry("retrieve.query", AuditResult.Success,
+            UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+            Detail: new
+            {
+                query = req.Query,
+                hits = result.Chunks.Count,
+                aboveThreshold = result.AboveThreshold,
+                topScore = result.TopScore
+            }, Ip: me.Ip, TerminalId: me.TerminalId), ct);
+        return Ok(result);
     }
 }

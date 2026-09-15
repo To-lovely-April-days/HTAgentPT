@@ -47,4 +47,6 @@ public static class ConfigKeys
     public const string AuditRetentionMonths = "audit.retention_months";
     // ── 翻译（FR-6.2：单批长度可配置）───────────────────
     public const string TranslateBatchChars = "translate.batch_chars";
+    // ── 意图路由（10.4：编号规则不得硬编码）───────────────
+    public const string IntentProjectNoPattern = "intent.project_no_pattern";
 }

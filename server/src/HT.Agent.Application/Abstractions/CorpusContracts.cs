@@ -80,3 +80,9 @@ public class DomainRuleException(string code, string message) : Exception(messag
 {
     public string Code => code;
 }
+
+/// <summary>越权访问，接口层映射为 403 并已由抛出方写入审计（FR-7.3）。</summary>
+public class ForbiddenException(string code, string message) : Exception(message)
+{
+    public string Code => code;
+}

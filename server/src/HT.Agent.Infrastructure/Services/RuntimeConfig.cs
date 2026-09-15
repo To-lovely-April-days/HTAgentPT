@@ -50,7 +50,9 @@ public class RuntimeConfig(IServiceScopeFactory scopeFactory, IMemoryCache cache
         [ConfigKeys.UploadMaxBatch] = "50",
         [ConfigKeys.JwtLifetimeMinutes] = "480",
         [ConfigKeys.AuditRetentionMonths] = "12",
-        [ConfigKeys.TranslateBatchChars] = "3000"
+        [ConfigKeys.TranslateBatchChars] = "3000",
+        // 项目编号识别正则（10.4：编号规则随部署配置，不硬编码）
+        [ConfigKeys.IntentProjectNoPattern] = "P-\\d{4}-\\d+"
     };
 
     public async Task<string?> GetAsync(string key, CancellationToken ct = default)

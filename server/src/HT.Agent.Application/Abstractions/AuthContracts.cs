@@ -56,6 +56,8 @@ public interface IUserAdminService
     Task AssignRoleAsync(Guid userId, Guid roleId, CancellationToken ct = default);
     /// <summary>停用后立即失去全部访问权：清 ActiveSessionId，进行中的令牌下一次请求即 401。</summary>
     Task DeactivateAsync(Guid userId, CancellationToken ct = default);
+    /// <summary>按人员批量停用（FR-7.5 前半句），逐人入审计；返回实际停用数。</summary>
+    Task<int> DeactivateBatchAsync(IReadOnlyList<Guid> userIds, CancellationToken ct = default);
     Task ReactivateAsync(Guid userId, CancellationToken ct = default);
     /// <summary>管理员重置口令（决策 2：无自助改密）。重置入审计，记录经手人。</summary>
     Task ResetPasswordAsync(Guid userId, string newPassword, CancellationToken ct = default);

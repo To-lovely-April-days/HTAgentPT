@@ -14,6 +14,12 @@ public class SessionGuardMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext ctx, AppDbContext db, CurrentUserHolder holder)
     {
+        // 匿名端点不受会话守卫约束：被顶下线的用户带着失效令牌也必须能打到 /api/auth/login 重新登录
+        if (ctx.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() is not null)
+        {
+            await next(ctx);
+            return;
+        }
         var identity = ctx.User.Identity;
         if (identity is not { IsAuthenticated: true })
         {

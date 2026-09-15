@@ -10,13 +10,15 @@ public interface IChatModelClient
 
 public record ChatTurn(string Role, string Content);
 
-/// <summary>向量化模型客户端（表 8-2：批量向量化，批大小可配置）。</summary>
+/// <summary>向量化模型客户端（表 8-2：批量向量化，批大小可配置）。
+/// 向量与模型标签在同一次调用内返回：标签在调用开始时定格，避免配置切换瞬间
+/// 产生打错标签的向量——标签是 FR-2.2 向量可复用性判定的依据，错标比缺标更糟。</summary>
 public interface IEmbeddingClient
 {
-    Task<IReadOnlyList<float[]>> EmbedAsync(IReadOnlyList<string> texts, CancellationToken ct = default);
-    /// <summary>当前配置的模型标识（名称@维度），写入 chunk.embedding_model 供一致性核对（FR-2.2）。</summary>
-    Task<string> CurrentModelTagAsync(CancellationToken ct = default);
+    Task<EmbeddingBatch> EmbedAsync(IReadOnlyList<string> texts, CancellationToken ct = default);
 }
+
+public record EmbeddingBatch(IReadOnlyList<float[]> Vectors, string ModelTag);
 
 /// <summary>重排序模型客户端（表 8-2：输入查询与候选分块，返回相关度分值）。</summary>
 public interface IRerankClient

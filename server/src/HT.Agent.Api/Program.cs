@@ -20,6 +20,14 @@ builder.Services.AddControllers().AddJsonOptions(o =>
     o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 
 var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
+// 签名密钥兜底校验：开发默认密钥人尽皆知，带着它上线等于令牌可伪造。
+// 用它必须显式确认（Jwt:AllowInsecureDevKey=true，随开发模板分发；部署包必须换真密钥并去掉确认项）
+if (jwt.SigningKey == new JwtOptions().SigningKey &&
+    !builder.Configuration.GetValue<bool>("Jwt:AllowInsecureDevKey"))
+    throw new InvalidOperationException(
+        "Jwt:SigningKey 仍是开发默认值。部署时必须配置专属密钥；确属本机开发请设 Jwt:AllowInsecureDevKey=true。");
+if (System.Text.Encoding.UTF8.GetByteCount(jwt.SigningKey) < 32)
+    throw new InvalidOperationException("Jwt:SigningKey 长度不足 32 字节。");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>
     {

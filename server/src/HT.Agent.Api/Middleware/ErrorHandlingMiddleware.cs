@@ -17,6 +17,13 @@ public class ErrorHandlingMiddleware(RequestDelegate next, ILogger<ErrorHandling
             ctx.Response.StatusCode = StatusCodes.Status422UnprocessableEntity;
             await ctx.Response.WriteAsJsonAsync(new { code = ex.Code, message = ex.Message });
         }
+        catch (ForbiddenException ex)
+        {
+            // 越权与业务规则分开：鉴权类拒绝统一 403（FR-7.3），抛出方已写审计
+            if (ctx.Response.HasStarted) throw;
+            ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await ctx.Response.WriteAsJsonAsync(new { code = ex.Code, message = ex.Message });
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "未处理异常 {Path}", ctx.Request.Path);

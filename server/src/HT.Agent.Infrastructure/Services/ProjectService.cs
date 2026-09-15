@@ -19,6 +19,7 @@ public class ProjectService(AppDbContext db, IVocabService vocab, IAuditWriter a
         var amountFilterIgnored = !amountVisible && (req.AmountMin is not null || req.AmountMax is not null);
 
         var q = db.Projects.AsNoTracking().Where(p => p.CompanyId == me.CompanyId);
+        q = ApplyCustomerScope(q);
         if (!string.IsNullOrWhiteSpace(req.CustomerName)) q = q.Where(p => p.CustomerName.Contains(req.CustomerName));
         if (req.YearFrom is not null) q = q.Where(p => p.Year >= req.YearFrom);
         if (req.YearTo is not null) q = q.Where(p => p.Year <= req.YearTo);
@@ -49,7 +50,7 @@ public class ProjectService(AppDbContext db, IVocabService vocab, IAuditWriter a
     public async Task<ProjectDetail?> GetAsync(string projectNo, CancellationToken ct = default)
     {
         var amountVisible = AmountVisible;
-        var p = await db.Projects.AsNoTracking()
+        var p = await ApplyCustomerScope(db.Projects.AsNoTracking())
             .FirstOrDefaultAsync(x => x.ProjectNo == projectNo && x.CompanyId == me.CompanyId, ct);
         if (p is null) return null;
 
@@ -69,6 +70,16 @@ public class ProjectService(AppDbContext db, IVocabService vocab, IAuditWriter a
         var row = new ProjectRow(p.ProjectNo, p.CustomerName, p.Year, p.DeviceType, p.DeviceModel,
             p.SpecParams, amountVisible ? p.ContractAmount : null, p.DeliveryStatus, p.OwnerId, p.UpdatedAt);
         return new ProjectDetail(row, docs);
+    }
+
+    /// <summary>客户账号仅见本人名下项目（表 3-1、FR-7.4）：经客户设备台账（customer_device.project_no）
+    /// 关联，行级过滤在 SQL 内完成。员工账号不受此限。这是数据范围，不是权限开关——
+    /// 即便管理员给客户角色配上 project.search，可见面也只剩本人项目。</summary>
+    private IQueryable<Project> ApplyCustomerScope(IQueryable<Project> q)
+    {
+        if (string.IsNullOrEmpty(me.CustomerNo)) return q;
+        var customerNo = me.CustomerNo;
+        return q.Where(p => db.CustomerDevices.Any(cd => cd.CustomerNo == customerNo && cd.ProjectNo == p.ProjectNo));
     }
 
     public async Task CreateAsync(ProjectEdit edit, CancellationToken ct = default)

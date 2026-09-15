@@ -29,6 +29,13 @@ public class UsersController(IUserAdminService users) : ControllerBase
         return NoContent();
     }
 
+    public record DeactivateBatchBody(List<Guid> UserIds);
+
+    /// <summary>按人员批量停用（FR-7.5）：离职回收的前半步，逐人入审计。</summary>
+    [HttpPost("deactivate-batch")]
+    public async Task<IActionResult> DeactivateBatch([FromBody] DeactivateBatchBody body, CancellationToken ct)
+        => Ok(new { deactivated = await users.DeactivateBatchAsync(body.UserIds, ct) });
+
     [HttpPost("{id:guid}/deactivate")]
     public async Task<IActionResult> Deactivate(Guid id, CancellationToken ct)
     {
@@ -94,6 +101,13 @@ public static class AuditCsv
             .Concat(System.Text.Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
     }
 
-    private static string Csv(string? v) =>
-        v is null ? "" : '"' + v.Replace("\"", "\"\"") + '"';
+    private static string Csv(string? v)
+    {
+        if (v is null) return "";
+        // 公式注入中和：= + - @ 制表符开头的值在 Excel/WPS 里会被当公式执行，
+        // 而 terminal_id、detail 等字段是客户端可控文本——前置单引号使其恒为文本
+        if (v.Length > 0 && v[0] is '=' or '+' or '-' or '@' or '\t' or '\r')
+            v = "'" + v;
+        return '"' + v.Replace("\"", "\"\"") + '"';
+    }
 }

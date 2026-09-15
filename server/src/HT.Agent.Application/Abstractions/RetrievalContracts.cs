@@ -24,7 +24,9 @@ public record RetrievalResult(
     /// <summary>低于阈值时给出的可能相关文档名（FR-4.7）。</summary>
     IReadOnlyList<string> PossiblyRelatedDocs,
     double TopScore,
-    string RewrittenQuery);
+    string RewrittenQuery,
+    /// <summary>降级说明（10.3：明确提示而非静默）。如「向量服务不可用，本轮仅按关键词检索」。空为正常。</summary>
+    string? Notice = null);
 
 public record RetrievedChunk(
     long ChunkId, Guid DocId, string DocTitle, string? SectionPath, int? PageNo,

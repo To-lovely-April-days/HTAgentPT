@@ -25,6 +25,16 @@ public class DocumentService(
     ICurrentUser me,
     IOptions<NodeOptions> node) : IDocumentService
 {
+    /// <summary>共享库写保护（FR-2.2：同步为单向覆盖，本地不得直接修改共享库内容）。
+    /// 上传、分块编辑/删除/合并/拆分、重解析、提交解析、元数据修改全部经此校验。</summary>
+    private async Task EnsureKbWritableAsync(Guid kbId, CancellationToken ct)
+    {
+        if (node.Value.IsHeadquarters) return;
+        var tier = await db.KnowledgeBases.Where(k => k.Id == kbId).Select(k => k.Tier).FirstAsync(ct);
+        if (tier == KnowledgeBaseTier.Shared)
+            throw new DomainRuleException("SHARED_KB_READONLY", "共享库由总部下发，本地不得直接修改（FR-2.2）");
+    }
+
     /// <summary>文档类别为这些取值时项目编号必填并须在台账中存在（表 4-5）。</summary>
     private static readonly string[] ProjectLinkedCategories =
         ["方案", "合同", "报价", "图纸", "交付报告", "故障记录"];
@@ -126,6 +136,8 @@ public class DocumentService(
         if (docIds.Count > maxBatch)
             throw new DomainRuleException("BATCH_TOO_LARGE", $"一次最多提交 {maxBatch} 份");
         var docs = await db.Documents.Where(d => docIds.Contains(d.Id)).ToListAsync(ct);
+        foreach (var kbId in docs.Select(d => d.KbId).Distinct())
+            await EnsureKbWritableAsync(kbId, ct);
         var queued = 0;
         foreach (var doc in docs)
         {
@@ -153,6 +165,7 @@ public class DocumentService(
     {
         var doc = await db.Documents.FindAsync([docId], ct)
             ?? throw new DomainRuleException("DOC_NOT_FOUND", "文档不存在");
+        await EnsureKbWritableAsync(doc.KbId, ct);
         if (newStrategy is not null) doc.ChunkStrategyOverride = newStrategy;
         doc.ParseStatus = ParseStatus.Queued;
         doc.ParseError = null;
@@ -183,6 +196,7 @@ public class DocumentService(
             throw new DomainRuleException("CHUNK_TEXT_EMPTY", "分块内容不能为空；要移除请用删除");
         var chunk = await db.Chunks.FirstOrDefaultAsync(c => c.Id == chunkId, ct)
             ?? throw new DomainRuleException("CHUNK_NOT_FOUND", "分块不存在");
+        await EnsureKbWritableAsync(chunk.KbId, ct);
         chunk.Text = newText;
         chunk.SearchText = ChineseTokenizer.Tokenize(newText);
         chunk.Embedding = null; // 仅重算该块向量，不触发整份重解析（FR-1.5）
@@ -206,6 +220,7 @@ public class DocumentService(
     {
         var chunk = await db.Chunks.FirstOrDefaultAsync(c => c.Id == chunkId, ct)
             ?? throw new DomainRuleException("CHUNK_NOT_FOUND", "分块不存在");
+        await EnsureKbWritableAsync(chunk.KbId, ct);
         chunk.IsActive = false;
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(new AuditEntry("chunk.delete", AuditResult.Success,
@@ -213,12 +228,20 @@ public class DocumentService(
             TargetType: "chunk", TargetId: chunkId.ToString()), ct);
     }
 
-    /// <summary>合并相邻分块（FR-1.5）：同文档、激活态、seq 连续。合并块继承首块的章节与页码。</summary>
+    /// <summary>合并相邻分块（FR-1.5）：同文档、激活态、seq 连续。合并块继承首块的章节与页码。
+    /// 校验与改写在同一事务内、行锁保护下进行；合并后整篇 seq 重排，不留空洞——
+    /// 否则相邻性检查会把空洞两侧的块永远判为「不相邻」。</summary>
     public async Task<long> MergeChunksAsync(IReadOnlyList<long> chunkIds, CancellationToken ct = default)
     {
         if (chunkIds.Count < 2)
             throw new DomainRuleException("MERGE_NEED_TWO", "合并至少选两块");
-        var chunks = await db.Chunks.Where(c => chunkIds.Contains(c.Id)).OrderBy(c => c.Seq).ToListAsync(ct);
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var ids = chunkIds.ToArray();
+        // 行锁后再校验：并发的合并/拆分/删除要么排队要么看到已变化的世界
+        var chunks = await db.Chunks
+            .FromSqlInterpolated($"SELECT * FROM chunk WHERE id = ANY({ids}) FOR UPDATE")
+            .OrderBy(c => c.Seq).ToListAsync(ct);
         if (chunks.Count != chunkIds.Count || chunks.Any(c => !c.IsActive))
             throw new DomainRuleException("MERGE_CHUNK_MISSING", "有分块不存在或已删除");
         if (chunks.Select(c => c.DocId).Distinct().Count() != 1)
@@ -226,9 +249,10 @@ public class DocumentService(
         for (var i = 1; i < chunks.Count; i++)
             if (chunks[i].Seq != chunks[i - 1].Seq + 1)
                 throw new DomainRuleException("MERGE_NOT_ADJACENT", "只能合并 seq 连续的相邻分块");
+        await EnsureKbWritableAsync(chunks[0].KbId, ct);
 
         var head = chunks[0];
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var removed = chunks.Count - 1;
         head.Text = string.Join("\n", chunks.Select(c => c.Text));
         head.SearchText = ChineseTokenizer.Tokenize(head.Text);
         head.Embedding = null;
@@ -240,6 +264,9 @@ public class DocumentService(
             Kind = ParseJobKind.EmbedOnly, QueuedBy = me.UserId, QueuedAt = DateTimeOffset.UtcNow
         });
         await db.SaveChangesAsync(ct);
+        // 后续块前移补洞（被删块之后的所有块）
+        await db.Chunks.Where(c => c.DocId == head.DocId && c.Seq > head.Seq + removed)
+            .ExecuteUpdateAsync(u => u.SetProperty(c => c.Seq, c => c.Seq - removed), ct);
         await tx.CommitAsync(ct);
         await audit.WriteAsync(new AuditEntry("chunk.merge", AuditResult.Success,
             UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
@@ -250,13 +277,17 @@ public class DocumentService(
     /// <summary>拆分单块（FR-1.5）：按字符偏移切开，后续分块 seq 顺延，各新块逐块重算向量。</summary>
     public async Task<IReadOnlyList<long>> SplitChunkAsync(long chunkId, IReadOnlyList<int> offsets, CancellationToken ct = default)
     {
-        var chunk = await db.Chunks.FirstOrDefaultAsync(c => c.Id == chunkId && c.IsActive, ct)
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        // 行锁内取最新值：并发的另一个结构编辑改过 Seq/Text 后，这里拿到的才是真实基准
+        var chunk = (await db.Chunks
+                .FromSqlInterpolated($"SELECT * FROM chunk WHERE id = {chunkId} AND is_active FOR UPDATE")
+                .ToListAsync(ct)).FirstOrDefault()
             ?? throw new DomainRuleException("CHUNK_NOT_FOUND", "分块不存在");
+        await EnsureKbWritableAsync(chunk.KbId, ct);
         IReadOnlyList<string> parts;
         try { parts = ChunkSplitter.Split(chunk.Text, offsets); }
         catch (ArgumentException ex) { throw new DomainRuleException("SPLIT_INVALID", ex.Message); }
 
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
         // 后续块 seq 让位
         await db.Chunks.Where(c => c.DocId == chunk.DocId && c.IsActive && c.Seq > chunk.Seq)
             .ExecuteUpdateAsync(s => s.SetProperty(c => c.Seq, c => c.Seq + parts.Count - 1), ct);
@@ -315,6 +346,10 @@ public class DocumentService(
             throw new DomainRuleException("META_PROJECT_NOT_FOUND", $"项目编号 {set.ProjectNo} 不在台账中");
 
         var q = db.DocMetadatas.AsQueryable();
+        // 共享库元数据由总部下发，本地批改不触碰（FR-2.2）
+        if (!node.Value.IsHeadquarters)
+            q = q.Where(m => db.Documents.Any(d => d.Id == m.DocumentId &&
+                db.KnowledgeBases.Any(k => k.Id == d.KbId && k.Tier != KnowledgeBaseTier.Shared)));
         if (filter.KbId is not null)
             q = q.Where(m => db.Documents.Any(d => d.Id == m.DocumentId && d.KbId == filter.KbId));
         if (!string.IsNullOrWhiteSpace(filter.CustomerName)) q = q.Where(m => m.CustomerName == filter.CustomerName);
@@ -340,23 +375,49 @@ public class DocumentService(
 
     public async Task<(Stream Content, string FileName, string ContentType)> DownloadAsync(Guid docId, CancellationToken ct = default)
     {
-        var doc = await db.Documents.AsNoTracking().FirstOrDefaultAsync(d => d.Id == docId, ct)
+        var doc = await db.Documents.AsNoTracking().Include(d => d.Kb)
+            .FirstOrDefaultAsync(d => d.Id == docId, ct)
             ?? throw new DomainRuleException("DOC_NOT_FOUND", "文档不存在");
-        // 按权限校验（表 8-1 /api/files/{id}）：密级不在角色可及范围内即拒绝并审计
-        if (!me.Classifications.Contains(doc.Classification))
+
+        // 下载口与检索 SQL 同一套过滤（FR-4.4：密级、公司归属与数据范围三项同过）：
+        // 检索挡住的东西，换个接口不能就拿得到。
+        var deny = DownloadDenyReason(doc);
+        if (deny is not null)
         {
             await audit.WriteAsync(new AuditEntry("doc.download", AuditResult.Denied,
                 UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
                 TargetType: "document", TargetId: docId.ToString(),
-                Detail: new { doc.Classification, reason = "classification_out_of_scope" }), ct);
-            throw new DomainRuleException("FORBIDDEN_CLASSIFICATION",
-                $"该文档密级为{ClassificationName(doc.Classification)}，你的角色不在可见范围内");
+                Detail: new { reason = deny }), ct);
+            throw new ForbiddenException("FORBIDDEN_DOCUMENT", "你没有查看该文档的权限。本次请求已被记录。");
         }
+
         var stream = await storage.OpenAsync(doc.FileKey, ct);
         await audit.WriteAsync(new AuditEntry("doc.download", AuditResult.Success,
             UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
             TargetType: "document", TargetId: docId.ToString()), ct);
         return (stream, doc.FileName, doc.ContentType);
+    }
+
+    /// <summary>下载拒绝原因（进审计详情）；null 为放行。对外消息统一模糊，不泄露文档属性。</summary>
+    private string? DownloadDenyReason(Document doc)
+    {
+        if (doc.IsWithdrawn)
+            return "withdrawn"; // 撤回即停止对外可见（FR-2.4/2.6）
+        if (!me.Classifications.Contains(doc.Classification))
+            return "classification_out_of_scope";
+        var kb = doc.Kb!;
+        // 公司归属：私有库与公开库属本公司；共享库属集团
+        if (kb.Tier != KnowledgeBaseTier.Shared && kb.CompanyId != me.CompanyId)
+            return "company_out_of_scope";
+        // 数据范围（表 3-1）：总部审核人无任何私有库通道；仅公开权限的角色（客户）只可及公开库
+        if (kb.Tier == KnowledgeBaseTier.Private && me.RoleCode == RoleCodes.HqReviewer)
+            return "reviewer_no_private_access";
+        var hasInternalScope = me.Permissions.Contains(PermissionKeys.QaInternal) ||
+                               me.Permissions.Contains(PermissionKeys.CorpusManage) ||
+                               me.Permissions.Contains(PermissionKeys.KbManage);
+        if (kb.Tier != KnowledgeBaseTier.Public && !hasInternalScope)
+            return "tier_out_of_scope"; // 客户拿到 docId 也下不了私有库里密级标公开的未发布文档
+        return null;
     }
 
     internal static string ClassificationName(Classification c) => c switch

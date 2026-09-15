@@ -79,11 +79,17 @@ public static class Chunker
         int? pageNo = null; string? bbox = null; string? path = null;
         var headings = new List<(int, string)>();
 
+        string clauseTail = string.Empty;
+
         void Flush()
         {
             var text = current.ToString().Trim();
             if (text.Length > 0)
-                chunks.Add(new ChunkDraft(chunks.Count, path, pageNo, bbox, text));
+            {
+                var withOverlap = clauseTail.Length > 0 ? clauseTail + "\n" + text : text;
+                chunks.Add(new ChunkDraft(chunks.Count, path, pageNo, bbox, withOverlap));
+                clauseTail = text.Length > opt.Overlap ? text[^opt.Overlap..] : text;
+            }
             current.Clear(); pageNo = null; bbox = null;
         }
 
@@ -111,6 +117,8 @@ public static class Chunker
     }
 
     // ── 按行：参数表、物料清单。表头作为每块前缀，避免脱离表头后无法理解 ─────
+    // 刻意偏离表 4-2 末段：行间不做重叠。一行是一条完整记录，行间重叠会把同一条
+    // 记录复制进相邻块、在检索结果里出现两份数据；跨行截断的风险由表头前缀化解。
     private static List<ChunkDraft> ByRow(IReadOnlyList<ParsedBlock> blocks)
     {
         var chunks = new List<ChunkDraft>();
@@ -137,10 +145,13 @@ public static class Chunker
         for (var pos = 0; pos < text.Length; pos += step)
         {
             var len = Math.Min(opt.TargetLength, text.Length - pos);
+            var atEnd = pos + len >= text.Length;
             var piece = text.Substring(pos, len).Trim();
-            if (piece.Length < opt.MinLength && chunks.Count > 0) break; // 尾部碎片并入语义上一块的重叠区
-            chunks.Add(new ChunkDraft(chunks.Count, null, firstPage, null, piece));
-            if (pos + len >= text.Length) break;
+            // 只有文末的短尾巴可以丢（其内容已落在上一块的重叠区内）；中部窗口即便修剪后偏短也必须保留
+            if (atEnd && piece.Length < opt.MinLength && piece.Length <= opt.Overlap && chunks.Count > 0) break;
+            if (piece.Length > 0)
+                chunks.Add(new ChunkDraft(chunks.Count, null, firstPage, null, piece));
+            if (atEnd) break;
         }
         return chunks;
     }
@@ -214,19 +225,26 @@ public static class Chunker
         var buf = new StringBuilder();
         int? pageNo = null; string? bbox = null;
         string? lastHeader = null;
+        string tail = string.Empty; // 二次切分同样保留相邻重叠（表 4-2 末段）
         foreach (var b in section)
         {
             var t = WithTableHeader(b, ref lastHeader);
             if (t.Length == 0) continue;
             if (buf.Length > 0 && buf.Length + t.Length > opt.TargetLength)
             {
-                yield return (buf.ToString().Trim(), pageNo, bbox);
+                var text = buf.ToString().Trim();
+                yield return (tail.Length > 0 ? tail + "\n" + text : text, pageNo, bbox);
+                tail = text.Length > opt.Overlap ? text[^opt.Overlap..] : text;
                 buf.Clear(); pageNo = null; bbox = null;
             }
             if (buf.Length == 0) { pageNo = b.PageNo; bbox = b.Bbox; }
             buf.AppendLine(t);
         }
-        if (buf.Length > 0) yield return (buf.ToString().Trim(), pageNo, bbox);
+        if (buf.Length > 0)
+        {
+            var text = buf.ToString().Trim();
+            yield return (tail.Length > 0 ? tail + "\n" + text : text, pageNo, bbox);
+        }
     }
 
     private static string HeadingPath(IReadOnlyList<(int Level, string Text)> headings) =>

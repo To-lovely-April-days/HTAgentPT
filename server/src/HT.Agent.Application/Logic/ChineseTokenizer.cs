@@ -18,6 +18,8 @@ public static class ChineseTokenizer
     public static string Tokenize(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+        // NFKC 归一化：全角字母数字（ＣＪＦ－５Ｌ）折到半角，索引侧与查询侧同一入口，全角型号串不再不可检索
+        text = text.Normalize(System.Text.NormalizationForm.FormKC);
         var tokens = new List<string>();
         var i = 0;
         while (i < text.Length)

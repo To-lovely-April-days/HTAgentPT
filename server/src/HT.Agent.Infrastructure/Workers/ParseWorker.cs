@@ -49,6 +49,16 @@ public class ParseWorker(
         var concurrency = Math.Max(1, await config.GetIntAsync(ConfigKeys.ParserConcurrency, 1, ct));
 
         var now = DateTimeOffset.UtcNow;
+
+        // 崩溃回收：Running 超过 30 分钟视为进程死亡遗留（解析超时上限之外），重新入队。
+        // 没有这条，崩溃时正在处理的文档会永远停在「解析中」并退出检索。
+        var stale = now - TimeSpan.FromMinutes(30);
+        await db.ParseJobs
+            .Where(j => j.Status == JobStatus.Running && j.StartedAt != null && j.StartedAt < stale)
+            .ExecuteUpdateAsync(u => u
+                .SetProperty(j => j.Status, JobStatus.Queued)
+                .SetProperty(j => j.LastError, "进程中断，任务已自动重新入队"), ct);
+
         // Queued 优先；Waiting 按尝试次数退避后重试（30s、60s、120s…封顶 10 分钟）
         var jobs = await db.ParseJobs
             .Where(j => j.Status == JobStatus.Queued || j.Status == JobStatus.Waiting)
@@ -124,8 +134,9 @@ public class ParseWorker(
             string modelTag;
             try
             {
-                vectors = await embedder.EmbedAsync(drafts.Select(d => d.Text).ToList(), ct);
-                modelTag = await embedder.CurrentModelTagAsync(ct);
+                var batch = await embedder.EmbedAsync(drafts.Select(d => d.Text).ToList(), ct);
+                vectors = batch.Vectors;
+                modelTag = batch.ModelTag;
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
@@ -215,9 +226,9 @@ public class ParseWorker(
         }
         try
         {
-            var vectors = await embedder.EmbedAsync([chunk.Text], ct);
-            chunk.Embedding = new Vector(vectors[0]);
-            chunk.EmbeddingModel = await embedder.CurrentModelTagAsync(ct);
+            var batch = await embedder.EmbedAsync([chunk.Text], ct);
+            chunk.Embedding = new Vector(batch.Vectors[0]);
+            chunk.EmbeddingModel = batch.ModelTag;
             job.Status = JobStatus.Succeeded;
             job.FinishedAt = DateTimeOffset.UtcNow;
         }

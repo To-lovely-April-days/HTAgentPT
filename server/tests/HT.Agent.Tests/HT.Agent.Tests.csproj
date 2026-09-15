@@ -27,6 +27,7 @@
     <ProjectReference Include="..\..\src\HT.Agent.Application\HT.Agent.Application.csproj" />
     <ProjectReference Include="..\..\src\HT.Agent.Infrastructure\HT.Agent.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\HT.Agent.Domain\HT.Agent.Domain.csproj" />
+    <ProjectReference Include="..\..\src\HT.Agent.Api\HT.Agent.Api.csproj" />
   </ItemGroup>
 
 </Project>

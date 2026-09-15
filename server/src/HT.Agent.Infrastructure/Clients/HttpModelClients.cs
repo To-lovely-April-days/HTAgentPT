@@ -73,10 +73,12 @@ public class OpenAiChatClient(IHttpClientFactory httpFactory, IRuntimeConfig con
 /// <summary>向量化（表 8-2：批量，批大小可配置）。OpenAI 兼容 /embeddings 形态。</summary>
 public class HttpEmbeddingClient(IHttpClientFactory httpFactory, IRuntimeConfig config) : IEmbeddingClient
 {
-    public async Task<IReadOnlyList<float[]>> EmbedAsync(IReadOnlyList<string> texts, CancellationToken ct = default)
+    public async Task<EmbeddingBatch> EmbedAsync(IReadOnlyList<string> texts, CancellationToken ct = default)
     {
+        // 全部配置在调用开始时一次定格：中途改配置不会产生「新模型算的向量贴旧标签」
         var url = (await config.GetStringAsync(ConfigKeys.EmbeddingUrl, "http://127.0.0.1:8080/embed", ct)).TrimEnd('/');
         var model = await config.GetStringAsync(ConfigKeys.EmbeddingModelName, "embedding-default", ct);
+        var dim = await config.GetIntAsync(ConfigKeys.EmbeddingDimension, 1024, ct);
         var batchSize = await config.GetIntAsync(ConfigKeys.EmbeddingBatchSize, 32, ct);
         var http = httpFactory.CreateClient("model");
         var all = new List<float[]>(texts.Count);
@@ -89,14 +91,7 @@ public class HttpEmbeddingClient(IHttpClientFactory httpFactory, IRuntimeConfig 
             foreach (var item in doc.RootElement.GetProperty("data").EnumerateArray())
                 all.Add(item.GetProperty("embedding").EnumerateArray().Select(e => e.GetSingle()).ToArray());
         }
-        return all;
-    }
-
-    public async Task<string> CurrentModelTagAsync(CancellationToken ct = default)
-    {
-        var model = await config.GetStringAsync(ConfigKeys.EmbeddingModelName, "embedding-default", ct);
-        var dim = await config.GetIntAsync(ConfigKeys.EmbeddingDimension, 1024, ct);
-        return $"{model}@{dim}";
+        return new EmbeddingBatch(all, $"{model}@{dim}");
     }
 }
 
@@ -126,28 +121,41 @@ public class HttpParserClient(IHttpClientFactory httpFactory, IRuntimeConfig con
     {
         var url = await config.GetStringAsync(ConfigKeys.ParserUrl, "http://127.0.0.1:8082/parse", ct);
         var timeout = await config.GetIntAsync(ConfigKeys.ParserTimeoutSeconds, 300, ct);
+        // 调用超时与重试次数可配置（表 8-2）。重试要重传文件，先落内存/临时缓冲
+        var maxRetries = Math.Max(0, await config.GetIntAsync(ConfigKeys.ParserMaxRetries, 3, ct));
+        using var buffer = new MemoryStream();
+        await file.CopyToAsync(buffer, ct);
         var http = httpFactory.CreateClient("parser");
-        using var form = new MultipartFormDataContent();
-        var fileContent = new StreamContent(file);
-        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
-        form.Add(fileContent, "file", fileName);
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(TimeSpan.FromSeconds(timeout));
-        HttpResponseMessage resp;
-        try
+
+        HttpResponseMessage resp = null!;
+        for (var attempt = 0; ; attempt++)
         {
-            resp = await http.PostAsync(url, form, cts.Token);
+            buffer.Position = 0;
+            using var form = new MultipartFormDataContent();
+            var fileContent = new StreamContent(buffer);
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+            form.Add(fileContent, "file", fileName);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(timeout));
+            try
+            {
+                resp = await http.PostAsync(url, form, cts.Token);
+                if ((int)resp.StatusCode < 500) break;
+                if (attempt >= maxRetries)
+                    throw new ParserUnavailableException($"解析引擎异常（HTTP {(int)resp.StatusCode}，已重试 {attempt} 次）");
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                if (attempt >= maxRetries)
+                    throw new ParserUnavailableException($"解析引擎超时（{timeout} 秒未响应，已重试 {attempt} 次）");
+            }
+            catch (HttpRequestException ex)
+            {
+                if (attempt >= maxRetries)
+                    throw new ParserUnavailableException($"解析引擎连接失败：{ex.Message}（已重试 {attempt} 次）", ex);
+            }
+            await Task.Delay(TimeSpan.FromSeconds(Math.Min(5 * (attempt + 1), 30)), ct);
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            throw new ParserUnavailableException($"解析引擎超时（{timeout} 秒未响应）");
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new ParserUnavailableException($"解析引擎连接失败：{ex.Message}", ex);
-        }
-        if ((int)resp.StatusCode >= 500)
-            throw new ParserUnavailableException($"解析引擎异常（HTTP {(int)resp.StatusCode}）");
         if (!resp.IsSuccessStatusCode)
         {
             var reason = await resp.Content.ReadAsStringAsync(ct);

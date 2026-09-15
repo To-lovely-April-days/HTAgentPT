@@ -31,20 +31,24 @@ public class RetrievalService(
         if (tiers.Count == 0 || me.Classifications.Count == 0)
             return new RetrievalResult(false, [], [], 0, req.Query);
 
-        // 向量路。向量化服务不可用时降级为纯关键词，不让在线问答跟着离线组件一起倒
+        // 向量路。向量化服务不可用时降级为纯关键词——但降级必须明确提示（10.3），不冒充「没找到」
         Vector? qvec = null;
+        string? notice = null;
         try
         {
             var v = await embedder.EmbedAsync([req.Query], ct);
-            qvec = new Vector(v[0]);
+            qvec = new Vector(v.Vectors[0]);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) { }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            notice = "向量检索服务暂不可用，本轮仅按关键词检索，结果可能不全。";
+        }
 
         var tsQuery = ChineseTokenizer.ToTsQuery(req.Query);
 
         var vectorRanked = qvec is null
             ? []
-            : await VectorPathAsync(qvec, tiers, req, recallK * Math.Max(1, candFactor) / Math.Max(1, candFactor), recallK, ct);
+            : await VectorPathAsync(qvec, tiers, req, recallK, Math.Max(1, candFactor), ct);
         var keywordRanked = string.IsNullOrEmpty(tsQuery)
             ? new List<long>()
             : await KeywordPathAsync(tsQuery, tiers, req, recallK, ct);
@@ -52,7 +56,7 @@ public class RetrievalService(
         var effectiveAlpha = qvec is null ? 0 : (keywordRanked.Count == 0 ? 1 : alpha);
         var fused = RrfFusion.Fuse(vectorRanked, keywordRanked, effectiveAlpha);
         if (fused.Count == 0)
-            return new RetrievalResult(false, [], [], 0, req.Query);
+            return new RetrievalResult(false, [], [], 0, req.Query, notice);
 
         // 载入候选内容（顺序保持融合排名）
         var ids = fused.Select(f => f.ChunkId).ToList();
@@ -66,9 +70,19 @@ public class RetrievalService(
         var byId = rows.ToDictionary(r => r.Id);
         var ordered = fused.Where(f => byId.ContainsKey(f.ChunkId)).ToList();
 
-        // 重排（FR-4.6）：全部召回送打分，取最高若干条
+        // 重排（FR-4.6）：全部召回送打分，取最高若干条。
+        // 重排服务不可用不返回 500（10.3：明确提示，请求未被丢弃）
         var passages = ordered.Select(f => byId[f.ChunkId].Text).ToList();
-        var scores = await reranker.ScoreAsync(req.Query, passages, ct);
+        IReadOnlyList<double> scores;
+        try
+        {
+            scores = await reranker.ScoreAsync(req.Query, passages, ct);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            throw new DomainRuleException("RERANK_UNAVAILABLE",
+                "重排序服务暂时不可用，请稍后重发这个问题——你的请求没有被丢弃，重发即可。");
+        }
 
         var reranked = ordered.Select((f, i) => (Fused: f, Score: scores[i]))
             .OrderByDescending(x => x.Score)
@@ -82,7 +96,7 @@ public class RetrievalService(
             var hints = reranked.Take(10)
                 .Select(x => byId[x.Fused.ChunkId].DocTitle)
                 .Distinct().Take(5).ToList();
-            return new RetrievalResult(false, [], hints, topScore, req.Query);
+            return new RetrievalResult(false, [], hints, topScore, req.Query, notice);
         }
 
         var chunks = top.Select(x =>
@@ -91,7 +105,7 @@ public class RetrievalService(
             return new RetrievedChunk(r.Id, r.DocId, r.DocTitle, r.SectionPath, r.PageNo,
                 r.Text, x.Fused.Score, x.Score, r.Classification);
         }).ToList();
-        return new RetrievalResult(true, chunks, [], topScore, req.Query);
+        return new RetrievalResult(true, chunks, [], topScore, req.Query, notice);
     }
 
     /// <summary>可检索的库分层范围。总部审核人不可访问任何公司私有库——这是数据范围而非权限开关（表 3-1）。</summary>
@@ -110,9 +124,12 @@ public class RetrievalService(
     }
 
     // 单条 SQL：密级 + 库范围 + 公司归属 + 元数据筛选 + 近似最近邻，一次完成（FR-4.4、7.2）。
+    // HNSW 是先取候选再过滤：ef_search 若停在默认值，权限过滤剔除候选后返回必然不足。
+    // 按 7.2 的要求把候选数抬到保留数的倍数（ann_candidate_factor，可配置、改后即时生效）。
     private async Task<List<long>> VectorPathAsync(
-        Vector qvec, List<KnowledgeBaseTier> tiers, RetrievalRequest req, int _, int recallK, CancellationToken ct)
+        Vector qvec, List<KnowledgeBaseTier> tiers, RetrievalRequest req, int recallK, int candFactor, CancellationToken ct)
     {
+        var efSearch = Math.Clamp(recallK * candFactor, recallK, 1000);
         var sql = $"""
             SELECT c.id AS "Value"
             FROM chunk c
@@ -134,7 +151,14 @@ public class RetrievalService(
             ORDER BY c.embedding <=> @qvec
             LIMIT @limit
             """;
-        return await QueryIdsAsync(sql, tiers, req, recallK, p => p.Add(new NpgsqlParameter("qvec", qvec)), ct);
+        // SET LOCAL 只能作用于当前事务；ef_search 不接受绑定参数，值为已钳位整数无注入面
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+#pragma warning disable EF1002 // efSearch 为 Math.Clamp 后的本地整数，非用户输入；SET 语句不接受绑定参数
+        await db.Database.ExecuteSqlRawAsync($"SET LOCAL hnsw.ef_search = {efSearch}", ct);
+#pragma warning restore EF1002
+        var ids = await QueryIdsAsync(sql, tiers, req, recallK, p => p.Add(new NpgsqlParameter("qvec", qvec)), ct);
+        await tx.CommitAsync(ct);
+        return ids;
     }
 
     private async Task<List<long>> KeywordPathAsync(

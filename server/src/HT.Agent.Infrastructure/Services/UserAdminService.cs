@@ -80,6 +80,24 @@ public class UserAdminService(
         await Log("user.deactivate", user, null, ct);
     }
 
+    public async Task<int> DeactivateBatchAsync(IReadOnlyList<Guid> userIds, CancellationToken ct = default)
+    {
+        if (userIds.Contains(me.UserId))
+            throw new DomainRuleException("SELF_DEACTIVATE", "批量停用名单里不能包含自己");
+        var users = await db.Users.Where(u => userIds.Contains(u.Id) && u.IsActive).ToListAsync(ct);
+        foreach (var user in users)
+        {
+            user.IsActive = false;
+            user.DeactivatedAt = DateTimeOffset.UtcNow;
+            user.ActiveSessionId = null;
+            user.ActiveTerminalId = null;
+        }
+        await db.SaveChangesAsync(ct);
+        foreach (var user in users)
+            await Log("user.deactivate", user, new { batch = true }, ct);
+        return users.Count;
+    }
+
     public async Task ReactivateAsync(Guid userId, CancellationToken ct = default)
     {
         var user = await Get(userId, ct);

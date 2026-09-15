@@ -60,10 +60,21 @@ public class AuthService(
         // 同账号多终端互斥（决策 4）：新登录顶掉旧会话；旧会话下一次请求收到 SESSION_SUPERSEDED。
         var superseded = user.ActiveSessionId is not null && user.ActiveTerminalId != req.TerminalId;
         var sessionId = Guid.NewGuid();
-        user.ActiveSessionId = sessionId;
-        user.ActiveTerminalId = req.TerminalId;
-        user.LastLoginAt = DateTimeOffset.UtcNow;
-        await db.SaveChangesAsync(ct);
+        // 条件更新防丢失写：管理员在「读用户→发令牌」窗口内做了停用或重置口令时，
+        // 谓词失配写入 0 行，登录按凭据失效处理——不能让旧口令的登录把刚失效的会话复活。
+        var written = await db.Users
+            .Where(u => u.Id == user.Id && u.IsActive && u.PasswordHash == user.PasswordHash)
+            .ExecuteUpdateAsync(x => x
+                .SetProperty(u => u.ActiveSessionId, sessionId)
+                .SetProperty(u => u.ActiveTerminalId, req.TerminalId)
+                .SetProperty(u => u.LastLoginAt, DateTimeOffset.UtcNow), ct);
+        if (written == 0)
+        {
+            await Deny(user, req, LoginReasonCodes.BadCredentials, ct);
+            return new LoginResult(false, ReasonCode: LoginReasonCodes.BadCredentials,
+                Message: "账号状态刚发生变化，请重试或联系管理员");
+        }
+        await db.SaveChangesAsync(ct); // 终端 LastSeen 等其余跟踪变更
 
         var lifetime = TimeSpan.FromMinutes(await config.GetIntAsync(ConfigKeys.JwtLifetimeMinutes, 480, ct));
         var token = jwt.Issue(user.Id, user.Username, user.Role.Code, user.CompanyId, sessionId, lifetime);

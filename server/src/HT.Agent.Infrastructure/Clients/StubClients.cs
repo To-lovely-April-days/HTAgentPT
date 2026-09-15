@@ -14,16 +14,10 @@ namespace HT.Agent.Infrastructure.Clients;
 /// <summary>确定性向量：文本分词后按 token 哈希落桶并归一化。相同文本同向量，含相同型号词的文本相近。</summary>
 public class StubEmbeddingClient(IRuntimeConfig config) : IEmbeddingClient
 {
-    public async Task<IReadOnlyList<float[]>> EmbedAsync(IReadOnlyList<string> texts, CancellationToken ct = default)
+    public async Task<EmbeddingBatch> EmbedAsync(IReadOnlyList<string> texts, CancellationToken ct = default)
     {
         var dim = await config.GetIntAsync(ConfigKeys.EmbeddingDimension, 1024, ct);
-        return texts.Select(t => Embed(t, dim)).ToList();
-    }
-
-    public async Task<string> CurrentModelTagAsync(CancellationToken ct = default)
-    {
-        var dim = await config.GetIntAsync(ConfigKeys.EmbeddingDimension, 1024, ct);
-        return $"stub@{dim}";
+        return new EmbeddingBatch(texts.Select(t => Embed(t, dim)).ToList(), $"stub@{dim}");
     }
 
     internal static float[] Embed(string text, int dim)
