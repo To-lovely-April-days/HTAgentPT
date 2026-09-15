@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { get, post, sse, ApiError } from '../../lib/api';
+import { get, post, sse, download, ApiError } from '../../lib/api';
+import { DELIVERY_LABEL } from '../../lib/types';
 import type { QaMessageRow, QaSessionRow, Source, VocabRow, ProjectRow } from '../../lib/types';
 import { ClsBadge, ErrorBox, InfoBox, Spinner } from '../../components/Common';
 import type { Classification } from '../../lib/types';
@@ -29,11 +31,19 @@ interface Turn {
 
 export default function QaPage() {
   const qc = useQueryClient();
+  // 「就本项目提问」跳转带来的预填条件（A3 → A1），只在进入时消费一次
+  const preset = (useLocation().state ?? null) as
+    | { presetCustomer?: string; presetDeviceType?: string; presetYear?: string }
+    | null;
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
-  const [filters, setFilters] = useState({ customerName: '', year: '', deviceType: '' });
+  const [filters, setFilters] = useState({
+    customerName: preset?.presetCustomer ?? '',
+    year: preset?.presetYear ?? '',
+    deviceType: preset?.presetDeviceType ?? '',
+  });
   const [activeSources, setActiveSources] = useState<Source[] | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -218,8 +228,10 @@ export default function QaPage() {
               {s.section ?? '—'}{s.pageNo != null ? ` · 第 ${s.pageNo} 页` : ''}
             </div>
             <div style={{ fontSize: 11.5, lineHeight: 1.7, color: 'var(--ink-2)' }}>{s.excerpt}…</div>
-            <a href={`/api/files/${s.docId}`} target="_blank" rel="noreferrer"
-              style={{ fontSize: 11.5, display: 'inline-block', marginTop: 6 }}>下载原件 ↗</a>
+            <button
+              onClick={() => void download(`/api/files/${s.docId}`, s.docTitle).catch((err) => alert(err instanceof ApiError ? err.message : '下载失败'))}
+              style={{ fontSize: 11.5, marginTop: 6, padding: 0, border: 'none', background: 'none', color: 'var(--accent)', cursor: 'pointer', fontFamily: 'var(--font)' }}
+            >下载原件 ↗</button>
           </div>
         ))}
       </aside>
@@ -290,9 +302,11 @@ function TurnView({ turn: t, onFeedback, onCorrect, onShowSources }: {
   );
 }
 
-/** 台账意图的结构化表格（FR-4.1/3.4）：不经模型；金额列有没有由服务端定。 */
+/** 台账意图的结构化表格（FR-4.1/3.4）：不经模型；金额列有没有由服务端定。
+ * 点行进入项目详情（问答 › 台账查询结果 › 项目详情）。 */
 function LedgerTableView({ table, onCorrect }: { table: LedgerTable; onCorrect: (fi: string) => void }) {
   const f = table.filters;
+  const nav = useNavigate();
   return (
     <div className="card" style={{ overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderBottom: '1px solid var(--line)', background: '#f8fafc' }}>
@@ -315,8 +329,9 @@ function LedgerTableView({ table, onCorrect }: { table: LedgerTable; onCorrect: 
         </thead>
         <tbody>
           {table.rows.map((r) => (
-            <tr key={r.projectNo}>
-              <td className="m" style={td}>{r.projectNo}</td>
+            <tr key={r.projectNo} style={{ cursor: 'pointer' }} title="查看项目详情"
+              onClick={() => nav(`/projects/${encodeURIComponent(r.projectNo)}`, { state: { from: 'qa' } })}>
+              <td className="m" style={{ ...td, color: 'var(--accent)', fontWeight: 500 }}>{r.projectNo}</td>
               <td style={td}>{r.customerName}</td>
               <td className="m" style={td}>{r.year}</td>
               <td style={td}>{r.deviceType}</td>
@@ -334,7 +349,5 @@ function LedgerTableView({ table, onCorrect }: { table: LedgerTable; onCorrect: 
     </div>
   );
 }
-
-const DELIVERY_LABEL: Record<string, string> = { InProgress: '在制', Delivered: '已交付', Closed: '已结项' };
 
 const td: React.CSSProperties = { fontSize: 12.5, padding: '0 12px', height: 38, borderBottom: '1px solid var(--line-soft)' };

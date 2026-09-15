@@ -38,7 +38,8 @@ public class ProjectService(AppDbContext db, IVocabService vocab, IAuditWriter a
         var rows = await q.OrderByDescending(p => p.Year).ThenByDescending(p => p.UpdatedAt)
             .Take(Math.Clamp(req.Limit, 1, 1000))
             .Select(p => new ProjectRow(p.ProjectNo, p.CustomerName, p.Year, p.DeviceType, p.DeviceModel,
-                p.SpecParams, amountVisible ? p.ContractAmount : null, p.DeliveryStatus, p.OwnerId, p.UpdatedAt))
+                p.SpecParams, amountVisible ? p.ContractAmount : null, p.DeliveryStatus, p.OwnerId,
+                db.Users.Where(u => u.Id == p.OwnerId).Select(u => u.DisplayName).FirstOrDefault(), p.UpdatedAt))
             .ToListAsync(ct);
 
         await audit.WriteAsync(new AuditEntry("project.search", AuditResult.Success,
@@ -67,8 +68,10 @@ public class ProjectService(AppDbContext db, IVocabService vocab, IAuditWriter a
         await audit.WriteAsync(new AuditEntry("project.get", AuditResult.Success,
             UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
             TargetType: "project", TargetId: projectNo), ct);
+        var ownerName = p.OwnerId is null ? null
+            : await db.Users.AsNoTracking().Where(u => u.Id == p.OwnerId).Select(u => u.DisplayName).FirstOrDefaultAsync(ct);
         var row = new ProjectRow(p.ProjectNo, p.CustomerName, p.Year, p.DeviceType, p.DeviceModel,
-            p.SpecParams, amountVisible ? p.ContractAmount : null, p.DeliveryStatus, p.OwnerId, p.UpdatedAt);
+            p.SpecParams, amountVisible ? p.ContractAmount : null, p.DeliveryStatus, p.OwnerId, ownerName, p.UpdatedAt);
         return new ProjectDetail(row, docs);
     }
 

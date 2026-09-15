@@ -81,6 +81,27 @@ export const post = <T>(path: string, body?: unknown) =>
 export const put = <T>(path: string, body?: unknown) =>
   api<T>(path, { method: 'PUT', body: JSON.stringify(body) });
 
+/** 带鉴权下载原件：/api/files 走 Authorization 头，普通 <a href> 带不上——
+ * 取回 blob 后用临时链接触发保存，文件名取自 Content-Disposition。 */
+export async function download(path: string, fallbackName = '下载文件') {
+  const headers = new Headers();
+  const token = getToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  headers.set('X-Terminal-Id', terminalId());
+  const resp = await fetch(path, { headers });
+  if (!resp.ok) throw await parseError(resp);
+  const cd = resp.headers.get('Content-Disposition') ?? '';
+  const star = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+  const plain = /filename="?([^";]+)"?/i.exec(cd);
+  const name = star ? decodeURIComponent(star[1]) : (plain ? plain[1] : fallbackName);
+  const url = URL.createObjectURL(await resp.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 /** SSE 事件（问答流）：event/data 帧解析，POST 携带体。 */
 export interface SseEvent { kind: string; payload: unknown; }
 

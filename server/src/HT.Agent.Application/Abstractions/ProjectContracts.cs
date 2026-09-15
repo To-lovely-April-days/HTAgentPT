@@ -34,7 +34,7 @@ public record ProjectSearchResult(
 public record ProjectRow(
     string ProjectNo, string CustomerName, int Year, string DeviceType, string? DeviceModel,
     string? SpecParams, decimal? ContractAmount, DeliveryStatus? DeliveryStatus,
-    Guid? OwnerId, DateTimeOffset UpdatedAt);
+    Guid? OwnerId, string? OwnerName, DateTimeOffset UpdatedAt);
 
 public record ProjectDetail(
     ProjectRow Row,

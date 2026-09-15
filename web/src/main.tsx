@@ -8,6 +8,8 @@ import { Spinner } from './components/Common'
 import LoginPage from './pages/Login'
 import Shell from './Shell'
 import QaPage from './pages/qa/QaPage'
+import ProjectsPage from './pages/projects/ProjectsPage'
+import ProjectDetailPage from './pages/projects/ProjectDetailPage'
 import Placeholder from './pages/Placeholder'
 
 const queryClient = new QueryClient({
@@ -43,7 +45,8 @@ function App() {
       >
         <Route index element={<Navigate to="/qa" replace />} />
         <Route path="qa" element={<QaPage />} />
-        <Route path="projects" element={<Placeholder name="项目查询" api="/api/projects" />} />
+        <Route path="projects" element={<ProjectsPage />} />
+        <Route path="projects/:projectNo" element={<ProjectDetailPage />} />
         <Route path="generate" element={<Placeholder name="方案生成" api="/api/generate/*" />} />
         <Route path="contract" element={<Placeholder name="报价与合同" api="/api/contract/*, /api/clauses" />} />
         <Route path="translate" element={<Placeholder name="资料翻译" api="/api/translate/*" />} />
