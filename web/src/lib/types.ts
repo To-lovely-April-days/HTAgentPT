@@ -83,6 +83,42 @@ export interface CaseDetailData {
 
 export interface SensitiveHit { field: string; kind: string; match: string; }
 
+// ── 语料管理（E 组）───────────────────────────────────────────
+export type KbTier = 'Shared' | 'Private' | 'Public';
+export type ParseStatus = 'NotParsed' | 'Queued' | 'Parsing' | 'Parsed' | 'Failed';
+export type ChunkStrategy = 'ByHeading' | 'ByClause' | 'ByRow' | 'BySemantic' | 'General';
+
+export interface KbRow {
+  id: string; name: string; tier: KbTier; defaultChunkStrategy: ChunkStrategy;
+  description: string | null; isActive: boolean; docCount: number; chunkCount: number;
+  lastUpdatedAt: string | null;
+}
+
+export interface DocRow {
+  id: string; title: string; fileName: string; kbId: string; kbName: string;
+  classification: Classification; parseStatus: ParseStatus; parseError: string | null;
+  fileSize: number; uploadedAt: string; docCategory: string | null;
+  customerName: string | null; projectNo: string | null;
+}
+
+export interface ParseJobRow {
+  id: string; docId: string; docTitle: string; kind: string; status: string;
+  attempts: number; lastError: string | null;
+  queuedAt: string; startedAt: string | null; finishedAt: string | null;
+}
+
+export const KB_TIER_LABEL: Record<KbTier, string> = {
+  Shared: '集团共享库', Private: '本公司私有库', Public: '对外公开库',
+};
+export const PARSE_LABEL: Record<ParseStatus, string> = {
+  NotParsed: '待解析', Queued: '排队中', Parsing: '解析中', Parsed: '已完成', Failed: '失败',
+};
+export const STRATEGY_LABEL: Record<string, string> = {
+  ByHeading: '按章节层级', ByClause: '按条款', ByRow: '按行（表头作前缀）', BySemantic: '按语义段落', General: '通用',
+};
+/** 表 4-5：这些类别的文档必须关联项目编号（条件必填）。 */
+export const PROJECT_LINKED_CATEGORIES = ['方案', '合同', '报价', '图纸', '交付报告', '故障记录'];
+
 // ── 翻译（D 组）──────────────────────────────────────────────
 export interface TermHit { zh: string; en: string; domain: string; }
 export interface BilingualPair { source: string; target: string; }

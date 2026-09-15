@@ -14,6 +14,8 @@ import TranslatePage from './pages/translate/TranslatePage'
 import CasesPage from './pages/cases/CasesPage'
 import CaseDetailPage from './pages/cases/CaseDetailPage'
 import CaseEntryPage from './pages/cases/CaseEntryPage'
+import AdminLayout, { AdminHome, AdminStub } from './pages/admin/AdminLayout'
+import CorpusPage from './pages/admin/CorpusPage'
 import Placeholder from './pages/Placeholder'
 
 const queryClient = new QueryClient({
@@ -35,6 +37,13 @@ function Guarded({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+/** 各角色的落地页：管理员进后台首页（决策 3），总部审核人进审核台，其余进问答。 */
+function HomeRedirect() {
+  const { profile } = useAuth()
+  const to = profile?.roleCode === 'admin' ? '/admin' : profile?.roleCode === 'hq_reviewer' ? '/review' : '/qa'
+  return <Navigate to={to} replace />
+}
+
 function App() {
   return (
     <Routes>
@@ -47,7 +56,7 @@ function App() {
           </Guarded>
         }
       >
-        <Route index element={<Navigate to="/qa" replace />} />
+        <Route index element={<HomeRedirect />} />
         <Route path="qa" element={<QaPage />} />
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="projects/:projectNo" element={<ProjectDetailPage />} />
@@ -60,9 +69,18 @@ function App() {
         <Route path="cases/:caseId/edit" element={<CaseEntryPage />} />
         <Route path="tickets" element={<Placeholder name="报修工单" api="/api/tickets" />} />
         <Route path="review" element={<Placeholder name="共享案例审核台" api="/api/review/*" />} />
-        <Route path="admin" element={<Placeholder name="管理后台" api="/api/users, /api/kbs, /api/config, /api/audit, /api/ops/*" />} />
+        <Route path="admin" element={<AdminLayout />}>
+          <Route index element={<AdminHome />} />
+          <Route path="corpus" element={<CorpusPage />} />
+          <Route path="kbs" element={<AdminStub name="知识库管理" api="/api/kbs" />} />
+          <Route path="meta" element={<AdminStub name="元数据与词表" api="/api/vocab, /api/documents/metadata/batch" />} />
+          <Route path="templates" element={<AdminStub name="模板管理" api="/api/templates" />} />
+          <Route path="users" element={<AdminStub name="用户与权限" api="/api/users, /api/roles" />} />
+          <Route path="settings" element={<AdminStub name="系统设置" api="/api/config" />} />
+          <Route path="audit" element={<AdminStub name="审计与统计" api="/api/audit, /api/stats" />} />
+        </Route>
         <Route path="profile" element={<Placeholder name="个人中心" api="/api/profile" />} />
-        <Route path="*" element={<Navigate to="/qa" replace />} />
+        <Route path="*" element={<HomeRedirect />} />
       </Route>
     </Routes>
   )
