@@ -49,13 +49,23 @@ public static class DependencyInjection
         {
             services.AddSingleton<IEmbeddingClient, StubEmbeddingClient>();
             services.AddSingleton<IRerankClient, StubRerankClient>();
-            services.AddSingleton<IDocumentParserClient, StubParserClient>();
         }
         else
         {
             services.AddSingleton<IEmbeddingClient, HttpEmbeddingClient>();
             services.AddSingleton<IRerankClient, HttpRerankClient>();
-            services.AddSingleton<IDocumentParserClient, HttpParserClient>();
+        }
+        // 解析引擎可单独指定（Models:Parser = stub / http / mineru），未指定时随 UseStubs 整体开关。
+        // 拼错值直接拒绝启动——静默回退演示桩会造成「看着解析成功了」的假象，比报错更害人。
+        var parserKind = config["Models:Parser"];
+        if (string.IsNullOrWhiteSpace(parserKind)) parserKind = useStubs ? "stub" : "http";
+        switch (parserKind.Trim().ToLowerInvariant())
+        {
+            case "stub": services.AddSingleton<IDocumentParserClient, StubParserClient>(); break;
+            case "http": services.AddSingleton<IDocumentParserClient, HttpParserClient>(); break;
+            case "mineru": services.AddSingleton<IDocumentParserClient, MinerUParserClient>(); break;
+            default: throw new InvalidOperationException(
+                $"未知解析引擎配置 Models:Parser={parserKind}（可选 stub / http / mineru）");
         }
 
         services.AddScoped<IAuthService, AuthService>();

@@ -98,6 +98,45 @@ docker compose down -v              # 停止并清空所有数据（数据库+�
 docker compose up -d --build        # 改了代码后重建并启动
 ```
 
+## 接入 MinerU（真实文档解析，需要 NVIDIA 显卡）
+
+默认的内置演示解析器只认纯文本文件。接上 [MinerU](https://github.com/opendatalab/MinerU)
+之后，PDF / DOCX / PPTX / 扫描件都能做真实的版面解析（章节层级、表格结构、页码全保留）。
+
+**第一步：构建 MinerU 镜像**（官方 Dockerfile，国内网络用 china 目录的）
+
+```bash
+curl -L -o Dockerfile.mineru https://github.com/opendatalab/MinerU/raw/master/docker/china/Dockerfile
+docker build -t mineru:latest -f Dockerfile.mineru .
+```
+
+**第二步：验证 GPU 可用**（Docker Desktop 的 WSL2 后端自带 GPU 支持，装好 NVIDIA 驱动即可）
+
+```bash
+docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
+```
+
+**第三步：叠加启动**
+
+```bash
+cd deploy
+docker compose -f docker-compose.yml -f docker-compose.mineru.yml up -d --build
+```
+
+首次解析会自动下载模型（几 GB，只下一次，存在 `mineru-models` 卷里），
+所以第一份文档会等得久一些，之后就快了。
+
+注意事项：
+
+- **数据库已经初始化过的环境**：解析地址的首启种子不再生效，登录 admin 到
+  「系统设置 → 切分与解析」把解析服务地址改成 `http://mineru:8000/file_parse`（改后即时生效）。
+- **MinerU 跑在另一台机器上**（比如专门的 GPU 工作站）：不用叠加文件，在那台机器上
+  单独起 mineru-api，然后 `.env` 里设 `MODELS_PARSER=mineru` 重建后端容器，
+  再到「系统设置」把解析服务地址改成 `http://<那台机器IP>:8000/file_parse`。
+- **解析后端**：默认 `pipeline`（通用、显存要求低）。显存充足想要更高精度，可在
+  「系统设置 → 切分与解析 → 解析后端」按所装 MinerU 版本支持的取值切换（如 vlm 系列）。
+- `.txt` / `.md` 纯文本文件不经过 MinerU，始终本地直接解析。
+
 ## 说明
 
 - **数据都在卷里**：数据库、上传文件、备份分别在 `pgdata`、`company-files`、`hq-files`

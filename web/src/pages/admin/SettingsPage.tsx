@@ -33,6 +33,8 @@ const GROUPS: { title: string; keys: [string, string][] }[] = [
     title: '切分与解析',
     keys: [
       ['chunking.target_length', '分块目标长度'], ['chunking.overlap', '分块重叠'],
+      ['parser.url', '解析服务地址'], ['parser.backend', '解析后端'],
+      ['parser.timeout_seconds', '解析超时（秒）'],
       ['parser.concurrency', '解析并发数'], ['parser.max_retries', '解析重试次数'],
     ],
   },
@@ -259,7 +261,7 @@ function ParamsTab() {
               <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0', borderBottom: '1px solid var(--line-soft)' }}>
                 <span style={{ fontSize: 12.5, width: 170 }}>{label}</span>
                 <span className="m hint" style={{ width: 220 }}>{key}</span>
-                <input className="m" style={fi} value={values[key] ?? ''}
+                <input className="m" style={{ ...fi, width: key.endsWith('url') ? 280 : 130 }} value={values[key] ?? ''}
                   onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))} />
               </div>
             ))}

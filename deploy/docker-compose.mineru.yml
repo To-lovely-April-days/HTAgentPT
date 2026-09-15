@@ -1,0 +1,46 @@
+# MinerU 解析服务叠加包（需要 NVIDIA 显卡）。与主 compose 合并启动：
+#
+#   docker compose -f docker-compose.yml -f docker-compose.mineru.yml up -d --build
+#
+# 前置：
+#   1. NVIDIA 驱动装好；Windows 上 Docker Desktop（WSL2 后端）自带 GPU 支持，
+#      Linux 上需 nvidia-container-toolkit。验证：docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
+#   2. 先按官方 Dockerfile 构建 mineru:latest 镜像（见 deploy/README.md「接入 MinerU」）。
+#
+# 首次解析会自动下载模型到 mineru-models 卷（几 GB，只下一次）。
+services:
+  mineru:
+    image: ${MINERU_IMAGE:-mineru:latest}
+    entrypoint: mineru-api
+    command: ["--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      # 国内网络用 modelscope 拉模型更稳；海外可改 huggingface
+      MINERU_MODEL_SOURCE: ${MINERU_MODEL_SOURCE:-modelscope}
+    volumes:
+      - mineru-models:/root/.cache
+    ports:
+      - "${MINERU_PORT:-8093}:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  # 两个后端节点切到 MinerU 解析客户端，并在首启种子里把解析地址指向容器内的 mineru 服务。
+  # 数据库已初始化过的环境，种子不再生效——到「系统设置 → 切分与解析」把解析服务地址
+  # 改成 http://mineru:8000/file_parse 即可（改后即时生效）。
+  server-company:
+    environment:
+      Models__Parser: "mineru"
+      Seed__Config__parser.url: "http://mineru:8000/file_parse"
+
+  server-hq:
+    environment:
+      Models__Parser: "mineru"
+      Seed__Config__parser.url: "http://mineru:8000/file_parse"
+
+volumes:
+  mineru-models:

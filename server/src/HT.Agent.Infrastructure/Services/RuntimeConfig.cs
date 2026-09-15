@@ -31,6 +31,7 @@ public class RuntimeConfig(IServiceScopeFactory scopeFactory, IMemoryCache cache
         [ConfigKeys.RerankUrl] = "http://127.0.0.1:8081/rerank",
         [ConfigKeys.RerankModelName] = "rerank-default",
         [ConfigKeys.ParserUrl] = "http://127.0.0.1:8082/parse",
+        [ConfigKeys.ParserBackend] = "pipeline",
         [ConfigKeys.ParserTimeoutSeconds] = "300",
         [ConfigKeys.ParserMaxRetries] = "3",
         [ConfigKeys.ParserConcurrency] = "1",

@@ -23,6 +23,9 @@ public static class ConfigKeys
     public const string RerankModelName = "model.rerank.name";
     // ── 解析引擎（表 8-2）──────────────────────────────
     public const string ParserUrl = "parser.url";
+    /// <summary>解析后端（MinerU 的 backend 参数）：pipeline / vlm-transformers / vlm-vllm-engine 等，
+    /// 取值随所接引擎版本。仅 Models:Parser=mineru 时生效。</summary>
+    public const string ParserBackend = "parser.backend";
     public const string ParserTimeoutSeconds = "parser.timeout_seconds";
     public const string ParserMaxRetries = "parser.max_retries";
     /// <summary>解析并行度（FR-1.2：串行或有限并行）。</summary>
