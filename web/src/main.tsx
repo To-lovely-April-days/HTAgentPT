@@ -10,6 +10,8 @@ import Shell from './Shell'
 import QaPage from './pages/qa/QaPage'
 import ProjectsPage from './pages/projects/ProjectsPage'
 import ProjectDetailPage from './pages/projects/ProjectDetailPage'
+import GeneratePage from './pages/generate/GeneratePage'
+import ContractPage from './pages/generate/ContractPage'
 import TranslatePage from './pages/translate/TranslatePage'
 import CasesPage from './pages/cases/CasesPage'
 import CaseDetailPage from './pages/cases/CaseDetailPage'
@@ -60,8 +62,8 @@ function App() {
         <Route path="qa" element={<QaPage />} />
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="projects/:projectNo" element={<ProjectDetailPage />} />
-        <Route path="generate" element={<Placeholder name="方案生成" api="/api/generate/*" />} />
-        <Route path="contract" element={<Placeholder name="报价与合同" api="/api/contract/*, /api/clauses" />} />
+        <Route path="generate" element={<GeneratePage />} />
+        <Route path="contract" element={<ContractPage />} />
         <Route path="translate" element={<TranslatePage />} />
         <Route path="cases" element={<CasesPage />} />
         <Route path="cases/new" element={<CaseEntryPage />} />

@@ -119,6 +119,69 @@ export const STRATEGY_LABEL: Record<string, string> = {
 /** 表 4-5：这些类别的文档必须关联项目编号（条件必填）。 */
 export const PROJECT_LINKED_CATEGORIES = ['方案', '合同', '报价', '图纸', '交付报告', '故障记录'];
 
+// ── 方案生成（A4-A12）与条款库（FR-5.18）───────────────────────
+export type SlotFillSource = 'Template' | 'Inherited' | 'AiSuggested' | 'Confirmed';
+
+export interface TemplateRowT {
+  id: string; name: string; docType: string; isEnabled: boolean;
+  slotCount: number; incompleteSlots: number; updatedAt: string; lastUsedAt: string | null;
+}
+
+export interface SlotDef {
+  id: string; tag: string; name: string; section: string; dataType: string;
+  unit: string | null; choices: string | null; required: boolean; stage: 'Current' | 'Later';
+  forbidInherit: boolean; prompt: string | null; suggestSource: string | null;
+  subFields: string | null; sortOrder: number;
+}
+export interface SlotState {
+  tag: string; value: string | null; source: SlotFillSource | null; confirmed: boolean;
+  userTouched: boolean; origin: string | null; updatedAt: string | null;
+}
+export interface SlotView { def: SlotDef; state: SlotState; }
+
+export interface SessionView {
+  id: string; templateId: string; templateName: string; projectHint: string | null;
+  baseProjectNo: string | null; status: 'Draft' | 'Completed'; slots: SlotView[];
+  updatedAt: string; outputFileName: string | null;
+}
+export interface SessionRowT {
+  id: string; templateName: string; baseProjectNo: string | null; status: 'Draft' | 'Completed';
+  total: number; done: number; updatedAt: string;
+}
+export interface BaseCandidate {
+  projectNo: string; customerName: string; year: number; deviceType: string;
+  deviceModel: string | null; specParams: string | null; deliveryStatus: string | null;
+  inheritableSlots: number; linkedDocs: number;
+}
+export interface SuggestEvidence { sourceTitle: string; section: string | null; pageNo: number | null; excerpt: string; chunkId: number | null; }
+export interface SlotSuggestion { tag: string; value: string | null; evidence: SuggestEvidence[]; hasEvidence: boolean; note: string | null; }
+export interface CompletenessView {
+  canRender: boolean; total: number; done: number;
+  incomplete: { tag: string; name: string; section: string; reason: string }[];
+}
+export interface PreviewView {
+  sections: { section: string; items: { tag: string; name: string; value: string | null; sourceLabel: string; origin: string | null }[] }[];
+  pdfFileKey: string | null;
+}
+export interface RenderResult { sessionId: string; outputFileName: string; slotsFilled: number; leftBlank: number; }
+
+export interface ClauseRow {
+  id: string; category: string; code: string; title: string; text: string; status: string;
+  approvedByName: string | null; effectiveDate: string | null; supersedesId: string | null; createdAt: string;
+}
+export interface ClauseAssembly { clauses: ClauseRow[]; assembledText: string; }
+
+/** 四种填充来源的标记（5.2.5）：紫色一档为「待人工确认的未决状态」，不借密级三色。 */
+export const SOURCE_LABEL: Record<SlotFillSource, string> = {
+  Template: '模板固定', Inherited: '继承', AiSuggested: 'AI 建议待确认', Confirmed: '已确认',
+};
+export const SOURCE_PILL_STYLE: Record<SlotFillSource, React.CSSProperties> = {
+  Template: { background: '#eef1f5', color: '#5a6673', border: '1px solid #dde3ea' },
+  Inherited: { background: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid var(--accent-line)' },
+  AiSuggested: { background: '#fbeff7', color: '#8f3d74', border: '1px solid #edd2e3' },
+  Confirmed: { background: '#e6f2ec', color: '#1c6b45', border: '1px solid #c2ded1' },
+};
+
 // ── 翻译（D 组）──────────────────────────────────────────────
 export interface TermHit { zh: string; en: string; domain: string; }
 export interface BilingualPair { source: string; target: string; }
