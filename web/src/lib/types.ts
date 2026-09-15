@@ -83,6 +83,28 @@ export interface CaseDetailData {
 
 export interface SensitiveHit { field: string; kind: string; match: string; }
 
+// ── 翻译（D 组）──────────────────────────────────────────────
+export interface TermHit { zh: string; en: string; domain: string; }
+export interface BilingualPair { source: string; target: string; }
+export interface TextTranslationResult {
+  translation: string;
+  pairs: BilingualPair[];
+  termsApplied: TermHit[];
+  contractNotice: string | null;
+}
+export interface DocxReport { paragraphs: number; translated: number; unfillable: string[]; }
+export interface FileTranslationResult {
+  taskId: string;
+  outputFileName: string;
+  report: DocxReport;
+  termsApplied: TermHit[];
+  contractNotice: string | null;
+}
+export interface TermRow {
+  id: string; domain: string; zh: string; en: string; note: string | null;
+  status: string; submittedBy: string | null; createdAt: string;
+}
+
 export const SYNC_LABEL: Record<CaseSyncStatus, string> = {
   Local: '本地生效', Pending: '待总部审核', Shared: '已并入共享库', Rejected: '已驳回',
 };

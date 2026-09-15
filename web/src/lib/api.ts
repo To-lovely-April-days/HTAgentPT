@@ -81,6 +81,17 @@ export const post = <T>(path: string, body?: unknown) =>
 export const put = <T>(path: string, body?: unknown) =>
   api<T>(path, { method: 'PUT', body: JSON.stringify(body) });
 
+/** multipart 上传（docx 翻译等）：FormData 由浏览器自带 boundary，不能手动设 Content-Type。 */
+export async function upload<T>(path: string, form: FormData): Promise<T> {
+  const headers = new Headers();
+  const token = getToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  headers.set('X-Terminal-Id', terminalId());
+  const resp = await fetch(path, { method: 'POST', headers, body: form });
+  if (!resp.ok) throw await parseError(resp);
+  return (await resp.json()) as T;
+}
+
 /** 带鉴权下载原件：/api/files 走 Authorization 头，普通 <a href> 带不上——
  * 取回 blob 后用临时链接触发保存，文件名取自 Content-Disposition。 */
 export async function download(path: string, fallbackName = '下载文件') {
