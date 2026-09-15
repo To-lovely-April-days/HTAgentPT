@@ -38,18 +38,21 @@ public static class DependencyInjection
         services.AddSingleton<IRuntimeConfig, RuntimeConfig>();
         services.AddSingleton<IFileStorage, LocalFileStorage>();
 
-        // 桩开关：无模型服务的环境整条链路仍可运行（开发/测试）；生产配置真实地址
+        // 桩开关：无模型服务的环境整条链路仍可运行（开发/测试）；生产配置真实地址。
+        // 对话模型例外——始终经 SwitchingChatClient 按运行时配置选择（E15 模型选择，
+        // 改后即时生效不用重启）；嵌入/重排/解析仍按部署期开关装配。
+        services.AddSingleton<StubChatClient>();
+        services.AddSingleton<OpenAiChatClient>();
+        services.AddSingleton<IChatModelClient, SwitchingChatClient>();
         var useStubs = config.GetValue<bool>("Models:UseStubs");
         if (useStubs)
         {
-            services.AddSingleton<IChatModelClient, StubChatClient>();
             services.AddSingleton<IEmbeddingClient, StubEmbeddingClient>();
             services.AddSingleton<IRerankClient, StubRerankClient>();
             services.AddSingleton<IDocumentParserClient, StubParserClient>();
         }
         else
         {
-            services.AddSingleton<IChatModelClient, OpenAiChatClient>();
             services.AddSingleton<IEmbeddingClient, HttpEmbeddingClient>();
             services.AddSingleton<IRerankClient, HttpRerankClient>();
             services.AddSingleton<IDocumentParserClient, HttpParserClient>();

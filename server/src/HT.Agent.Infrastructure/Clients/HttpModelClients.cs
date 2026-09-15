@@ -13,9 +13,11 @@ public class OpenAiChatClient(IHttpClientFactory httpFactory, IRuntimeConfig con
     public async IAsyncEnumerable<string> StreamAsync(
         IReadOnlyList<ChatTurn> messages, [EnumeratorCancellation] CancellationToken ct = default)
     {
-        var (url, body) = await BuildAsync(messages, stream: true, ct);
+        var (url, body, apiKey) = await BuildAsync(messages, stream: true, ct);
         var http = httpFactory.CreateClient("model");
         using var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = JsonContent.Create(body) };
+        if (apiKey.Length > 0)
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
         using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
         resp.EnsureSuccessStatusCode();
         await using var stream = await resp.Content.ReadAsStreamAsync(ct);
@@ -34,15 +36,18 @@ public class OpenAiChatClient(IHttpClientFactory httpFactory, IRuntimeConfig con
 
     public async Task<string> CompleteAsync(IReadOnlyList<ChatTurn> messages, CancellationToken ct = default)
     {
-        var (url, body) = await BuildAsync(messages, stream: false, ct);
+        var (url, body, apiKey) = await BuildAsync(messages, stream: false, ct);
         var http = httpFactory.CreateClient("model");
-        var resp = await http.PostAsJsonAsync(url, body, ct);
+        using var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = JsonContent.Create(body) };
+        if (apiKey.Length > 0)
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+        var resp = await http.SendAsync(req, ct);
         resp.EnsureSuccessStatusCode();
         using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
         return doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
     }
 
-    private async Task<(string Url, object Body)> BuildAsync(IReadOnlyList<ChatTurn> messages, bool stream, CancellationToken ct)
+    private async Task<(string Url, object Body, string ApiKey)> BuildAsync(IReadOnlyList<ChatTurn> messages, bool stream, CancellationToken ct)
     {
         var baseUrl = (await config.GetStringAsync(ConfigKeys.ChatModelUrl, "http://127.0.0.1:8000/v1", ct)).TrimEnd('/');
         var body = new
@@ -53,7 +58,9 @@ public class OpenAiChatClient(IHttpClientFactory httpFactory, IRuntimeConfig con
             max_tokens = await config.GetIntAsync(ConfigKeys.ChatMaxTokens, 2048, ct),
             stream
         };
-        return ($"{baseUrl}/chat/completions", body);
+        // 在线服务（如 DeepSeek）要求 Bearer 密钥；本地端点留空即可
+        var apiKey = await config.GetStringAsync(ConfigKeys.ChatApiKey, "", ct);
+        return ($"{baseUrl}/chat/completions", body, apiKey.Trim());
     }
 
     private static string? ExtractDelta(string json)

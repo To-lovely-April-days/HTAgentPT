@@ -63,6 +63,145 @@ export default function SettingsPage() {
   );
 }
 
+// ─── E15 · 对话模型选择 ─────────────────────────────────
+// 三个提供方：内置演示（不调外部模型）/ DeepSeek 在线（OpenAI 兼容 + 密钥）/
+// 本地 Qwen（OpenAI 兼容端点）。名称与地址都是配置值（界面文案约束的例外面）；
+// 图标走外链，加载失败降级为字母块。只切对话模型——嵌入/重排不随之切换。
+interface ModelOption {
+  id: string; title: string; badge: string; iconUrl: string | null;
+  iconFallback: string; fallbackBg: string; fallbackFg: string;
+  desc: string; url: string | null; modelName: string | null; needsKey: boolean; urlEditable: boolean;
+}
+const MODEL_OPTIONS: ModelOption[] = [
+  {
+    id: 'stub', title: '内置演示应答', badge: '无外部依赖',
+    iconUrl: null, iconFallback: '演', fallbackBg: '#eef1f5', fallbackFg: '#5a6673',
+    desc: '不调用任何外部模型，返回带来源标注的演示应答——用于没有模型服务的环境验证整条链路。',
+    url: null, modelName: null, needsKey: false, urlEditable: false,
+  },
+  {
+    id: 'deepseek', title: 'DeepSeek', badge: '在线服务',
+    // 官方站点图标外链；离线或内网白名单环境加载不到时降级为品牌色块
+    iconUrl: 'https://www.deepseek.com/favicon.ico', iconFallback: 'D', fallbackBg: '#4D6BFE', fallbackFg: '#ffffff',
+    desc: '官方在线接口，需要接口密钥。对话数据会发往外部服务——机密内容是否允许出网，请先按公司规定确认。',
+    url: 'https://api.deepseek.com/v1', modelName: 'deepseek-chat', needsKey: true, urlEditable: false,
+  },
+  {
+    id: 'qwen-local', title: 'Qwen/Qwen3.8-27B', badge: '本地部署',
+    iconUrl: 'https://qwenlm.github.io/favicon.ico', iconFallback: 'Q', fallbackBg: '#6A48F6', fallbackFg: '#ffffff',
+    desc: '本机或内网推理服务上的本地模型，数据不出内网。服务地址可按实际部署修改。',
+    url: 'http://127.0.0.1:8000/v1', modelName: 'Qwen/Qwen3.8-27B', needsKey: false, urlEditable: true,
+  },
+];
+
+function ModelIcon({ opt }: { opt: ModelOption }) {
+  const [failed, setFailed] = useState(false);
+  if (!opt.iconUrl || failed) {
+    return (
+      <div style={{ width: 30, height: 30, borderRadius: 7, background: opt.fallbackBg, color: opt.fallbackFg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>
+        {opt.iconFallback}
+      </div>
+    );
+  }
+  return <img src={opt.iconUrl} alt="" width={30} height={30} style={{ borderRadius: 7, flexShrink: 0 }} onError={() => setFailed(true)} />;
+}
+
+function ChatModelPicker({ cfg }: { cfg: Record<string, string> }) {
+  const qc = useQueryClient();
+  const current = cfg['model.chat.provider'] ?? 'stub';
+  const [selected, setSelected] = useState(current);
+  const [apiKey, setApiKey] = useState('');
+  const [localUrl, setLocalUrl] = useState(cfg['model.chat.url'] && current === 'qwen-local' ? cfg['model.chat.url'] : 'http://127.0.0.1:8000/v1');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [applied, setApplied] = useState(false);
+
+  const opt = MODEL_OPTIONS.find((o) => o.id === selected)!;
+  const keyMasked = cfg['model.chat.api_key'] ?? '';
+  const keyReady = !opt.needsKey || apiKey.trim().length > 0 || keyMasked.length > 0;
+  const dirty = selected !== current || apiKey.trim().length > 0 || (opt.urlEditable && localUrl.trim() !== (cfg['model.chat.url'] ?? ''));
+
+  const apply = async () => {
+    setBusy(true);
+    setError(null);
+    setApplied(false);
+    try {
+      const values: Record<string, string> = { 'model.chat.provider': selected };
+      if (opt.url) values['model.chat.url'] = opt.urlEditable ? localUrl.trim() : opt.url;
+      if (opt.modelName) values['model.chat.name'] = opt.modelName;
+      if (opt.needsKey && apiKey.trim()) values['model.chat.api_key'] = apiKey.trim();
+      await put('/api/config', { values });
+      setApiKey('');
+      setApplied(true);
+      void qc.invalidateQueries({ queryKey: ['config'] });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '保存失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="card" style={{ padding: '14px 16px', marginBottom: 16 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 4 }}>对话模型</div>
+      <div className="hint" style={{ marginBottom: 12, lineHeight: 1.65 }}>
+        只切换问答、翻译与生成所用的对话模型，改后即时生效、不用重启。嵌入与重排模型不随此切换——换向量化模型须全量重建（见下方警示）。
+      </div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+        {MODEL_OPTIONS.map((o) => {
+          const on = selected === o.id;
+          const isCurrent = current === o.id;
+          return (
+            <div key={o.id} onClick={() => setSelected(o.id)}
+              style={{
+                width: 226, padding: '12px 13px', borderRadius: 7, cursor: 'pointer',
+                border: `1.5px solid ${on ? 'var(--accent)' : 'var(--line)'}`,
+                background: on ? 'var(--accent-bg)' : 'var(--panel)',
+              }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 7 }}>
+                <ModelIcon opt={o} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.title}</div>
+                  <div style={{ display: 'flex', gap: 5, marginTop: 2 }}>
+                    <span className="pill pill-neutral">{o.badge}</span>
+                    {isCurrent && <span className="pill" style={{ background: '#e6f2ec', color: '#1c6b45', border: '1px solid #c2ded1' }}>当前生效</span>}
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: 11, lineHeight: 1.6, color: 'var(--ink-2)' }}>{o.desc}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {opt.needsKey && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <span style={{ fontSize: 11.5, color: 'var(--ink-2)', width: 64 }}>接口密钥</span>
+          <input className="m" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
+            placeholder={keyMasked ? `已配置（${keyMasked}），要更换才输入` : '必填，形如 sk-…'}
+            style={{ height: 28, width: 300, padding: '0 9px', border: '1px solid var(--line-strong)', borderRadius: 4, fontSize: 12.5 }} />
+          <span className="hint">读取端只回显掩码，明文不回传浏览器</span>
+        </div>
+      )}
+      {opt.urlEditable && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <span style={{ fontSize: 11.5, color: 'var(--ink-2)', width: 64 }}>服务地址</span>
+          <input className="m" value={localUrl} onChange={(e) => setLocalUrl(e.target.value)}
+            style={{ height: 28, width: 300, padding: '0 9px', border: '1px solid var(--line-strong)', borderRadius: 4, fontSize: 12.5 }} />
+          <span className="hint">本地推理服务的兼容端点</span>
+        </div>
+      )}
+      {opt.needsKey && !keyReady && <div className="hint" style={{ color: 'var(--cls-int-fg)', marginBottom: 10 }}>未配置接口密钥前无法应用该选项。</div>}
+
+      {error && <div style={{ marginBottom: 10 }}><ErrorBox message={error} /></div>}
+      {applied && <div style={{ marginBottom: 10 }}><InfoBox>已应用，约 5 秒内对新请求生效。模型异常时问答会如实报错，不会退回旧应答。</InfoBox></div>}
+      <button className="pbtn" style={{ height: 28, padding: '0 14px' }} disabled={busy || !dirty || !keyReady} onClick={() => void apply()}>
+        应用模型选择
+      </button>
+    </div>
+  );
+}
+
 // ─── E15 ────────────────────────────────────────────────
 function ParamsTab() {
   const qc = useQueryClient();
@@ -100,6 +239,8 @@ function ParamsTab() {
   return (
     <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '18px 22px' }}>
       <div style={{ maxWidth: 760 }}>
+        <ChatModelPicker cfg={cfg.data ?? {}} />
+
         {/* 换向量化模型的琥珀警示（整份 PRD 里最容易被漏掉的一条） */}
         <div style={{ padding: '13px 15px', borderRadius: 6, background: 'var(--cls-int-bg)', border: '1px solid var(--cls-int-line)', marginBottom: 16 }}>
           <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--cls-int-fg)', marginBottom: 4 }}>

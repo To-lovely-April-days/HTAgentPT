@@ -13,9 +13,18 @@ namespace HT.Agent.Api.Controllers;
 [RequirePermission(PermissionKeys.SystemConfig)]
 public class ConfigController(IRuntimeConfig config, ICurrentUser me, IAuditWriter audit) : ControllerBase
 {
+    /// <summary>密钥类配置只回显掩码（后 4 位），不把明文送回浏览器。</summary>
+    private static string MaskIfSecret(string key, string value)
+        => key.Contains("api_key", StringComparison.OrdinalIgnoreCase) && value.Length > 0
+            ? $"••••{(value.Length > 4 ? value[^4..] : "")}"
+            : value;
+
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken ct)
-        => Ok(await config.GetAllAsync(ct));
+    {
+        var all = await config.GetAllAsync(ct);
+        return Ok(all.ToDictionary(kv => kv.Key, kv => MaskIfSecret(kv.Key, kv.Value)));
+    }
 
     public record SetBody(Dictionary<string, string> Values);
 
@@ -51,6 +60,9 @@ public class ConfigController(IRuntimeConfig config, ICurrentUser me, IAuditWrit
             .Select(kv => kv.Key).ToList();
         if (bad.Count > 0)
             return UnprocessableEntity(new { code = "CONFIG_NOT_NUMERIC", message = $"这些键要求数值：{string.Join("、", bad)}" });
+        // 读取端回显的是掩码——原样存回会把真密钥覆盖成掩码字符串
+        if (body.Values.Any(kv => kv.Value.StartsWith("••", StringComparison.Ordinal)))
+            return UnprocessableEntity(new { code = "CONFIG_MASKED_VALUE", message = "密钥字段回显的是掩码，不能原样保存；要更换密钥请输入新值，不改则不要提交该字段" });
 
         foreach (var (key, value) in body.Values)
             await config.SetAsync(key, value, me.UserId, ct);

@@ -5,8 +5,13 @@ namespace HT.Agent.Domain;
 public static class ConfigKeys
 {
     // ── 模型接口（FR-9.5）──────────────────────────────
+    /// <summary>对话模型提供方（E15 模型选择）：stub=内置演示应答；其余值走 OpenAI 兼容端点。
+    /// 运行时可切，改后即时生效——嵌入/重排/解析不随此切换。</summary>
+    public const string ChatProvider = "model.chat.provider";
     public const string ChatModelUrl = "model.chat.url";
     public const string ChatModelName = "model.chat.name";
+    /// <summary>在线服务的接口密钥（如 DeepSeek）。读取端只回显掩码，不外传。</summary>
+    public const string ChatApiKey = "model.chat.api_key";
     public const string ChatTemperature = "model.chat.temperature";
     public const string ChatMaxTokens = "model.chat.max_tokens";
     public const string EmbeddingUrl = "model.embedding.url";
