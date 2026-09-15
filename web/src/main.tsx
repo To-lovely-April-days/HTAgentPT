@@ -12,6 +12,7 @@ import ProjectsPage from './pages/projects/ProjectsPage'
 import ProjectDetailPage from './pages/projects/ProjectDetailPage'
 import GeneratePage from './pages/generate/GeneratePage'
 import ContractPage from './pages/generate/ContractPage'
+import TicketsPage from './pages/tickets/TicketsPage'
 import TranslatePage from './pages/translate/TranslatePage'
 import CasesPage from './pages/cases/CasesPage'
 import CaseDetailPage from './pages/cases/CaseDetailPage'
@@ -69,7 +70,7 @@ function App() {
         <Route path="cases/new" element={<CaseEntryPage />} />
         <Route path="cases/:caseId" element={<CaseDetailPage />} />
         <Route path="cases/:caseId/edit" element={<CaseEntryPage />} />
-        <Route path="tickets" element={<Placeholder name="报修工单" api="/api/tickets" />} />
+        <Route path="tickets" element={<TicketsPage />} />
         <Route path="review" element={<Placeholder name="共享案例审核台" api="/api/review/*" />} />
         <Route path="admin" element={<AdminLayout />}>
           <Route index element={<AdminHome />} />

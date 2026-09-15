@@ -1,0 +1,64 @@
+/* 客户侧（隔离区）样式。对内网规范的公开例外：可点区域最小 44×44、
+   输入框字号不低于 16（低于 16 触发 iOS 聚焦自动放大）、正文 15。
+   微信内核约束：不用 :has()/容器查询/dvh，不用 100vh 定高。 */
+:root {
+  --bg: #f4f6f9;
+  --panel: #ffffff;
+  --line: #e2e6ec;
+  --ink: #1c2530;
+  --ink-2: #5a6673;
+  --ink-3: #8a95a3;
+  --accent: #2f5ccc;
+  --accent-bg: #eef2fd;
+  --ok: #1c6b45;
+  --ok-bg: #e6f2ec;
+  --warn: #8a5a00;
+  --warn-bg: #fdf4e3;
+  --font: "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 560px; margin: 0 auto; padding: 0 16px 40px; }
+.topbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px; background: var(--panel); border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 10;
+}
+.brand-mark {
+  width: 30px; height: 30px; border-radius: 6px; background: var(--accent); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;
+}
+.inp {
+  width: 100%; height: 48px; padding: 0 14px; font-size: 16px; font-family: var(--font);
+  border: 1px solid #cfd6df; border-radius: 8px; background: var(--panel); color: var(--ink);
+}
+textarea.inp { height: auto; min-height: 110px; padding: 12px 14px; line-height: 1.7; resize: vertical; }
+.btn {
+  display: flex; align-items: center; justify-content: center; width: 100%; min-height: 44px;
+  border: none; border-radius: 8px; font-size: 16px; font-weight: 600; font-family: var(--font);
+  background: var(--accent); color: #fff; cursor: pointer;
+}
+.btn:disabled { opacity: .5; }
+.btn-ghost {
+  display: flex; align-items: center; justify-content: center; width: 100%; min-height: 44px;
+  border: 1px solid #cfd6df; border-radius: 8px; font-size: 15px; font-family: var(--font);
+  background: var(--panel); color: var(--ink-2); cursor: pointer;
+}
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+.chip {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px;
+  border: 1px solid var(--line); border-radius: 22px; background: var(--panel);
+  font-size: 15px; color: var(--ink-2); cursor: pointer;
+}
+.mono { font-family: ui-monospace, "SF Mono", Consolas, monospace; }
+.hint { font-size: 13px; color: var(--ink-3); line-height: 1.7; }
+.label { font-size: 13px; color: var(--ink-2); margin: 0 0 6px; }
+a.plain { color: var(--accent); text-decoration: none; }

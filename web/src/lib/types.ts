@@ -119,6 +119,18 @@ export const STRATEGY_LABEL: Record<string, string> = {
 /** 表 4-5：这些类别的文档必须关联项目编号（条件必填）。 */
 export const PROJECT_LINKED_CATEGORIES = ['方案', '合同', '报价', '图纸', '交付报告', '故障记录'];
 
+// ── 报修工单（B5/B6，FR-8.8 最简流转）─────────────────────────
+export type TicketStatus = 'Submitted' | 'Assigned' | 'InProgress' | 'Resolved' | 'Closed';
+export interface TicketTrailEntry { at: string; by: string; status: string; note: string | null; forCustomer: boolean; }
+export interface TicketRow {
+  id: string; ticketNo: string; customerNo: string; deviceNo: string; description: string;
+  contact: string; status: TicketStatus; assigneeId: string | null; assigneeName: string | null;
+  trail: TicketTrailEntry[]; createdAt: string; updatedAt: string;
+}
+export const TICKET_LABEL: Record<TicketStatus, string> = {
+  Submitted: '已提交', Assigned: '已受理', InProgress: '处理中', Resolved: '已解决', Closed: '已关闭',
+};
+
 // ── 方案生成（A4-A12）与条款库（FR-5.18）───────────────────────
 export type SlotFillSource = 'Template' | 'Inherited' | 'AiSuggested' | 'Confirmed';
 

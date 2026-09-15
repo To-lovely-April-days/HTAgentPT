@@ -147,21 +147,21 @@ public class CustomerService(
         await LogTicket("ticket.assign", ticket, new { assigneeId, assignee.DisplayName }, ct);
     }
 
-    public async Task UpdateTicketStatusAsync(Guid ticketId, TicketStatus status, string? note, CancellationToken ct = default)
+    public async Task UpdateTicketStatusAsync(Guid ticketId, TicketStatus status, string? note, bool forCustomer = false, CancellationToken ct = default)
     {
         var ticket = await GetTicket(ticketId, ct);
         ticket.Status = status;
-        AppendTrail(ticket, status, note);
+        AppendTrail(ticket, status, note, forCustomer);
         await db.SaveChangesAsync(ct);
-        await LogTicket("ticket.status", ticket, new { status = status.ToString(), note }, ct);
+        await LogTicket("ticket.status", ticket, new { status = status.ToString(), note, forCustomer }, ct);
     }
 
-    private void AppendTrail(Ticket ticket, TicketStatus status, string? note)
+    private void AppendTrail(Ticket ticket, TicketStatus status, string? note, bool forCustomer = false)
     {
         var trail = ticket.Updates is null
             ? []
             : JsonSerializer.Deserialize<List<TicketTrailEntry>>(ticket.Updates) ?? new List<TicketTrailEntry>();
-        trail.Add(new TicketTrailEntry(DateTimeOffset.UtcNow, me.Username, status.ToString(), note));
+        trail.Add(new TicketTrailEntry(DateTimeOffset.UtcNow, me.Username, status.ToString(), note, forCustomer));
         ticket.Updates = JsonSerializer.Serialize(trail);
         ticket.UpdatedAt = DateTimeOffset.UtcNow;
     }

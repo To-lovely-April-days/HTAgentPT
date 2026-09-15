@@ -49,12 +49,13 @@ public class TicketsController(ICustomerService customers) : ControllerBase
         return NoContent();
     }
 
-    public record StatusBody(TicketStatus Status, string? Note);
+    public record StatusBody(TicketStatus Status, string? Note, bool ForCustomer = false);
 
+    /// <summary>forCustomer=true 的备注会出现在客户侧进度页（K5），内部记录保持 false。</summary>
     [HttpPost("{id:guid}/status")]
     public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] StatusBody body, CancellationToken ct)
     {
-        await customers.UpdateTicketStatusAsync(id, body.Status, body.Note, ct);
+        await customers.UpdateTicketStatusAsync(id, body.Status, body.Note, body.ForCustomer, ct);
         return NoContent();
     }
 }
