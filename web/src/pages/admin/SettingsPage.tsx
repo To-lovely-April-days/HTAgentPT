@@ -45,6 +45,16 @@ const GROUPS: { title: string; keys: [string, string][] }[] = [
       ['translate.batch_chars', '翻译单批字数'],
     ],
   },
+  {
+    // 嵌入/重排走 OpenAI 兼容 /v1/embeddings 与 /rerank 形态（本地推理服务）。
+    // 改嵌入模型名后页底哨兵会亮出不一致分块数——用旁边的重建按钮全量补齐。
+    // 维度不在此列：结构性参数，随部署定，改它意味着重建整个向量列。
+    title: '模型服务（向量化与重排）',
+    keys: [
+      ['model.embedding.url', '向量化服务地址'], ['model.embedding.name', '向量化模型名'],
+      ['model.rerank.url', '重排服务地址'], ['model.rerank.name', '重排模型名'],
+    ],
+  },
 ];
 
 export default function SettingsPage() {
@@ -213,6 +223,22 @@ function ParamsTab() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [rebuilding, setRebuilding] = useState(false);
+  const [rebuildMsg, setRebuildMsg] = useState<string | null>(null);
+
+  const rebuild = async () => {
+    setRebuilding(true);
+    setRebuildMsg(null);
+    try {
+      const r = await post<{ documents: number; chunks: number }>('/api/ops/embedding-rebuild', {});
+      setRebuildMsg(`已清空 ${r.chunks} 个分块的旧向量并入队 ${r.documents} 篇文档重算。重算由解析队列逐篇执行，期间这些内容按关键词检索；本行数字会随进度回落。`);
+      void qc.invalidateQueries({ queryKey: ['embed-consistency'] });
+    } catch (err) {
+      setRebuildMsg(err instanceof ApiError ? err.message : '重建入队失败，请稍后重试');
+    } finally {
+      setRebuilding(false);
+    }
+  };
 
   const values = { ...(cfg.data ?? {}), ...draft };
   const dirty = Object.keys(draft).filter((k) => draft[k] !== (cfg.data ?? {})[k]);
@@ -250,7 +276,8 @@ function ParamsTab() {
           </div>
           <div style={{ fontSize: 12, lineHeight: 1.7, color: 'var(--cls-int-fg)' }}>
             更换向量化模型必须连带全量重建向量——新旧向量不在同一空间，混用时检索会持续返回错的结果且不报错。
-            重建期间检索按关键词降级。模型地址与名称在服务端配置中维护，改名后由重建任务逐块补齐。
+            模型地址与名称在下方「模型服务」组维护；改名保存后，用页底的「重建不一致向量」逐篇补齐，
+            重建期间这些内容的检索按关键词降级。
           </div>
         </div>
 
@@ -287,11 +314,20 @@ function ParamsTab() {
           保存 {dirty.length > 0 ? `${dirty.length} 项变更` : ''}
         </button>
 
-        {/* 哨兵行：常驻页底，不能只写日志 */}
-        <div className="m" style={{ marginTop: 20, paddingTop: 12, borderTop: '1px solid var(--line)', fontSize: 12, color: (sentinel.data?.inconsistent ?? 0) > 0 ? 'var(--cls-conf-fg)' : 'var(--ink-3)' }}>
-          与当前向量化模型不一致的分块 = {sentinel.data ? `${sentinel.data.inconsistent} / ${sentinel.data.totalChunks}` : '…'}
-          {(sentinel.data?.inconsistent ?? 0) > 0 && '　——存在不一致分块时，这些内容的语义检索结果不可信'}
+        {/* 哨兵行：常驻页底，不能只写日志；重建动作就近放在数字旁边 */}
+        <div className="m" style={{ marginTop: 20, paddingTop: 12, borderTop: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, color: (sentinel.data?.inconsistent ?? 0) > 0 ? 'var(--cls-conf-fg)' : 'var(--ink-3)' }}>
+          <span>
+            与当前向量化模型（{sentinel.data?.currentModel || '…'}）不一致的分块 = {sentinel.data ? `${sentinel.data.inconsistent} / ${sentinel.data.totalChunks}` : '…'}
+            {(sentinel.data?.inconsistent ?? 0) > 0 && '　——存在不一致分块时，这些内容的语义检索结果不可信'}
+          </span>
+          {(sentinel.data?.inconsistent ?? 0) > 0 && (
+            <button className="pbtn" style={{ height: 26, padding: '0 12px', flexShrink: 0 }} disabled={rebuilding}
+              onClick={() => void rebuild()}>
+              {rebuilding ? '入队中…' : '重建不一致向量'}
+            </button>
+          )}
         </div>
+        {rebuildMsg && <div className="hint" style={{ marginTop: 6 }}>{rebuildMsg}</div>}
       </div>
     </div>
   );

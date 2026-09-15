@@ -43,6 +43,8 @@ services:
       Jwt__AllowInsecureDevKey: "false"
       # 解析引擎：留空随演示桩；接了解析服务（如另一台机器上的 MinerU）在 .env 设 MODELS_PARSER=mineru
       Models__Parser: ${MODELS_PARSER:-}
+      # 嵌入/重排：true=演示实现；接好向量化与重排服务后设 false（地址在「系统设置」维护）
+      Models__UseStubs: ${MODELS_USESTUBS:-true}
       Seed__AdminPassword: ${ADMIN_PASSWORD:-Admin@12345}
       # 首启种子：公司节点指向总部节点并持令牌（仅数据库首次初始化时写入；之后改走「系统设置」）
       Seed__Config__sync.hq_url: "http://server-hq:8080"
@@ -68,6 +70,7 @@ services:
       Jwt__AllowInsecureDevKey: "false"
       Node__IsHeadquarters: "true"
       Models__Parser: ${MODELS_PARSER:-}
+      Models__UseStubs: ${MODELS_USESTUBS:-true}
       Seed__AdminPassword: ${ADMIN_PASSWORD:-Admin@12345}
       # 总部节点校验来访节点令牌（与公司节点的 sync.token 一致才放行）
       Seed__Config__sync.accept_token: ${SYNC_TOKEN:-htagent-sync-token-compose-default}

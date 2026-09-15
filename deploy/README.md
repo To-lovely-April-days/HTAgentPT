@@ -137,6 +137,38 @@ docker compose -f docker-compose.yml -f docker-compose.mineru.yml up -d --build
   「系统设置 → 切分与解析 → 解析后端」按所装 MinerU 版本支持的取值切换（如 vlm 系列）。
 - `.txt` / `.md` 纯文本文件不经过 MinerU，始终本地直接解析。
 
+## 按选型表部署模型服务（GPU 机器）
+
+选型：对话与视觉模型 Qwen3.8-27B、向量化 bge-m3、重排 bge-reranker、推理框架 vLLM。
+三个服务共卡部署，按显存占比分配（27B 模型是大头，向量化与重排都很小）：
+
+```bash
+pip install vllm   # 或用 vllm/vllm-openai 官方容器镜像
+
+# 对话模型（端口 8000，OpenAI 兼容 /v1）
+vllm serve Qwen/Qwen3.8-27B --port 8000 --gpu-memory-utilization 0.75
+
+# 向量化 bge-m3（端口 8001，/v1/embeddings，1024 维——与系统向量列一致）
+vllm serve BAAI/bge-m3 --task embed --port 8001 --gpu-memory-utilization 0.08
+
+# 重排 bge-reranker（端口 8002，/rerank）
+vllm serve BAAI/bge-reranker-v2-m3 --task score --port 8002 --gpu-memory-utilization 0.08
+```
+
+然后回到系统里接线（设 GPU 机器地址为 `<GPU_IP>`，与主系统同机部署时用 `host.docker.internal`）：
+
+1. `.env` 里取消注释 `MODELS_USESTUBS=false`，`docker compose up -d` 重建两个后端节点；
+2. admin 登录 → 系统设置：
+   - **对话模型卡**选「Qwen/Qwen3.8-27B」，服务地址填 `http://<GPU_IP>:8000/v1`；
+   - **模型服务组**：向量化服务地址 `http://<GPU_IP>:8001/v1/embeddings`、向量化模型名 `BAAI/bge-m3`，
+     重排服务地址 `http://<GPU_IP>:8002/rerank`、重排模型名 `BAAI/bge-reranker-v2-m3`；
+3. 保存后页底哨兵行会亮出「与当前向量化模型不一致的分块」——点旁边的**重建不一致向量**，
+   旧向量（演示实现算的）会清空并逐篇按 bge-m3 重算；重建期间这些内容按关键词检索，
+   数字回落到 0 即完成。
+
+bge-m3 输出 1024 维，与部署包的向量列维度一致，不需要动数据库。总部节点如需同样能力，
+在总部审核台的系统设置里做同样的配置（两个节点各自独立）。
+
 ## 说明
 
 - **数据都在卷里**：数据库、上传文件、备份分别在 `pgdata`、`company-files`、`hq-files`

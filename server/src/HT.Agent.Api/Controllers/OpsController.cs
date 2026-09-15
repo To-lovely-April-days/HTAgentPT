@@ -16,7 +16,7 @@ namespace HT.Agent.Api.Controllers;
 [Authorize]
 [RequirePermission(PermissionKeys.SystemConfig)]
 public class OpsController(AppDbContext db, BackupService backup, IRuntimeConfig config,
-    IAuditWriter audit, ICurrentUser me) : ControllerBase
+    IAuditWriter audit, ICurrentUser me, IEmbeddingClient embedder) : ControllerBase
 {
     /// <summary>最近一次各类备份的时间、结果与大小（FR-9.4），失败突出由前端按 ok=false 渲染。</summary>
     [HttpGet("backup/status")]
@@ -105,11 +105,43 @@ public class OpsController(AppDbContext db, BackupService backup, IRuntimeConfig
     [HttpGet("embedding-consistency")]
     public async Task<IActionResult> EmbeddingConsistency(CancellationToken ct)
     {
-        var current = await config.GetStringAsync(ConfigKeys.EmbeddingModelName, "", ct);
+        // 对比口径必须是落库同款标签（模型名@维度，桩为 stub@维度）——拿裸模型名比会误报全量不一致
+        var current = await embedder.CurrentTagAsync(ct);
         var total = await db.Chunks.CountAsync(c => c.IsActive, ct);
         var inconsistent = await db.Chunks.CountAsync(
             c => c.IsActive && (c.EmbeddingModel == null || c.EmbeddingModel != current), ct);
         return Ok(new { currentModel = current, totalChunks = total, inconsistent });
+    }
+
+    /// <summary>全量重建不一致向量（E15 哨兵行的修复动作；FR-2.2 换模型必须连带全量重建）。
+    /// 把与当前模型不一致的分块向量清空并按文档入队重算——清空即显式降级：重建期间这些分块
+    /// 只走关键词检索（琥珀卡文案与此一致），好过继续拿不同空间的旧向量算相似度还不报错。</summary>
+    [HttpPost("embedding-rebuild")]
+    public async Task<IActionResult> EmbeddingRebuild(CancellationToken ct)
+    {
+        var current = await embedder.CurrentTagAsync(ct);
+        var stale = db.Chunks.Where(c => c.IsActive && (c.EmbeddingModel == null || c.EmbeddingModel != current));
+        var docIds = await stale.Select(c => c.DocId).Distinct().ToListAsync(ct);
+        if (docIds.Count == 0) return Ok(new { documents = 0, chunks = 0 });
+
+        var chunks = await stale.ExecuteUpdateAsync(s => s
+            .SetProperty(c => c.Embedding, (Pgvector.Vector?)null)
+            .SetProperty(c => c.EmbeddingModel, (string?)null), ct);
+        // 已排队未跑的 EmbedDoc 不重复入队（重复入队无害但白跑）
+        var pending = await db.ParseJobs
+            .Where(j => j.Kind == ParseJobKind.EmbedDoc && (j.Status == JobStatus.Queued || j.Status == JobStatus.Waiting))
+            .Select(j => j.DocId).ToListAsync(ct);
+        foreach (var docId in docIds.Except(pending))
+            db.ParseJobs.Add(new ParseJob
+            {
+                Id = Guid.NewGuid(), DocId = docId, Kind = ParseJobKind.EmbedDoc,
+                QueuedBy = me.UserId, QueuedAt = DateTimeOffset.UtcNow
+            });
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(new AuditEntry("embedding.rebuild", AuditResult.Success,
+            UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+            Detail: new { model = current, documents = docIds.Count, chunks }), ct);
+        return Ok(new { documents = docIds.Count, chunks });
     }
 
     /// <summary>远程接入综合视图（FR-9.7，E16）：绑定关系 + 最近接入（来自审计，与操作日志同一时间线）。</summary>

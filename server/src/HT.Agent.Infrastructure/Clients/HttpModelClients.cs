@@ -80,6 +80,13 @@ public class OpenAiChatClient(IHttpClientFactory httpFactory, IRuntimeConfig con
 /// <summary>向量化（表 8-2：批量，批大小可配置）。OpenAI 兼容 /embeddings 形态。</summary>
 public class HttpEmbeddingClient(IHttpClientFactory httpFactory, IRuntimeConfig config) : IEmbeddingClient
 {
+    public async Task<string> CurrentTagAsync(CancellationToken ct = default)
+    {
+        var model = await config.GetStringAsync(ConfigKeys.EmbeddingModelName, "embedding-default", ct);
+        var dim = await config.GetIntAsync(ConfigKeys.EmbeddingDimension, 1024, ct);
+        return $"{model}@{dim}";
+    }
+
     public async Task<EmbeddingBatch> EmbedAsync(IReadOnlyList<string> texts, CancellationToken ct = default)
     {
         // 全部配置在调用开始时一次定格：中途改配置不会产生「新模型算的向量贴旧标签」

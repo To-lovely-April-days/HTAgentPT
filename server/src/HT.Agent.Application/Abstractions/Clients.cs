@@ -16,6 +16,11 @@ public record ChatTurn(string Role, string Content);
 public interface IEmbeddingClient
 {
     Task<EmbeddingBatch> EmbedAsync(IReadOnlyList<string> texts, CancellationToken ct = default);
+
+    /// <summary>当前配置下将会打在分块上的模型标签（与 EmbeddingBatch.ModelTag 同一口径）。
+    /// 一致性哨兵与重建判定必须用这个，而不是裸模型名——标签含维度（如 bge-m3@1024），
+    /// 拿裸名对比会把一致的库判成全量不一致。</summary>
+    Task<string> CurrentTagAsync(CancellationToken ct = default);
 }
 
 public record EmbeddingBatch(IReadOnlyList<float[]> Vectors, string ModelTag);
