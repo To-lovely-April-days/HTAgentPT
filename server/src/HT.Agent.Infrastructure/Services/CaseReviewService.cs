@@ -170,6 +170,20 @@ public class CaseReviewService(
         await Log("case.approve", c, new { edited = edited is not null }, ct);
     }
 
+    public async Task WithdrawAsync(Guid caseId, CancellationToken ct = default)
+    {
+        EnsureHq();
+        var c = await db.FaultCases.FirstOrDefaultAsync(x => x.Id == caseId, ct);
+        if (c is null) return; // 已不在待审队列——幂等成功，公司侧照常回退
+        if (c.SyncStatus != CaseSyncStatus.Pending)
+            throw new DomainRuleException("REVIEW_ALREADY_DECIDED", "该案例已有审核结论，不能撤回");
+        db.FaultCases.Remove(c);
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(new AuditEntry("case.withdraw", AuditResult.Success,
+            Username: $"sync-node({c.SourceCompany})",
+            TargetType: "fault_case", TargetId: caseId.ToString(), Detail: new { c.CaseNo }), ct);
+    }
+
     public async Task RejectAsync(Guid caseId, string reason, CancellationToken ct = default)
     {
         EnsureHq();

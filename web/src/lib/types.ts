@@ -1,4 +1,5 @@
-// 与后端契约对应的最小类型集（第 1 批用到的部分）。
+// 与后端契约对应的最小类型集。
+import type React from 'react';
 
 export type Classification = 'Confidential' | 'Internal' | 'Public';
 
@@ -57,6 +58,40 @@ export interface ProjectDetail { row: ProjectRow; documents: ProjectDocRow[]; }
 
 export const DELIVERY_LABEL: Record<string, string> = {
   InProgress: '进行中', Delivered: '已交付', Closed: '已结项',
+};
+
+// ── 故障案例（B 组）───────────────────────────────────────────
+export type CaseSyncStatus = 'Local' | 'Pending' | 'Shared' | 'Rejected';
+
+export interface CaseRow {
+  id: string; caseNo: string; deviceModel: string; alarmCode: string | null;
+  phenomenon: string; result: string; syncStatus: CaseSyncStatus;
+  sourceCompany: string | null; createdAt: string; updatedAt: string;
+}
+
+export interface CaseModelGroup {
+  deviceModel: string; count: number; ownCount: number; sharedCount: number; top: CaseRow[];
+}
+
+export interface CaseDetailData {
+  id: string; caseNo: string; deviceModel: string; alarmCode: string | null;
+  phenomenon: string; causeAnalysis: string; steps: string; spareParts: string | null;
+  result: string; extra: Record<string, string>; syncStatus: CaseSyncStatus;
+  rejectReason: string | null; sourceCompany: string | null; createdById: string;
+  createdAt: string; updatedAt: string; chunkId: number | null;
+}
+
+export interface SensitiveHit { field: string; kind: string; match: string; }
+
+export const SYNC_LABEL: Record<CaseSyncStatus, string> = {
+  Local: '本地生效', Pending: '待总部审核', Shared: '已并入共享库', Rejected: '已驳回',
+};
+/** 四态徽章配色与 B3 原型一致：local 灰 / pending 琥珀 / shared 绿 / rejected 红。 */
+export const SYNC_PILL_STYLE: Record<CaseSyncStatus, React.CSSProperties> = {
+  Local: { background: '#eef1f5', color: '#5a6673', border: '1px solid #dde3ea' },
+  Pending: { background: '#fdf4e3', color: '#8a5a00', border: '1px solid #f0dcb4' },
+  Shared: { background: '#e6f2ec', color: '#1c6b45', border: '1px solid #c2ded1' },
+  Rejected: { background: '#fdeceb', color: '#b3261e', border: '1px solid #f5cdc9' },
 };
 
 export interface VocabRow { id: string; vocabKey: string; value: string; aliases: string | null; isActive: boolean; }

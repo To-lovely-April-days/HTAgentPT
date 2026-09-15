@@ -15,11 +15,15 @@ public interface IFaultCaseService
     Task<IReadOnlyList<Logic.SensitiveScanner.Hit>> CheckSensitiveAsync(Guid caseId, CancellationToken ct = default);
     /// <summary>提交总部（FR-8.3）：检测有命中且未确认时拒绝；经同步通道上传，本地状态置 Pending。</summary>
     Task SubmitAsync(Guid caseId, bool acknowledged, CancellationToken ct = default);
+    /// <summary>撤回提交：仅 Pending 可撤；先请总部撤下待审副本，成功后本地回到 Local。
+    /// 总部已作出结论的撤不回——按结论回传处理。</summary>
+    Task WithdrawAsync(Guid caseId, CancellationToken ct = default);
     /// <summary>同型归并视图（FR-8.6）：同一设备型号折叠展示，避免同类内容占满结果。</summary>
     Task<IReadOnlyList<CaseModelGroup>> SearchGroupedAsync(CaseSearchRequest req, CancellationToken ct = default);
 }
 
-public record CaseModelGroup(string DeviceModel, int Count, IReadOnlyList<CaseRow> Top);
+/// <summary>同型归并组（FR-8.6）。OwnCount/SharedCount：本公司录入与共享库下发（带来源公司标注）的拆分。</summary>
+public record CaseModelGroup(string DeviceModel, int Count, int OwnCount, int SharedCount, IReadOnlyList<CaseRow> Top);
 
 /// <summary>总部审核（FR-8.4/8.5）。只存在于总部节点的角色可用（表 3-1）。</summary>
 public interface ICaseReviewService
@@ -34,6 +38,8 @@ public interface ICaseReviewService
     Task ApproveAsync(Guid caseId, CaseEdit? edited, CancellationToken ct = default);
     /// <summary>驳回：原因必填，回传至提交人（FR-8.4）。</summary>
     Task RejectAsync(Guid caseId, string reason, CancellationToken ct = default);
+    /// <summary>公司节点撤回其待审案例：仍在 Pending 则撤下（幂等）；已有结论则拒绝。</summary>
+    Task WithdrawAsync(Guid caseId, CancellationToken ct = default);
 }
 
 public record SubmittedCase(

@@ -238,9 +238,50 @@ public class FaultCaseService(
     {
         var rows = await SearchAsync(req with { Limit = 500 }, ct);
         return rows.GroupBy(r => r.DeviceModel)
-            .Select(g => new CaseModelGroup(g.Key, g.Count(), g.Take(3).ToList()))
+            .Select(g => new CaseModelGroup(g.Key, g.Count(),
+                g.Count(r => r.SourceCompany is null),
+                g.Count(r => r.SourceCompany is not null),
+                g.Take(3).ToList()))
             .OrderByDescending(g => g.Count)
             .ToList();
+    }
+
+    public async Task WithdrawAsync(Guid caseId, CancellationToken ct = default)
+    {
+        var c = await db.FaultCases.FirstOrDefaultAsync(
+            x => x.Id == caseId && x.CompanyId == me.CompanyId, ct)
+            ?? throw new DomainRuleException("CASE_NOT_FOUND", "案例不存在");
+        if (c.SyncStatus != CaseSyncStatus.Pending)
+            throw new DomainRuleException("CASE_NOT_PENDING", "只有待总部审核的案例才能撤回");
+
+        // 先撤总部的待审副本，成功了本地才回退——反过来会留下一个总部还在审、本地已回退的分叉
+        var hqUrl = (await config.GetStringAsync(ConfigKeys.SyncHqUrl, "", ct)).TrimEnd('/');
+        var token = await config.GetStringAsync(ConfigKeys.SyncToken, "", ct);
+        if (hqUrl.Length == 0)
+            throw new DomainRuleException("SYNC_NOT_CONFIGURED", "尚未配置总部节点地址（sync.hq_url）");
+        var http = httpFactory.CreateClient("sync");
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"{hqUrl}/api/sync/cases/{caseId}/withdraw");
+            req.Headers.Add("X-Sync-Token", token);
+            var resp = await http.SendAsync(req, ct);
+            if (resp.StatusCode == System.Net.HttpStatusCode.UnprocessableEntity)
+                throw new DomainRuleException("REVIEW_ALREADY_DECIDED",
+                    "总部已对该案例作出审核结论，无法撤回——结论稍后会回传到这里");
+            if (!resp.IsSuccessStatusCode)
+                throw new DomainRuleException("WITHDRAW_HQ_REFUSED", $"总部节点拒绝撤回（HTTP {(int)resp.StatusCode}）");
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new DomainRuleException("WITHDRAW_HQ_UNREACHABLE",
+                $"总部节点不可达：{ex.Message}。撤回未生效，稍后重试（10.3）");
+        }
+        c.SyncStatus = CaseSyncStatus.Local;
+        c.SubmittedAt = null;
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(new AuditEntry("case.withdraw", AuditResult.Success,
+            UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+            TargetType: "fault_case", TargetId: caseId.ToString(), Detail: new { c.CaseNo }), ct);
     }
 
     private static void Validate(CaseEdit e)

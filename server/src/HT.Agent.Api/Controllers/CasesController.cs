@@ -57,4 +57,13 @@ public class CasesController(IFaultCaseService cases) : ControllerBase
         await cases.SubmitAsync(id, body.Acknowledged, ct);
         return NoContent();
     }
+
+    /// <summary>撤回提交（B3 pending 态主动作）：总部仍在待审才可撤，撤回后回到本地生效。</summary>
+    [HttpPost("{id:guid}/withdraw")]
+    [RequirePermission(PermissionKeys.CaseWrite)]
+    public async Task<IActionResult> Withdraw(Guid id, CancellationToken ct)
+    {
+        await cases.WithdrawAsync(id, ct);
+        return NoContent();
+    }
 }

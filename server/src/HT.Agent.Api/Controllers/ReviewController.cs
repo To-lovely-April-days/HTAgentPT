@@ -20,6 +20,17 @@ public class SyncCasesController(ICaseReviewService review, IRuntimeConfig confi
         return NoContent();
     }
 
+    /// <summary>公司节点撤回待审案例：DomainRule REVIEW_ALREADY_DECIDED 经错误中间件转 422，
+    /// 公司侧据此提示「已有结论撤不回」。</summary>
+    [HttpPost("{id:guid}/withdraw")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Withdraw(Guid id, CancellationToken ct)
+    {
+        if (!await TokenOk(ct)) return Rejected();
+        await review.WithdrawAsync(id, ct);
+        return NoContent();
+    }
+
     [HttpGet("status")]
     [AllowAnonymous]
     public async Task<IActionResult> Status([FromQuery] string ids, CancellationToken ct)
