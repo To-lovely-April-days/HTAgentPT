@@ -88,6 +88,8 @@ export function AdminHome() {
 
   return (
     <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '22px 26px' }}>
+      {/* 内容列居中：宽屏下两侧留白均衡，而不是全部内容堆在左栏旁边 */}
+      <div style={{ maxWidth: 1080, margin: '0 auto' }}>
       <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>管理后台</div>
       <div className="hint" style={{ marginBottom: 14 }}>
         告警知悉后不撤除——要等同类型任务真正成功一次才消。首屏只放不处理就会一直卡着的事。
@@ -95,7 +97,7 @@ export function AdminHome() {
 
       {/* 告警条（FR-9.3：任务失败须告警，不得仅写日志） */}
       {(alerts.data ?? []).map((a) => (
-        <div key={a.runId} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 15px', marginBottom: 10, maxWidth: 900, background: 'var(--cls-conf-bg)', border: '1px solid var(--cls-conf-line)', borderRadius: 6 }}>
+        <div key={a.runId} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 15px', marginBottom: 10, background: 'var(--cls-conf-bg)', border: '1px solid var(--cls-conf-line)', borderRadius: 6 }}>
           <div style={{ flexGrow: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--cls-conf-fg)' }}>
               {BACKUP_KIND_LABEL[a.kind] ?? a.kind}失败{a.consecutiveFailures > 1 ? `（连续 ${a.consecutiveFailures} 次）` : ''}
@@ -115,22 +117,22 @@ export function AdminHome() {
         </div>
       ))}
       {alerts.data && alerts.data.length === 0 && (
-        <div style={{ padding: '10px 15px', marginBottom: 10, maxWidth: 900, background: '#e6f2ec', border: '1px solid #c2ded1', borderRadius: 6, fontSize: 12.5, color: '#1c6b45' }}>
+        <div style={{ padding: '10px 15px', marginBottom: 10, background: '#e6f2ec', border: '1px solid #c2ded1', borderRadius: 6, fontSize: 12.5, color: '#1c6b45' }}>
           备份任务无未消告警。
         </div>
       )}
 
-      {/* 待办：不处理就会一直卡着的事 */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', margin: '4px 0 22px', maxWidth: 900 }}>
+      {/* 待办：不处理就会一直卡着的事——四卡等分撑满内容列 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, margin: '4px 0 22px' }}>
         {todo.map(([label, n, to]) => (
-          <NavLink key={label} to={to} className="card" style={{ width: 170, padding: '12px 14px', textDecoration: 'none', color: 'inherit' }}>
+          <NavLink key={label} to={to} className="card" style={{ padding: '12px 14px', textDecoration: 'none', color: 'inherit' }}>
             <div className="m" style={{ fontSize: 20, fontWeight: 600, color: (n ?? 0) > 0 ? 'var(--cls-int-fg)' : 'var(--ink-3)' }}>{n ?? '…'}</div>
             <div style={{ fontSize: 12, color: 'var(--ink-2)', marginTop: 2 }}>{label}</div>
           </NavLink>
         ))}
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, maxWidth: 900 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
         {[
           ['语料管理', '上传登记、提交解析、失败处理', '/admin/corpus'],
           ['知识库管理', '分层（共享/私有/公开）与切分策略', '/admin/kbs'],
@@ -140,11 +142,12 @@ export function AdminHome() {
           ['系统设置', '阈值、并发、节点与备份配置', '/admin/settings'],
           ['审计与统计', '只写不改的操作留痕与使用统计', '/admin/audit'],
         ].map(([name, desc, to]) => (
-          <NavLink key={to} to={to} className="card" style={{ width: 272, padding: '14px 16px', textDecoration: 'none', color: 'inherit' }}>
+          <NavLink key={to} to={to} className="card" style={{ padding: '14px 16px', textDecoration: 'none', color: 'inherit' }}>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{name}</div>
             <div className="hint" style={{ lineHeight: 1.6 }}>{desc}</div>
           </NavLink>
         ))}
+      </div>
       </div>
     </div>
   );

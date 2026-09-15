@@ -45,7 +45,7 @@ function StatsTab() {
 
   return (
     <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '18px 22px' }}>
-      <div style={{ maxWidth: 940 }}>
+      <div style={{ maxWidth: 1120, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>近 8 周使用情况</span>
           <div style={{ flexGrow: 1 }} />

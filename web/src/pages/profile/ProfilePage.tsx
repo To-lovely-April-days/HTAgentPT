@@ -30,7 +30,7 @@ export default function ProfilePage() {
 
   return (
     <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '20px 24px' }}>
-      <div style={{ maxWidth: 760 }}>
+      <div style={{ maxWidth: 820, margin: '0 auto' }}>
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>个人中心</div>
 
         <div className="card" style={{ padding: '14px 16px', marginBottom: 12 }}>

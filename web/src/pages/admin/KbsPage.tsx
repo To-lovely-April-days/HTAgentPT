@@ -68,11 +68,11 @@ function KbListTab() {
 
   return (
     <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '18px 22px' }}>
-      <div style={{ maxWidth: 860 }}>
+      <div style={{ maxWidth: 1080, margin: '0 auto' }}>
         {kbs.isLoading && <Spinner text="载入…" />}
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12, marginBottom: 16 }}>
           {(kbs.data ?? []).map((k) => (
-            <div key={k.id} className="card" style={{ width: 268, padding: '14px 16px' }}>
+            <div key={k.id} className="card" style={{ padding: '14px 16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <span style={{ fontSize: 13, fontWeight: 600 }}>{k.name}</span>
                 <span className="pill" style={TIER_PILL[k.tier]}>{KB_TIER_LABEL[k.tier]}</span>
@@ -146,7 +146,7 @@ function SyncTab() {
 
   return (
     <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '18px 22px' }}>
-      <div style={{ maxWidth: 720 }}>
+      <div style={{ maxWidth: 860, margin: '0 auto' }}>
         <div className="hint" style={{ lineHeight: 1.75, marginBottom: 14 }}>
           从总部拉取集团共享库并合入本地。同步包附带总部所用向量化模型的版本标识：
           与本机一致时直接复用向量省去重算；不一致时新增与更新的文档要在本地重算向量，
@@ -228,7 +228,7 @@ function PublishTab() {
 
   return (
     <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '18px 22px' }}>
-      <div style={{ maxWidth: 800 }}>
+      <div style={{ maxWidth: 980, margin: '0 auto' }}>
         <div className="hint" style={{ lineHeight: 1.75, marginBottom: 12 }}>
           发布是复制不是引用：在公开库创建独立副本并单独解析，原文档不变——<strong style={{ fontWeight: 600 }}>之后修改原文档不会自动同步到已发布的副本</strong>，需重新发布。
           副本确认前不对外可见，这一步是去掉内部分机、供应商联系人、流程号的地方。

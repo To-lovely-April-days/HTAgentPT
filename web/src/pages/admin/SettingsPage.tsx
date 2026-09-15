@@ -266,7 +266,7 @@ function ParamsTab() {
 
   return (
     <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '18px 22px' }}>
-      <div style={{ maxWidth: 760 }}>
+      <div style={{ maxWidth: 860, margin: '0 auto' }}>
         <ChatModelPicker cfg={cfg.data ?? {}} />
 
         {/* 换向量化模型的琥珀警示（整份 PRD 里最容易被漏掉的一条） */}
@@ -359,7 +359,7 @@ function BackupTab() {
 
   return (
     <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '18px 22px' }}>
-      <div style={{ maxWidth: 820 }}>
+      <div style={{ maxWidth: 980, margin: '0 auto' }}>
         {error && <div style={{ marginBottom: 12 }}><ErrorBox message={error} /></div>}
         {status.isLoading && <Spinner text="载入备份状态…" />}
         {status.data && (

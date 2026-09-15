@@ -33,7 +33,7 @@ export default function UsersPage() {
 
   return (
     <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '18px 22px' }}>
-      <div style={{ maxWidth: 900 }}>
+      <div style={{ maxWidth: 1080, margin: '0 auto' }}>
         <div className="hint" style={{ lineHeight: 1.7, marginBottom: 12 }}>
           账号按最小权限指派角色；角色决定可访问密级与模块。重置口令是全系统唯一的改密通道（不做自助改密）。
         </div>
