@@ -17,7 +17,7 @@ public class SwitchingChatClient(
     private async Task<IChatModelClient> PickAsync(CancellationToken ct)
     {
         // 未设 provider 时沿用部署期 Models:UseStubs 的语义，行为与旧版本一致
-        var fallback = appConfig.GetSection("Models")["UseStubs"] == "true" ? "stub" : "openai";
+        var fallback = ModelSlotDefaults.UseStubs(appConfig) ? "stub" : "openai";
         var provider = await config.GetStringAsync(ConfigKeys.ChatProvider, fallback, ct);
         return provider.Trim().Equals("stub", StringComparison.OrdinalIgnoreCase) ? stub : openAi;
     }

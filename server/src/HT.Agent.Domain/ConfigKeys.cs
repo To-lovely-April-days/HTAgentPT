@@ -14,15 +14,31 @@ public static class ConfigKeys
     public const string ChatApiKey = "model.chat.api_key";
     public const string ChatTemperature = "model.chat.temperature";
     public const string ChatMaxTokens = "model.chat.max_tokens";
+    /// <summary>向量化提供方（E15 服务选择）：stub=内置演示向量；其余值（siliconflow/local…）
+    /// 走兼容端点。运行时可切——但切换即换向量空间，须配合全量重建（页底哨兵行）。</summary>
+    public const string EmbeddingProvider = "model.embedding.provider";
     public const string EmbeddingUrl = "model.embedding.url";
     public const string EmbeddingModelName = "model.embedding.name";
+    /// <summary>在线向量化服务密钥（如硅基流动）。读取端只回显掩码。</summary>
+    public const string EmbeddingApiKey = "model.embedding.api_key";
     /// <summary>向量维度随模型定；换模型必须全量重建索引（FR-2.2、E15）。</summary>
     public const string EmbeddingDimension = "model.embedding.dimension";
     public const string EmbeddingBatchSize = "model.embedding.batch_size";
+    /// <summary>重排提供方：stub=内置演示；其余值走 /rerank 兼容端点。运行时可切，无重建代价。</summary>
+    public const string RerankProvider = "model.rerank.provider";
     public const string RerankUrl = "model.rerank.url";
     public const string RerankModelName = "model.rerank.name";
+    /// <summary>在线重排服务密钥。读取端只回显掩码。</summary>
+    public const string RerankApiKey = "model.rerank.api_key";
     // ── 解析引擎（表 8-2）──────────────────────────────
+    /// <summary>解析提供方：stub=内置演示（仅纯文本）/ mineru-local=本地 MinerU 容器 /
+    /// mineru-online=MinerU 官方在线 API / http=通用契约。运行时可切，改后即时生效。</summary>
+    public const string ParserProvider = "parser.provider";
     public const string ParserUrl = "parser.url";
+    /// <summary>MinerU 官方在线服务基址（mineru-online 时使用）。</summary>
+    public const string ParserOnlineBase = "parser.online_base";
+    /// <summary>在线解析令牌（mineru.net 用户中心领取）。读取端只回显掩码。</summary>
+    public const string ParserApiKey = "parser.api_key";
     /// <summary>解析后端（MinerU 的 backend 参数）：pipeline / vlm-transformers / vlm-vllm-engine 等，
     /// 取值随所接引擎版本。仅 Models:Parser=mineru 时生效。</summary>
     public const string ParserBackend = "parser.backend";

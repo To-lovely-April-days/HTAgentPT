@@ -115,7 +115,8 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
         finally { fromString?.Dispose(); }
     }
 
-    private static List<ParsedBlock> MapContentList(JsonElement arr)
+    /// <summary>content_list 数组 → 统一解析块。在线客户端（结果包里的同名文件）复用同一份映射。</summary>
+    public static List<ParsedBlock> MapContentList(JsonElement arr)
     {
         var blocks = new List<ParsedBlock>();
         foreach (var e in arr.EnumerateArray())

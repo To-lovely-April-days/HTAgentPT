@@ -94,12 +94,17 @@ public class HttpEmbeddingClient(IHttpClientFactory httpFactory, IRuntimeConfig 
         var model = await config.GetStringAsync(ConfigKeys.EmbeddingModelName, "embedding-default", ct);
         var dim = await config.GetIntAsync(ConfigKeys.EmbeddingDimension, 1024, ct);
         var batchSize = await config.GetIntAsync(ConfigKeys.EmbeddingBatchSize, 32, ct);
+        // 在线服务（如硅基流动）要求 Bearer 密钥；本地端点留空即可
+        var apiKey = (await config.GetStringAsync(ConfigKeys.EmbeddingApiKey, "", ct)).Trim();
         var http = httpFactory.CreateClient("model");
         var all = new List<float[]>(texts.Count);
         for (var i = 0; i < texts.Count; i += batchSize)
         {
             var batch = texts.Skip(i).Take(batchSize).ToList();
-            var resp = await http.PostAsJsonAsync(url, new { model, input = batch }, ct);
+            using var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = JsonContent.Create(new { model, input = batch }) };
+            if (apiKey.Length > 0)
+                req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+            var resp = await http.SendAsync(req, ct);
             resp.EnsureSuccessStatusCode();
             using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
             foreach (var item in doc.RootElement.GetProperty("data").EnumerateArray())
@@ -116,8 +121,12 @@ public class HttpRerankClient(IHttpClientFactory httpFactory, IRuntimeConfig con
     {
         var url = (await config.GetStringAsync(ConfigKeys.RerankUrl, "http://127.0.0.1:8081/rerank", ct)).TrimEnd('/');
         var model = await config.GetStringAsync(ConfigKeys.RerankModelName, "rerank-default", ct);
+        var apiKey = (await config.GetStringAsync(ConfigKeys.RerankApiKey, "", ct)).Trim();
         var http = httpFactory.CreateClient("model");
-        var resp = await http.PostAsJsonAsync(url, new { model, query, documents = passages }, ct);
+        using var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = JsonContent.Create(new { model, query, documents = passages }) };
+        if (apiKey.Length > 0)
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+        var resp = await http.SendAsync(req, ct);
         resp.EnsureSuccessStatusCode();
         using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
         var scores = new double[passages.Count];

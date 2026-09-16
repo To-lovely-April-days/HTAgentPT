@@ -137,7 +137,25 @@ docker compose -f docker-compose.yml -f docker-compose.mineru.yml up -d --build
   「系统设置 → 切分与解析 → 解析后端」按所装 MinerU 版本支持的取值切换（如 vlm 系列）。
 - `.txt` / `.md` 纯文本文件不经过 MinerU，始终本地直接解析。
 
-## 按选型表部署模型服务（GPU 机器）
+## 显卡未到？先用在线接口把全链路测起来
+
+对话、向量化、重排、文档解析四项 GPU 能力，都在「系统设置」里做成了
+**在线接口 / 本地部署 / 内置演示** 三选一的卡片，改后即时生效。显卡没到货时全部选在线：
+
+| 能力 | 在线服务 | 准备什么 |
+|---|---|---|
+| 对话 | DeepSeek 官方 API | platform.deepseek.com 的 API key |
+| 向量化 | 硅基流动 · BAAI/bge-m3（免费档可用） | siliconflow.cn 注册领 API key |
+| 重排 | 硅基流动 · BAAI/bge-reranker-v2-m3（免费档可用） | 同上（同一个 key） |
+| 文档解析 | MinerU 官方在线（每天 1000 页高优先级额度） | mineru.net 用户中心领令牌 |
+
+步骤：admin 登录 → 系统设置，四张卡各选在线档、贴上密钥/令牌、点应用即可，
+不用改任何部署文件。切了向量化后记得点页底的「重建不一致向量」。
+在线档的向量化/重排与本地部署是**同一个模型**（bge 系列），显卡到货切回本地时
+向量库不用重建。注意：选在线即意味着相应内容会发往外部服务，机密语料是否
+允许出网请先按公司规定确认。
+
+## 按选型表部署模型服务（GPU 机器到货后）
 
 选型：对话与视觉模型 Qwen3.8-27B、向量化 bge-m3、重排 bge-reranker、推理框架 vLLM。
 三个服务共卡部署，按显存占比分配（27B 模型是大头，向量化与重排都很小）：
@@ -155,16 +173,15 @@ vllm serve BAAI/bge-m3 --task embed --port 8001 --gpu-memory-utilization 0.08
 vllm serve BAAI/bge-reranker-v2-m3 --task score --port 8002 --gpu-memory-utilization 0.08
 ```
 
-然后回到系统里接线（设 GPU 机器地址为 `<GPU_IP>`，与主系统同机部署时用 `host.docker.internal`）：
+然后 admin 登录 → 系统设置，三张卡各选「本地部署」并把地址指到 GPU 机器
+（设其地址为 `<GPU_IP>`，与主系统同机部署时用 `host.docker.internal`）：
 
-1. `.env` 里取消注释 `MODELS_USESTUBS=false`，`docker compose up -d` 重建两个后端节点；
-2. admin 登录 → 系统设置：
-   - **对话模型卡**选「Qwen/Qwen3.8-27B」，服务地址填 `http://<GPU_IP>:8000/v1`；
-   - **模型服务组**：向量化服务地址 `http://<GPU_IP>:8001/v1/embeddings`、向量化模型名 `BAAI/bge-m3`，
-     重排服务地址 `http://<GPU_IP>:8002/rerank`、重排模型名 `BAAI/bge-reranker-v2-m3`；
-3. 保存后页底哨兵行会亮出「与当前向量化模型不一致的分块」——点旁边的**重建不一致向量**，
-   旧向量（演示实现算的）会清空并逐篇按 bge-m3 重算；重建期间这些内容按关键词检索，
-   数字回落到 0 即完成。
+- **对话模型**：选 Qwen/Qwen3.8-27B，地址 `http://<GPU_IP>:8000/v1`；
+- **向量化模型**：选本地 bge-m3，地址 `http://<GPU_IP>:8001/v1/embeddings`；
+- **重排模型**：选本地 bge-reranker，地址 `http://<GPU_IP>:8002/rerank`。
+
+若之前一直用硅基流动在线档（同为 bge-m3），切回本地不触发重建；若从演示档切来，
+页底哨兵会亮，点**重建不一致向量**逐篇补齐（期间这些内容按关键词检索，数字回落到 0 即完成）。
 
 bge-m3 输出 1024 维，与部署包的向量列维度一致，不需要动数据库。总部节点如需同样能力，
 在总部审核台的系统设置里做同样的配置（两个节点各自独立）。

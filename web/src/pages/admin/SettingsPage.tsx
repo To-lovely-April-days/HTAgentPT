@@ -30,11 +30,11 @@ const GROUPS: { title: string; keys: [string, string][] }[] = [
     ],
   },
   {
+    // 解析服务的地址/令牌在「文档解析」卡里选，这里只留运行参数
     title: '切分与解析',
     keys: [
       ['chunking.target_length', '分块目标长度'], ['chunking.overlap', '分块重叠'],
-      ['parser.url', '解析服务地址'], ['parser.backend', '解析后端'],
-      ['parser.timeout_seconds', '解析超时（秒）'],
+      ['parser.backend', '解析后端'], ['parser.timeout_seconds', '解析超时（秒）'],
       ['parser.concurrency', '解析并发数'], ['parser.max_retries', '解析重试次数'],
     ],
   },
@@ -43,16 +43,6 @@ const GROUPS: { title: string; keys: [string, string][] }[] = [
     keys: [
       ['upload.max_file_mb', '单文件上限 MB'], ['auth.jwt_lifetime_minutes', '登录有效期（分钟）'],
       ['translate.batch_chars', '翻译单批字数'],
-    ],
-  },
-  {
-    // 嵌入/重排走 OpenAI 兼容 /v1/embeddings 与 /rerank 形态（本地推理服务）。
-    // 改嵌入模型名后页底哨兵会亮出不一致分块数——用旁边的重建按钮全量补齐。
-    // 维度不在此列：结构性参数，随部署定，改它意味着重建整个向量列。
-    title: '模型服务（向量化与重排）',
-    keys: [
-      ['model.embedding.url', '向量化服务地址'], ['model.embedding.name', '向量化模型名'],
-      ['model.rerank.url', '重排服务地址'], ['model.rerank.name', '重排模型名'],
     ],
   },
 ];
@@ -118,34 +108,44 @@ function ModelIcon({ opt }: { opt: ModelOption }) {
   return <img src={opt.iconUrl} alt="" width={30} height={30} style={{ borderRadius: 7, flexShrink: 0 }} onError={() => setFailed(true)} />;
 }
 
-function ChatModelPicker({ cfg }: { cfg: Record<string, string> }) {
+/** 通用服务选择卡（E15）：GPU 依赖的每个槽位都在 在线接口 / 本地部署 / 内置演示 间运行时切换。
+ * provider 等键名由 keys 传入；密钥只在输入了新值时提交（读取端回显掩码，原样存回会覆盖真密钥）。 */
+function ServicePicker({ title, hint, options, cfg, keys, keyLabel = '接口密钥', btnLabel = '应用选择', appliedNote, onApplied }: {
+  title: string; hint: string; options: ModelOption[]; cfg: Record<string, string>;
+  keys: { provider: string; url?: string; name?: string; apiKey: string };
+  keyLabel?: string; btnLabel?: string; appliedNote: string; onApplied?: () => void;
+}) {
   const qc = useQueryClient();
-  const current = cfg['model.chat.provider'] ?? 'stub';
+  const current = cfg[keys.provider] ?? 'stub';
+  const editableOpt = options.find((o) => o.urlEditable);
   const [selected, setSelected] = useState(current);
   const [apiKey, setApiKey] = useState('');
-  const [localUrl, setLocalUrl] = useState(cfg['model.chat.url'] && current === 'qwen-local' ? cfg['model.chat.url'] : 'http://127.0.0.1:8000/v1');
+  const [localUrl, setLocalUrl] = useState(
+    keys.url && cfg[keys.url] && current === editableOpt?.id ? cfg[keys.url] : (editableOpt?.url ?? ''));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [applied, setApplied] = useState(false);
 
-  const opt = MODEL_OPTIONS.find((o) => o.id === selected)!;
-  const keyMasked = cfg['model.chat.api_key'] ?? '';
+  const opt = options.find((o) => o.id === selected) ?? options[0];
+  const keyMasked = cfg[keys.apiKey] ?? '';
   const keyReady = !opt.needsKey || apiKey.trim().length > 0 || keyMasked.length > 0;
-  const dirty = selected !== current || apiKey.trim().length > 0 || (opt.urlEditable && localUrl.trim() !== (cfg['model.chat.url'] ?? ''));
+  const dirty = selected !== current || apiKey.trim().length > 0
+    || (opt.urlEditable && !!keys.url && localUrl.trim() !== (cfg[keys.url] ?? ''));
 
   const apply = async () => {
     setBusy(true);
     setError(null);
     setApplied(false);
     try {
-      const values: Record<string, string> = { 'model.chat.provider': selected };
-      if (opt.url) values['model.chat.url'] = opt.urlEditable ? localUrl.trim() : opt.url;
-      if (opt.modelName) values['model.chat.name'] = opt.modelName;
-      if (opt.needsKey && apiKey.trim()) values['model.chat.api_key'] = apiKey.trim();
+      const values: Record<string, string> = { [keys.provider]: selected };
+      if (keys.url && opt.url) values[keys.url] = opt.urlEditable ? localUrl.trim() : opt.url;
+      if (keys.name && opt.modelName) values[keys.name] = opt.modelName;
+      if (opt.needsKey && apiKey.trim()) values[keys.apiKey] = apiKey.trim();
       await put('/api/config', { values });
       setApiKey('');
       setApplied(true);
       void qc.invalidateQueries({ queryKey: ['config'] });
+      onApplied?.();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '保存失败');
     } finally {
@@ -155,12 +155,10 @@ function ChatModelPicker({ cfg }: { cfg: Record<string, string> }) {
 
   return (
     <div className="card" style={{ padding: '14px 16px', marginBottom: 16 }}>
-      <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 4 }}>对话模型</div>
-      <div className="hint" style={{ marginBottom: 12, lineHeight: 1.65 }}>
-        只切换问答、翻译与生成所用的对话模型，改后即时生效、不用重启。嵌入与重排模型不随此切换——换向量化模型须全量重建（见下方警示）。
-      </div>
+      <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 4 }}>{title}</div>
+      <div className="hint" style={{ marginBottom: 12, lineHeight: 1.65 }}>{hint}</div>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-        {MODEL_OPTIONS.map((o) => {
+        {options.map((o) => {
           const on = selected === o.id;
           const isCurrent = current === o.id;
           return (
@@ -188,9 +186,9 @@ function ChatModelPicker({ cfg }: { cfg: Record<string, string> }) {
 
       {opt.needsKey && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-          <span style={{ fontSize: 11.5, color: 'var(--ink-2)', width: 64 }}>接口密钥</span>
+          <span style={{ fontSize: 11.5, color: 'var(--ink-2)', width: 64 }}>{keyLabel}</span>
           <input className="m" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
-            placeholder={keyMasked ? `已配置（${keyMasked}），要更换才输入` : '必填，形如 sk-…'}
+            placeholder={keyMasked ? `已配置（${keyMasked}），要更换才输入` : '必填'}
             style={{ height: 28, width: 300, padding: '0 9px', border: '1px solid var(--line-strong)', borderRadius: 4, fontSize: 12.5 }} />
           <span className="hint">读取端只回显掩码，明文不回传浏览器</span>
         </div>
@@ -200,19 +198,96 @@ function ChatModelPicker({ cfg }: { cfg: Record<string, string> }) {
           <span style={{ fontSize: 11.5, color: 'var(--ink-2)', width: 64 }}>服务地址</span>
           <input className="m" value={localUrl} onChange={(e) => setLocalUrl(e.target.value)}
             style={{ height: 28, width: 300, padding: '0 9px', border: '1px solid var(--line-strong)', borderRadius: 4, fontSize: 12.5 }} />
-          <span className="hint">本地推理服务的兼容端点</span>
+          <span className="hint">本地服务的兼容端点</span>
         </div>
       )}
-      {opt.needsKey && !keyReady && <div className="hint" style={{ color: 'var(--cls-int-fg)', marginBottom: 10 }}>未配置接口密钥前无法应用该选项。</div>}
+      {opt.needsKey && !keyReady && <div className="hint" style={{ color: 'var(--cls-int-fg)', marginBottom: 10 }}>未配置{keyLabel}前无法应用该选项。</div>}
 
       {error && <div style={{ marginBottom: 10 }}><ErrorBox message={error} /></div>}
-      {applied && <div style={{ marginBottom: 10 }}><InfoBox>已应用，约 5 秒内对新请求生效。模型异常时问答会如实报错，不会退回旧应答。</InfoBox></div>}
+      {applied && <div style={{ marginBottom: 10 }}><InfoBox>{appliedNote}</InfoBox></div>}
       <button className="pbtn" style={{ height: 28, padding: '0 14px' }} disabled={busy || !dirty || !keyReady} onClick={() => void apply()}>
-        应用模型选择
+        {btnLabel}
       </button>
     </div>
   );
 }
+
+function ChatModelPicker({ cfg }: { cfg: Record<string, string> }) {
+  return (
+    <ServicePicker
+      title="对话模型"
+      hint="只切换问答、翻译与生成所用的对话模型，改后即时生效、不用重启。向量化与重排在下方各自的卡里切换。"
+      options={MODEL_OPTIONS} cfg={cfg} btnLabel="应用模型选择"
+      keys={{ provider: 'model.chat.provider', url: 'model.chat.url', name: 'model.chat.name', apiKey: 'model.chat.api_key' }}
+      appliedNote="已应用，约 5 秒内对新请求生效。模型异常时问答会如实报错，不会退回旧应答。"
+    />
+  );
+}
+
+// 向量化/重排的在线档预填线上同款 bge 模型——与本地部署同一模型、同一向量空间，
+// 之后切回本地只换地址、无须重建；这正是「显卡未到先用在线接口测」的依据。
+const EMBED_OPTIONS: ModelOption[] = [
+  {
+    id: 'stub', title: '内置演示向量', badge: '无外部依赖',
+    iconUrl: null, iconFallback: '演', fallbackBg: '#eef1f5', fallbackFg: '#5a6673',
+    desc: '确定性演示向量，用于没有模型服务的环境验证链路。不同选项的向量不在同一空间——切换后须全量重建（页底哨兵）。',
+    url: null, modelName: null, needsKey: false, urlEditable: false,
+  },
+  {
+    id: 'siliconflow', title: '硅基流动 · bge-m3', badge: '在线服务',
+    iconUrl: 'https://siliconflow.cn/favicon.ico', iconFallback: '硅', fallbackBg: '#7C4DFF', fallbackFg: '#ffffff',
+    desc: '线上同款 BAAI/bge-m3，与本地部署同一向量空间——显卡到货切回本地无须重建。分块文本会发往外部服务，机密语料是否允许出网请先按公司规定确认。',
+    url: 'https://api.siliconflow.cn/v1/embeddings', modelName: 'BAAI/bge-m3', needsKey: true, urlEditable: false,
+  },
+  {
+    id: 'local', title: '本地部署 · bge-m3', badge: '本地部署',
+    iconUrl: null, iconFallback: 'B', fallbackBg: '#1c6b45', fallbackFg: '#ffffff',
+    desc: '本机或内网推理服务上的 BAAI/bge-m3，数据不出内网。服务地址按实际部署修改。',
+    url: 'http://host.docker.internal:8001/v1/embeddings', modelName: 'BAAI/bge-m3', needsKey: false, urlEditable: true,
+  },
+];
+
+const RERANK_OPTIONS: ModelOption[] = [
+  {
+    id: 'stub', title: '内置演示重排', badge: '无外部依赖',
+    iconUrl: null, iconFallback: '演', fallbackBg: '#eef1f5', fallbackFg: '#5a6673',
+    desc: '按词面重合度打分的演示实现。重排只影响排序质量，切换没有重建代价，可随时试。',
+    url: null, modelName: null, needsKey: false, urlEditable: false,
+  },
+  {
+    id: 'siliconflow', title: '硅基流动 · bge-reranker', badge: '在线服务',
+    iconUrl: 'https://siliconflow.cn/favicon.ico', iconFallback: '硅', fallbackBg: '#7C4DFF', fallbackFg: '#ffffff',
+    desc: '线上同款 BAAI/bge-reranker-v2-m3。候选分块文本会发往外部服务，机密语料是否允许出网请先确认。',
+    url: 'https://api.siliconflow.cn/v1/rerank', modelName: 'BAAI/bge-reranker-v2-m3', needsKey: true, urlEditable: false,
+  },
+  {
+    id: 'local', title: '本地部署 · bge-reranker', badge: '本地部署',
+    iconUrl: null, iconFallback: 'B', fallbackBg: '#1c6b45', fallbackFg: '#ffffff',
+    desc: '本机或内网推理服务上的 BAAI/bge-reranker-v2-m3，数据不出内网。',
+    url: 'http://host.docker.internal:8002/rerank', modelName: 'BAAI/bge-reranker-v2-m3', needsKey: false, urlEditable: true,
+  },
+];
+
+const PARSER_OPTIONS: ModelOption[] = [
+  {
+    id: 'stub', title: '内置演示解析', badge: '无外部依赖',
+    iconUrl: null, iconFallback: '演', fallbackBg: '#eef1f5', fallbackFg: '#5a6673',
+    desc: '只认纯文本文件（txt / md）。PDF、扫描件等版面解析需要接真实引擎。',
+    url: null, modelName: null, needsKey: false, urlEditable: false,
+  },
+  {
+    id: 'mineru-online', title: 'MinerU 在线', badge: '在线服务',
+    iconUrl: 'https://mineru.net/favicon.ico', iconFallback: 'M', fallbackBg: '#2867F2', fallbackFg: '#ffffff',
+    desc: '官方在线解析，PDF / DOCX / 扫描件全支持；到 mineru.net 注册领令牌，每天 1000 页高优先级额度。文件会上传至外部服务——机密资料是否允许出网请先确认。',
+    url: null, modelName: null, needsKey: true, urlEditable: false,
+  },
+  {
+    id: 'mineru-local', title: '本地 MinerU', badge: '本地部署',
+    iconUrl: 'https://mineru.net/favicon.ico', iconFallback: 'M', fallbackBg: '#2867F2', fallbackFg: '#ffffff',
+    desc: '显卡机器上的解析容器，数据不出内网。地址按实际部署修改（compose 叠加包默认为容器内地址）。',
+    url: 'http://mineru:8000/file_parse', modelName: null, needsKey: false, urlEditable: true,
+  },
+];
 
 // ─── E15 ────────────────────────────────────────────────
 function ParamsTab() {
@@ -269,6 +344,15 @@ function ParamsTab() {
       <div style={{ maxWidth: 860, margin: '0 auto' }}>
         <ChatModelPicker cfg={cfg.data ?? {}} />
 
+        <ServicePicker
+          title="向量化模型"
+          hint="决定语料分块与问题被映射到哪个向量空间。切换即换空间——应用后页底哨兵会亮出不一致分块数，用「重建不一致向量」补齐。"
+          options={EMBED_OPTIONS} cfg={cfg.data ?? {}}
+          keys={{ provider: 'model.embedding.provider', url: 'model.embedding.url', name: 'model.embedding.name', apiKey: 'model.embedding.api_key' }}
+          appliedNote="已应用，约 5 秒内生效。若更换了模型，请到页底点「重建不一致向量」；在线与本地同为 bge-m3 时互切无须重建。"
+          onApplied={() => void qc.invalidateQueries({ queryKey: ['embed-consistency'] })}
+        />
+
         {/* 换向量化模型的琥珀警示（整份 PRD 里最容易被漏掉的一条） */}
         <div style={{ padding: '13px 15px', borderRadius: 6, background: 'var(--cls-int-bg)', border: '1px solid var(--cls-int-line)', marginBottom: 16 }}>
           <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--cls-int-fg)', marginBottom: 4 }}>
@@ -276,10 +360,26 @@ function ParamsTab() {
           </div>
           <div style={{ fontSize: 12, lineHeight: 1.7, color: 'var(--cls-int-fg)' }}>
             更换向量化模型必须连带全量重建向量——新旧向量不在同一空间，混用时检索会持续返回错的结果且不报错。
-            模型地址与名称在下方「模型服务」组维护；改名保存后，用页底的「重建不一致向量」逐篇补齐，
-            重建期间这些内容的检索按关键词降级。
+            在上方卡片切换后，用页底的「重建不一致向量」逐篇补齐，重建期间这些内容的检索按关键词降级。
+            例外：在线与本地都是 bge-m3 时属同一模型，互切不触发重建。
           </div>
         </div>
+
+        <ServicePicker
+          title="重排模型"
+          hint="对召回的候选分块二次排序，直接影响答案引用的来源质量。切换没有重建代价，可随时对比效果。"
+          options={RERANK_OPTIONS} cfg={cfg.data ?? {}}
+          keys={{ provider: 'model.rerank.provider', url: 'model.rerank.url', name: 'model.rerank.name', apiKey: 'model.rerank.api_key' }}
+          appliedNote="已应用，约 5 秒内对新问题生效。"
+        />
+
+        <ServicePicker
+          title="文档解析"
+          hint="上传文档的版面解析引擎（章节层级、表格、页码）。已入库文档不受切换影响；解析失败的可在语料管理里重新提交。"
+          options={PARSER_OPTIONS} cfg={cfg.data ?? {}} keyLabel="访问令牌"
+          keys={{ provider: 'parser.provider', url: 'parser.url', apiKey: 'parser.api_key' }}
+          appliedNote="已应用，约 5 秒内对新的解析任务生效。"
+        />
 
         {GROUPS.map((g) => (
           <div key={g.title} className="card" style={{ padding: '14px 16px', marginBottom: 12 }}>

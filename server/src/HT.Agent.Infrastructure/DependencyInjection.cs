@@ -38,35 +38,23 @@ public static class DependencyInjection
         services.AddSingleton<IRuntimeConfig, RuntimeConfig>();
         services.AddSingleton<IFileStorage, LocalFileStorage>();
 
-        // 桩开关：无模型服务的环境整条链路仍可运行（开发/测试）；生产配置真实地址。
-        // 对话模型例外——始终经 SwitchingChatClient 按运行时配置选择（E15 模型选择，
-        // 改后即时生效不用重启）；嵌入/重排/解析仍按部署期开关装配。
+        // 四个模型槽位（对话/向量化/重排/解析）全部经 Switching* 客户端按运行时配置选择——
+        // 在线接口与本地部署在「系统设置」里切，改后即时生效不用重启（FR-9.6）。
+        // 部署期 Models:UseStubs / Models:Parser 只作为运行时未选择时的兜底默认。
         services.AddSingleton<StubChatClient>();
         services.AddSingleton<OpenAiChatClient>();
         services.AddSingleton<IChatModelClient, SwitchingChatClient>();
-        var useStubs = config.GetValue<bool>("Models:UseStubs");
-        if (useStubs)
-        {
-            services.AddSingleton<IEmbeddingClient, StubEmbeddingClient>();
-            services.AddSingleton<IRerankClient, StubRerankClient>();
-        }
-        else
-        {
-            services.AddSingleton<IEmbeddingClient, HttpEmbeddingClient>();
-            services.AddSingleton<IRerankClient, HttpRerankClient>();
-        }
-        // 解析引擎可单独指定（Models:Parser = stub / http / mineru），未指定时随 UseStubs 整体开关。
-        // 拼错值直接拒绝启动——静默回退演示桩会造成「看着解析成功了」的假象，比报错更害人。
-        var parserKind = config["Models:Parser"];
-        if (string.IsNullOrWhiteSpace(parserKind)) parserKind = useStubs ? "stub" : "http";
-        switch (parserKind.Trim().ToLowerInvariant())
-        {
-            case "stub": services.AddSingleton<IDocumentParserClient, StubParserClient>(); break;
-            case "http": services.AddSingleton<IDocumentParserClient, HttpParserClient>(); break;
-            case "mineru": services.AddSingleton<IDocumentParserClient, MinerUParserClient>(); break;
-            default: throw new InvalidOperationException(
-                $"未知解析引擎配置 Models:Parser={parserKind}（可选 stub / http / mineru）");
-        }
+        services.AddSingleton<StubEmbeddingClient>();
+        services.AddSingleton<HttpEmbeddingClient>();
+        services.AddSingleton<IEmbeddingClient, SwitchingEmbeddingClient>();
+        services.AddSingleton<StubRerankClient>();
+        services.AddSingleton<HttpRerankClient>();
+        services.AddSingleton<IRerankClient, SwitchingRerankClient>();
+        services.AddSingleton<StubParserClient>();
+        services.AddSingleton<HttpParserClient>();
+        services.AddSingleton<MinerUParserClient>();
+        services.AddSingleton<MinerUOnlineParserClient>();
+        services.AddSingleton<IDocumentParserClient, SwitchingParserClient>();
 
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserAdminService, UserAdminService>();
