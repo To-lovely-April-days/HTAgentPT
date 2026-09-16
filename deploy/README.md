@@ -197,3 +197,6 @@ bge-m3 输出 1024 维，与部署包的向量列维度一致，不需要动数�
   `Models__UseStubs: "false"`，再到「系统设置」里把各服务地址指到实际部署
   （宿主机上的服务用 `http://host.docker.internal:端口`），然后 `docker compose up -d` 重建。
 - **端口被占**：改 `.env` 里对应的 `*_PORT` 再 `docker compose up -d`。
+- **构建源**：三个镜像的 apt / npm 源默认指向国内镜像（清华、npmmirror），
+  国内网络直接构建即可；海外环境构建可通过 `--build-arg APT_MIRROR=deb.debian.org`、
+  `--build-arg NPM_REGISTRY=https://registry.npmjs.org` 换回官方源。

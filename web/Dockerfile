@@ -2,9 +2,11 @@
 # 同一镜像既当公司内网界面也当总部审核台——由环境变量 API_TARGET 指向不同后端节点。
 FROM node:22-alpine AS build
 WORKDIR /app
-RUN npm i -g pnpm@10
+# npm 源默认走国内镜像（npmmirror）；海外构建可 --build-arg NPM_REGISTRY=https://registry.npmjs.org
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+RUN npm config -g set registry ${NPM_REGISTRY} && npm i -g pnpm@10
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN pnpm config set registry ${NPM_REGISTRY} && pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
 
