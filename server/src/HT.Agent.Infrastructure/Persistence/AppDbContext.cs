@@ -45,6 +45,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
     public DbSet<Template> Templates => Set<Template>();
     public DbSet<TemplateSlot> TemplateSlots => Set<TemplateSlot>();
     public DbSet<GenerationSession> GenerationSessions => Set<GenerationSession>();
+    public DbSet<GenChatMessage> GenChatMessages => Set<GenChatMessage>();
     public DbSet<QaSession> QaSessions => Set<QaSession>();
     public DbSet<QaMessage> QaMessages => Set<QaMessage>();
 
@@ -206,6 +207,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
         b.Entity<GenerationSession>(e =>
         {
             e.Property(x => x.SlotValues).HasColumnType("jsonb");
+            e.Property(x => x.ChatState).HasColumnType("jsonb");
+        });
+
+        b.Entity<GenChatMessage>(e =>
+        {
+            e.HasIndex(x => new { x.SessionId, x.Id });
+            e.Property(x => x.Payload).HasColumnType("jsonb");
+            e.HasOne(x => x.Session).WithMany().OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<QaSession>(e =>

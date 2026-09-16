@@ -1,28 +1,58 @@
 // A4-A8 方案生成：不整篇写，以模板槽位为单位逐项填充（5.2）。
-// 基准项目预填 → 未填转提问 → AI 建议必须带依据、没依据明说没有（FR-5.9/5.10）→
-// 「待确认」也算未完成（FR-5.13）→ 校验通过才允许生成 Word。
-import React, { useState } from 'react';
+// 主体验是对话式填槽（整句多槽抽取/选项点选/跳过/汇总/生成），
+// 「逐项核对」保留原工作台视图（基准出处、AI 建议依据、逐项确认都在那里）。
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { get, post, put, download, ApiError } from '../../lib/api';
 import { SOURCE_LABEL, SOURCE_PILL_STYLE } from '../../lib/types';
 import type {
-  BaseCandidate, CompletenessView, PreviewView, RenderResult, SessionRowT, SessionView,
+  BaseCandidate, CompletenessView, GenAsk, GenChatMsg, GenChatPayload, GenChatProgress,
+  GenChatStateView, GenChatTurnResult, PreviewView, RenderResult, SessionRowT, SessionView,
   SlotState, SlotSuggestion, SlotView, TemplateRowT,
 } from '../../lib/types';
 import { ErrorBox, InfoBox, Spinner } from '../../components/Common';
 
 export default function GeneratePage() {
+  // 从问答分流跳来：state 带模板与原话，落地即建会话开聊，原话作首轮输入自动抽取
+  const loc = useLocation();
+  const nav = useNavigate();
+  const jump = (loc.state ?? null) as { templateId?: string; question?: string } | null;
   const [sessionId, setSessionId] = useState<string | null>(null);
-  return sessionId
-    ? <SessionWorkbench sessionId={sessionId} onExit={() => setSessionId(null)} />
-    : <StartView onOpen={setSessionId} />;
+  const [mode, setMode] = useState<'chat' | 'form'>('chat');
+  const [boot, setBoot] = useState<string | null>(null);
+  const [jumpError, setJumpError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!jump?.templateId) return;
+    nav('.', { replace: true, state: null }); // 只消费一次，防返回重建
+    void (async () => {
+      try {
+        const s = await post<SessionView>('/api/generate/sessions', {
+          templateId: jump.templateId, projectHint: jump.question?.trim() || null,
+        });
+        setBoot(jump.question ?? null);
+        setMode('chat');
+        setSessionId(s.id);
+      } catch (err) {
+        setJumpError(err instanceof ApiError ? err.message : '按推荐模板创建会话失败');
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!sessionId) return <StartView onOpen={(id) => { setBoot(null); setMode('chat'); setSessionId(id); }} outerError={jumpError} />;
+  return mode === 'chat'
+    ? <SessionChat key={sessionId} sessionId={sessionId} initialMessage={boot}
+        onExit={() => setSessionId(null)} onWorkbench={() => setMode('form')} />
+    : <SessionWorkbench sessionId={sessionId} onExit={() => setMode('chat')} />;
 }
 
 // ─── A4 模板选择 + A8 生成记录 ────────────────────────────────
-function StartView({ onOpen }: { onOpen: (id: string) => void }) {
+function StartView({ onOpen, outerError }: { onOpen: (id: string) => void; outerError?: string | null }) {
   const [hint, setHint] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(outerError ?? null);
   const templates = useQuery({ queryKey: ['gen-templates'], queryFn: () => get<TemplateRowT[]>('/api/templates') });
   const sessions = useQuery({ queryKey: ['gen-sessions'], queryFn: () => get<SessionRowT[]>('/api/generate/sessions') });
 
@@ -44,7 +74,8 @@ function StartView({ onOpen }: { onOpen: (id: string) => void }) {
       <div style={{ maxWidth: 980 }}>
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>方案生成</div>
         <div className="hint" style={{ marginBottom: 16, lineHeight: 1.7 }}>
-          不是整篇生成：选模板后以历史项目为基准逐槽位预填，未能填入的转为提问；模型只提供带检索依据的建议，不代为决定。
+          不是整篇生成：选模板后进入对话式填写——整句描述项目，能确定的项自动填入，其余逐项提问；
+          也可随时切到「逐项核对」工作台看基准出处与 AI 建议依据。模型只提供带依据的建议，不代为决定。
         </div>
 
         <div style={{ marginBottom: 12 }}>
@@ -94,6 +125,215 @@ function StartView({ onOpen }: { onOpen: (id: string) => void }) {
             </div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 对话式填槽（A4 聊天形态）──────────────────────────────────
+function SessionChat({ sessionId, initialMessage, onExit, onWorkbench }: {
+  sessionId: string; initialMessage: string | null; onExit: () => void; onWorkbench: () => void;
+}) {
+  const qc = useQueryClient();
+  const [msgs, setMsgs] = useState<GenChatMsg[]>([]);
+  const [progress, setProgress] = useState<GenChatProgress | null>(null);
+  const [templateName, setTemplateName] = useState('');
+  const [input, setInput] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const booted = useRef(false);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs, busy]);
+
+  const turn = useCallback(async (body: Record<string, unknown>) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await post<GenChatTurnResult>(`/api/generate/sessions/${sessionId}/conversation`, body);
+      setMsgs((m) => [...m, ...r.newMessages]);
+      setProgress(r.progress);
+      // 工作台与记录列表跟着对话即时刷新
+      void qc.invalidateQueries({ queryKey: ['gen-session', sessionId] });
+      void qc.invalidateQueries({ queryKey: ['gen-sessions'] });
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : '发送失败，请重试');
+    } finally {
+      setBusy(false);
+    }
+  }, [sessionId, qc]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [st, sv] = await Promise.all([
+          get<GenChatStateView>(`/api/generate/sessions/${sessionId}/conversation`),
+          get<SessionView>(`/api/generate/sessions/${sessionId}`),
+        ]);
+        if (cancelled) return;
+        setMsgs(st.messages);
+        setProgress(st.progress);
+        setTemplateName(sv.templateName);
+        if (st.messages.length === 0 && !booted.current) {
+          booted.current = true; // StrictMode 双跑防重
+          await turn({ start: true, message: initialMessage });
+        }
+      } catch (e) {
+        if (!cancelled) setErr(e instanceof ApiError ? e.message : '载入对话失败');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [sessionId, initialMessage, turn]);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || busy) return;
+    setInput('');
+    void turn({ message: text });
+  };
+
+  const lastAssistantId = [...msgs].reverse().find((m) => m.role === 'assistant')?.id;
+  const done = progress?.done ?? 0;
+  const total = progress?.total ?? 0;
+
+  return (
+    <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
+      <div style={{ flexShrink: 0, padding: '10px 18px 9px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <button className="gbtn" style={{ height: 26, padding: '0 9px' }} onClick={onExit}>←</button>
+          <span style={{ fontSize: 13.5, fontWeight: 600 }}>{templateName || '方案生成对话'}</span>
+          <span className="pill pill-neutral">对话填写</span>
+          <div style={{ flexGrow: 1 }} />
+          <span className="hint">已完成 <span className="m">{done}</span> / {total}</span>
+          {progress?.outputFileName && (
+            <button className="gbtn" onClick={() => void download(`/api/generate/sessions/${sessionId}/output`, progress.outputFileName!)
+              .catch((e2) => setErr(e2 instanceof ApiError ? e2.message : '下载失败'))}>下载 Word ↓</button>
+          )}
+          <button className="gbtn" onClick={onWorkbench}>逐项核对</button>
+          {progress?.canRender && (
+            <button className="pbtn" style={{ height: 28, padding: '0 13px' }} disabled={busy}
+              onClick={() => void turn({ render: true })}>生成文档</button>
+          )}
+        </div>
+        <div style={{ height: 4, borderRadius: 2, background: '#eef1f5', overflow: 'hidden' }}>
+          <div style={{ width: `${(done / Math.max(1, total)) * 100}%`, background: '#1c6b45', height: '100%' }} />
+        </div>
+      </div>
+
+      <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '16px 20px 20px' }}>
+        <div style={{ maxWidth: 760, margin: '0 auto' }}>
+          {msgs.map((m) => m.role === 'user' ? (
+            <div key={m.id} style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+              <div style={{ maxWidth: '82%', padding: '8px 12px', borderRadius: 6, fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap', background: 'var(--accent-bg)', border: '1px solid var(--accent-line)' }}>
+                {m.content}
+              </div>
+            </div>
+          ) : (
+            <AssistantChatMsg key={m.id} msg={m} active={m.id === lastAssistantId && !busy}
+              sessionId={sessionId} onTurn={turn} onError={setErr} />
+          ))}
+          {busy && <Spinner text="思考中…" />}
+          {err && <div style={{ marginTop: 8 }}><ErrorBox message={err} /></div>}
+          <div ref={bottomRef} />
+        </div>
+      </div>
+
+      <form onSubmit={submit} style={{ flexShrink: 0, padding: '10px 20px 14px', background: 'var(--panel)', borderTop: '1px solid var(--line)' }}>
+        <div style={{ maxWidth: 760, margin: '0 auto' }}>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+            {['跳过', '汇总', '生成文档'].map((c) => (
+              <button key={c} type="button" className="gbtn" style={{ height: 24, fontSize: 11.5 }} disabled={busy}
+                onClick={() => void turn({ message: c })}>{c}</button>
+            ))}
+            <span className="hint" style={{ alignSelf: 'center', marginLeft: 6 }}>
+              整句描述即可（如「材质 316L，法兰结构，电加热」），能确定的项会一次填入
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input value={input} onChange={(e) => setInput(e.target.value)} disabled={busy}
+              placeholder="回答问题或整句描述项目，回车发送"
+              style={{ flexGrow: 1, height: 36, padding: '0 12px', fontSize: 14, fontFamily: 'var(--font)', border: '1px solid var(--line-strong)', borderRadius: 5, outline: 'none' }} />
+            <button className="pbtn" style={{ height: 36, padding: '0 16px' }} disabled={busy || !input.trim()}>发送</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/** 助手消息：正文 + payload 交互件（选项按钮/基准候选/汇总表/下载）。按钮只在最新一条上可点。 */
+function AssistantChatMsg({ msg, active, sessionId, onTurn, onError }: {
+  msg: GenChatMsg; active: boolean; sessionId: string;
+  onTurn: (body: Record<string, unknown>) => Promise<void>; onError: (m: string) => void;
+}) {
+  let payload: GenChatPayload = {};
+  try { payload = msg.payload ? (JSON.parse(msg.payload) as GenChatPayload) : {}; } catch { /* 老数据容错 */ }
+  const choiceAsks = (payload.asks ?? []).filter((a): a is GenAsk & { choices: string[] } => !!a.choices && a.choices.length > 0);
+
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 10 }}>
+      <div className="card" style={{ maxWidth: '88%', padding: '10px 14px' }}>
+        <div style={{ fontSize: 13, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+
+        {payload.baseCandidates && payload.baseCandidates.length > 0 && (
+          <div style={{ marginTop: 9 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {payload.baseCandidates.map((c) => (
+                <div key={c.projectNo} style={{ width: 225, border: '1px solid var(--line)', borderRadius: 5, padding: '9px 11px' }}>
+                  <div className="m" style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>{c.projectNo}</div>
+                  <div style={{ fontSize: 12, margin: '2px 0' }}>{c.customerName} · {c.year}</div>
+                  <div className="hint" style={{ marginBottom: 6 }}>{c.deviceType}{c.deviceModel ? ` ${c.deviceModel}` : ''} · 可继承 {c.inheritableSlots} 项</div>
+                  {active && <button className="pbtn" style={{ height: 22, fontSize: 11, padding: '0 9px' }}
+                    onClick={() => void onTurn({ baseProjectNo: c.projectNo })}>用这个基准</button>}
+                </div>
+              ))}
+            </div>
+            {active && <button className="gbtn" style={{ height: 24, fontSize: 11.5, marginTop: 7 }}
+              onClick={() => void onTurn({ baseProjectNo: '' })}>不用基准，直接开始</button>}
+          </div>
+        )}
+
+        {active && choiceAsks.length > 0 && (
+          <div style={{ marginTop: 9, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {choiceAsks.map((a) => (
+              <div key={a.tag} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11.5, color: 'var(--ink-2)', flexShrink: 0 }}>{a.name}：</span>
+                {a.choices.map((c) => (
+                  <button key={c} className="gbtn" style={{ height: 24, fontSize: 11.5 }}
+                    onClick={() => void onTurn({ optionFills: [{ tag: a.tag, value: c }] })}>{c}</button>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {payload.summary && (
+          <div style={{ marginTop: 9, border: '1px solid var(--line-soft)', borderRadius: 5, overflow: 'hidden' }}>
+            {payload.summary.map((sec) => (
+              <div key={sec.section}>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-2)', padding: '6px 10px', background: 'var(--bg-soft)', borderBottom: '1px solid var(--line-soft)' }}>{sec.section}</div>
+                {sec.items.map((it) => (
+                  <div key={it.name} style={{ display: 'flex', gap: 8, padding: '4px 10px', borderBottom: '1px solid var(--line-soft)', fontSize: 12 }}>
+                    <span style={{ width: 130, flexShrink: 0, color: 'var(--ink-3)' }}>{it.name}</span>
+                    <span style={{ whiteSpace: 'pre-wrap', color: it.value ? 'var(--ink)' : 'var(--ink-3)' }}>{it.value ?? '（未填）'}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {payload.rendered && (
+          <div style={{ marginTop: 9 }}>
+            <button className="pbtn" style={{ height: 26, fontSize: 12, padding: '0 12px' }}
+              onClick={() => void download(`/api/generate/sessions/${sessionId}/output`, payload.rendered!.fileName)
+                .catch((e) => onError(e instanceof ApiError ? e.message : '下载失败'))}>
+              下载《{payload.rendered.fileName}》↓
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

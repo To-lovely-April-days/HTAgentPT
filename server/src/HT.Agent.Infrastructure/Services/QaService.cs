@@ -275,15 +275,22 @@ public class QaService(
         }
         else
         {
-            // 生成与翻译转交对应模块（FR-4.1）：给出跳转指令，由前端切到对应工作区
+            // 生成与翻译转交对应模块（FR-4.1）：给出跳转指令，由前端切到对应工作区。
+            // 生成意图再进一步：随分流带上匹配的模板推荐，在对话里点选即开始对话式填写
             var target = intent == IntentRouter.Generate ? "generate" : "translate";
             var name = intent == IntentRouter.Generate ? "方案生成" : "翻译";
+            object? templates = null;
+            if (intent == IntentRouter.Generate && me.Permissions.Contains(PermissionKeys.Generate))
+                templates = await RecommendTemplatesAsync(req.Question, ct);
             yield return new QaEvent("meta", new { sessionId = session.Id, intent, hitCount = 0, topScore = 0.0, rewrittenQuery = req.Question });
             yield return new QaEvent("redirect", new
             {
                 intent,
                 module = target,
-                message = $"这个请求更适合在「{name}」里完成，已为你准备切换。判定有误可用 forcedIntent=knowledge 按知识问答处理。"
+                message = templates is not null
+                    ? "识别到你想生成文档。点选下面的模板即可开始对话式填写（会带上这句话，能确定的项直接帮你填了）。判定有误可按知识问答重新回答。"
+                    : $"这个请求更适合在「{name}」里完成，已为你准备切换。判定有误可用 forcedIntent=knowledge 按知识问答处理。",
+                templates
             });
             message.Answer = $"[分流] 已转交{name}模块";
         }
@@ -296,6 +303,28 @@ public class QaService(
             TargetType: "qa_message", TargetId: message.Id.ToString(),
             Detail: new { question = req.Question, intent, forced = req.ForcedIntent is not null }), ct);
         yield return new QaEvent("done", new { messageId = message.Id });
+    }
+
+    /// <summary>生成意图的模板推荐：按提问与模板名/类别的匹配度排序（GenChatLogic.TemplateScore），
+    /// 全都不沾边时给最近用过的——「帮我出个方案」这类泛化说法也要有可点的起点。最多四个。</summary>
+    private async Task<object> RecommendTemplatesAsync(string question, CancellationToken ct)
+    {
+        var rows = await db.Templates.AsNoTracking()
+            .Where(t => t.IsEnabled)
+            .Select(t => new
+            {
+                t.Id, t.Name, t.DocType, t.UpdatedAt,
+                SlotCount = t.Slots.Count(s => s.Stage == SlotStage.Current)
+            })
+            .ToListAsync(ct);
+        var scored = rows
+            .Select(t => new { t, score = GenChatLogic.TemplateScore(question, t.Name, t.DocType) })
+            .OrderByDescending(x => x.score).ThenByDescending(x => x.t.UpdatedAt)
+            .ToList();
+        var picked = scored.Any(x => x.score > 0) ? scored.Where(x => x.score > 0) : scored;
+        return picked.Take(4)
+            .Select(x => new { id = x.t.Id, name = x.t.Name, docType = x.t.DocType, slotCount = x.t.SlotCount })
+            .ToList();
     }
 
     private async Task<QaSession> GetOrCreateSessionAsync(QaRequest req, CancellationToken ct)

@@ -63,6 +63,22 @@ public class GenerationSession
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public string? OutputFileKey { get; set; }
+    /// <summary>对话式填槽的会话状态（jsonb）：已跳过的槽位、上一轮在问的槽位。</summary>
+    public string? ChatState { get; set; }
+}
+
+/// <summary>对话式生成的消息记录：填单对话与生成记录同存同溯（FR-5.17 的对话形态）。
+/// Payload 存该轮的结构化附件（本轮已填、待问清单、基准候选、汇总、渲染结果），前端据此渲染交互件。</summary>
+public class GenChatMessage
+{
+    public long Id { get; set; }
+    public Guid SessionId { get; set; }
+    public GenerationSession? Session { get; set; }
+    /// <summary>user / assistant。</summary>
+    public string Role { get; set; } = "user";
+    public string Content { get; set; } = "";
+    public string? Payload { get; set; }
+    public DateTimeOffset At { get; set; }
 }
 
 /// <summary>问答会话（FR-4.10 多轮）。</summary>

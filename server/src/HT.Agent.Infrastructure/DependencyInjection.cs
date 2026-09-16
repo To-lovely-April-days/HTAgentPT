@@ -72,6 +72,7 @@ public static class DependencyInjection
         services.AddScoped<IPortalService, PortalService>();
         services.AddScoped<ITemplateService, TemplateService>();
         services.AddScoped<IGenerationService, GenerationService>();
+        services.AddScoped<IGenerationChatService, GenerationChatService>();
         services.AddScoped<IClauseService, ClauseService>();
         services.AddScoped<ICaseReviewService, CaseReviewService>();
         services.AddScoped<IRetrievalService, RetrievalService>();

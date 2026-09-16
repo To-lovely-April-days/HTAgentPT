@@ -183,6 +183,26 @@ export interface PreviewView {
 }
 export interface RenderResult { sessionId: string; outputFileName: string; slotsFilled: number; leftBlank: number; }
 
+// ── 对话式生成（A4 聊天形态）──────────────────────────────────
+export interface GenChatMsg { id: number; role: 'user' | 'assistant'; content: string; payload: string | null; at: string; }
+export interface GenChatProgress { total: number; done: number; canRender: boolean; outputFileName: string | null; }
+export interface GenChatStateView { messages: GenChatMsg[]; progress: GenChatProgress; }
+export interface GenChatTurnResult { newMessages: GenChatMsg[]; progress: GenChatProgress; }
+export interface GenAsk {
+  tag: string; name: string; section: string; dataType: string;
+  choices: string[] | null; prompt: string | null; unit: string | null; required: boolean;
+}
+/** 助手消息 payload（jsonb 字符串反序列化后）：都是可选段，前端有则渲染对应交互件。 */
+export interface GenChatPayload {
+  asks?: GenAsk[];
+  baseCandidates?: { projectNo: string; customerName: string; year: number; deviceType: string; deviceModel: string | null; inheritableSlots: number }[] | null;
+  summary?: { section: string; items: { name: string; value: string | null }[] }[];
+  canRender?: boolean;
+  rendered?: { fileName: string; filled: number; blank: number };
+}
+/** 问答分流事件里携带的模板推荐（点选即开聊）。 */
+export interface QaTemplateRec { id: string; name: string; docType: string; slotCount: number; }
+
 export interface ClauseRow {
   id: string; category: string; code: string; title: string; text: string; status: string;
   approvedByName: string | null; effectiveDate: string | null; supersedesId: string | null; createdAt: string;

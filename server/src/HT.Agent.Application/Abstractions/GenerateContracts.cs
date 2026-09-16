@@ -112,6 +112,32 @@ public record PreviewItem(string Tag, string Name, string? Value, string SourceL
 
 public record RenderResult(Guid SessionId, string OutputFileName, int SlotsFilled, int LeftBlank);
 
+// ─────────────────────────── 对话式生成（FR-5.x 对话形态）───────────────────────────
+
+public interface IGenerationChatService
+{
+    /// <summary>取会话的对话记录与进度（续聊/回放）。</summary>
+    Task<GenChatStateView> GetAsync(Guid sessionId, CancellationToken ct = default);
+    /// <summary>一轮对话：自由文本（模型抽取多槽位，演示档退化为逐项问答）、选项点选、
+    /// 选定基准、生成文档，四类输入走同一入口，返回本轮新增消息与进度。</summary>
+    Task<GenChatTurnResult> TurnAsync(Guid sessionId, GenChatTurnInput input, CancellationToken ct = default);
+}
+
+/// <summary>一轮输入：Start=补开场白（会话还没有消息时）；Message=自由文本；
+/// OptionFills=选项按钮直填（不过模型）；BaseProjectNo=选定基准（空串=明确不用）；Render=生成文档。</summary>
+public record GenChatTurnInput(string? Message = null, List<GenTagValue>? OptionFills = null,
+    string? BaseProjectNo = null, bool Render = false, bool Start = false);
+
+public record GenTagValue(string Tag, string Value);
+
+public record GenChatMessageView(long Id, string Role, string Content, string? Payload, DateTimeOffset At);
+
+public record GenChatProgress(int Total, int Done, bool CanRender, string? OutputFileName);
+
+public record GenChatStateView(IReadOnlyList<GenChatMessageView> Messages, GenChatProgress Progress);
+
+public record GenChatTurnResult(IReadOnlyList<GenChatMessageView> NewMessages, GenChatProgress Progress);
+
 // ─────────────────────────── 条款库（FR-5.18）───────────────────────────
 
 public interface IClauseService

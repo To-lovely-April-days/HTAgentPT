@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { get, post, sse, download, ApiError } from '../../lib/api';
 import { DELIVERY_LABEL } from '../../lib/types';
-import type { QaMessageRow, QaSessionRow, Source, VocabRow, ProjectRow } from '../../lib/types';
+import type { QaMessageRow, QaSessionRow, QaTemplateRec, Source, VocabRow, ProjectRow } from '../../lib/types';
 import { AuthImage, ClsBadge, ErrorBox, InfoBox, Spinner } from '../../components/Common';
 import type { Classification } from '../../lib/types';
 
@@ -23,7 +23,7 @@ interface Turn {
   sources?: Source[];
   noResult?: { message: string; possiblyRelatedDocs: string[] };
   table?: LedgerTable;
-  redirect?: { module: string; message: string };
+  redirect?: { module: string; message: string; templates?: QaTemplateRec[] | null };
   error?: string;
   messageId?: string;
   helpful?: boolean | null;
@@ -113,7 +113,7 @@ export default function QaPage() {
             patch({ table: ev.payload as unknown as LedgerTable });
             break;
           case 'redirect':
-            patch({ redirect: { module: p.module as string, message: p.message as string } });
+            patch({ redirect: { module: p.module as string, message: p.message as string, templates: (p.templates as QaTemplateRec[] | null) ?? null } });
             break;
           case 'error':
             patch({ error: p.message as string });
@@ -268,6 +268,7 @@ function TurnView({ turn: t, onFeedback, onCorrect, onShowSources }: {
   onCorrect: (forcedIntent: string) => void;
   onShowSources: (s: Source[]) => void;
 }) {
+  const nav = useNavigate();
   return (
     <div style={{ maxWidth: 760, margin: '0 auto 22px' }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
@@ -285,6 +286,24 @@ function TurnView({ turn: t, onFeedback, onCorrect, onShowSources }: {
       {t.redirect && (
         <InfoBox>
           {t.redirect.message}
+          {/* 生成意图：对话里直接给模板推荐卡，点选带着这句话进入对话式填写 */}
+          {t.redirect.templates && t.redirect.templates.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 9 }}>
+              {t.redirect.templates.map((tpl) => (
+                <div key={tpl.id} style={{ width: 225, background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 5, padding: '10px 12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 600 }}>{tpl.name}</span>
+                    <span className="pill pill-neutral">{tpl.docType}</span>
+                  </div>
+                  <div className="hint" style={{ marginBottom: 8 }}>{tpl.slotCount} 个待填项</div>
+                  <button className="pbtn" style={{ height: 24, fontSize: 11.5, padding: '0 10px' }}
+                    onClick={() => nav('/generate', { state: { templateId: tpl.id, question: t.question } })}>
+                    用这个模板开聊
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div style={{ marginTop: 8 }}>
             <button className="gbtn" style={{ height: 24, fontSize: 11.5 }} onClick={() => onCorrect('knowledge')}>判定有误，按知识问答回答</button>
           </div>

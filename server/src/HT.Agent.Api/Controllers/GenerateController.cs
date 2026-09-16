@@ -11,7 +11,7 @@ namespace HT.Agent.Api.Controllers;
 [Route("api/generate")]
 [Authorize]
 [RequirePermission(PermissionKeys.Generate)]
-public class GenerateController(IGenerationService gen) : ControllerBase
+public class GenerateController(IGenerationService gen, IGenerationChatService genChat) : ControllerBase
 {
     public record CreateBody(Guid TemplateId, string? ProjectHint);
 
@@ -54,6 +54,16 @@ public class GenerateController(IGenerationService gen) : ControllerBase
     [HttpPost("sessions/{id:guid}/slots/{tag}/chat")]
     public async Task<IActionResult> SlotChat(Guid id, string tag, [FromBody] SlotChatBody body, CancellationToken ct)
         => Ok(new { answer = await gen.SlotChatAsync(id, tag, body.Question, ct) });
+
+    // ── 对话式填槽（A4 聊天形态）────────────────────────────────
+
+    [HttpGet("sessions/{id:guid}/conversation")]
+    public async Task<IActionResult> Conversation(Guid id, CancellationToken ct)
+        => Ok(await genChat.GetAsync(id, ct));
+
+    [HttpPost("sessions/{id:guid}/conversation")]
+    public async Task<IActionResult> ConversationTurn(Guid id, [FromBody] GenChatTurnInput input, CancellationToken ct)
+        => Ok(await genChat.TurnAsync(id, input, ct));
 
     [HttpGet("sessions/{id:guid}/completeness")]
     public async Task<IActionResult> Completeness(Guid id, CancellationToken ct)
