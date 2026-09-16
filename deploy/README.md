@@ -200,3 +200,9 @@ bge-m3 输出 1024 维，与部署包的向量列维度一致，不需要动数�
 - **构建源**：后端镜像构建期除基础镜像外零联网（备份用的 `pg_dump` 及其依赖库
   直接取自数据库同款镜像）；web/portal 的 npm 源默认指向国内镜像 npmmirror，
   海外环境可 `--build-arg NPM_REGISTRY=https://registry.npmjs.org` 换回官方。
+- **拉基础镜像失败**（`load metadata … EOF / not found`）：新版 Docker 的 bake
+  构建器每次都联网核对基础镜像，即使本地已有缓存。两步排障：
+  ① 先 `set COMPOSE_BAKE=false`（PowerShell 用 `$env:COMPOSE_BAKE="false"`）
+  再 `docker compose up -d --build`——退回传统构建器，本地已有的基础镜像不再联网；
+  ② 仍不行则打开 `.env`，把「基础镜像加速」一节四行取消注释（切到 DaoCloud
+  加速源）后重来。

@@ -15,7 +15,7 @@ name: htagent
 
 services:
   pg:
-    image: pgvector/pgvector:pg16
+    image: ${PG_IMAGE:-pgvector/pgvector:pg16}
     environment:
       POSTGRES_USER: htagent
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-htagent-docker}
@@ -32,7 +32,11 @@ services:
     restart: unless-stopped
 
   server-company:
-    build: ../server
+    build:
+      context: ../server
+      args:
+        DOTNET_REGISTRY: ${DOTNET_REGISTRY:-mcr.microsoft.com}
+        PG_IMAGE: ${PG_IMAGE:-pgvector/pgvector:pg16}
     image: htagent-server
     depends_on:
       pg:
@@ -59,7 +63,11 @@ services:
     restart: unless-stopped
 
   server-hq:
-    build: ../server
+    build:
+      context: ../server
+      args:
+        DOTNET_REGISTRY: ${DOTNET_REGISTRY:-mcr.microsoft.com}
+        PG_IMAGE: ${PG_IMAGE:-pgvector/pgvector:pg16}
     image: htagent-server
     depends_on:
       pg:
@@ -83,7 +91,11 @@ services:
     restart: unless-stopped
 
   web:
-    build: ../web
+    build:
+      context: ../web
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:22-alpine}
+        NGINX_IMAGE: ${NGINX_IMAGE:-nginx:1.27-alpine}
     image: htagent-web
     depends_on:
       - server-company
@@ -95,7 +107,11 @@ services:
 
   # 总部审核台：同一份 web 镜像，只是 API 指向总部节点
   hq-web:
-    build: ../web
+    build:
+      context: ../web
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:22-alpine}
+        NGINX_IMAGE: ${NGINX_IMAGE:-nginx:1.27-alpine}
     image: htagent-web
     depends_on:
       - server-hq
@@ -106,7 +122,11 @@ services:
     restart: unless-stopped
 
   portal:
-    build: ../portal
+    build:
+      context: ../portal
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:22-alpine}
+        NGINX_IMAGE: ${NGINX_IMAGE:-nginx:1.27-alpine}
     image: htagent-portal
     depends_on:
       - server-company
