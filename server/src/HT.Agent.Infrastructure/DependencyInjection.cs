@@ -54,6 +54,7 @@ public static class DependencyInjection
         services.AddSingleton<HttpParserClient>();
         services.AddSingleton<MinerUParserClient>();
         services.AddSingleton<MinerUOnlineParserClient>();
+        services.AddSingleton<OfficeDocxParser>();
         services.AddSingleton<IDocumentParserClient, SwitchingParserClient>();
 
         services.AddScoped<IAuthService, AuthService>();

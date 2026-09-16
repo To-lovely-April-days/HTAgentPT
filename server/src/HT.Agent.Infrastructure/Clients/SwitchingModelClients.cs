@@ -10,6 +10,10 @@ internal static class ModelSlotDefaults
 {
     public static bool UseStubs(IConfiguration appConfig)
         => bool.TryParse(appConfig["Models:UseStubs"], out var b) && b;
+
+    /// <summary>运行时配置里的布尔取值：TryParse（"True"/"true" 都认），取不出来用默认值。</summary>
+    public static bool Flag(string? value, bool fallback)
+        => bool.TryParse((value ?? "").Trim(), out var b) ? b : fallback;
 }
 
 /// <summary>向量化的运行时选择（E15 服务选择）：每次调用读 model.embedding.provider——
@@ -54,10 +58,18 @@ public class SwitchingRerankClient(
 public class SwitchingParserClient(
     StubParserClient stub, HttpParserClient http,
     MinerUParserClient mineruLocal, MinerUOnlineParserClient mineruOnline,
+    OfficeDocxParser office,
     IRuntimeConfig config, IConfiguration appConfig) : IDocumentParserClient
 {
     public async Task<ParsedDocument> ParseAsync(Stream file, string fileName, string contentType, CancellationToken ct = default)
     {
+        // Word 文件本地解析：结构（标题层级、表格单元格）在文件里是现成的，交给版面引擎
+        // 要先渲染再识别，慢且要出网。与 .txt/.md 同列，先于引擎选择处理；
+        // 想改走引擎（如需要版面图片切分）把 parser.office_local 设为 false。
+        if (OfficeDocxParser.Handles(fileName) &&
+            ModelSlotDefaults.Flag(await config.GetStringAsync(ConfigKeys.ParserOfficeLocal, "true", ct), true))
+            return await office.ParseAsync(file, fileName, contentType, ct);
+
         var deployed = (appConfig["Models:Parser"] ?? "").Trim().ToLowerInvariant();
         var fallback = deployed switch
         {

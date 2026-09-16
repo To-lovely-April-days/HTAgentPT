@@ -12,9 +12,13 @@ namespace HT.Agent.Api.Controllers;
 [Route("api/documents")]
 [Authorize]
 [RequirePermission(PermissionKeys.CorpusManage)]
-public class DocumentsController(IDocumentService docs, AppDbContext db) : ControllerBase
+public class DocumentsController(
+    IDocumentService docs, IProjectService projects, ICurrentUser me, AppDbContext db) : ControllerBase
 {
-    /// <summary>上传（表 8-1 POST /api/documents）：multipart，附知识库、密级与元数据。</summary>
+    /// <summary>上传（表 8-1 POST /api/documents）：multipart，附知识库、密级与元数据。
+    /// registerProject=true 时顺带把项目编号登记到台账（FR-3.3 要求先登记才能关联，
+    /// 但归集时是「边传边补台账」，不该逼着来回切页面）——登记用的是同一张表单上的
+    /// 客户、年份、设备类型，另可带型号与规模参数。登记台账属元数据维护权限，缺权限明确拒绝。</summary>
     [HttpPost]
     public async Task<IActionResult> Upload(
         [FromForm] IFormFile file,
@@ -28,8 +32,26 @@ public class DocumentsController(IDocumentService docs, AppDbContext db) : Contr
         [FromForm] string? title,
         [FromForm] ChunkStrategy? chunkStrategy,
         [FromForm] string? docVersion,
+        [FromForm] bool registerProject,
+        [FromForm] string? projectDeviceModel,
+        [FromForm] string? projectSpecParams,
         CancellationToken ct)
     {
+        if (registerProject && !string.IsNullOrWhiteSpace(projectNo))
+        {
+            if (!me.Permissions.Contains(PermissionKeys.MetaManage))
+                return StatusCode(403, new
+                {
+                    code = "FORBIDDEN",
+                    message = "你的角色不能登记台账项目。去掉「同时登记到台账」后再上传，或请管理员先在台账登记该项目编号。"
+                });
+            if (!await db.Projects.AnyAsync(p => p.ProjectNo == projectNo, ct))
+                await projects.CreateAsync(new ProjectEdit(projectNo.Trim(), customerName, year, deviceType,
+                    string.IsNullOrWhiteSpace(projectDeviceModel) ? null : projectDeviceModel.Trim(),
+                    string.IsNullOrWhiteSpace(projectSpecParams) ? null : projectSpecParams.Trim(),
+                    ContractAmount: null, DeliveryStatus: null, OwnerId: null, DocPath: null), ct);
+        }
+
         await using var stream = file.OpenReadStream();
         var result = await docs.UploadAsync(new UploadDocumentRequest(
             kbId, file.FileName, file.ContentType ?? "application/octet-stream", file.Length,

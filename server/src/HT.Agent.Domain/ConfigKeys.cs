@@ -46,6 +46,9 @@ public static class ConfigKeys
     public const string ParserMaxRetries = "parser.max_retries";
     /// <summary>解析并行度（FR-1.2：串行或有限并行）。</summary>
     public const string ParserConcurrency = "parser.concurrency";
+    /// <summary>Word（.docx）是否本地解析（默认 true）。Word 的结构在文件里是现成的，
+    /// 本地解析更准也不出网；设为 false 则与其他格式一样交给所选解析引擎。</summary>
+    public const string ParserOfficeLocal = "parser.office_local";
     // ── 检索链路参数（5.1 末段：均须可配置，不得硬编码）────
     public const string RecallTopK = "retrieval.recall_top_k";
     public const string RerankTopN = "retrieval.rerank_top_n";

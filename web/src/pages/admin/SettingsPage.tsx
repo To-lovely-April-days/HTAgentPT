@@ -36,6 +36,7 @@ const GROUPS: { title: string; keys: [string, string][] }[] = [
       ['chunking.target_length', '分块目标长度'], ['chunking.overlap', '分块重叠'],
       ['parser.backend', '解析后端'], ['parser.timeout_seconds', '解析超时（秒）'],
       ['parser.concurrency', '解析并发数'], ['parser.max_retries', '解析重试次数'],
+      ['parser.office_local', 'Word 本地解析（true/false）'],
     ],
   },
   {

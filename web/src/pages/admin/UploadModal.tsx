@@ -1,11 +1,12 @@
 // E2 上传与元数据登记。入库链路上的三道闸（都在入库时把关，事后补难得多）：
 // ① 必须选目标知识库与密级（FR-1.1）② 必填元数据未填齐不允许提交（FR-3.1）
 // ③ 受控字段只能选不能写（FR-3.2）。项目编号按表 4-5 条件必填。
+// 归集阶段常是「边传边补台账」，所以编号不在台账时就地登记，不用来回切页面。
 import React, { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { get, upload, ApiError } from '../../lib/api';
+import { get, post, upload, ApiError } from '../../lib/api';
 import { KB_TIER_LABEL, PROJECT_LINKED_CATEGORIES, STRATEGY_LABEL } from '../../lib/types';
-import type { KbRow, VocabRow } from '../../lib/types';
+import type { KbRow, ProjectRow, VocabRow } from '../../lib/types';
 import { ErrorBox } from '../../components/Common';
 
 export default function UploadModal({ kbs, onClose, onUploaded }: {
@@ -22,6 +23,9 @@ export default function UploadModal({ kbs, onClose, onUploaded }: {
   const [deviceType, setDeviceType] = useState('');
   const [docCategory, setDocCategory] = useState('');
   const [projectNo, setProjectNo] = useState('');
+  const [registerProject, setRegisterProject] = useState(true);
+  const [projectDeviceModel, setProjectDeviceModel] = useState('');
+  const [projectSpecParams, setProjectSpecParams] = useState('');
   const [strategy, setStrategy] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,11 +34,21 @@ export default function UploadModal({ kbs, onClose, onUploaded }: {
   const customers = useQuery({ queryKey: ['vocab', 'customer_name'], queryFn: () => get<VocabRow[]>('/api/vocab/customer_name'), staleTime: 60_000 });
   const devices = useQuery({ queryKey: ['vocab', 'device_type'], queryFn: () => get<VocabRow[]>('/api/vocab/device_type'), staleTime: 60_000 });
   const categories = useQuery({ queryKey: ['vocab', 'doc_category'], queryFn: () => get<VocabRow[]>('/api/vocab/doc_category'), staleTime: 60_000 });
+  // 台账已有项目：给编号做候选与「已在台账」的判定。无台账检索权限时查询失败，
+  // 此时不给候选，就地登记仍可用（服务端会再判一次权限）
+  const projects = useQuery({
+    queryKey: ['projects', 'for-upload'],
+    queryFn: () => post<{ rows: ProjectRow[] }>('/api/projects/search', { limit: 200 }).then((r) => r.rows),
+    staleTime: 30_000, retry: false,
+  });
 
   const kb = kbs.find((k) => k.id === kbId);
   const projectRequired = PROJECT_LINKED_CATEGORIES.includes(docCategory);
+  const typedNo = projectNo.trim();
+  const matched = (projects.data ?? []).find((p) => p.projectNo === typedNo);
+  const isNewProject = typedNo.length > 0 && !matched && !projects.isLoading;
   const ready = !!file && !!kbId && !!classification && !!customerName && year.length === 4
-    && !!deviceType && !!docCategory && (!projectRequired || projectNo.trim().length > 0);
+    && !!deviceType && !!docCategory && (!projectRequired || typedNo.length > 0);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,9 +64,15 @@ export default function UploadModal({ kbs, onClose, onUploaded }: {
       form.append('year', year);
       form.append('deviceType', deviceType);
       form.append('docCategory', docCategory);
-      if (projectNo.trim()) form.append('projectNo', projectNo.trim());
+      if (typedNo) form.append('projectNo', typedNo);
       if (title.trim()) form.append('title', title.trim());
       if (strategy) form.append('chunkStrategy', strategy);
+      // 编号不在台账且勾了登记：服务端在入库前先建台账记录（用同一张表单上的客户/年份/设备类型）
+      if (typedNo && isNewProject && registerProject) {
+        form.append('registerProject', 'true');
+        if (projectDeviceModel.trim()) form.append('projectDeviceModel', projectDeviceModel.trim());
+        if (projectSpecParams.trim()) form.append('projectSpecParams', projectSpecParams.trim());
+      }
       await upload('/api/documents', form);
       onUploaded();
     } catch (err) {
@@ -152,16 +172,58 @@ export default function UploadModal({ kbs, onClose, onUploaded }: {
               </select>
             </div>
             <div style={{ flex: '1 1 0' }}>
-              <div style={fl}>项目编号{projectRequired ? req : <span className="hint">（该类别不填）</span>}</div>
-              <input style={{ ...fi, ...(projectRequired && !projectNo.trim() ? { borderColor: 'var(--cls-int-line)', background: 'var(--cls-int-bg)' } : {}) }}
+              <div style={fl}>项目编号{projectRequired ? req : <span className="hint">（该类别可不填）</span>}</div>
+              <input style={{ ...fi, ...(projectRequired && !typedNo ? { borderColor: 'var(--cls-int-line)', background: 'var(--cls-int-bg)' } : {}) }}
                 className="m" value={projectNo} onChange={(e) => setProjectNo(e.target.value)}
-                placeholder={projectRequired ? '须在台账中已登记' : '手册与资料类不关联项目'} />
+                list="upload-project-list" autoComplete="off"
+                placeholder={projectRequired ? '选已有编号或直接写新编号' : '手册与资料类可不关联项目'} />
+              <datalist id="upload-project-list">
+                {(projects.data ?? []).map((p) => (
+                  <option key={p.projectNo} value={p.projectNo}>{p.customerName} · {p.year} · {p.deviceType}</option>
+                ))}
+              </datalist>
             </div>
           </div>
 
-          {projectRequired && (
+          {/* 编号已在台账：回显一行，确认没选错项目 */}
+          {matched && (
+            <div className="hint" style={{ marginBottom: 12 }}>
+              台账中已有该项目：{matched.customerName} · {matched.year} · {matched.deviceType}
+              {matched.deviceModel ? ` · ${matched.deviceModel}` : ''}，本次上传将挂到它名下。
+            </div>
+          )}
+
+          {/* 编号不在台账：就地登记，省掉来回切页面。客户/年份/设备类型直接用上面填的 */}
+          {isNewProject && (
+            <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 5, background: 'var(--cls-int-bg)', border: '1px solid var(--cls-int-line)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, cursor: 'pointer' }}>
+                <input type="checkbox" checked={registerProject} onChange={(e) => setRegisterProject(e.target.checked)} />
+                <span><span className="m">{typedNo}</span> 不在台账中——上传时<strong style={{ fontWeight: 600 }}>同时登记到台账</strong></span>
+              </label>
+              {registerProject ? (
+                <>
+                  <div className="hint" style={{ margin: '6px 0 8px', lineHeight: 1.65 }}>
+                    登记用上面填的客户（{customerName || '未选'}）、年份（{year || '未填'}）、设备类型（{deviceType || '未选'}）；
+                    下面两项可留空，之后在台账里补也行。
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <input style={{ ...fi, flex: '0 0 150px' }} value={projectDeviceModel}
+                      onChange={(e) => setProjectDeviceModel(e.target.value)} placeholder="型号（可选）" />
+                    <input style={{ ...fi, flex: '1 1 0' }} value={projectSpecParams}
+                      onChange={(e) => setProjectSpecParams(e.target.value)} placeholder="规模参数（可选），如 10L 10 MPa 300 ℃" />
+                  </div>
+                </>
+              ) : (
+                <div className="hint" style={{ marginTop: 6, lineHeight: 1.65 }}>
+                  不登记的话这次上传会被拒绝——文档要关联项目编号，编号必须在台账里（表 4-5）。
+                </div>
+              )}
+            </div>
+          )}
+
+          {projectRequired && !typedNo && (
             <div className="hint" style={{ marginBottom: 12, lineHeight: 1.65 }}>
-              类别为「{docCategory}」时项目编号必填并关联台账（表 4-5 条件必填）——编号不在台账时请先到台账登记。
+              类别为「{docCategory}」时项目编号必填并关联台账（表 4-5 条件必填）。编号不在台账里也没关系，写上就能一起登记。
             </div>
           )}
 
