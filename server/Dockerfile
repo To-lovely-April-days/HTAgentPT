@@ -5,20 +5,21 @@ WORKDIR /src
 COPY . .
 RUN dotnet publish src/HT.Agent.Api -c Release -o /app/publish
 
+# 备份任务要在容器内调 pg_dump，且大版本必须 ≥ 服务器（16）——Debian 12 源里只有 15。
+# 不走 PGDG 软件源（国内各镜像站路径不一、直连又常断）：pg_dump 与配套 libpq
+# 直接从数据库同款镜像里复制（部署本来就要拉它，本地必有缓存），版本天然一致。
+FROM pgvector/pgvector:pg16 AS pgtools
+
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
-# 备份任务在容器内直接调 pg_dump / tar。pg_dump 大版本必须 ≥ 服务器（16），
-# Debian 12 源里只有 15 且会因版本不匹配拒绝，故从 PGDG 源装 16。
-# 源默认走清华镜像（国内直连官方源经常断）；海外构建可用 --build-arg 换回官方：
-#   APT_MIRROR=deb.debian.org  PGDG_MIRROR=apt.postgresql.org/pub/repos/apt
-# PGDG 签名密钥用 Debian 自带的 postgresql-common 包里那份，不再联网取密钥。
+# libpq/pg_dump 的运行库从 Debian 源装。源默认走清华镜像（国内直连官方源经常断）；
+# 海外构建可 --build-arg APT_MIRROR=deb.debian.org 换回官方。
 ARG APT_MIRROR=mirrors.tuna.tsinghua.edu.cn
-ARG PGDG_MIRROR=mirrors.tuna.tsinghua.edu.cn/postgresql/repos/apt
 RUN sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources \
  && apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates postgresql-common \
- && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://${PGDG_MIRROR} bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
- && apt-get update && apt-get install -y --no-install-recommends postgresql-client-16 \
+ && apt-get install -y --no-install-recommends libgssapi-krb5-2 libldap-2.5-0 liblz4-1 libzstd1 zlib1g \
  && rm -rf /var/lib/apt/lists/*
+COPY --from=pgtools /usr/lib/postgresql/16/bin/pg_dump /usr/local/bin/pg_dump
+COPY --from=pgtools /usr/lib/x86_64-linux-gnu/libpq.so.5* /usr/lib/x86_64-linux-gnu/
 WORKDIR /app
 COPY --from=build /app/publish .
 # 文件存储与备份都在 data/ 下（Storage:Root=data/files、backup 默认 data/backup），
