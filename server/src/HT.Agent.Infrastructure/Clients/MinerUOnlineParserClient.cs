@@ -36,25 +36,35 @@ public class MinerUOnlineParserClient(IHttpClientFactory httpFactory, IRuntimeCo
         await file.CopyToAsync(buffer, ct);
         var safeName = MinerUParserClient.SafeAsciiFileName(fileName);
 
-        // ① 申请上传地址（enable_table/formula 与语言随行；model_version 只认 pipeline / vlm 两族）
+        // ① 申请上传地址。请求体按官方现行示例保持最小面：files[{name,data_id}] + model_version——
+        //    is_ocr / enable_formula / enable_table / language 属随版本变动的可选项，带上曾被线上
+        //    校验以 -10002 拒绝；不发即用服务端默认值。model_version 取解析后端配置（pipeline/vlm/
+        //    MinerU-HTML…），在「系统设置 → 切分与解析 → 解析后端」可改，不用动代码。
+        var dataId = Guid.NewGuid().ToString("N");
         var createBody = new
         {
-            enable_formula = true,
-            enable_table = true,
-            language = "ch",
-            model_version = backend.StartsWith("vlm", StringComparison.OrdinalIgnoreCase) ? "vlm" : "pipeline",
-            files = new[] { new { name = safeName, is_ocr = false } }
+            files = new[] { new { name = safeName, data_id = dataId } },
+            model_version = backend.StartsWith("vlm", StringComparison.OrdinalIgnoreCase) ? "vlm" : backend.Trim()
         };
+        var createJson = JsonSerializer.Serialize(createBody);
         string batchId, uploadUrl;
         using (var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/api/v4/file-urls/batch")
-               { Content = JsonContent.Create(createBody) })
+               { Content = new StringContent(createJson, System.Text.Encoding.UTF8, "application/json") })
         {
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             var resp = await SendAsync(http, req, timeout, ct, "申请上传地址");
             var body = await resp.Content.ReadAsStringAsync(ct);
             if (!resp.IsSuccessStatusCode)
-                throw new ParseContentException($"在线解析服务拒绝（HTTP {(int)resp.StatusCode}）：{Truncate(body)}");
-            (batchId, uploadUrl) = ParseBatchCreate(body);
+                throw new ParseContentException($"在线解析服务拒绝（HTTP {(int)resp.StatusCode}）：{Truncate(body)}（已发送：{createJson}）");
+            try
+            {
+                (batchId, uploadUrl) = ParseBatchCreate(body);
+            }
+            catch (ParseContentException ex)
+            {
+                // 把我们实际发送的请求体带上——服务端字段校验类错误全靠这个一眼定位
+                throw new ParseContentException($"{ex.Reason}（已发送：{createJson}）");
+            }
         }
 
         // ② 上传文件（预签名地址，无需鉴权头；上传完成后服务端自动入队解析）
@@ -81,7 +91,7 @@ public class MinerUOnlineParserClient(IHttpClientFactory httpFactory, IRuntimeCo
             var body = await resp.Content.ReadAsStringAsync(ct);
             if (!resp.IsSuccessStatusCode)
                 throw new ParserUnavailableException($"查询在线解析进度失败（HTTP {(int)resp.StatusCode}）：{Truncate(body)}");
-            var (state, url, err) = ParseBatchState(body, safeName);
+            var (state, url, err) = ParseBatchState(body, safeName, dataId);
             if (state == "failed")
                 throw new ParseContentException($"在线解析失败：{(string.IsNullOrWhiteSpace(err) ? "服务未给出原因" : err)}");
             if (state == "done" && !string.IsNullOrEmpty(url)) { zipUrl = url!; break; }
@@ -138,8 +148,9 @@ public class MinerUOnlineParserClient(IHttpClientFactory httpFactory, IRuntimeCo
         return (batchId!, urls[0].GetString()!);
     }
 
-    /// <summary>批次状态响应：按文件名匹配 extract_result 条目（找不到就取第一条——我们每次只送一个文件）。</summary>
-    public static (string State, string? ZipUrl, string? Error) ParseBatchState(string json, string fileName)
+    /// <summary>批次状态响应：优先按 data_id 匹配 extract_result 条目（服务端可能改写文件名），
+    /// 其次按文件名，都找不到取第一条——我们每次只送一个文件。</summary>
+    public static (string State, string? ZipUrl, string? Error) ParseBatchState(string json, string fileName, string? dataId = null)
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -147,8 +158,15 @@ public class MinerUOnlineParserClient(IHttpClientFactory httpFactory, IRuntimeCo
             || results.ValueKind != JsonValueKind.Array || results.GetArrayLength() == 0)
             return ("pending", null, null);
         JsonElement entry = results[0];
-        foreach (var r in results.EnumerateArray())
-            if (r.TryGetProperty("file_name", out var fn) && fn.GetString() == fileName) { entry = r; break; }
+        var found = false;
+        if (!string.IsNullOrEmpty(dataId))
+            foreach (var r in results.EnumerateArray())
+                if (r.TryGetProperty("data_id", out var di) && di.ValueKind == JsonValueKind.String && di.GetString() == dataId)
+                { entry = r; found = true; break; }
+        if (!found)
+            foreach (var r in results.EnumerateArray())
+                if (r.TryGetProperty("file_name", out var fn) && fn.ValueKind == JsonValueKind.String && fn.GetString() == fileName)
+                { entry = r; break; }
         var state = entry.TryGetProperty("state", out var st) ? st.GetString() ?? "pending" : "pending";
         var zip = entry.TryGetProperty("full_zip_url", out var z) && z.ValueKind == JsonValueKind.String ? z.GetString() : null;
         var err = entry.TryGetProperty("err_msg", out var e) && e.ValueKind == JsonValueKind.String ? e.GetString() : null;

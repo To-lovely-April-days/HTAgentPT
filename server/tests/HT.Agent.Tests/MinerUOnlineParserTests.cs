@@ -40,6 +40,21 @@ public class MinerUOnlineParserTests
     }
 
     [Fact]
+    public void 批次状态_dataId优先于文件名_服务端改名也能对上()
+    {
+        // 服务端可能改写文件名——data_id 是我们自己生成的，匹配以它优先
+        var json = """
+            {"code":0,"data":{"batch_id":"b1","extract_result":[
+              {"file_name":"renamed-by-server.pdf","data_id":"d-42","state":"done","full_zip_url":"https://oss.example/d42.zip"},
+              {"file_name":"mine.pdf","data_id":"d-99","state":"failed","err_msg":"其他人的"}
+            ]}}
+            """;
+        var (state, zip, _) = MinerUOnlineParserClient.ParseBatchState(json, "mine.pdf", "d-42");
+        Assert.Equal("done", state);
+        Assert.Equal("https://oss.example/d42.zip", zip);
+    }
+
+    [Fact]
     public void 批次状态_失败态带原因_结果未就绪按pending()
     {
         var (state, _, err) = MinerUOnlineParserClient.ParseBatchState(
