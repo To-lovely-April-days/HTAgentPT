@@ -11,15 +11,22 @@ RUN dotnet publish src/HT.Agent.Api -c Release -o /app/publish
 FROM pgvector/pgvector:pg16 AS pgtools
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
-# libpq/pg_dump 的运行库从 Debian 源装。源默认走清华镜像（国内直连官方源经常断）；
-# 海外构建可 --build-arg APT_MIRROR=deb.debian.org 换回官方。
-ARG APT_MIRROR=mirrors.tuna.tsinghua.edu.cn
-RUN sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources \
- && apt-get update \
- && apt-get install -y --no-install-recommends libgssapi-krb5-2 libldap-2.5-0 liblz4-1 libzstd1 zlib1g \
- && rm -rf /var/lib/apt/lists/*
+# pg_dump 的依赖库也全部从数据库镜像复制（krb5/ldap 家族基础镜像里没有），
+# 运行阶段完全不碰 apt——构建期除基础镜像外零联网，网络环境再差也能过。
+# lz4/zstd/zlib 基础镜像自带（apt 自身的依赖），ssl 由 .NET 运行时带入。
 COPY --from=pgtools /usr/lib/postgresql/16/bin/pg_dump /usr/local/bin/pg_dump
-COPY --from=pgtools /usr/lib/x86_64-linux-gnu/libpq.so.5* /usr/lib/x86_64-linux-gnu/
+COPY --from=pgtools \
+    /usr/lib/x86_64-linux-gnu/libpq.so.5* \
+    /usr/lib/x86_64-linux-gnu/libgssapi_krb5.so.2* \
+    /usr/lib/x86_64-linux-gnu/libkrb5.so.3* \
+    /usr/lib/x86_64-linux-gnu/libk5crypto.so.3* \
+    /usr/lib/x86_64-linux-gnu/libkrb5support.so.0* \
+    /usr/lib/x86_64-linux-gnu/libcom_err.so.2* \
+    /usr/lib/x86_64-linux-gnu/libkeyutils.so.1* \
+    /usr/lib/x86_64-linux-gnu/libldap-2.5.so.0* \
+    /usr/lib/x86_64-linux-gnu/liblber-2.5.so.0* \
+    /usr/lib/x86_64-linux-gnu/libsasl2.so.2* \
+    /usr/lib/x86_64-linux-gnu/
 WORKDIR /app
 COPY --from=build /app/publish .
 # 文件存储与备份都在 data/ 下（Storage:Root=data/files、backup 默认 data/backup），
