@@ -42,6 +42,10 @@ public interface IGenerationService
     Task<IReadOnlyList<SessionRow>> ListSessionsAsync(CancellationToken ct = default);
     /// <summary>候选基准项目（FR-5.4）：二至三个，带关键规格与可继承槽位数量。</summary>
     Task<IReadOnlyList<BaseCandidate>> GetCandidatesAsync(Guid sessionId, CancellationToken ct = default);
+    /// <summary>按明确条件查候选基准（对话里「查一下历史做过的」）：客户/设备类型为筛选，
+    /// 关键词（型号、容积等）只影响排序；条件全空即最近项目。</summary>
+    Task<IReadOnlyList<BaseCandidate>> FindCandidatesAsync(Guid sessionId, string? customer, string? deviceType,
+        string? keyword, int take, CancellationToken ct = default);
     /// <summary>选定/更换/清除基准（FR-5.5）：用户确认过的槽位保留，其余重新预填。</summary>
     Task<SessionView> SetBaseProjectAsync(Guid sessionId, string? projectNo, CancellationToken ct = default);
     /// <summary>填写或确认单个槽位（表 8-1 PUT slots/{key}）。</summary>
@@ -123,10 +127,11 @@ public interface IGenerationChatService
     Task<GenChatTurnResult> TurnAsync(Guid sessionId, GenChatTurnInput input, CancellationToken ct = default);
 }
 
-/// <summary>一轮输入：Start=补开场白（会话还没有消息时）；Message=自由文本；
-/// OptionFills=选项按钮直填（不过模型）；BaseProjectNo=选定基准（空串=明确不用）；Render=生成文档。</summary>
+/// <summary>一轮输入：Start=补开场白（会话还没有消息时）；Message=自由文本（经总指挥派工）；
+/// OptionFills=选项按钮直填（不过模型）；BaseProjectNo=选定基准（空串=明确不用）；
+/// AdoptTags=采纳建议按钮（空表=全部待确认建议）；Render=生成文档。</summary>
 public record GenChatTurnInput(string? Message = null, List<GenTagValue>? OptionFills = null,
-    string? BaseProjectNo = null, bool Render = false, bool Start = false);
+    string? BaseProjectNo = null, bool Render = false, bool Start = false, List<string>? AdoptTags = null);
 
 public record GenTagValue(string Tag, string Value);
 

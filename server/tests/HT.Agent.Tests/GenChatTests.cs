@@ -58,6 +58,56 @@ public class GenChatTests
         Assert.Empty(GenChatLogic.ParseModelFills("{\"fills\":[{\"tag\":\"a\"}]}")); // 缺 value 丢弃
     }
 
+    [Theory]
+    [InlineData("有没有历史做过的你查询一下", "ledger")]
+    [InlineData("华东理工之前做过哪些项目", "ledger")]
+    [InlineData("查一下台账", "ledger")]
+    [InlineData("参考类似项目推荐一下技术参数", "ledger")]   // 「参考…项目」先归台账，再由用户挑
+    [InlineData("这几项给个建议", "suggest")]
+    [InlineData("材质一般用什么", "suggest")]
+    [InlineData("都采纳", "adopt")]
+    [InlineData("用第二个做基准", "pick_base")]
+    [InlineData("P-2025-0186", "pick_base")]
+    [InlineData("设计压力和使用压力有什么区别？", "ask")]
+    [InlineData("防爆工况要不要调设计压力", "ask")]
+    [InlineData("316L", "fill")]
+    [InlineData("生成文档", "render")]
+    public void 规则规划_按意图派工(string text, string expectedType)
+    {
+        var plan = GenChatLogic.PlanByRules(text);
+        Assert.Single(plan);
+        Assert.Equal(expectedType, plan[0].Type);
+    }
+
+    [Fact]
+    public void 规则规划_序号与名称能带出参数()
+    {
+        Assert.Equal(2, GenChatLogic.PlanByRules("用第二个做基准")[0].Index);
+        Assert.Equal("P-2025-0186", GenChatLogic.PlanByRules("就用 P-2025-0186 做基准")[0].ProjectNo);
+        Assert.Equal("材质", GenChatLogic.PlanByRules("采纳材质")[0].Name);
+        Assert.Empty(GenChatLogic.PlanByRules("全部采纳")[0].Tags!);
+    }
+
+    [Fact]
+    public void 派工单解析_多动作_未知类型丢弃_兼容纯fills格式()
+    {
+        var plan = GenChatLogic.ParsePlan(
+            "```json\n{\"actions\":[{\"type\":\"fill\",\"tag\":\"customer_name\",\"value\":\"华东理工\"}," +
+            "{\"type\":\"ledger\",\"customer\":\"华东理工\",\"device\":\"\"}," +
+            "{\"type\":\"pick_base\",\"index\":2},{\"type\":\"dance\"}," +
+            "{\"type\":\"fill\",\"tag\":\"x\"}]}\n```");
+        Assert.Equal(3, plan.Count);                       // dance 丢弃、缺 value 的 fill 丢弃
+        Assert.Equal("华东理工", plan[0].Value);
+        Assert.Equal("华东理工", plan[1].Customer);
+        Assert.Null(plan[1].Device);                      // 空串归 null
+        Assert.Equal(2, plan[2].Index);
+
+        var legacy = GenChatLogic.ParsePlan("{\"fills\":[{\"tag\":\"material\",\"value\":\"316L\"}]}");
+        Assert.Single(legacy);
+        Assert.Equal(("fill", "material"), (legacy[0].Type, legacy[0].Tag));
+        Assert.Empty(GenChatLogic.ParsePlan("不是 JSON"));
+    }
+
     [Fact]
     public void 模板推荐打分_名称命中优先_类别兜底()
     {

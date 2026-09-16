@@ -242,13 +242,13 @@ function SessionChat({ sessionId, initialMessage, onExit, onWorkbench }: {
 
       <form onSubmit={submit} style={{ flexShrink: 0, padding: '10px 20px 14px', background: 'var(--panel)', borderTop: '1px solid var(--line)' }}>
         <div style={{ maxWidth: 760, margin: '0 auto' }}>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-            {['跳过', '汇总', '生成文档'].map((c) => (
-              <button key={c} type="button" className="gbtn" style={{ height: 24, fontSize: 11.5 }} disabled={busy}
-                onClick={() => void turn({ message: c })}>{c}</button>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+            {([['查历史项目', '查一下历史做过的项目'], ['推荐参数', '推荐一下当前这几项的参数'], ['跳过', '跳过'], ['汇总', '汇总'], ['生成文档', '生成文档']] as const).map(([label, msg]) => (
+              <button key={label} type="button" className="gbtn" style={{ height: 24, fontSize: 11.5 }} disabled={busy}
+                onClick={() => void turn({ message: msg })}>{label}</button>
             ))}
             <span className="hint" style={{ alignSelf: 'center', marginLeft: 6 }}>
-              整句描述即可（如「材质 316L，法兰结构，电加热」），能确定的项会一次填入
+              整句描述、查历史、要建议、提问都行，一句话里可以混着说
             </span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -292,6 +292,31 @@ function AssistantChatMsg({ msg, active, sessionId, onTurn, onError }: {
             </div>
             {active && <button className="gbtn" style={{ height: 24, fontSize: 11.5, marginTop: 7 }}
               onClick={() => void onTurn({ baseProjectNo: '' })}>不用基准，直接开始</button>}
+          </div>
+        )}
+
+        {/* 参数顾问的建议：带依据、待确认；采纳才落表（FR-5.9/5.13） */}
+        {payload.suggestions && payload.suggestions.length > 0 && (
+          <div style={{ marginTop: 9, padding: '9px 11px', borderRadius: 5, background: '#fbeff7', border: '1px solid #edd2e3' }}>
+            {payload.suggestions.map((s) => (
+              <div key={s.tag} style={{ marginBottom: 7 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11.5, fontWeight: 600, color: '#8f3d74' }}>{s.name}</span>
+                  <span style={{ fontSize: 12.5, whiteSpace: 'pre-wrap' }}>{s.value}</span>
+                  {active && <button className="pbtn" style={{ height: 22, fontSize: 11, padding: '0 9px' }}
+                    onClick={() => void onTurn({ adoptTags: [s.tag] })}>采纳</button>}
+                </div>
+                {s.evidence.map((e, i) => (
+                  <div key={i} style={{ fontSize: 11, lineHeight: 1.6, color: 'var(--ink-2)' }}>
+                    <span className="m" style={{ color: '#8f3d74' }}>[{i + 1}]</span> {e.sourceTitle}{e.section ? ` › ${e.section}` : ''}{e.pageNo != null ? ` · 第 ${e.pageNo} 页` : ''}
+                  </div>
+                ))}
+              </div>
+            ))}
+            {active && payload.suggestions.length > 1 && (
+              <button className="gbtn" style={{ height: 24, fontSize: 11.5 }}
+                onClick={() => void onTurn({ adoptTags: payload.suggestions!.map((s) => s.tag) })}>全部采纳</button>
+            )}
           </div>
         )}
 

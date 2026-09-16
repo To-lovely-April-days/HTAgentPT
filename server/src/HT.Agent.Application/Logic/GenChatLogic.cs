@@ -94,6 +94,118 @@ public static class GenChatLogic
         catch (JsonException) { return []; }
     }
 
+    // ── 总指挥派工单 ──────────────────────────────────────────
+
+    /// <summary>一条派工：Type 为 fill / ledger / pick_base / suggest / adopt / ask / skip / summary / render。
+    /// 总指挥（模型或规则）只产出派工单，具体活由服务端各专员按既有能力执行。</summary>
+    public sealed record PlanAction(
+        string Type,
+        string? Tag = null, string? Value = null,
+        string? Customer = null, string? Device = null, string? Keyword = null,
+        IReadOnlyList<string>? Tags = null,
+        string? Question = null,
+        string? ProjectNo = null, int? Index = null,
+        /// <summary>按显示名称指代的槽位（「采纳材质」），由服务端解析成 tag。</summary>
+        string? Name = null);
+
+    private static readonly HashSet<string> KnownActions =
+        ["fill", "ledger", "pick_base", "suggest", "adopt", "ask", "skip", "summary", "render"];
+
+    /// <summary>解析总指挥模型的派工单：{"actions":[...]}；兼容早期只有 {"fills":[...]} 的抽取格式。
+    /// 未知动作类型丢弃，解析失败返回空表——由调用方退回规则规划。</summary>
+    public static IReadOnlyList<PlanAction> ParsePlan(string reply)
+    {
+        var start = reply.IndexOf('{');
+        var end = reply.LastIndexOf('}');
+        if (start < 0 || end <= start) return [];
+        try
+        {
+            using var doc = JsonDocument.Parse(reply[start..(end + 1)]);
+            var root = doc.RootElement;
+            var result = new List<PlanAction>();
+            if (root.TryGetProperty("actions", out var actions) && actions.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var a in actions.EnumerateArray())
+                {
+                    if (a.ValueKind != JsonValueKind.Object) continue;
+                    var type = Str(a, "type")?.Trim().ToLowerInvariant();
+                    if (type is null || !KnownActions.Contains(type)) continue;
+                    var value = a.TryGetProperty("value", out var v) ? ScalarToString(v) : null;
+                    if (type == "fill" && (string.IsNullOrWhiteSpace(Str(a, "tag")) || string.IsNullOrWhiteSpace(value))) continue;
+                    result.Add(new PlanAction(type,
+                        Tag: Blank(Str(a, "tag")), Value: value?.Trim(),
+                        Customer: Blank(Str(a, "customer")), Device: Blank(Str(a, "device")), Keyword: Blank(Str(a, "keyword")),
+                        Tags: a.TryGetProperty("tags", out var tags) && tags.ValueKind == JsonValueKind.Array
+                            ? tags.EnumerateArray().Select(t => t.GetString()).Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t!).ToList()
+                            : null,
+                        Question: Blank(Str(a, "question")),
+                        ProjectNo: Blank(Str(a, "projectNo")),
+                        Index: a.TryGetProperty("index", out var idx) && idx.ValueKind == JsonValueKind.Number && idx.TryGetInt32(out var i) ? i : null));
+                }
+            }
+            foreach (var (tag, value) in ParseModelFills(reply[start..(end + 1)]))
+                if (!result.Any(r => r.Type == "fill" && r.Tag == tag))
+                    result.Add(new PlanAction("fill", Tag: tag, Value: value));
+            return result;
+        }
+        catch (JsonException) { return []; }
+
+        static string? Str(JsonElement e, string name)
+            => e.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
+        static string? Blank(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+        static string? ScalarToString(JsonElement v) => v.ValueKind switch
+        {
+            JsonValueKind.String => v.GetString(),
+            JsonValueKind.Number => v.GetRawText(),
+            JsonValueKind.True => "是",
+            JsonValueKind.False => "否",
+            _ => null
+        };
+    }
+
+    private static readonly Regex AdoptAll = new(@"^(都采纳|全部采纳|采纳全部|采纳|就用建议的|按建议的?来|采纳建议|用建议的)$", RegexOptions.Compiled);
+    private static readonly Regex AdoptOne = new(@"^采纳[:：]?(.{1,20})$", RegexOptions.Compiled);
+    private static readonly Regex PickIndex = new(@"^(?:就?用|选|拿|要)?第([一二三四五12345])(?:个|条|项)?(?:做|作|当|为)?(?:基准)?(?:吧|啊)?$", RegexOptions.Compiled);
+    private static readonly Regex ProjectNoRef = new(@"([A-Z]{1,3}-\d{4}-\d{3,5})", RegexOptions.Compiled);
+    private static readonly Regex LedgerAsk = new(
+        @"(历史|做过|台账|以前|之前|类似|相近|相似|老项目|参考项目).{0,12}(项目|做过|查|找|有没有|哪些|案例)|^查(一下|下|询)?.{0,10}(历史|台账|项目)|有没有.{0,8}(做过|历史|类似)",
+        RegexOptions.Compiled);
+    private static readonly Regex SuggestAsk = new(
+        @"(推荐|建议|参考一下|参考.{0,6}(参数|值|数据)|一般(用|是|取|选)什么|通常|给个参考|帮我定|帮我选)", RegexOptions.Compiled);
+    private static readonly Regex QuestionAsk = new(
+        @"[?？]$|什么区别|怎么(选|定|算|填|理解)|为什么|要不要|需要吗|是什么意思|什么是|多少合适|合适吗|可以吗|行不行", RegexOptions.Compiled);
+
+    /// <summary>规则规划（演示档、模型不可用时的兜底）：一句只派一个活，宁可保守。
+    /// 没命中任何意图即视为在回答当前问题（fill，值为整句）。</summary>
+    public static IReadOnlyList<PlanAction> PlanByRules(string message)
+    {
+        var m = Regex.Replace(message.Trim(), @"[。！!，,~～\s]+$", "");
+        if (m.Length == 0) return [];
+        switch (DetectCommand(m))
+        {
+            case ChatCommand.Skip: return [new PlanAction("skip")];
+            case ChatCommand.Render: return [new PlanAction("render")];
+            case ChatCommand.Summary: return [new PlanAction("summary")];
+        }
+        if (AdoptAll.IsMatch(m)) return [new PlanAction("adopt", Tags: [])];
+        var one = AdoptOne.Match(m);
+        if (one.Success) return [new PlanAction("adopt", Name: one.Groups[1].Value.Trim())];
+        var pick = PickIndex.Match(m);
+        if (pick.Success) return [new PlanAction("pick_base", Index: CnIndex(pick.Groups[1].Value))];
+        var no = ProjectNoRef.Match(m);
+        if (no.Success && (m.Length <= no.Length + 8 || Regex.IsMatch(m, "基准|用这个|就这个|选这个|参考")))
+            return [new PlanAction("pick_base", ProjectNo: no.Groups[1].Value)];
+        if (LedgerAsk.IsMatch(m)) return [new PlanAction("ledger")];
+        if (SuggestAsk.IsMatch(m)) return [new PlanAction("suggest", Tags: [])];
+        if (QuestionAsk.IsMatch(m)) return [new PlanAction("ask", Question: message.Trim())];
+        return [new PlanAction("fill", Value: message.Trim())];
+    }
+
+    private static int CnIndex(string s) => s switch
+    {
+        "一" or "1" => 1, "二" or "2" => 2, "三" or "3" => 3, "四" or "4" => 4, "五" or "5" => 5, _ => 0
+    };
+
     /// <summary>模板与提问的匹配打分（问答里推荐模板用）：模板名整段命中权重最高，
     /// 名称二字词滑窗命中累加，文档类别命中补一档。0 分即不相关。</summary>
     public static int TemplateScore(string question, string name, string docType)

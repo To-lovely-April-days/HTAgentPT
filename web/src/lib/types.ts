@@ -191,14 +191,21 @@ export interface GenChatTurnResult { newMessages: GenChatMsg[]; progress: GenCha
 export interface GenAsk {
   tag: string; name: string; section: string; dataType: string;
   choices: string[] | null; prompt: string | null; unit: string | null; required: boolean;
+  /** 有 AI 建议待确认时的建议值 */
+  suggested: string | null;
+}
+export interface GenSuggestion {
+  tag: string; name: string; value: string | null; hasEvidence: boolean; note: string | null;
+  evidence: { sourceTitle: string; section: string | null; pageNo: number | null }[];
 }
 /** 助手消息 payload（jsonb 字符串反序列化后）：都是可选段，前端有则渲染对应交互件。 */
 export interface GenChatPayload {
   asks?: GenAsk[];
   baseCandidates?: { projectNo: string; customerName: string; year: number; deviceType: string; deviceModel: string | null; inheritableSlots: number }[] | null;
-  summary?: { section: string; items: { name: string; value: string | null }[] }[];
-  canRender?: boolean;
-  rendered?: { fileName: string; filled: number; blank: number };
+  suggestions?: GenSuggestion[] | null;
+  summary?: { section: string; items: { name: string; value: string | null }[] }[] | null;
+  canRender?: boolean | null;
+  rendered?: { fileName: string; filled: number; blank: number } | null;
 }
 /** 问答分流事件里携带的模板推荐（点选即开聊）。 */
 export interface QaTemplateRec { id: string; name: string; docType: string; slotCount: number; }

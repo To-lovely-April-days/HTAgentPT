@@ -87,22 +87,41 @@ public class GenerationService(
     public async Task<IReadOnlyList<BaseCandidate>> GetCandidatesAsync(Guid sessionId, CancellationToken ct = default)
     {
         var session = await MustFindAsync(sessionId, ct);
-        var template = await db.Templates.AsNoTracking().Include(t => t.Slots)
-            .FirstAsync(t => t.Id == session.TemplateId, ct);
         var hint = session.ProjectHint ?? "";
-
         var devices = await db.VocabTerms.AsNoTracking()
             .Where(v => v.VocabKey == VocabKeys.DeviceType && v.IsActive).Select(v => v.Value).ToListAsync(ct);
         var customers = await db.VocabTerms.AsNoTracking()
             .Where(v => v.VocabKey == VocabKeys.CustomerName && v.IsActive).Select(v => v.Value).ToListAsync(ct);
         var device = devices.Where(d => hint.Contains(d)).OrderByDescending(d => d.Length).FirstOrDefault();
         var customer = customers.Where(c => hint.Contains(c)).OrderByDescending(c => c.Length).FirstOrDefault();
+        // 要点里的客户只作排序偏好（同客户优先），不做硬筛——要点常写得随意
+        return await QueryCandidatesAsync(session, customer, customerStrict: false, device, keyword: null, take: 3, ct);
+    }
+
+    public async Task<IReadOnlyList<BaseCandidate>> FindCandidatesAsync(Guid sessionId, string? customer,
+        string? deviceType, string? keyword, int take, CancellationToken ct = default)
+    {
+        var session = await MustFindAsync(sessionId, ct);
+        return await QueryCandidatesAsync(session, customer, customerStrict: customer is not null, deviceType, keyword,
+            Math.Clamp(take, 1, 8), ct);
+    }
+
+    private async Task<IReadOnlyList<BaseCandidate>> QueryCandidatesAsync(GenerationSession session,
+        string? customer, bool customerStrict, string? device, string? keyword, int take, CancellationToken ct)
+    {
+        var template = await db.Templates.AsNoTracking().Include(t => t.Slots)
+            .FirstAsync(t => t.Id == session.TemplateId, ct);
 
         var q = db.Projects.AsNoTracking().Where(p => p.CompanyId == me.CompanyId);
         if (device is not null) q = q.Where(p => p.DeviceType == device);
-        var projects = await q.OrderByDescending(p => customer != null && p.CustomerName == customer)
+        if (customer is not null && customerStrict) q = q.Where(p => p.CustomerName == customer);
+        var projects = await q
+            .OrderByDescending(p => customer != null && p.CustomerName == customer)
+            .ThenByDescending(p => keyword != null &&
+                ((p.DeviceModel != null && p.DeviceModel.Contains(keyword)) ||
+                 (p.SpecParams != null && p.SpecParams.Contains(keyword))))
             .ThenByDescending(p => p.Year).ThenByDescending(p => p.UpdatedAt)
-            .Take(3).ToListAsync(ct);
+            .Take(take).ToListAsync(ct);
 
         var structuralSlots = template.Slots.Count(s =>
             !s.ForbidInherit && s.Stage == SlotStage.Current &&
@@ -292,7 +311,7 @@ public class GenerationService(
         var top = result.Chunks[0];
         var value = def.DataType is SlotDataType.LongText
             ? StripHeadingPrefix(top.Text)
-            : FirstLine(StripHeadingPrefix(top.Text));
+            : BestLine(StripHeadingPrefix(top.Text), def.Name);
         var evidence = result.Chunks.Take(3)
             .Select(c => new SuggestEvidence(c.DocTitle, c.SectionPath, c.PageNo,
                 c.Text.Length <= 200 ? c.Text : c.Text[..200], c.ChunkId)).ToList();
@@ -526,9 +545,16 @@ public class GenerationService(
         return text.Trim();
     }
 
-    private static string FirstLine(string text)
+    /// <summary>短文本建议取值：在命中分块里挑最贴题的一行——含槽位名的优先，其次带数字的；
+    /// 表格分块的表头行（「| 型号 | 容积 |…」，无数字）不作取值，否则建议值会是一串列名。</summary>
+    private static string BestLine(string text, string slotName)
     {
-        var line = text.Split('\n', StringSplitOptions.TrimEntries).FirstOrDefault(l => l.Length > 0) ?? "";
+        var lines = text.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        static bool IsHeader(string l) => l.StartsWith('|') && !l.Any(char.IsDigit);
+        var line = lines.FirstOrDefault(l => l.Contains(slotName) && !IsHeader(l))
+                   ?? lines.FirstOrDefault(l => l.Any(char.IsDigit) && !IsHeader(l))
+                   ?? lines.FirstOrDefault(l => !IsHeader(l))
+                   ?? lines.FirstOrDefault() ?? "";
         return line.Length <= 120 ? line : line[..120];
     }
 
