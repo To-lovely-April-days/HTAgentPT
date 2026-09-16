@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 // E1 语料管理（文档列表）+ E3 解析任务队列。
 // FR-1.2 上传后不自动解析（解析占算力，与在线问答共用资源）；
 // FR-1.7 失败必须给出具体原因；10.3 「等待」与「失败」是两回事，分开呈现。
@@ -28,6 +29,7 @@ const KIND_LABEL: Record<string, string> = { Parse: '解析', Reparse: '重新�
 
 export default function CorpusPage() {
   const qc = useQueryClient();
+  const nav = useNavigate();
   const [tab, setTab] = useState<'docs' | 'queue'>('docs');
   const [kbId, setKbId] = useState('');
   const [status, setStatus] = useState('');
@@ -182,7 +184,11 @@ export default function CorpusPage() {
                               <button className="gbtn" style={{ height: 24, fontSize: 11.5 }} onClick={() => void submitParse([r.id])}>提交解析</button>
                             )}
                             {r.parseStatus === 'Parsed' && (
-                              <button className="gbtn" style={{ height: 24, fontSize: 11.5 }} onClick={() => void reparse(r.id)}>重新解析</button>
+                              <>
+                                <button className="gbtn" style={{ height: 24, fontSize: 11.5 }}
+                                  onClick={() => nav(`/admin/corpus/${r.id}/preview`, { state: { title: r.title } })}>对照预览</button>
+                                <button className="gbtn" style={{ height: 24, fontSize: 11.5 }} onClick={() => void reparse(r.id)}>重新解析</button>
+                              </>
                             )}
                           </div>
                         </td>

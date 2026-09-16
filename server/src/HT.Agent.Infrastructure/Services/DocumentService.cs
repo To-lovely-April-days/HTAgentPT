@@ -200,7 +200,7 @@ public class DocumentService(
         => await db.Chunks.AsNoTracking()
             .Where(c => c.DocId == docId && c.IsActive)
             .OrderBy(c => c.Seq)
-            .Select(c => new ChunkRow(c.Id, c.Seq, c.SectionPath, c.PageNo, c.Text, c.EmbeddingModel, c.IsActive))
+            .Select(c => new ChunkRow(c.Id, c.Seq, c.SectionPath, c.PageNo, c.Bbox, c.Text, c.EmbeddingModel, c.IsActive))
             .ToListAsync(ct);
 
     public async Task EditChunkAsync(long chunkId, string newText, CancellationToken ct = default)
@@ -416,6 +416,39 @@ public class DocumentService(
             UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
             TargetType: "document", TargetId: docId.ToString()), ct);
         return (stream, doc.FileName, doc.ContentType);
+    }
+
+    public async Task<IReadOnlyList<DocImageRow>> ListImagesAsync(Guid docId, CancellationToken ct = default)
+    {
+        await EnsureDocAccessAsync(docId, "doc.images", ct);
+        return await db.DocImages.AsNoTracking()
+            .Where(i => i.DocId == docId).OrderBy(i => i.Seq)
+            .Select(i => new DocImageRow(i.Id, i.Caption, i.PageNo, i.Bbox, i.Seq))
+            .ToListAsync(ct);
+    }
+
+    public async Task<(Stream Content, string ContentType)> OpenImageAsync(Guid docId, long imageId, CancellationToken ct = default)
+    {
+        await EnsureDocAccessAsync(docId, "doc.image_view", ct);
+        var img = await db.DocImages.AsNoTracking()
+            .FirstOrDefaultAsync(i => i.Id == imageId && i.DocId == docId, ct)
+            ?? throw new DomainRuleException("IMAGE_NOT_FOUND", "图片不存在");
+        return (await storage.OpenAsync(img.FileKey, ct), img.ContentType);
+    }
+
+    /// <summary>图片口与下载口同一套过滤（FR-4.4）：检索挡住的东西，换个接口不能就拿得到。</summary>
+    private async Task EnsureDocAccessAsync(Guid docId, string action, CancellationToken ct)
+    {
+        var doc = await db.Documents.AsNoTracking().Include(d => d.Kb)
+            .FirstOrDefaultAsync(d => d.Id == docId, ct)
+            ?? throw new DomainRuleException("DOC_NOT_FOUND", "文档不存在");
+        var deny = DownloadDenyReason(doc);
+        if (deny is null) return;
+        await audit.WriteAsync(new AuditEntry(action, AuditResult.Denied,
+            UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+            TargetType: "document", TargetId: docId.ToString(),
+            Detail: new { reason = deny }), ct);
+        throw new ForbiddenException("FORBIDDEN_DOCUMENT", "你没有查看该文档的权限。本次请求已被记录。");
     }
 
     /// <summary>下载拒绝原因（进审计详情）；null 为放行。对外消息统一模糊，不泄露文档属性。</summary>

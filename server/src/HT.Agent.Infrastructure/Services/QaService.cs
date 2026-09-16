@@ -105,6 +105,8 @@ public class QaService(
 
         var prompt = await BuildPromptAsync(req.Question, result, history, ct);
         var answer = new StringBuilder();
+        // 来源附图查询提前到流式输出之前：断连兜底分支拿同一份结果，不再查库
+        var sourceImages = await LoadSourceImagesAsync(result, ct);
         var completed = false;
         try
         {
@@ -114,8 +116,8 @@ public class QaService(
                 yield return new QaEvent("delta", new { text = delta });
             }
 
-            // 来源标注（FR-4.9）：文档、章节与页码，可展开原文并跳转原件
-            var sources = BuildSources(result);
+            // 来源标注（FR-4.9）：文档、章节与页码，可展开原文并跳转原件；命中页的图片一并带出
+            var sources = BuildSources(result, sourceImages);
             yield return new QaEvent("sources", sources);
 
             message.Answer = answer.ToString();
@@ -133,7 +135,7 @@ public class QaService(
             if (!completed && answer.Length > 0)
             {
                 message.Answer = answer + "\n[回答因连接中断而不完整]";
-                message.Sources = JsonSerializer.Serialize(BuildSources(result));
+                message.Sources = JsonSerializer.Serialize(BuildSources(result, sourceImages));
                 db.QaMessages.Add(message);
                 session.UpdatedAt = DateTimeOffset.UtcNow;
                 await db.SaveChangesAsync(CancellationToken.None);
@@ -141,7 +143,18 @@ public class QaService(
         }
     }
 
-    private static List<object> BuildSources(RetrievalResult result)
+    /// <summary>命中分块所在页的图片（FR-4.9 来源出图）：一次查询取回全部相关文档的图，
+    /// 内存里按 (doc, page) 归位。图片内容经 /api/files/{docId}/images/{id} 出，鉴权同下载口。</summary>
+    private async Task<List<DocImage>> LoadSourceImagesAsync(RetrievalResult result, CancellationToken ct)
+    {
+        var docIds = result.Chunks.Select(c => c.DocId).Distinct().ToList();
+        if (docIds.Count == 0) return [];
+        return await db.DocImages.AsNoTracking()
+            .Where(i => docIds.Contains(i.DocId) && i.PageNo != null)
+            .OrderBy(i => i.Seq).ToListAsync(ct);
+    }
+
+    private static List<object> BuildSources(RetrievalResult result, List<DocImage> images)
         => result.Chunks.Select((c, i) => (object)new
         {
             index = i + 1,
@@ -152,7 +165,13 @@ public class QaService(
             pageNo = c.PageNo,
             score = Math.Round(c.RerankScore, 4),
             classification = c.Classification.ToString(),
-            excerpt = c.Text.Length <= 200 ? c.Text : c.Text[..200]
+            excerpt = c.Text.Length <= 200 ? c.Text : c.Text[..200],
+            // 该来源页上的图（最多 4 张，防说明书图页刷屏）；无图为空数组，前端不渲染区块
+            images = images
+                .Where(m => m.DocId == c.DocId && c.PageNo != null && m.PageNo == c.PageNo)
+                .Take(4)
+                .Select(m => new { id = m.Id, caption = m.Caption, pageNo = m.PageNo })
+                .ToList()
         }).ToList();
 
     /// <summary>术语注入（FR-4.2 后半）：命中已审定术语时把对侧语言的说法并入检索词，扩充召回。

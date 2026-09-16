@@ -45,6 +45,8 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
             // OCR 语言：ch 覆盖中英混排；文字版文档不走 OCR，此参数只影响扫描件
             form.Add(new StringContent("ch"), "\"lang_list\"");
             form.Add(new StringContent("true"), "\"return_content_list\"");
+            // 图片本体一并要回来（base64）：来源标注要能把图直接放出来（FR-4.9）
+            form.Add(new StringContent("true"), "\"return_images\"");
             form.Add(new StringContent("false"), "\"return_md\"");
             form.Add(new StringContent("false"), "\"response_format_zip\"");
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -75,16 +77,18 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
         }
 
         using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-        var blocks = MapResponse(doc.RootElement);
+        var (blocks, images) = MapResponseFull(doc.RootElement);
         if (blocks.Count == 0)
             throw new ParseContentException("引擎未解析出任何内容块（文件可能损坏、为空或全为无法识别的图像）");
-        return new ParsedDocument(blocks);
+        return new ParsedDocument(blocks, images);
     }
 
     /// <summary>响应形如 {"results": {"文件名": {"content_list": …}}}。content_list 随版本
     /// 可能是数组、也可能是 JSON 字符串，两种都接。每次只送一个文件，取 results 首个条目——
     /// 键名是引擎处理过的文件名，不做精确匹配。</summary>
-    public static List<ParsedBlock> MapResponse(JsonElement root)
+    public static List<ParsedBlock> MapResponse(JsonElement root) => MapResponseFull(root).Blocks;
+
+    public static (List<ParsedBlock> Blocks, List<ParsedImage> Images) MapResponseFull(JsonElement root)
     {
         if (!root.TryGetProperty("results", out var results) || results.ValueKind != JsonValueKind.Object)
             throw new ParseContentException("引擎响应缺少 results 字段（确认解析服务地址指向 mineru-api 的 /file_parse）");
@@ -106,13 +110,38 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
             }
             if (cl.ValueKind != JsonValueKind.Array)
                 throw new ParseContentException("引擎 content_list 不是数组");
-            return MapContentList(cl);
+            return (MapContentList(cl), MapInlineImages(cl, entry));
         }
         catch (JsonException ex)
         {
             throw new ParseContentException($"引擎 content_list 不是合法 JSON：{ex.Message}");
         }
         finally { fromString?.Dispose(); }
+    }
+
+    /// <summary>本地引擎的图片走 images 字典（文件名 → data URI base64）。引用路径形如
+    /// images/abc.jpg，字典键可能只有文件名——按尾段匹配。图片解不出来不挡正文入库。</summary>
+    private static List<ParsedImage> MapInlineImages(JsonElement contentList, JsonElement entry)
+    {
+        var images = new List<ParsedImage>();
+        if (!entry.TryGetProperty("images", out var dict) || dict.ValueKind != JsonValueKind.Object)
+            return images;
+        var byName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in dict.EnumerateObject())
+            if (p.Value.ValueKind == JsonValueKind.String)
+                byName[Path.GetFileName(p.Name)] = p.Value.GetString()!;
+        foreach (var r in ListImageRefs(contentList))
+        {
+            if (!byName.TryGetValue(Path.GetFileName(r.Path), out var dataUri)) continue;
+            var comma = dataUri.IndexOf(',');
+            if (comma < 0) continue;
+            byte[] bytes;
+            try { bytes = Convert.FromBase64String(dataUri[(comma + 1)..]); }
+            catch (FormatException) { continue; }
+            if (bytes.Length == 0) continue;
+            images.Add(new ParsedImage(bytes, Path.GetFileName(r.Path), ImageContentType(r.Path), r.Caption, r.PageNo, r.Bbox));
+        }
+        return images;
     }
 
     /// <summary>content_list 数组 → 统一解析块。在线客户端（结果包里的同名文件）复用同一份映射。</summary>
@@ -228,6 +257,40 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
             .Select(x => x.GetString()!.Trim())
             .Where(s => s.Length > 0));
     }
+
+    /// <summary>content_list 里的图片引用（image 与带截图的 table 条目）：路径、题注、页码、位置。
+    /// 本地端按 images 字典取字节，在线端按结果包内路径取——引用提取共用这一份。</summary>
+    public record ImageRef(string Path, string? Caption, int? PageNo, string? Bbox);
+
+    public static List<ImageRef> ListImageRefs(JsonElement contentList)
+    {
+        var refs = new List<ImageRef>();
+        foreach (var e in contentList.EnumerateArray())
+        {
+            if (e.ValueKind != JsonValueKind.Object) continue;
+            var type = GetString(e, "type");
+            if (type is not ("image" or "table")) continue;
+            var path = GetString(e, "img_path");
+            if (string.IsNullOrWhiteSpace(path)) continue;
+            int? page = e.TryGetProperty("page_idx", out var p) && p.ValueKind == JsonValueKind.Number
+                ? p.GetInt32() + 1 : null;
+            string? bbox = e.TryGetProperty("bbox", out var bb) && bb.ValueKind == JsonValueKind.Array
+                ? string.Join(",", bb.EnumerateArray().Select(v => v.GetRawText())) : null;
+            var caption = JoinStrings(e, type == "image" ? "image_caption" : "table_caption");
+            refs.Add(new ImageRef(path, caption.Length > 0 ? caption : null, page, bbox));
+        }
+        return refs;
+    }
+
+    /// <summary>按扩展名给内容类型；未知按 jpeg。</summary>
+    public static string ImageContentType(string path) => Path.GetExtension(path).ToLowerInvariant() switch
+    {
+        ".png" => "image/png",
+        ".gif" => "image/gif",
+        ".webp" => "image/webp",
+        ".bmp" => "image/bmp",
+        _ => "image/jpeg"
+    };
 
     /// <summary>非 ASCII 与引号替换为下划线；空结果回退 doc+原扩展名。</summary>
     internal static string SafeAsciiFileName(string fileName)

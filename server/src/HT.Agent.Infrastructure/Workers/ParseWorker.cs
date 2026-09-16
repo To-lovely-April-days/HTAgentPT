@@ -172,6 +172,26 @@ public class ParseWorker(
                     CreatedAt = DateTimeOffset.UtcNow
                 });
             }
+            // 图片与分块同一生命周期（FR-4.9 来源出图）：旧记录连文件一起清，再落新一批
+            var oldImageKeys = await db.DocImages.Where(i => i.DocId == doc.Id)
+                .Select(i => i.FileKey).ToListAsync(ct);
+            await db.DocImages.Where(i => i.DocId == doc.Id).ExecuteDeleteAsync(ct);
+            foreach (var key in oldImageKeys)
+                try { await storage.DeleteAsync(key, ct); } catch (IOException) { /* 孤儿文件不挡解析 */ }
+            var images = parsed.Images ?? [];
+            for (var i = 0; i < images.Count; i++)
+            {
+                var img = images[i];
+                using var msImg = new MemoryStream(img.Bytes);
+                var key = await storage.SaveAsync(msImg, img.FileName, ct);
+                db.DocImages.Add(new DocImage
+                {
+                    DocId = doc.Id, FileKey = key, ContentType = img.ContentType,
+                    Caption = img.Caption, PageNo = img.PageNo, Bbox = img.Bbox,
+                    Seq = i, ParseVersion = newVersion, CreatedAt = DateTimeOffset.UtcNow
+                });
+            }
+
             doc.ParseVersion = newVersion;
             doc.ParseStatus = ParseStatus.Parsed;
             doc.ParsedAt = DateTimeOffset.UtcNow;
@@ -182,7 +202,7 @@ public class ParseWorker(
             await audit.WriteAsync(new AuditEntry("doc.parsed", AuditResult.Success,
                 UserId: job.QueuedBy, Username: "-",
                 TargetType: "document", TargetId: doc.Id.ToString(),
-                Detail: new { chunks = drafts.Count, strategy = strategy.ToString(), modelTag }), ct);
+                Detail: new { chunks = drafts.Count, images = images.Count, strategy = strategy.ToString(), modelTag }), ct);
         }
         catch (ParserUnavailableException ex)
         {

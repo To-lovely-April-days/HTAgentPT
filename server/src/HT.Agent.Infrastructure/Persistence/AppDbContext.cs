@@ -32,6 +32,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
     public DbSet<DocMetadata> DocMetadatas => Set<DocMetadata>();
     public DbSet<VocabTerm> VocabTerms => Set<VocabTerm>();
     public DbSet<Chunk> Chunks => Set<Chunk>();
+    public DbSet<DocImage> DocImages => Set<DocImage>();
     public DbSet<ParseJob> ParseJobs => Set<ParseJob>();
     public DbSet<PublishRecord> PublishRecords => Set<PublishRecord>();
     public DbSet<Project> Projects => Set<Project>();
@@ -135,6 +136,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
         b.Entity<ParseJob>(e =>
         {
             e.HasIndex(x => new { x.Status, x.QueuedAt });
+            e.HasOne(x => x.Doc).WithMany().OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<DocImage>(e =>
+        {
+            // 来源命中分块后按 (doc, page) 取该页图片（FR-4.9）
+            e.HasIndex(x => new { x.DocId, x.PageNo });
             e.HasOne(x => x.Doc).WithMany().OnDelete(DeleteBehavior.Cascade);
         });
 

@@ -38,8 +38,13 @@ public interface IDocumentParserClient
     Task<ParsedDocument> ParseAsync(Stream file, string fileName, string contentType, CancellationToken ct = default);
 }
 
-/// <summary>解析结果：保留章节层级、表格结构与页码位置（FR-1.3）。</summary>
-public record ParsedDocument(IReadOnlyList<ParsedBlock> Blocks);
+/// <summary>解析结果：保留章节层级、表格结构与页码位置（FR-1.3）。
+/// Images 为引擎抽取的图片本体（含表格截图）——来源标注要能把图直接放出来（FR-4.9），
+/// 只留题注文字不够。演示/通用引擎给不出图片时为空。</summary>
+public record ParsedDocument(IReadOnlyList<ParsedBlock> Blocks, IReadOnlyList<ParsedImage>? Images = null);
+
+/// <summary>解析抽取的图片：字节、建议文件名与类型、题注、页码（1 起）与位置框。</summary>
+public record ParsedImage(byte[] Bytes, string FileName, string ContentType, string? Caption, int? PageNo, string? Bbox);
 
 /// <summary>解析出的结构块。Kind：heading / paragraph / table_row / table。Level 仅标题有效。</summary>
 public record ParsedBlock(string Kind, string Text, int? Level, int? PageNo, string? Bbox, string? TableHeader);

@@ -33,7 +33,11 @@ export interface Source {
   index: number; chunkId: number; docId: string; docTitle: string;
   section: string | null; pageNo: number | null; score: number;
   classification: Classification; excerpt: string;
+  /** 该来源页上的解析图片（FR-4.9 来源出图）；内容经 /api/files/{docId}/images/{id} 鉴权取。 */
+  images?: SourceImage[];
 }
+
+export interface SourceImage { id: number; caption: string | null; pageNo: number | null; }
 
 export interface ProjectRow {
   projectNo: string; customerName: string; year: number; deviceType: string;

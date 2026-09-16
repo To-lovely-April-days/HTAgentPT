@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { get, post, sse, download, ApiError } from '../../lib/api';
 import { DELIVERY_LABEL } from '../../lib/types';
 import type { QaMessageRow, QaSessionRow, Source, VocabRow, ProjectRow } from '../../lib/types';
-import { ClsBadge, ErrorBox, InfoBox, Spinner } from '../../components/Common';
+import { AuthImage, ClsBadge, ErrorBox, InfoBox, Spinner } from '../../components/Common';
 import type { Classification } from '../../lib/types';
 
 // ── 一轮问答在界面上的形态（对应 SSE 事件契约）──────────────────────
@@ -45,6 +45,8 @@ export default function QaPage() {
     deviceType: preset?.presetDeviceType ?? '',
   });
   const [activeSources, setActiveSources] = useState<Source[] | null>(null);
+  // 来源图片放大查看（FR-4.9 来源出图）
+  const [lightbox, setLightbox] = useState<{ docId: string; id: number; caption: string | null; pageNo: number | null } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const sessions = useQuery({ queryKey: ['qa-sessions'], queryFn: () => get<QaSessionRow[]>('/api/qa-sessions') });
@@ -228,6 +230,16 @@ export default function QaPage() {
               {s.section ?? '—'}{s.pageNo != null ? ` · 第 ${s.pageNo} 页` : ''}
             </div>
             <div style={{ fontSize: 11.5, lineHeight: 1.7, color: 'var(--ink-2)' }}>{s.excerpt}…</div>
+            {/* 来源页上的图（FR-4.9）：缩略内嵌，点开放大看题注与页码 */}
+            {s.images && s.images.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 7 }}>
+                {s.images.map((im) => (
+                  <AuthImage key={im.id} src={`/api/files/${s.docId}/images/${im.id}`} alt={im.caption ?? ''} title={im.caption ?? undefined}
+                    style={{ maxHeight: 86, maxWidth: 152, borderRadius: 4, border: '1px solid var(--line)', cursor: 'zoom-in', background: '#fff' }}
+                    onClick={() => setLightbox({ docId: s.docId, id: im.id, caption: im.caption, pageNo: im.pageNo })} />
+                ))}
+              </div>
+            )}
             <button
               onClick={() => void download(`/api/files/${s.docId}`, s.docTitle).catch((err) => alert(err instanceof ApiError ? err.message : '下载失败'))}
               style={{ fontSize: 11.5, marginTop: 6, padding: 0, border: 'none', background: 'none', color: 'var(--accent)', cursor: 'pointer', fontFamily: 'var(--font)' }}
@@ -235,6 +247,17 @@ export default function QaPage() {
           </div>
         ))}
       </aside>
+
+      {lightbox && (
+        <div onClick={() => setLightbox(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(20,26,34,.72)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 80, cursor: 'zoom-out', padding: 30 }}>
+          <AuthImage src={`/api/files/${lightbox.docId}/images/${lightbox.id}`} alt={lightbox.caption ?? ''}
+            style={{ maxWidth: '86vw', maxHeight: '78vh', borderRadius: 6, background: '#fff', boxShadow: '0 18px 60px rgba(0,0,0,.4)' }} />
+          <div style={{ marginTop: 12, fontSize: 12.5, color: '#e8edf4', textAlign: 'center' }}>
+            {lightbox.caption ?? '文档图片'}{lightbox.pageNo != null ? `　·　第 ${lightbox.pageNo} 页` : ''}　·　点击任意处关闭
+          </div>
+        </div>
+      )}
     </>
   );
 }

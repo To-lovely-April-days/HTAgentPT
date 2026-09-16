@@ -48,7 +48,13 @@ public interface IDocumentService
     /// <summary>按条件批量修正元数据（FR-3.6），受控字段仍查词表；返回受影响文档数。</summary>
     Task<int> BatchUpdateMetadataAsync(MetadataBatchFilter filter, MetadataBatchSet set, CancellationToken ct = default);
     Task<(Stream Content, string FileName, string ContentType)> DownloadAsync(Guid docId, CancellationToken ct = default);
+    /// <summary>文档解析抽取的图片清单（FR-4.9）：与下载原件同一套密级/归属/数据范围校验。</summary>
+    Task<IReadOnlyList<DocImageRow>> ListImagesAsync(Guid docId, CancellationToken ct = default);
+    /// <summary>取单张图片内容（同上校验）。</summary>
+    Task<(Stream Content, string ContentType)> OpenImageAsync(Guid docId, long imageId, CancellationToken ct = default);
 }
+
+public record DocImageRow(long Id, string? Caption, int? PageNo, string? Bbox, int Seq);
 
 /// <summary>批量修正的筛选条件（全部可选，但至少给一个，避免误伤全库）。</summary>
 public record MetadataBatchFilter(Guid? KbId = null, string? CustomerName = null,
@@ -72,7 +78,7 @@ public record DocRow(Guid Id, string Title, string FileName, Guid KbId, string K
     Classification Classification, ParseStatus ParseStatus, string? ParseError,
     long FileSize, DateTimeOffset UploadedAt, string? DocCategory, string? CustomerName, string? ProjectNo);
 
-public record ChunkRow(long Id, int Seq, string? SectionPath, int? PageNo, string Text,
+public record ChunkRow(long Id, int Seq, string? SectionPath, int? PageNo, string? Bbox, string Text,
     string? EmbeddingModel, bool IsActive);
 
 /// <summary>词表校验失败等业务规则错误，接口层映射为 422。</summary>

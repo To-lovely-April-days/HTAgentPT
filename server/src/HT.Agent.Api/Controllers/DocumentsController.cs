@@ -142,4 +142,16 @@ public class FilesController(IDocumentService docs) : ControllerBase
         var (content, fileName, contentType) = await docs.DownloadAsync(docId, ct);
         return File(content, contentType, fileName);
     }
+
+    /// <summary>文档图片清单（FR-4.9 来源出图）：售前售后在来源标注里看图走这条路，鉴权同下载口。</summary>
+    [HttpGet("{docId:guid}/images")]
+    public async Task<IActionResult> Images(Guid docId, CancellationToken ct)
+        => Ok(await docs.ListImagesAsync(docId, ct));
+
+    [HttpGet("{docId:guid}/images/{imageId:long}")]
+    public async Task<IActionResult> Image(Guid docId, long imageId, CancellationToken ct)
+    {
+        var (content, contentType) = await docs.OpenImageAsync(docId, imageId, ct);
+        return File(content, contentType);
+    }
 }

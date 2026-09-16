@@ -19,6 +19,7 @@ import CaseDetailPage from './pages/cases/CaseDetailPage'
 import CaseEntryPage from './pages/cases/CaseEntryPage'
 import AdminLayout, { AdminHome } from './pages/admin/AdminLayout'
 import CorpusPage from './pages/admin/CorpusPage'
+import DocPreviewPage from './pages/admin/DocPreviewPage'
 import KbsPage from './pages/admin/KbsPage'
 import MetaPage from './pages/admin/MetaPage'
 import TemplatesAdminPage from './pages/admin/TemplatesAdminPage'
@@ -82,6 +83,7 @@ function App() {
         <Route path="admin" element={<AdminLayout />}>
           <Route index element={<AdminHome />} />
           <Route path="corpus" element={<CorpusPage />} />
+          <Route path="corpus/:docId/preview" element={<DocPreviewPage />} />
           <Route path="kbs" element={<KbsPage />} />
           <Route path="meta" element={<MetaPage />} />
           <Route path="templates" element={<TemplatesAdminPage />} />

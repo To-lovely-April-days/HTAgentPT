@@ -110,6 +110,21 @@ public class MinerUParserTests
     }
 
     [Fact]
+    public void 本地引擎_images字典按文件名尾段匹配_dataURI解出字节()
+    {
+        var b64 = Convert.ToBase64String("IMGDATA"u8.ToArray());
+        var wrapped = Root(
+            "{\"results\":{\"doc\":{\"content_list\":[{\"type\":\"text\",\"text\":\"正文\",\"page_idx\":0}," +
+            "{\"type\":\"image\",\"img_path\":\"images/pic1.jpg\",\"image_caption\":[\"图1\"],\"page_idx\":1}]," +
+            "\"images\":{\"pic1.jpg\":\"data:image/jpeg;base64," + b64 + "\"}}}}");
+        var (blocks, images) = MinerUParserClient.MapResponseFull(wrapped);
+        Assert.Equal(2, blocks.Count); // 正文 + 题注段（题注文字始终进正文流参与检索）
+        Assert.Single(images);
+        Assert.Equal("IMGDATA"u8.ToArray(), images[0].Bytes);
+        Assert.Equal(("图1", 2), (images[0].Caption, images[0].PageNo));
+    }
+
+    [Fact]
     public void 文件名压成ASCII_扩展名保留()
     {
         Assert.Equal("manual.pdf", MinerUParserClient.SafeAsciiFileName("manual.pdf"));

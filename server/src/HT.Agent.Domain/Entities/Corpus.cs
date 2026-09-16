@@ -105,6 +105,24 @@ public class Chunk
 }
 
 /// <summary>解析任务队列（FR-1.2）：入库排队、串行或有限并行，避免占满算力影响在线问答。</summary>
+/// <summary>解析抽取的文档图片（FR-4.9 来源精确到图）：图片本体在文件存储，这里记录归属、
+/// 题注、页码与位置框。与分块同一生命周期——重解析整体重建，随文档级联删除。</summary>
+public class DocImage
+{
+    public long Id { get; set; }
+    public Guid DocId { get; set; }
+    public Document? Doc { get; set; }
+    public required string FileKey { get; set; }
+    public string ContentType { get; set; } = "image/jpeg";
+    public string? Caption { get; set; }
+    /// <summary>页码从 1 起，与分块的 PageNo 同口径——来源命中分块后按页取图。</summary>
+    public int? PageNo { get; set; }
+    public string? Bbox { get; set; }
+    public int Seq { get; set; }
+    public int ParseVersion { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
 public class ParseJob
 {
     public Guid Id { get; set; }

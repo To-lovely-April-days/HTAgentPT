@@ -106,10 +106,10 @@ public class MinerUOnlineParserClient(IHttpClientFactory httpFactory, IRuntimeCo
                 throw new ParserUnavailableException($"下载解析结果失败（HTTP {(int)resp.StatusCode}）");
             zipBytes = await resp.Content.ReadAsByteArrayAsync(ct);
         }
-        var blocks = ExtractBlocksFromZip(zipBytes);
+        var (blocks, images) = ExtractFromZip(zipBytes);
         if (blocks.Count == 0)
             throw new ParseContentException("在线解析结果不含内容块（文件可能为空或全为无法识别的图像）");
-        return new ParsedDocument(blocks);
+        return new ParsedDocument(blocks, images);
     }
 
     /// <summary>网络层异常统一按引擎不可用抛出（任务置等待稍后重试），带上是哪一步。</summary>
@@ -173,8 +173,13 @@ public class MinerUOnlineParserClient(IHttpClientFactory httpFactory, IRuntimeCo
         return (state, zip, err);
     }
 
-    /// <summary>结果 zip 里找 content_list.json（文件名可能带前缀），解析并映射为统一块。</summary>
-    public static List<ParsedBlock> ExtractBlocksFromZip(byte[] zipBytes)
+    /// <summary>兼容旧签名：只取内容块。</summary>
+    public static List<ParsedBlock> ExtractBlocksFromZip(byte[] zipBytes) => ExtractFromZip(zipBytes).Blocks;
+
+    /// <summary>结果 zip：content_list.json（文件名可能带前缀）映射为统一块；
+    /// 图片按 content_list 的 img_path 在包内寻址（条目可能嵌在子目录，按路径尾段匹配）。
+    /// 单图缺失不挡正文——图是来源展示的增强，不是入库前提。</summary>
+    public static (List<ParsedBlock> Blocks, List<ParsedImage> Images) ExtractFromZip(byte[] zipBytes)
     {
         using var archive = new ZipArchive(new MemoryStream(zipBytes), ZipArchiveMode.Read);
         var entry = archive.Entries.FirstOrDefault(e =>
@@ -186,7 +191,21 @@ public class MinerUOnlineParserClient(IHttpClientFactory httpFactory, IRuntimeCo
         using var doc = JsonDocument.Parse(ms.ToArray());
         if (doc.RootElement.ValueKind != JsonValueKind.Array)
             throw new ParseContentException("在线解析结果的 content_list 不是数组");
-        return MinerUParserClient.MapContentList(doc.RootElement);
+        var blocks = MinerUParserClient.MapContentList(doc.RootElement);
+
+        var images = new List<ParsedImage>();
+        foreach (var r in MinerUParserClient.ListImageRefs(doc.RootElement))
+        {
+            var img = archive.Entries.FirstOrDefault(e =>
+                e.FullName.Replace('\\', '/').EndsWith(r.Path.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase));
+            if (img is null || img.Length == 0) continue;
+            using var s = img.Open();
+            using var buf = new MemoryStream();
+            s.CopyTo(buf);
+            images.Add(new ParsedImage(buf.ToArray(), Path.GetFileName(r.Path),
+                MinerUParserClient.ImageContentType(r.Path), r.Caption, r.PageNo, r.Bbox));
+        }
+        return (blocks, images);
     }
 
     private static string GetMsg(JsonElement root)

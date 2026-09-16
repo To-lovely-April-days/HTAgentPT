@@ -96,4 +96,28 @@ public class MinerUOnlineParserTests
         var zip = MakeZip(("full.md", "# 只有 markdown"));
         Assert.Throws<ParseContentException>(() => MinerUOnlineParserClient.ExtractBlocksFromZip(zip));
     }
+
+    [Fact]
+    public void 结果包_按img_path取图_含表格截图_缺图不挡正文()
+    {
+        var contentList = """
+            [
+              {"type":"text","text":"接线说明","text_level":1,"page_idx":0},
+              {"type":"image","img_path":"images/w1.jpg","image_caption":["图2 接线示意"],"bbox":[10,20,300,200],"page_idx":2},
+              {"type":"table","img_path":"images/t1.png","table_caption":["表3 力矩"],"table_body":"<table><tr><td>x</td></tr></table>","page_idx":3},
+              {"type":"image","img_path":"images/missing.jpg","image_caption":["包里不存在的图"],"page_idx":4}
+            ]
+            """;
+        var zip = MakeZip(
+            ("doc/auto/doc_content_list.json", contentList),
+            ("doc/auto/images/w1.jpg", "JPGBYTES"),
+            ("doc/auto/images/t1.png", "PNGBYTES"));
+        var (blocks, images) = MinerUOnlineParserClient.ExtractFromZip(zip);
+        Assert.True(blocks.Count >= 2);
+        Assert.Equal(2, images.Count); // 缺失的第三张跳过，不抛错
+        Assert.Equal(("图2 接线示意", 3, "image/jpeg"), (images[0].Caption, images[0].PageNo, images[0].ContentType));
+        Assert.Equal("10,20,300,200", images[0].Bbox);
+        Assert.Equal("JPGBYTES"u8.ToArray(), images[0].Bytes);
+        Assert.Equal(("表3 力矩", 4, "image/png"), (images[1].Caption, images[1].PageNo, images[1].ContentType));
+    }
 }
