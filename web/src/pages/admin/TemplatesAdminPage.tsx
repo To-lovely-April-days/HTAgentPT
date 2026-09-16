@@ -81,6 +81,7 @@ function TemplatesTab({ onEditSlots }: { onEditSlots: (id: string) => void }) {
         <div style={{ padding: '11px 13px', borderRadius: 5, background: 'var(--cls-int-bg)', border: '1px solid var(--cls-int-line)', marginBottom: 14 }}>
           <span style={{ fontSize: 11.5, lineHeight: 1.7, color: 'var(--cls-int-fg)' }}>
             只有被内容控件标定的位置才会被抽为槽位。模板里用下划线、方括号或黄色底纹表示的可变项抽不出来——那些位置生成时会原样输出。整理模板时先把它们改成内容控件，这是模板整理阶段的主要工作量。
+            控件属性里除「标签」（槽位标识）外，把「标题」写成「章节/名称」（如 基本信息/合同编号），上传后显示名称与所属章节就会自动带出，省去逐项补录。
           </span>
         </div>
 
@@ -100,7 +101,7 @@ function TemplatesTab({ onEditSlots }: { onEditSlots: (id: string) => void }) {
             <InfoBox>
               抽取到 {uploadResult.slotsExtracted} 个内容控件槽位。
               {uploadResult.warnings.length > 0 && ` 提示：${uploadResult.warnings.join('；')}`}
-              到「槽位定义」页补齐显示名称与章节后才能启用。
+              控件标题写了「章节/名称」的已自动带出；其余到「槽位定义」页补齐显示名称与章节后才能启用。
             </InfoBox>
           </div>
         )}

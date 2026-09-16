@@ -7,11 +7,13 @@ using HT.Agent.Domain;
 namespace HT.Agent.Infrastructure.Templates;
 
 /// <summary>模板槽位抽取（FR-5.3、5.2.4）：扫描 Word 内容控件（SDT），控件 Tag 即槽位标识，
-/// 控件内占位文字自动抽取为提问话术初值——模板作者不发明标记语法、不逐项录入。</summary>
+/// 控件内占位文字自动抽取为提问话术初值——模板作者不发明标记语法、不逐项录入。
+/// 控件标题（别名）抽为显示名称；写成「章节/名称」还能一并带出所属章节，
+/// 让模板上传后即为完整定义、直接可启用。</summary>
 public static class TemplateSlotExtractor
 {
-    public record ExtractedSlot(string Tag, string? Prompt, SlotDataType DataType, string? Choices,
-        bool ForbidInherit, string? SubFields, int SortOrder);
+    public record ExtractedSlot(string Tag, string? Name, string? Section, string? Prompt,
+        SlotDataType DataType, string? Choices, bool ForbidInherit, string? SubFields, int SortOrder);
 
     public record ExtractResult(IReadOnlyList<ExtractedSlot> Slots, IReadOnlyList<string> Warnings);
 
@@ -55,8 +57,9 @@ public static class TemplateSlotExtractor
             }
 
             var (dataType, choices, subFields) = DetectType(sdt, warnings);
+            var (name, section) = ParseAlias(props?.GetFirstChild<SdtAlias>()?.Val?.Value);
             slots.Add(new ExtractedSlot(
-                tag,
+                tag, name, section,
                 string.IsNullOrWhiteSpace(placeholder) ? null : placeholder.Trim(),
                 dataType, choices,
                 ForbidHints.Any(h => tag.Contains(h, StringComparison.OrdinalIgnoreCase) ||
@@ -89,7 +92,8 @@ public static class TemplateSlotExtractor
                 .Select(child => new
                 {
                     tag = child.SdtProperties?.GetFirstChild<Tag>()?.Val?.Value,
-                    name = InnerText(child)
+                    name = ParseAlias(child.SdtProperties?.GetFirstChild<SdtAlias>()?.Val?.Value).Item1
+                           ?? InnerText(child)
                 })
                 .Where(x => x.tag is not null)
                 .Select(x => new { x.tag, name = string.IsNullOrWhiteSpace(x.name) ? x.tag : x.name!.Trim() })
@@ -100,6 +104,19 @@ public static class TemplateSlotExtractor
         }
         // 块级控件包整段/整表 → 长段落；行内控件 → 文本（数值/日期等由管理员在界面细分）
         return (sdt is SdtBlock ? SlotDataType.LongText : SlotDataType.Text, null, null);
+    }
+
+    /// <summary>控件标题（别名）→ (显示名称, 章节)。「章节/名称」按第一个斜杠切分（全角／也认）；
+    /// 没有斜杠就只当显示名称，章节仍由管理员在界面补。</summary>
+    private static (string?, string?) ParseAlias(string? alias)
+    {
+        alias = alias?.Trim();
+        if (string.IsNullOrEmpty(alias)) return (null, null);
+        var cut = alias.IndexOfAny(['/', '／']);
+        if (cut <= 0 || cut >= alias.Length - 1) return (alias, null);
+        var section = alias[..cut].Trim();
+        var name = alias[(cut + 1)..].Trim();
+        return (name.Length == 0 ? alias : name, section.Length == 0 ? null : section);
     }
 
     internal static bool IsRepeatingSection(SdtElement sdt)

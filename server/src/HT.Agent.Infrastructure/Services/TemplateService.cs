@@ -49,8 +49,10 @@ public class TemplateService(
             {
                 Id = Guid.NewGuid(),
                 Tag = s.Tag,
-                Name = s.Tag,          // 显示名称待管理员维护，先用 Tag 占位
-                Section = "",          // 所属章节必填项，留空即「定义不完整」
+                // 控件标题（别名）自动抽为显示名称与章节（「章节/名称」约定）；
+                // 没写标题的先用 Tag/空占位，待管理员在界面补全后方可启用
+                Name = s.Name ?? s.Tag,
+                Section = s.Section ?? "",
                 DataType = s.DataType,
                 Choices = s.Choices,
                 Required = true,

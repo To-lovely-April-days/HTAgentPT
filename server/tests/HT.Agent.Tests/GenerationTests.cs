@@ -18,12 +18,13 @@ public class TemplateExtractorTests
         {
             var main = doc.AddMainDocumentPart();
             var body = new Body();
-            // 行内控件：customer_name（占位文字含「客户」→ 默认禁继承 FR-5.7）
+            // 行内控件：customer_name（占位文字含「客户」→ 默认禁继承 FR-5.7；
+            // 控件标题「章节/名称」→ 显示名称与章节自动带出）
             body.AppendChild(new Paragraph(
                 new Run(new Text("客户名称：")),
-                MakeSdtRun("customer_name", "请填写客户全称")));
-            // 行内控件：design_pressure
-            body.AppendChild(new Paragraph(MakeSdtRun("design_pressure", "设计压力，如 10 MPa")));
+                MakeSdtRun("customer_name", "请填写客户全称", "基本信息/客户名称")));
+            // 行内控件：design_pressure（标题只写名称 → 章节留空）
+            body.AppendChild(new Paragraph(MakeSdtRun("design_pressure", "设计压力，如 10 MPa", "设计压力")));
             // 块级控件：tech_overview → 长段落
             body.AppendChild(MakeSdtBlock("tech_overview", "本节描述技术方案总体思路"));
             // 无 Tag 控件 → 警告并跳过
@@ -36,8 +37,10 @@ public class TemplateExtractorTests
         return ms.ToArray();
     }
 
-    internal static SdtRun MakeSdtRun(string tag, string placeholder) => new(
-        new SdtProperties(new Tag { Val = tag }),
+    internal static SdtRun MakeSdtRun(string tag, string placeholder, string? alias = null) => new(
+        alias is null
+            ? new SdtProperties(new Tag { Val = tag })
+            : new SdtProperties(new SdtAlias { Val = alias }, new Tag { Val = tag }),
         new SdtContentRun(new Run(new Text(placeholder))));
 
     internal static SdtBlock MakeSdtBlock(string tag, string placeholder) => new(
@@ -53,9 +56,15 @@ public class TemplateExtractorTests
         var customer = r.Slots.Single(s => s.Tag == "customer_name");
         Assert.Equal("请填写客户全称", customer.Prompt);
         Assert.True(customer.ForbidInherit); // 占位文字含「客户」
+        Assert.Equal("客户名称", customer.Name);   // 控件标题「章节/名称」
+        Assert.Equal("基本信息", customer.Section);
         var overview = r.Slots.Single(s => s.Tag == "tech_overview");
         Assert.Equal(SlotDataType.LongText, overview.DataType); // 块级 → 长段落
-        Assert.False(r.Slots.Single(s => s.Tag == "design_pressure").ForbidInherit);
+        Assert.Null(overview.Name); // 没写控件标题 → 显示名称待管理员维护
+        var pressure = r.Slots.Single(s => s.Tag == "design_pressure");
+        Assert.False(pressure.ForbidInherit);
+        Assert.Equal("设计压力", pressure.Name); // 标题只写名称
+        Assert.Null(pressure.Section);
     }
 
     [Fact]
