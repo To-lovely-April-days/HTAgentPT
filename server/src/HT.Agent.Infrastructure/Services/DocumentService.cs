@@ -436,6 +436,35 @@ public class DocumentService(
         return (await storage.OpenAsync(img.FileKey, ct), img.ContentType);
     }
 
+    public async Task DeleteDocumentAsync(Guid docId, CancellationToken ct = default)
+    {
+        var doc = await db.Documents.Include(d => d.Kb)
+            .FirstOrDefaultAsync(d => d.Id == docId, ct)
+            ?? throw new DomainRuleException("DOC_NOT_FOUND", "文档不存在");
+        if (doc.Kb!.Tier == KnowledgeBaseTier.Shared && !node.Value.IsHeadquarters)
+            throw new DomainRuleException("SHARED_KB_READONLY",
+                "共享库内容由总部下发，本地不能直接删除——由总部撤回后随同步移除（FR-2.2）");
+        if (doc.FileKey.StartsWith("virtual:", StringComparison.Ordinal))
+            throw new DomainRuleException("VIRTUAL_DOC_NO_DELETE",
+                "该条目由业务模块自动维护（故障案例等），请在对应模块中处理");
+        if (await db.ParseJobs.AnyAsync(j => j.DocId == docId && j.Status == JobStatus.Running, ct))
+            throw new DomainRuleException("DOC_PARSING", "该文档正在解析中，等本轮结束或失败后再删除");
+
+        // 存储文件先收集后删：数据库行（分块/图片/元数据/任务）随文档级联删除
+        var fileKeys = new List<string> { doc.FileKey };
+        fileKeys.AddRange(await db.DocImages.Where(i => i.DocId == docId).Select(i => i.FileKey).ToListAsync(ct));
+        var title = doc.Title;
+        db.Documents.Remove(doc);
+        await db.SaveChangesAsync(ct);
+        foreach (var key in fileKeys)
+            try { await storage.DeleteAsync(key, ct); } catch (IOException) { /* 孤儿文件不挡删除 */ }
+
+        await audit.WriteAsync(new AuditEntry("doc.delete", AuditResult.Success,
+            UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+            TargetType: "document", TargetId: docId.ToString(),
+            Detail: new { title, kb = doc.Kb!.Name, files = fileKeys.Count }), ct);
+    }
+
     /// <summary>图片口与下载口同一套过滤（FR-4.4）：检索挡住的东西，换个接口不能就拿得到。</summary>
     private async Task EnsureDocAccessAsync(Guid docId, string action, CancellationToken ct)
     {

@@ -52,6 +52,9 @@ public interface IDocumentService
     Task<IReadOnlyList<DocImageRow>> ListImagesAsync(Guid docId, CancellationToken ct = default);
     /// <summary>取单张图片内容（同上校验）。</summary>
     Task<(Stream Content, string ContentType)> OpenImageAsync(Guid docId, long imageId, CancellationToken ct = default);
+    /// <summary>删除文档：原件、分块、图片、元数据、解析任务一并清除，入审计。
+    /// 共享库内容（本地只读，走同步撤回）与业务模块自动维护的条目拒绝；解析进行中拒绝。</summary>
+    Task DeleteDocumentAsync(Guid docId, CancellationToken ct = default);
 }
 
 public record DocImageRow(long Id, string? Caption, int? PageNo, string? Bbox, int Seq);

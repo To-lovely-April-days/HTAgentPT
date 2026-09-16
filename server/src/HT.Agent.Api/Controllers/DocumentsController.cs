@@ -69,6 +69,14 @@ public class DocumentsController(IDocumentService docs, AppDbContext db) : Contr
     public async Task<IActionResult> Chunks(Guid id, CancellationToken ct)
         => Ok(await docs.GetChunksAsync(id, ct));
 
+    /// <summary>删除文档（原件/分块/图片/元数据/任务一并清，审计留痕）。</summary>
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        await docs.DeleteDocumentAsync(id, ct);
+        return NoContent();
+    }
+
     public record MetaBatchBody(MetadataBatchFilter Filter, MetadataBatchSet Set);
 
     /// <summary>批量修正元数据（FR-3.6）：归集阶段的集中整理，须 meta.manage。</summary>

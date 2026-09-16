@@ -89,7 +89,7 @@ export interface SensitiveHit { field: string; kind: string; match: string; }
 
 // ── 语料管理（E 组）───────────────────────────────────────────
 export type KbTier = 'Shared' | 'Private' | 'Public';
-export type ParseStatus = 'NotParsed' | 'Queued' | 'Parsing' | 'Parsed' | 'Failed';
+export type ParseStatus = 'NotParsed' | 'Queued' | 'Parsing' | 'Parsed' | 'Failed' | 'Waiting' | 'Reparsing';
 export type ChunkStrategy = 'ByHeading' | 'ByClause' | 'ByRow' | 'BySemantic' | 'General';
 
 export interface KbRow {
@@ -116,6 +116,8 @@ export const KB_TIER_LABEL: Record<KbTier, string> = {
 };
 export const PARSE_LABEL: Record<ParseStatus, string> = {
   NotParsed: '待解析', Queued: '排队中', Parsing: '解析中', Parsed: '已完成', Failed: '失败',
+  // 「等待」不是「失败」（10.3）：引擎不可用时任务挂起自动重试，须与失败分开呈现
+  Waiting: '等待中', Reparsing: '重解析中',
 };
 export const STRATEGY_LABEL: Record<string, string> = {
   ByHeading: '按章节层级', ByClause: '按条款', ByRow: '按行（表头作前缀）', BySemantic: '按语义段落', General: '通用',

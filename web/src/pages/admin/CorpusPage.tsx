@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 // FR-1.7 失败必须给出具体原因；10.3 「等待」与「失败」是两回事，分开呈现。
 import React, { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { get, post, ApiError } from '../../lib/api';
+import { get, post, del, ApiError } from '../../lib/api';
 import { CLS_PILL, CLS_LABEL, PARSE_LABEL } from '../../lib/types';
 import type { DocRow, KbRow, ParseJobRow, ParseStatus } from '../../lib/types';
 import { ErrorBox, Spinner } from '../../components/Common';
@@ -16,6 +16,8 @@ const STATUS_PILL: Record<ParseStatus, React.CSSProperties> = {
   Queued: { background: '#eef1f5', color: 'var(--ink-2)', border: '1px solid #dde3ea' },
   NotParsed: { background: 'var(--panel)', color: 'var(--cls-int-fg)', border: '1px dashed var(--cls-int-line)' },
   Failed: { background: 'var(--cls-conf-bg)', color: 'var(--cls-conf-fg)', border: '1px solid var(--cls-conf-line)' },
+  Waiting: { background: 'var(--cls-int-bg)', color: 'var(--cls-int-fg)', border: '1px solid var(--cls-int-line)' },
+  Reparsing: { background: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid var(--accent-line)' },
 };
 const JOB_LABEL: Record<string, string> = {
   Queued: '排队中', Running: '解析中', Waiting: '等待中', Succeeded: '已完成', Failed: '失败', Cancelled: '已取消',
@@ -97,6 +99,19 @@ export default function CorpusPage() {
     }
   };
 
+  const removeDocs = async (ids: string[], label: string) => {
+    if (!window.confirm(`删除 ${ids.length} 份文档（${label}）？\n原件、分块、图片与解析记录将一并删除，不可恢复。`)) return;
+    setActError(null);
+    const errs: string[] = [];
+    for (const id of ids) {
+      try { await del(`/api/documents/${id}`); }
+      catch (err) { errs.push(err instanceof ApiError ? err.message : '删除失败'); }
+    }
+    setSelected(new Set());
+    refresh();
+    if (errs.length) setActError(`部分删除未完成：${errs[0]}${errs.length > 1 ? `（共 ${errs.length} 条）` : ''}`);
+  };
+
   const fmtSize = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
   const fi: React.CSSProperties = { height: 28, padding: '0 9px', background: 'var(--panel)', border: '1px solid var(--line-strong)', borderRadius: 4, fontSize: 12.5, fontFamily: 'var(--font)' };
   const tabStyle = (on: boolean): React.CSSProperties => ({
@@ -129,6 +144,11 @@ export default function CorpusPage() {
             <div style={{ flexGrow: 1 }} />
             {selected.size > 0 && <span className="hint">已选 <span className="m" style={{ color: 'var(--ink)', fontWeight: 500 }}>{selected.size}</span> 份</span>}
             <button className="gbtn" disabled={selected.size === 0} onClick={() => void submitParse([...selected])}>提交解析</button>
+            <button className="gbtn" style={{ color: 'var(--cls-conf-fg)', borderColor: 'var(--cls-conf-line)' }} disabled={selected.size === 0}
+              onClick={() => {
+                const sel = rows.filter((r) => selected.has(r.id));
+                void removeDocs([...selected], sel.slice(0, 3).map((r) => r.title).join('、') + (sel.length > 3 ? ' 等' : ''));
+              }}>删除</button>
             <button className="pbtn" style={{ height: 28, padding: '0 13px' }} onClick={() => setUploading(true)}>上传文档</button>
           </div>
 
@@ -153,7 +173,8 @@ export default function CorpusPage() {
                 </thead>
                 <tbody>
                   {rows.map((r) => {
-                    const selectable = r.parseStatus === 'NotParsed' || r.parseStatus === 'Failed';
+                    // 勾选用于批量操作（提交解析/删除），任何状态都可选
+                    const selectable = true;
                     const on = selected.has(r.id);
                     return (
                       <tr key={r.id} style={{ background: on ? 'var(--accent-bg)' : undefined }}>
@@ -173,7 +194,7 @@ export default function CorpusPage() {
                         <td style={td}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'normal' }}>
                             <span className="pill" style={STATUS_PILL[r.parseStatus]}>{PARSE_LABEL[r.parseStatus]}</span>
-                            {r.parseStatus === 'Failed' && r.parseError && (
+                            {(r.parseStatus === 'Failed' || r.parseStatus === 'Waiting') && r.parseError && (
                               <span style={{ fontSize: 11, lineHeight: 1.5, color: 'var(--cls-conf-fg)' }}>{r.parseError}</span>
                             )}
                           </div>
@@ -190,6 +211,8 @@ export default function CorpusPage() {
                                 <button className="gbtn" style={{ height: 24, fontSize: 11.5 }} onClick={() => void reparse(r.id)}>重新解析</button>
                               </>
                             )}
+                            <button className="gbtn" style={{ height: 24, fontSize: 11.5, color: 'var(--cls-conf-fg)', borderColor: 'var(--cls-conf-line)' }}
+                              onClick={() => void removeDocs([r.id], r.title)}>删除</button>
                           </div>
                         </td>
                       </tr>

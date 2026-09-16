@@ -97,16 +97,26 @@ public class MinerUOnlineParserClient(IHttpClientFactory httpFactory, IRuntimeCo
             if (state == "done" && !string.IsNullOrEmpty(url)) { zipUrl = url!; break; }
         }
 
-        // ④ 下载结果包并抽取 content_list
-        byte[] zipBytes;
-        using (var dl = new HttpRequestMessage(HttpMethod.Get, zipUrl))
+        // ④ 下载结果包并抽取 content_list。下载走的是结果 CDN（与 API 不同域），
+        //    连接抖动在此步就地重试——整任务重跑会重新上传解析、白耗每日额度
+        byte[]? zipBytes = null;
+        for (var attempt = 0; ; attempt++)
         {
-            var resp = await SendAsync(http, dl, timeout, ct, "下载解析结果");
-            if (!resp.IsSuccessStatusCode)
-                throw new ParserUnavailableException($"下载解析结果失败（HTTP {(int)resp.StatusCode}）");
-            zipBytes = await resp.Content.ReadAsByteArrayAsync(ct);
+            try
+            {
+                using var dl = new HttpRequestMessage(HttpMethod.Get, zipUrl);
+                var resp = await SendAsync(http, dl, timeout, ct, "下载解析结果");
+                if (!resp.IsSuccessStatusCode)
+                    throw new ParserUnavailableException($"下载解析结果失败（HTTP {(int)resp.StatusCode}）");
+                zipBytes = await resp.Content.ReadAsByteArrayAsync(ct);
+                break;
+            }
+            catch (ParserUnavailableException) when (attempt < 3)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2 * (attempt + 1)), ct);
+            }
         }
-        var (blocks, images) = ExtractFromZip(zipBytes);
+        var (blocks, images) = ExtractFromZip(zipBytes!);
         if (blocks.Count == 0)
             throw new ParseContentException("在线解析结果不含内容块（文件可能为空或全为无法识别的图像）");
         return new ParsedDocument(blocks, images);
@@ -128,7 +138,11 @@ public class MinerUOnlineParserClient(IHttpClientFactory httpFactory, IRuntimeCo
         }
         catch (HttpRequestException ex)
         {
-            throw new ParserUnavailableException($"在线解析服务连接失败（{step}）：{ex.Message}", ex);
+            // 连接类失败把最内层原因也带上——「SSL connection could not be established」这类
+            // 外层消息不含证书/握手的真实原因，少了它远程定位只能靠猜
+            var inner = ex.GetBaseException();
+            var detail = ReferenceEquals(inner, ex) ? ex.Message : $"{ex.Message}（{inner.Message}）";
+            throw new ParserUnavailableException($"在线解析服务连接失败（{step}）：{detail}", ex);
         }
     }
 
