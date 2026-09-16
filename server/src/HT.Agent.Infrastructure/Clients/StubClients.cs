@@ -102,7 +102,13 @@ public class StubParserClient : IDocumentParserClient
         var bytes = ms.ToArray();
         if (bytes.Length == 0) throw new ParseContentException("文件为空");
         if (Array.IndexOf(bytes, (byte)0) >= 0)
-            throw new ParseContentException($"格式不支持：桩解析器只处理文本类文件（{fileName}）");
+            throw new ParseContentException(OfficeParser.IsLegacyOffice(fileName)
+                // 老版 Office 与 WPS 私有格式不是 XML 包，本地读不了：给出可执行的下一步，
+                // 而不是让人对着「格式不支持」猜怎么办
+                ? $"格式不支持：{Path.GetExtension(fileName)} 是老版 Office/WPS 格式，本地解析不了。" +
+                  "用 Word/WPS 打开另存为 .docx（表格 .xlsx、演示 .pptx）后重新上传即可。"
+                : $"格式不支持：当前解析服务为内置演示实现，只处理文本类文件与 Office 文件（{fileName}）。" +
+                  "PDF、扫描件需要在「系统设置 → 文档解析」接入解析服务。");
         var text = Encoding.UTF8.GetString(bytes);
         var blocks = new List<ParsedBlock>();
         string? tableHeader = null;

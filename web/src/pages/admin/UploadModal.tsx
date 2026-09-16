@@ -100,7 +100,7 @@ export default function UploadModal({ kbs, onClose, onUploaded }: {
             style={{ border: '1.5px dashed var(--line-strong)', borderRadius: 6, padding: file ? '12px 14px' : '22px 14px', textAlign: 'center', cursor: 'pointer', background: 'var(--bg-soft)', marginBottom: 16 }}
             onClick={() => fileRef.current?.click()}
           >
-            <input ref={fileRef} type="file" hidden accept=".pdf,.docx,.xlsx,.pptx,.txt,.md"
+            <input ref={fileRef} type="file" hidden accept=".pdf,.docx,.docm,.dotx,.xlsx,.xlsm,.pptx,.pptm,.txt,.md"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) { setFile(f); if (!title) setTitle(f.name.replace(/\.[^.]+$/, '')); } }} />
             {file
               ? <div style={{ fontSize: 12.5, fontWeight: 500 }}>{file.name}　<span className="hint">{(file.size / 1048576).toFixed(1)} MB · 点击更换</span></div>

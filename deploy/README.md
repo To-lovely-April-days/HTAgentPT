@@ -147,9 +147,14 @@ docker compose -f docker-compose.yml -f docker-compose.mineru.yml up -d --build
   再到「系统设置」把解析服务地址改成 `http://<那台机器IP>:8000/file_parse`。
 - **解析后端**：默认 `pipeline`（通用、显存要求低）。显存充足想要更高精度，可在
   「系统设置 → 切分与解析 → 解析后端」按所装 MinerU 版本支持的取值切换（如 vlm 系列）。
-- `.txt` / `.md` 纯文本与 `.docx` 始终本地解析，不经过 MinerU：Word 的标题层级与表格
-  单元格在文件里是现成的，本地读更准也不出网。想让 Word 也走引擎（比如要版面切图），
+- `.txt` / `.md` 与 Office 文件（Word `.docx/.docm/.dotx`、Excel `.xlsx/.xlsm`、
+  PowerPoint `.pptx/.pptm`）始终本地解析，不经过 MinerU：这些文件的标题层级、表格单元格、
+  工作表、幻灯片在文件里是现成的，本地读更准也不出网（Excel 多数解析引擎还不收）。
+  文中图片一并抽出（新式与老式两种写法都认），同一张图只入库一次，项目符号之类的小图标
+  与浏览器显示不了的 EMF/WMF 会跳过。想让 Office 文件改走引擎（比如要版面切图），
   把「系统设置 → 切分与解析 → Word 本地解析」设为 `false`。
+- 老版 `.doc` / `.xls` / `.ppt` 与 WPS 私有格式本地读不了（不是 XML 包）：用 Word/WPS
+  另存为 `.docx` / `.xlsx` / `.pptx` 再传，系统会直接这样提示。
 
 ## 显卡未到？先用在线接口把全链路测起来
 
