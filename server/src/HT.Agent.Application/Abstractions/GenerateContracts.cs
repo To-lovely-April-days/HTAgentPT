@@ -37,7 +37,7 @@ public record SlotDefEdit(string Name, string Section, SlotDataType DataType, st
 public interface IGenerationService
 {
     /// <summary>建会话（表 8-1）：返回会话标识与槽位清单。projectHint 为项目要点（FR-5.1 的确认结果）。</summary>
-    Task<SessionView> CreateSessionAsync(Guid templateId, string? projectHint, CancellationToken ct = default);
+    Task<SessionView> CreateSessionAsync(Guid templateId, string? projectHint, Guid? qaSessionId = null, CancellationToken ct = default);
     Task<SessionView?> GetSessionAsync(Guid sessionId, CancellationToken ct = default);
     Task<IReadOnlyList<SessionRow>> ListSessionsAsync(CancellationToken ct = default);
     /// <summary>候选基准项目（FR-5.4）：二至三个，带关键规格与可继承槽位数量。</summary>

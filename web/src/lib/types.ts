@@ -24,6 +24,19 @@ export interface LoginResponse {
 
 export interface QaSessionRow { id: string; title: string; createdAt: string; updatedAt: string; }
 
+/** 一条对话的完整时间线：问答的轮次与这条对话里起过的生成会话的轮次，按时间并成一串。 */
+export interface QaTimelineTurn {
+  kind: 'qa' | 'gen';
+  id: string; role: 'user' | 'assistant'; text: string;
+  sources: string | null; payload: string | null;
+  genSessionId: string | null; templateName: string | null; at: string;
+}
+export interface QaTimeline {
+  turns: QaTimelineTurn[];
+  /** 还没生成完的那一份，可以接着填 */
+  resume: { sessionId: string; templateName: string } | null;
+}
+
 export interface QaMessageRow {
   id: string; question: string; rewrittenQuery: string | null; answer: string | null;
   sources: string | null; noResultHints: string | null; helpful: boolean | null; at: string;

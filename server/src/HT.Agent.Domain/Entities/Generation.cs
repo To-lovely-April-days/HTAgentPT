@@ -53,6 +53,9 @@ public class GenerationSession
     public Template? Template { get; set; }
     /// <summary>项目要点（创建会话时的输入）。</summary>
     public string? ProjectHint { get; set; }
+    /// <summary>从哪条问答对话里起的。记在这边而不是反过来：
+    /// 一条对话里可能先出任务单再出报价，单向指针会被后一个覆盖。</summary>
+    public Guid? QaSessionId { get; set; }
     /// <summary>基准项目编号，选定后触发继承预填（FR-5.x）。</summary>
     public string? BaseProjectNo { get; set; }
     public GenerationStatus Status { get; set; } = GenerationStatus.Draft;

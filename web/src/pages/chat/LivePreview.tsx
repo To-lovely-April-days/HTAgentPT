@@ -25,7 +25,9 @@ export function LivePreview({ sessionId, title, revision, onClose }: {
     queryKey: ['chat-preview', sessionId, revision],
     queryFn: () => get<PreviewView>(`/api/generate/sessions/${sessionId}/preview`),
   });
-  const all = fields.data?.sections.flatMap((s) => s.items) ?? [];
+  // 接口给的东西不合预期时也不能把整页带崩——预览只是个旁栏
+  const sections = fields.data?.sections ?? [];
+  const all = sections.flatMap((s) => s.items ?? []);
   const done = all.filter((i) => i.value).length;
 
   return (
@@ -41,7 +43,7 @@ export function LivePreview({ sessionId, title, revision, onClose }: {
       </div>
       {mode === 'doc'
         ? <DocView sessionId={sessionId} revision={revision} />
-        : <FieldView data={fields.data} pending={fields.isPending} failed={fields.isError} />}
+        : <FieldView sections={sections} pending={fields.isPending} failed={fields.isError} />}
     </aside>
   );
 }
@@ -94,14 +96,16 @@ function DocView({ sessionId, revision }: { sessionId: string; revision: number 
 }
 
 /** 字段视图：Word 里看不到的来源标记在这儿——哪几项是继承的、哪几项还等人确认。 */
-function FieldView({ data, pending, failed }: { data?: PreviewView; pending: boolean; failed: boolean }) {
+function FieldView({ sections, pending, failed }: {
+  sections: PreviewView['sections']; pending: boolean; failed: boolean;
+}) {
   // 这一轮改动了哪几项：跟上一次的快照比，短暂点亮，让人看得见「刚才那句落在哪」
   const prev = useRef<Map<string, string | null>>(new Map());
   const [flash, setFlash] = useState<Set<string>>(new Set());
   useEffect(() => {
-    if (!data) return;
+    if (sections.length === 0) return;
     const now = new Map<string, string | null>();
-    for (const sec of data.sections) for (const it of sec.items) now.set(it.tag, it.value);
+    for (const sec of sections) for (const it of sec.items ?? []) now.set(it.tag, it.value);
     if (prev.current.size > 0) {
       const changed = new Set<string>();
       for (const [tag, val] of now) if (prev.current.get(tag) !== val) changed.add(tag);
@@ -113,19 +117,19 @@ function FieldView({ data, pending, failed }: { data?: PreviewView; pending: boo
       }
     }
     prev.current = now;
-  }, [data]);
+  }, [sections]);
 
   return (
     <div className="lp-body sc">
       {pending && <div style={{ padding: 12 }}><Spinner text="取预览…" /></div>}
       {failed && <div className="hint" style={{ padding: 12 }}>预览暂时取不到，不影响继续填。</div>}
-      {data?.sections.map((sec) => (
+      {sections.map((sec) => (
         <div key={sec.section}>
           <div className="lp-sec">
             {sec.section}
             <span className="lp-cnt">{sec.items.filter((i) => i.value).length}/{sec.items.length}</span>
           </div>
-          {sec.items.map((it) => (
+          {(sec.items ?? []).map((it) => (
             <div key={it.tag} className={`lp-row${it.value ? '' : ' blank'}${flash.has(it.tag) ? ' flash' : ''}`}>
               <div className="lp-name">{it.name}</div>
               <div className="lp-val">

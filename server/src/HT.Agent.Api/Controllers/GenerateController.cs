@@ -13,11 +13,11 @@ namespace HT.Agent.Api.Controllers;
 [RequirePermission(PermissionKeys.Generate)]
 public class GenerateController(IGenerationService gen, IGenerationChatService genChat) : ControllerBase
 {
-    public record CreateBody(Guid TemplateId, string? ProjectHint);
+    public record CreateBody(Guid TemplateId, string? ProjectHint, Guid? QaSessionId);
 
     [HttpPost("sessions")]
     public async Task<IActionResult> Create([FromBody] CreateBody body, CancellationToken ct)
-        => Ok(await gen.CreateSessionAsync(body.TemplateId, body.ProjectHint, ct));
+        => Ok(await gen.CreateSessionAsync(body.TemplateId, body.ProjectHint, body.QaSessionId, ct));
 
     [HttpGet("sessions")]
     public async Task<IActionResult> List(CancellationToken ct)

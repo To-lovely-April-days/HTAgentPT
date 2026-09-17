@@ -31,7 +31,7 @@ public class GenerationService(
 
     // ── 会话 ─────────────────────────────────────────────
 
-    public async Task<SessionView> CreateSessionAsync(Guid templateId, string? projectHint, CancellationToken ct = default)
+    public async Task<SessionView> CreateSessionAsync(Guid templateId, string? projectHint, Guid? qaSessionId = null, CancellationToken ct = default)
     {
         var template = await db.Templates.AsNoTracking().Include(t => t.Slots)
             .FirstOrDefaultAsync(t => t.Id == templateId, ct)
@@ -46,6 +46,7 @@ public class GenerationService(
             Id = Guid.NewGuid(),
             TemplateId = templateId,
             ProjectHint = projectHint,
+            QaSessionId = qaSessionId,
             SlotValues = JsonSerializer.Serialize(states, SlotJson),
             CreatedById = me.UserId,
             CompanyId = me.CompanyId,

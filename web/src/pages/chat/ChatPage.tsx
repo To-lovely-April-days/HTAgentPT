@@ -17,8 +17,8 @@ import { ApiError, download, get, post, sse } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { Perm } from '../../lib/types';
 import type {
-  CaseDetailData, CaseRow, GenChatPayload, GenChatTurnResult, LedgerTable, QaMessageRow,
-  QaSessionRow, QaTemplateRec, SessionView, Source, TextTranslationResult, TicketRow,
+  CaseDetailData, CaseRow, GenChatPayload, GenChatTurnResult, LedgerTable, QaSessionRow,
+  QaTemplateRec, QaTimeline, SessionView, Source, TextTranslationResult, TicketRow,
 } from '../../lib/types';
 import { Prose } from '../../components/Prose';
 import { ErrorBox, Spinner } from '../../components/Common';
@@ -180,14 +180,15 @@ export default function ChatPage() {
     setBusy(true);
     try {
       const lastAsk = [...msgs].reverse().find((m) => m.role === 'user')?.text ?? '';
-      const s = await post<SessionView>('/api/generate/sessions', { templateId: t.id, projectHint: lastAsk });
+      const s = await post<SessionView>('/api/generate/sessions',
+        { templateId: t.id, projectHint: lastAsk, qaSessionId });
       setGenSessionId(s.id);
       setGenTitle(t.name);
       await runGenTurn(s.id, { start: true, message: lastAsk });
     } catch (err) {
       push({ id: newId(), role: 'assistant', text: '', error: err instanceof ApiError ? err.message : '没能开始这份文档' });
     } finally { setBusy(false); }
-  }, [busy, msgs, runGenTurn]);
+  }, [busy, msgs, runGenTurn, qaSessionId]);
 
   const genTurn = useCallback(async (body: Record<string, unknown>) => {
     if (!genSessionId || busy) return;
@@ -197,25 +198,30 @@ export default function ChatPage() {
 
   const correctIntent = useCallback((q: string) => { void askQa(q, 'knowledge'); }, [askQa]);
 
-  // 打开一条历史对话：把存下来的问答重建成消息流。
-  // 结果件（表格、译文、案例）是当时那一轮的现场，历史里只留正文与依据——
-  // 要重新拿结果，再问一次就是了。
+  // 打开一条历史对话：问答的轮次与这条对话里起过的生成会话的轮次一起取回来，
+  // 按时间并成一串——不并的话，选完模板之后填了什么全看不见。
   const openSession = useCallback(async (id: string) => {
     if (busy) return;
     setBusy(true);
     try {
-      const rows = await get<QaMessageRow[]>(`/api/qa-sessions/${id}`);
-      const rebuilt: Msg[] = [];
-      for (const r of rows) {
-        rebuilt.push({ id: `h${r.id}-q`, role: 'user', text: r.question });
+      const tl = await get<QaTimeline>(`/api/qa-sessions/${id}/timeline`);
+      const rebuilt: Msg[] = tl.turns.map((t) => {
+        if (t.role === 'user') return { id: t.id, role: 'user', text: t.text };
+        if (t.kind === 'gen') {
+          let gen: GenChatPayload = {};
+          try { gen = t.payload ? (JSON.parse(t.payload) as GenChatPayload) : {}; } catch { /* 老数据容错 */ }
+          return { id: t.id, role: 'assistant', text: t.text, gen, genSessionId: t.genSessionId ?? undefined };
+        }
         let sources: Source[] | undefined;
-        try { sources = r.sources ? (JSON.parse(r.sources) as Source[]) : undefined; } catch { /* 老数据容错 */ }
-        rebuilt.push({ id: `h${r.id}-a`, role: 'assistant', text: r.answer ?? '', sources, ...restore(r.payload) });
-      }
+        try { sources = t.sources ? (JSON.parse(t.sources) as Source[]) : undefined; } catch { /* 老数据容错 */ }
+        return { id: t.id, role: 'assistant', text: t.text, sources, ...restore(t.payload) };
+      });
       setMsgs(rebuilt);
       setQaSessionId(id);
-      setGenSessionId(null);
-      setGenTitle(null);
+      // 还没生成完的那一份接着填；已经生成完的就只是历史，不把人拉回填写态
+      setGenSessionId(tl.resume?.sessionId ?? null);
+      setGenTitle(tl.resume?.templateName ?? null);
+      setRevision((n) => n + 1);
       setFocusSource(null);
     } catch (err) {
       push({ id: newId(), role: 'assistant', text: '', error: err instanceof ApiError ? err.message : '这条对话打不开' });
