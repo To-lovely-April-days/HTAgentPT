@@ -166,6 +166,29 @@ public static class GenChatLogic
 
     /// <summary>工况顾问的一条建议：给哪一项、建议什么值、为什么、有什么风险。
     /// 这是模型按工艺常识给的，不是文档依据——界面上必须与「有依据的建议」分开，人工确认才落表。</summary>
+    /// <summary>模型一轮的产出：先是一句要对用户说的话，再是要派的活。
+    /// Reply 为空说明模型没说话（回了废话或格式崩了），调用方据此决定退回规则。</summary>
+    public sealed record ModelTurn(string? Reply, IReadOnlyList<PlanAction> Actions);
+
+    /// <summary>解析 {"reply":"…","actions":[…]}。
+    /// 回答与派工在同一次调用里出，模型才既能说人话又能干活——
+    /// 只让它输出 actions 的话，它遇到「这个能换吗」这种问题就只会交白卷。</summary>
+    public static ModelTurn ParseTurn(string raw)
+    {
+        var start = raw.IndexOf('{');
+        var end = raw.LastIndexOf('}');
+        if (start < 0 || end <= start) return new ModelTurn(null, []);
+        string? reply = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(raw[start..(end + 1)]);
+            if (doc.RootElement.TryGetProperty("reply", out var r) && r.ValueKind == JsonValueKind.String)
+                reply = r.GetString()?.Trim();
+        }
+        catch (JsonException) { /* 格式崩了就只剩动作那条路 */ }
+        return new ModelTurn(string.IsNullOrWhiteSpace(reply) ? null : reply, ParsePlan(raw));
+    }
+
     /// <summary>工况顾问的一条建议。Level 是模型判定的要紧程度（high=安全相关/不改会出事），
     /// 界面据此排序与标色——工程师先看要命的那几条，不是从头读到尾。</summary>
     public sealed record EngineeringAdvice(string Tag, string Value, string? Reason, string? Risk, string Level = "normal");

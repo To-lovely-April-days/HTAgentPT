@@ -176,16 +176,25 @@ public class GenerationChatService(
     private async Task DispatchAsync(Ctx ctx, string text, CancellationToken ct)
     {
         var actions = PlanByRules(text);
-        // 规则能直接定的指令（跳过/汇总/生成/采纳/选第几个）不劳模型；其余交总指挥模型，
-        // 它能在一句里派多个活（填值 + 查台账 + 提问）。模型不可用或没派出活就退回规则单
-        var direct = (actions.Count == 1 && actions[0].Type is "skip" or "summary" or "render" or "adopt" or "pick_base")
-            || ParseRevise(text).Revise;   // 「材质换其他的」意思很明确，规则直接办
+        // 「跳过/汇总/生成/采纳/用第几个」是操作不是对话，规则更快更准，不劳模型。
+        // 其余一律交给模型：它先正面回答，再顺带派活。
+        // 规则在这里只是模型不可用时的退路——判意图这件事本来就不该靠正则穷举。
+        var direct = actions.Count == 1 && actions[0].Type is "skip" or "summary" or "render" or "adopt" or "pick_base";
         if (!ctx.Stub && !direct)
         {
-            var planned = await PlanByModelAsync(ctx, text, ct);
-            if (planned is { Count: > 0 }) actions = planned;
-            // 模型档下「整句即当前问题的答案」不成立——值该由模型点名 tag；模型没派出活就按规则单，
-            // 但去掉无 tag 的整句填值，免得把闲聊或它没读懂的话塞进槽位
+            var turn = await PlanByModelAsync(ctx, text, ct);
+            if (turn is not null)
+            {
+                // 模型说的话一定上屏——这是这套东西"像不像个懂行的人"的分界线
+                if (turn.Reply is not null)
+                {
+                    ctx.Reply.Add(turn.Reply);
+                    ctx.Reply.Handled = true;
+                }
+                actions = turn.Actions.ToList();
+            }
+            // 模型没接上（不可用或输出崩了）才退回规则单，且去掉无 tag 的整句填值，
+            // 免得把闲聊或它没读懂的话塞进槽位
             else actions = actions.Where(a => a.Type != "fill" || a.Tag is not null).ToList();
         }
 
@@ -210,27 +219,32 @@ public class GenerationChatService(
         if (actions.Any(a => a.Type == "summary")) AddSummary(ctx);
         if (actions.Any(a => a.Type == "render")) await RenderAsync(ctx, ct);
 
+        // 走到这儿还没人说话，只可能是演示档或模型不可用——这才轮到模板话
         if (!ctx.Reply.Handled)
-        {
-            // 句子里点到了某一项就顺着那一项接话——用户是在说这份单子里的东西，
-            // 回一句「没识别到可入表的信息」等于装作没听见
-            var touched = CurrentSlots(ctx.Template)
-                .FirstOrDefault(d => d.Name.Length >= 2 && text.Contains(d.Name, StringComparison.Ordinal));
             ctx.Reply.Add(ctx.Stub
-                ? "当前是内置演示应答，不能从整句里自动抽取（接入对话模型后可以）。咱们逐项来。"
-                : touched is not null
-                    ? $"你是说「{touched.Name}」这一项吧？告诉我要填的值，或者说「{touched.Name}推荐一下」我来给方案。"
-                    : "这句我没接住。可以直接给某一项的值、说「推荐一下」、查历史项目，或者告诉我工况（做什么反应、什么介质）。");
-        }
+                ? "当前是内置演示应答，答疑与按工况推荐要靠对话模型，接上以后我才能真正回答你。咱们先逐项来。"
+                : "这句我没接住（对话模型没有返回可用内容）。可以直接给某一项的值、说「推荐一下」，或告诉我工况。");
     }
 
-    /// <summary>总指挥模型：给它槽位清单、当前在问的项、上一轮列出的历史项目与最近对话，要一张派工单。</summary>
-    private async Task<IReadOnlyList<PlanAction>?> PlanByModelAsync(Ctx ctx, string text, CancellationToken ct)
+    /// <summary>把这一轮交给模型：槽位清单、已填值、工况、上一版建议与最近对话都给它，
+    /// 要一句回答 + 一张派工单。回答与派工同出，它才既能说人话又能干活——
+    /// 早先只让它输出 actions，遇到「设计压力能换吗」这种问题它就交白卷，
+    /// 最后由规则兜底回一句模板话，看着像没长脑子。</summary>
+    private async Task<ModelTurn?> PlanByModelAsync(Ctx ctx, string text, CancellationToken ct)
     {
         var defs = CurrentSlots(ctx.Template);
         var byTag = Parse(ctx.Session).ToDictionary(s => s.Tag);
         var sb = new StringBuilder();
-        sb.AppendLine("你是工业设备方案填单的总指挥。读用户最新发言，决定派哪些活。只输出一个 JSON 对象：{\"actions\":[...]}，不要任何其他文字。");
+        sb.AppendLine("你是化工实验设备（反应釜等）的资深工艺工程师，正陪用户填一份技术文档。每轮你做两件事：");
+        sb.AppendLine("① reply：用工程师的口吻正面回答用户这句话。");
+        sb.AppendLine("   他问「这个能换吗」「为什么取这个值」「这样选有什么问题」「低一点行不行」，");
+        sb.AppendLine("   你就答出取值依据、约束条件与取舍代价（换成什么、要付什么代价、什么工况下不能换），");
+        sb.AppendLine("   而不是把问题推回去让他「告诉我要填的值」。拿不准就说拿不准，别编。");
+        sb.AppendLine("   他给的是取值、指令或闲聊，reply 就简短应一句。");
+        sb.AppendLine("② actions：这句话同时要求落值、查历史、给建议、出文档时，派对应的活；没有就给空数组。");
+        sb.AppendLine("台账表格、建议清单、汇总表会另行呈现，reply 里不要复述它们的内容，一句带过即可。");
+        sb.AppendLine();
+        sb.AppendLine("只输出一个 JSON 对象：{\"reply\":\"要对用户说的话\",\"actions\":[...]}，不要任何其他文字。");
         sb.AppendLine("动作类型：");
         sb.AppendLine("- {\"type\":\"fill\",\"tag\":\"槽位tag\",\"value\":\"值\"}：用户明确给出的槽位取值，可多条；用户改口时给新值");
         sb.AppendLine("- {\"type\":\"ledger\",\"customer\":\"客户名或空\",\"device\":\"设备类型或空\",\"keyword\":\"型号/容积等关键词或空\"}：用户想查历史项目、以前做过的、台账、类似项目");
@@ -244,7 +258,8 @@ public class GenerationChatService(
             "这时 name 填他说的那一项，没点名就留空");
         sb.AppendLine("- {\"type\":\"skip\"}、{\"type\":\"summary\"}、{\"type\":\"render\"}");
         sb.AppendLine("规则：只抽取用户明确说出的取值，绝不猜测补全；选择类取值必须是可选值之一；日期 yyyy-MM-dd；");
-        sb.AppendLine("带单位的参数只填数值与必要修饰；一句话可以含多个动作；确实没有可做的输出 {\"actions\":[]}。");
+        sb.AppendLine("带单位的参数只填数值与必要修饰；一句话可以含多个动作；");
+        sb.AppendLine("只是在答疑、不需要动表时 actions 给 []——但 reply 一定要有内容，不能交白卷。");
         sb.AppendLine();
         sb.AppendLine("[已交代的工况] " + (ctx.State.Conditions.Count == 0 ? "（无）" : string.Join("；", ctx.State.Conditions)));
         sb.AppendLine("[上一版给过的建议] " + (ctx.State.LastSuggestions.Count == 0 ? "（无）"
@@ -275,9 +290,9 @@ public class GenerationChatService(
 
         try
         {
-            var reply = await chat.CompleteAsync(turns, ct);
-            var plan = ParsePlan(reply);
-            return plan.Count == 0 ? null : plan;
+            var raw = await chat.CompleteAsync(turns, ct);
+            var turn = ParseTurn(raw);
+            return turn.Reply is null && turn.Actions.Count == 0 ? null : turn;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {

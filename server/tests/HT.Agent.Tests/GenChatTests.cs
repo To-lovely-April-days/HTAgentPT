@@ -178,4 +178,36 @@ public class GenChatTests
         Assert.False(GenChatLogic.ParseRevise(text).Revise);
         Assert.Equal("fill", GenChatLogic.PlanByRules(text)[0].Type);
     }
+
+    [Fact]
+    public void 模型一轮_回答与派工同出()
+    {
+        var t = GenChatLogic.ParseTurn(
+            "```json\n{\"reply\":\"能换。1.6MPa 是按使用压力 1.0 的 1.5 倍给的裕度；" +
+            "要降到 1.2 得先把使用压力压到 0.8 以下，硝化工况我不建议这么做。\"," +
+            "\"actions\":[{\"type\":\"advise\",\"question\":\"设计压力能换吗\",\"name\":\"设计压力\"}]}\n```");
+        Assert.NotNull(t.Reply);
+        Assert.Contains("1.5 倍", t.Reply!);
+        Assert.Single(t.Actions);
+        Assert.Equal(("advise", "设计压力"), (t.Actions[0].Type, t.Actions[0].Name));
+    }
+
+    [Fact]
+    public void 模型只答话不派活也算数()
+    {
+        var t = GenChatLogic.ParseTurn("{\"reply\":\"这项按 GB150 取，通常留 1.5 倍裕度。\",\"actions\":[]}");
+        Assert.NotNull(t.Reply);
+        Assert.Empty(t.Actions);
+    }
+
+    [Fact]
+    public void 模型输出崩了_回答为空由调用方兜底()
+    {
+        Assert.Null(GenChatLogic.ParseTurn("完全不是 JSON").Reply);
+        Assert.Empty(GenChatLogic.ParseTurn("完全不是 JSON").Actions);
+        // 只有动作没有话：动作照办，话由专员补
+        var onlyActions = GenChatLogic.ParseTurn("{\"actions\":[{\"type\":\"summary\"}]}");
+        Assert.Null(onlyActions.Reply);
+        Assert.Single(onlyActions.Actions);
+    }
 }

@@ -15,7 +15,7 @@ name: htagent
 
 services:
   pg:
-    image: ${PG_IMAGE:-pgvector/pgvector:pg16}
+    image: ${PG_IMAGE:-docker.m.daocloud.io/pgvector/pgvector:pg16}
     environment:
       POSTGRES_USER: htagent
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-htagent-docker}
@@ -35,8 +35,8 @@ services:
     build:
       context: ../server
       args:
-        DOTNET_REGISTRY: ${DOTNET_REGISTRY:-mcr.microsoft.com}
-        PG_IMAGE: ${PG_IMAGE:-pgvector/pgvector:pg16}
+        DOTNET_REGISTRY: ${DOTNET_REGISTRY:-mcr.m.daocloud.io}
+        PG_IMAGE: ${PG_IMAGE:-docker.m.daocloud.io/pgvector/pgvector:pg16}
     image: htagent-server
     depends_on:
       pg:
@@ -66,8 +66,8 @@ services:
     build:
       context: ../server
       args:
-        DOTNET_REGISTRY: ${DOTNET_REGISTRY:-mcr.microsoft.com}
-        PG_IMAGE: ${PG_IMAGE:-pgvector/pgvector:pg16}
+        DOTNET_REGISTRY: ${DOTNET_REGISTRY:-mcr.m.daocloud.io}
+        PG_IMAGE: ${PG_IMAGE:-docker.m.daocloud.io/pgvector/pgvector:pg16}
     image: htagent-server
     depends_on:
       pg:
@@ -94,8 +94,8 @@ services:
     build:
       context: ../web
       args:
-        NODE_IMAGE: ${NODE_IMAGE:-node:22-alpine}
-        NGINX_IMAGE: ${NGINX_IMAGE:-nginx:1.27-alpine}
+        NODE_IMAGE: ${NODE_IMAGE:-docker.m.daocloud.io/library/node:22-alpine}
+        NGINX_IMAGE: ${NGINX_IMAGE:-docker.m.daocloud.io/library/nginx:1.27-alpine}
     image: htagent-web
     depends_on:
       - server-company
@@ -110,8 +110,8 @@ services:
     build:
       context: ../web
       args:
-        NODE_IMAGE: ${NODE_IMAGE:-node:22-alpine}
-        NGINX_IMAGE: ${NGINX_IMAGE:-nginx:1.27-alpine}
+        NODE_IMAGE: ${NODE_IMAGE:-docker.m.daocloud.io/library/node:22-alpine}
+        NGINX_IMAGE: ${NGINX_IMAGE:-docker.m.daocloud.io/library/nginx:1.27-alpine}
     image: htagent-web
     depends_on:
       - server-hq
@@ -125,8 +125,8 @@ services:
     build:
       context: ../portal
       args:
-        NODE_IMAGE: ${NODE_IMAGE:-node:22-alpine}
-        NGINX_IMAGE: ${NGINX_IMAGE:-nginx:1.27-alpine}
+        NODE_IMAGE: ${NODE_IMAGE:-docker.m.daocloud.io/library/node:22-alpine}
+        NGINX_IMAGE: ${NGINX_IMAGE:-docker.m.daocloud.io/library/nginx:1.27-alpine}
     image: htagent-portal
     depends_on:
       - server-company

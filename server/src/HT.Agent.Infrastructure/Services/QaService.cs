@@ -257,6 +257,36 @@ public class QaService(
         [IntentRouter.Knowledge, IntentRouter.Ledger, IntentRouter.Generate,
          IntentRouter.Translate, IntentRouter.Case, IntentRouter.Ticket];
 
+    /// <summary>意图交给模型定，正则的判断只当提示。模型不可用/看不懂就按正则那版走。
+    /// 判意图本来就是理解问题，不是匹配关键词——靠正则穷举，永远差一个说法。</summary>
+    private async Task<string> RefineIntentAsync(string question, string guess, CancellationToken ct)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("判断用户这句话要办的是哪件事，只回一个英文单词，不要任何其他内容：");
+        sb.AppendLine("knowledge —— 问资料里的知识：参数、原理、做法、规程。默认归这一类。");
+        sb.AppendLine("ledger —— 盘点历史项目：某客户做过什么、哪些年做过哪些设备、合同金额、交付状态。");
+        sb.AppendLine("case —— 设备出了故障要查处理办法：报警代码、异常现象、维修记录。");
+        sb.AppendLine("ticket —— 问某张报修工单的进度或状态，不是问故障怎么修。");
+        sb.AppendLine("translate —— 要把一段文字或一份文档翻译成中文/英文。");
+        sb.AppendLine("generate —— 要出一份文档：方案、投标书、报价、合同、任务单。");
+        sb.AppendLine();
+        sb.AppendLine("注意区分：「这份文档的翻译流程是什么」是在问知识（knowledge），不是要翻译；");
+        sb.AppendLine("「设计压力怎么取」是知识，「华东理工做过哪些釜」是盘点（ledger）。");
+        sb.AppendLine($"（关键词初判是 {guess}，仅供参考，以你的理解为准）");
+
+        try
+        {
+            var raw = await chat.CompleteAsync(
+                [new ChatTurn("system", sb.ToString()), new ChatTurn("user", question)], ct);
+            var word = new string(raw.Trim().ToLowerInvariant().TakeWhile(char.IsLetter).ToArray());
+            return KnownIntents.Contains(word) ? word : guess;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return guess;   // 模型不在就用正则那版，不让判意图挡住整条链路
+        }
+    }
+
     private async Task<string> RouteIntentAsync(QaRequest req, CancellationToken ct)
     {
         string intent;
@@ -268,7 +298,10 @@ public class QaService(
         {
             var (customers, devices) = await VocabAsync(ct);
             var pattern = await config.GetAsync(ConfigKeys.IntentProjectNoPattern, ct);
-            intent = IntentRouter.Classify(req.Question, customers, devices, pattern);
+            // 正则给个初判，最终由模型定——「这份文档的翻译流程是什么」不是要翻译，
+            // 「近三年做过哪些反应釜」是要查台账，这种分寸正则穷举不完。
+            var guess = IntentRouter.Classify(req.Question, customers, devices, pattern);
+            intent = await RefineIntentAsync(req.Question, guess, ct);
         }
         // 权限门在意图确定之后，对自动判定与手动纠正一视同仁（FR-7.3）——
         // forcedIntent 不是权限提升通道。无台账权限者强指台账记一条越权审计后按知识问答走。
