@@ -254,6 +254,30 @@ public class GenChatTests
     }
 
     [Fact]
+    public void 模型没写tag的填值不丢弃_留给服务端认是哪一项()
+    {
+        // 丢了就等于用户白给了这个值，界面还会把同一项再问一遍——「我给了合同编号，它还在问」
+        var t = GenChatLogic.ParseTurn(
+            "合同编号 HT-2025-C0012 已落。\n```json\n{\"actions\":[{\"type\":\"fill\",\"value\":\"HT-2025-C0012\"}]}\n```");
+        var a = Assert.Single(t.Actions);
+        Assert.Equal("fill", a.Type);
+        Assert.Null(a.Tag);
+        Assert.Equal("HT-2025-C0012", a.Value);
+    }
+
+    [Fact]
+    public void 模型把项名写进tag_原样带出交服务端解析()
+    {
+        var plan = GenChatLogic.ParsePlan("{\"actions\":[{\"type\":\"fill\",\"tag\":\"合同编号\",\"value\":\"HT-2025-C0012\"}]}");
+        var a = Assert.Single(plan);
+        Assert.Equal("合同编号", a.Tag);
+    }
+
+    [Fact]
+    public void 没有值的填值单照旧丢弃()
+        => Assert.Empty(GenChatLogic.ParsePlan("{\"actions\":[{\"type\":\"fill\",\"tag\":\"contract_no\"}]}"));
+
+    [Fact]
     public void 只有动作没有话_动作照办话由专员补()
     {
         var onlyActions = GenChatLogic.ParseTurn("{\"actions\":[{\"type\":\"summary\"}]}");

@@ -131,7 +131,10 @@ public static class GenChatLogic
                     var type = Str(a, "type")?.Trim().ToLowerInvariant();
                     if (type is null || !KnownActions.Contains(type)) continue;
                     var value = a.TryGetProperty("value", out var v) ? ScalarToString(v) : null;
-                    if (type == "fill" && (string.IsNullOrWhiteSpace(Str(a, "tag")) || string.IsNullOrWhiteSpace(value))) continue;
+                    // 没值的 fill 才是废单；只是没写 tag（或写成了项名）不丢——
+                    // 模型常写 {"type":"fill","value":"HT-2025-C0012"}，把它丢了就等于用户白给了这个值，
+                    // 界面上还会把同一项再问一遍。交给服务端按「当前在问的那一项」或项名去认。
+                    if (type == "fill" && string.IsNullOrWhiteSpace(value)) continue;
                     result.Add(new PlanAction(type,
                         Tag: Blank(Str(a, "tag")), Value: value?.Trim(),
                         Customer: Blank(Str(a, "customer")), Device: Blank(Str(a, "device")), Keyword: Blank(Str(a, "keyword")),

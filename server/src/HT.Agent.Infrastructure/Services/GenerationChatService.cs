@@ -78,6 +78,8 @@ public class GenerationChatService(
         public object? Rendered;
         /// <summary>这一轮译出的整篇译文：文件、回填报告、命中术语。</summary>
         public object? Translated;
+        /// <summary>这一轮刚落进去的项：无论后面状态怎么算，都不许在同一轮里再问一遍。</summary>
+        public readonly HashSet<string> FilledNow = [];
         /// <summary>槽位有变动：下一批提问重新算。</summary>
         public bool Changed;
         /// <summary>有专员干了活：整句没抽到值时不再提示「没识别到」。</summary>
@@ -263,7 +265,9 @@ public class GenerationChatService(
         sb.AppendLine("```");
         sb.AppendLine("不需要动表就不要加这个块。不要把回答塞进 JSON 里——正文归正文，代码块只放动作。");
         sb.AppendLine("动作类型：");
-        sb.AppendLine("- {\"type\":\"fill\",\"tag\":\"槽位tag\",\"value\":\"值\"}：用户明确给出的槽位取值，可多条；用户改口时给新值");
+        sb.AppendLine("- {\"type\":\"fill\",\"tag\":\"槽位tag\",\"value\":\"值\"}：用户明确给出的槽位取值，可多条；用户改口时给新值。" +
+            "tag 必须照抄下面【槽位清单】里的 tag 原文（如 contract_no），不要写中文项名，也不要省略——" +
+            "你说了「已记录」而 tag 没给对，用户就会被同一项问第二遍");
         sb.AppendLine("- {\"type\":\"ledger\",\"customer\":\"客户名或空\",\"device\":\"设备类型或空\",\"keyword\":\"型号/容积等关键词或空\"}：用户想查历史项目、以前做过的、台账、类似项目");
         sb.AppendLine("- {\"type\":\"pick_base\",\"projectNo\":\"项目编号\"} 或 {\"type\":\"pick_base\",\"index\":2}：用户要用某个历史项目做基准（「用第二个」→index 2）");
         sb.AppendLine("- {\"type\":\"suggest\",\"tags\":[\"tag\"]}：用户要参数推荐/建议/参考；tags 留空表示当前在问的项");
@@ -333,20 +337,26 @@ public class GenerationChatService(
         var byTag = states.ToDictionary(s => s.Tag);
         var applied = new List<(string Name, string Value)>();
         var notes = new List<string>();
+        var dropped = new List<string>();
         foreach (var f in fills)
         {
-            var tag = f.Tag;
-            if (tag is null)
+            // 落到哪一项：tag 优先；模型把项名写进 tag（「合同编号」）也认；
+            // 什么都没写就落到当前在问的那一项——用户刚回答的就是它
+            var tag = f.Tag is not null && defs.ContainsKey(f.Tag) ? f.Tag
+                : ResolveSlot(ctx.Template, f.Tag ?? f.Name ?? "")?.Tag
+                  ?? ctx.State.LastAsked.FirstOrDefault(t => defs.ContainsKey(t) && IsOpen(byTag.GetValueOrDefault(t)));
+            if (tag is null || !defs.TryGetValue(tag, out var def) || def.Stage != SlotStage.Current)
             {
-                // 整句即答案：只认上一轮真问过且仍空着（或有待确认建议）的那一项
-                tag = ctx.State.LastAsked.FirstOrDefault(t => defs.ContainsKey(t) && IsOpen(byTag.GetValueOrDefault(t)));
-                if (tag is null) continue;
+                // 认不出该落到哪一项——但用户确实给了值，不能咽下去当没听见：
+                // 咽下去的后果就是「我给了合同编号，它还在问合同编号」
+                dropped.Add(Truncate(f.Value ?? "", 24));
+                continue;
             }
-            if (!defs.TryGetValue(tag, out var def) || def.Stage != SlotStage.Current) continue;
             var (ok, val, note) = Validate(def, f.Value ?? "");
             if (!ok) { notes.Add(note!); ctx.Reply.Handled = true; continue; }
             Apply(states, tag, val!);
             byTag[tag] = states.First(s => s.Tag == tag);
+            ctx.Reply.FilledNow.Add(tag);
             applied.Add((def.Name, val!));
         }
         if (applied.Count > 0)
@@ -356,6 +366,12 @@ public class GenerationChatService(
             ctx.Reply.Handled = true;
             ctx.Reply.Add($"已记录 {applied.Count} 项：" +
                 string.Join("；", applied.Select(a => $"{a.Name} = {Truncate(a.Value, 24)}")) + "。");
+        }
+        if (dropped.Count > 0)
+        {
+            ctx.Reply.Handled = true;
+            ctx.Reply.Add($"「{string.Join("」「", dropped)}」我没认出是哪一项的值，没有入表——" +
+                "带上项名再说一次（比如「合同编号 HT-2025-C0012」），我就能落进去。");
         }
         foreach (var n in notes) ctx.Reply.Add(n + "。");
     }
@@ -873,6 +889,15 @@ public class GenerationChatService(
             var byTag = states.ToDictionary(s => s.Tag);
             var keep = !reply.Changed && state.LastAsked.Any(t => IsOpen(byTag.GetValueOrDefault(t)));
             var asks = keep ? AskDefs(ctx.Template, state.LastAsked, byTag) : NextAsks(ctx.Template, states, state, ctx.Batch);
+            // 这一轮刚落进去的项不再问第二遍。状态算错也好、值被别处盖掉也好，
+            // 「我刚给了你还问」是最让人火大的一种错，这里堵死
+            if (reply.FilledNow.Count > 0)
+            {
+                asks = asks.Where(a => !reply.FilledNow.Contains(a.Tag)).ToList();
+                if (asks.Count == 0 && !keep)
+                    asks = NextAsks(ctx.Template, states, state, ctx.Batch)
+                        .Where(a => !reply.FilledNow.Contains(a.Tag)).ToList();
+            }
             if (asks.Count == 0)
             {
                 var check = GenerationService.Completeness(ctx.Template, states);
@@ -997,9 +1022,13 @@ public class GenerationChatService(
     private static TemplateSlot? ResolveSlot(Template t, string key)
     {
         key = key.Trim();
+        // 空串不能往下走：Contains("") 恒真，会「认出」名字最长的那一项，把值落到八竿子打不着的槽位
+        if (key.Length == 0) return null;
         var current = CurrentSlots(t);
         return current.FirstOrDefault(s => s.Tag == key || s.Name == key)
-               ?? current.Where(s => key.Contains(s.Name) || s.Name.Contains(key)).OrderByDescending(s => s.Name.Length).FirstOrDefault();
+               ?? (key.Length < 2 ? null
+                   : current.Where(s => s.Name.Length >= 2 && (key.Contains(s.Name) || s.Name.Contains(key)))
+                       .OrderByDescending(s => s.Name.Length).FirstOrDefault());
     }
 
     /// <summary>主动查台账的依据：项目要点 + 已填的客户/设备类槽位值。</summary>
