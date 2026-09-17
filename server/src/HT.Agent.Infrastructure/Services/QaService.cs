@@ -497,7 +497,7 @@ public class QaService(
         else
         {
             // 生成：在同一个对话里把模板递给他，点选即开始对话式填写——不切页面。
-            object? templates = null;
+            List<TemplateRec>? templates = null;
             if (me.Permissions.Contains(PermissionKeys.Generate))
                 templates = await RecommendTemplatesAsync(req.Question, ct);
             yield return new QaEvent("meta", new { sessionId = session.Id, intent, hitCount = 0, topScore = 0.0, rewrittenQuery = req.Question });
@@ -505,9 +505,12 @@ public class QaService(
             {
                 intent,
                 templates,
-                message = templates is not null
-                    ? "识别到你想出一份文档。挑一个模板就在这儿开始填——你这句话会带进去，能确定的项我直接填好。"
-                    : "你的角色没有方案生成权限。判定有误可按知识问答重新回答。"
+                message = templates is null
+                    ? "你的角色没有方案生成权限。判定有误可按知识问答重新回答。"
+                    : templates.Count > 0
+                        ? "识别到你想出一份文档。挑一个模板就在这儿开始填——你这句话会带进去，能确定的项我直接填好。"
+                        // 一个能用的模板都没有时就别端着「挑一个模板」——那句话下面是空的，比说实话更难堪
+                        : "识别到你想出一份文档，但现在没有已启用的模板。模板要在管理后台补全槽位定义（显示名称与所属章节）之后才能启用，找管理员看一下。"
             };
             yield return new QaEvent("generate", gv);
             Keep(message, gv.message, new { kind = "generate", data = gv });
@@ -525,7 +528,9 @@ public class QaService(
 
     /// <summary>生成意图的模板推荐：按提问与模板名/类别的匹配度排序（GenChatLogic.TemplateScore），
     /// 全都不沾边时给最近用过的——「帮我出个方案」这类泛化说法也要有可点的起点。最多四个。</summary>
-    private async Task<object> RecommendTemplatesAsync(string question, CancellationToken ct)
+    private record TemplateRec(Guid Id, string Name, string DocType, int SlotCount);
+
+    private async Task<List<TemplateRec>> RecommendTemplatesAsync(string question, CancellationToken ct)
     {
         var rows = await db.Templates.AsNoTracking()
             .Where(t => t.IsEnabled)
@@ -541,7 +546,7 @@ public class QaService(
             .ToList();
         var picked = scored.Any(x => x.score > 0) ? scored.Where(x => x.score > 0) : scored;
         return picked.Take(4)
-            .Select(x => new { id = x.t.Id, name = x.t.Name, docType = x.t.DocType, slotCount = x.t.SlotCount })
+            .Select(x => new TemplateRec(x.t.Id, x.t.Name, x.t.DocType, x.t.SlotCount))
             .ToList();
     }
 

@@ -289,3 +289,24 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .fv-pdf { display: block; width: 100%; height: 100%; min-height: 78vh; border: none; background: #fff; }
 .fv-doc .docx-wrapper { background: transparent; padding: 14px 0; }
 .fv-doc .docx-wrapper > section.docx { margin: 0 auto 12px; box-shadow: 0 1px 6px rgba(16, 24, 40, .12); }
+
+/* 表格与演示稿的预览 */
+.fv-xl { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.fv-tabs { flex: 0 0 auto; display: flex; gap: 2px; padding: 8px 12px 0; overflow-x: auto; }
+.fv-tab { height: 24px; padding: 0 11px; font-size: 11.5px; font-family: var(--font);
+  color: var(--ink-2); background: var(--bg-soft); border: 1px solid var(--line);
+  border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer; white-space: nowrap; }
+.fv-tab.on { color: var(--accent); background: var(--panel); font-weight: 500; }
+.fv-sheet { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 12px 12px; background: var(--panel); }
+.fv-sheet table { border-collapse: collapse; font-size: 12px; background: var(--panel); }
+.fv-sheet td, .fv-sheet th { border: 1px solid var(--line); padding: 4px 8px;
+  white-space: pre-wrap; vertical-align: top; max-width: 320px; }
+.fv-sheet tr:first-child td { background: var(--bg-soft); font-weight: 600; }
+
+.fv-ppt { padding-bottom: 8px; }
+.fv-slide { margin: 10px 14px; padding: 11px 14px; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 6px; }
+.fv-slide-n { font-family: var(--mono); font-size: 10.5px; color: var(--ink-4); margin-bottom: 3px; }
+.fv-slide-t { font-size: 13.5px; font-weight: 600; line-height: 1.6; margin-bottom: 4px; }
+.fv-slide-l { font-size: 12.5px; line-height: 1.8; color: var(--ink-2); padding-left: 10px;
+  border-left: 2px solid var(--line-soft); }
