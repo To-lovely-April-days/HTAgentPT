@@ -71,4 +71,51 @@ public class ChunkSplitterTests
     [Fact]
     public void 拆出空块拒绝()
         => Assert.Throws<ArgumentException>(() => ChunkSplitter.Split("11 22", [2, 3]));
+
+    [Theory]
+    [InlineData("CJF-5L 显示 E12 报警怎么处理")]
+    [InlineData("磁力搅拌不转了")]
+    [InlineData("之前有没有类似的维修记录")]
+    [InlineData("釜盖漏液，查一下案例")]
+    public void 故障与报警归案例(string q)
+        => Assert.Equal(IntentRouter.Case, IntentRouter.Classify(q, [], []));
+
+    [Fact]
+    public void 参数类提问不归案例()
+    {
+        Assert.Equal(IntentRouter.Knowledge, IntentRouter.Classify("CJF-5L 的复装力矩是多少", [], []));
+        Assert.Equal(IntentRouter.Knowledge, IntentRouter.Classify("设计压力怎么取", [], []));
+    }
+
+    [Theory]
+    [InlineData("请给我英文的文档", "zh2en")]
+    [InlineData("把这段翻译成英文", "zh2en")]
+    [InlineData("translate to Chinese", "en2zh")]
+    [InlineData("译成中文", "en2zh")]
+    public void 翻译方向识别(string q, string expected)
+        => Assert.Equal(expected, IntentRouter.ParseTranslateAsk(q).Direction);
+
+    [Fact]
+    public void 翻译请求_纯指令不带正文时不拿指令去翻()
+    {
+        Assert.Null(IntentRouter.ParseTranslateAsk("请给我英文的文档").Text);
+        Assert.Null(IntentRouter.ParseTranslateAsk("翻译成英文").Text);
+        Assert.True(IntentRouter.ParseTranslateAsk("请给我英文的文档").WantsFile);
+
+        var withBody = IntentRouter.ParseTranslateAsk("把这段翻译成英文：本设备采用磁力耦合密封，最高工作压力 10MPa");
+        Assert.Equal("zh2en", withBody.Direction);
+        Assert.NotNull(withBody.Text);
+        Assert.Contains("磁力耦合密封", withBody.Text!);
+        Assert.DoesNotContain("翻译", withBody.Text!);
+    }
+
+    [Fact]
+    public void 案例关键词_去掉问法留下型号与代码()
+    {
+        var k = IntentRouter.CaseKeywords("有没有 CJF-5L 显示 E12 报警的案例，怎么处理？");
+        Assert.Contains("CJF-5L", k);
+        Assert.Contains("E12", k);
+        Assert.DoesNotContain("有没有", k);
+        Assert.DoesNotContain("怎么处理", k);
+    }
 }

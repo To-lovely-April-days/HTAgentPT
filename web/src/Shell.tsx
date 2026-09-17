@@ -6,40 +6,19 @@ import { Perm } from './lib/types';
 
 interface NavItem { to: string; label: string; }
 
-/** C2 框架：导航按角色成形（表 3-2），权限再兜一层——菜单少画不是安全边界，接口才是。 */
+/** C2 框架：业务角色只有一个入口——对话（顶部不再摆功能标签，用户说什么就做什么）。
+ * 管理后台与总部审核台仍是各自独立的管理界面，不进对话（表 9-1、表 3-1）。
+ * 旧的功能页路由都还在，对话里的卡片需要细看时直接深链过去。 */
 function navFor(roleCode: string, has: (p: string) => boolean): NavItem[] {
   switch (roleCode) {
-    case 'presales':
-      return [
-        { to: '/qa', label: '问答' },
-        { to: '/projects', label: '项目查询' },
-        { to: '/generate', label: '方案生成' },
-        { to: '/contract', label: '报价合同' },
-        { to: '/translate', label: '翻译' },
-      ].filter((i) => ({
-        '/qa': has(Perm.QaInternal) || has(Perm.QaPublic),
-        '/projects': has(Perm.ProjectSearch),
-        '/generate': has(Perm.Generate),
-        '/contract': has(Perm.GenerateContract),
-        '/translate': has(Perm.Translate),
-      })[i.to]);
-    case 'aftersales':
-      return [
-        { to: '/qa', label: '问答' },
-        { to: '/cases', label: '案例检索' },
-        { to: '/cases/new', label: '案例录入' },
-        { to: '/tickets', label: '报修工单' },
-        { to: '/translate', label: '翻译' },
-      ];
-    case 'hq_reviewer':
-      return [
-        { to: '/review', label: '审核台' },
-        { to: '/qa', label: '共享库问答' },
-      ];
     case 'admin':
       return [{ to: '/admin', label: '管理后台' }];
+    case 'hq_reviewer':
+      return [{ to: '/review', label: '审核台' }, { to: '/chat', label: '共享库问答' }];
     default:
-      return [{ to: '/qa', label: '自助查询' }];
+      return has(Perm.QaInternal) || has(Perm.QaPublic) || has(Perm.CaseRead)
+        ? [{ to: '/chat', label: '对话' }]
+        : [];
   }
 }
 

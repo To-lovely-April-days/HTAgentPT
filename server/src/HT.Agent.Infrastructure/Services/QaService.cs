@@ -18,6 +18,8 @@ public class QaService(
     IChatModelClient chat,
     IRuntimeConfig config,
     IProjectService projects,
+    ITranslationService translation,
+    IFaultCaseService cases,
     IAuditWriter audit,
     ICurrentUser me) : IQaService
 {
@@ -197,7 +199,8 @@ public class QaService(
     }
 
     private static readonly string[] KnownIntents =
-        [IntentRouter.Knowledge, IntentRouter.Ledger, IntentRouter.Generate, IntentRouter.Translate];
+        [IntentRouter.Knowledge, IntentRouter.Ledger, IntentRouter.Generate,
+         IntentRouter.Translate, IntentRouter.Case];
 
     private async Task<string> RouteIntentAsync(QaRequest req, CancellationToken ct)
     {
@@ -219,12 +222,19 @@ public class QaService(
         }
         // 权限门在意图确定之后，对自动判定与手动纠正一视同仁（FR-7.3）——
         // forcedIntent 不是权限提升通道。无台账权限者强指台账记一条越权审计后按知识问答走。
-        if (intent == IntentRouter.Ledger && !me.Permissions.Contains(PermissionKeys.ProjectSearch))
+        var need = intent switch
         {
-            if (req.ForcedIntent == IntentRouter.Ledger)
+            IntentRouter.Ledger => PermissionKeys.ProjectSearch,
+            IntentRouter.Case => PermissionKeys.CaseRead,
+            IntentRouter.Translate => PermissionKeys.Translate,
+            _ => null
+        };
+        if (need is not null && !me.Permissions.Contains(need))
+        {
+            if (req.ForcedIntent == intent)
                 await audit.WriteAsync(new AuditEntry("authz.denied", AuditResult.Denied,
                     UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
-                    Detail: new { permission = PermissionKeys.ProjectSearch, via = "qa.forcedIntent" },
+                    Detail: new { permission = need, via = "qa.forcedIntent" },
                     Ip: me.Ip, TerminalId: me.TerminalId), ct);
             return IntentRouter.Knowledge;
         }
@@ -273,26 +283,112 @@ public class QaService(
             });
             message.Answer = $"[台账] 按解析出的条件返回 {result.Rows.Count} 条项目记录";
         }
-        else
+        else if (intent == IntentRouter.Translate)
         {
-            // 生成与翻译转交对应模块（FR-4.1）：给出跳转指令，由前端切到对应工作区。
-            // 生成意图再进一步：随分流带上匹配的模板推荐，在对话里点选即开始对话式填写
-            var target = intent == IntentRouter.Generate ? "generate" : "translate";
-            var name = intent == IntentRouter.Generate ? "方案生成" : "翻译";
-            object? templates = null;
-            if (intent == IntentRouter.Generate && me.Permissions.Contains(PermissionKeys.Generate))
-                templates = await RecommendTemplatesAsync(req.Question, ct);
+            // 就地翻译（FR-6.1/6.5）：不跳转、不换页——说要英文的就给英文的。
+            // 只下了指令没给正文时，拿本会话上一条回答来译；都没有就问他要正文或文件。
+            var ask = IntentRouter.ParseTranslateAsk(req.Question);
+            var text = ask.Text;
+            string? from = text is null ? null : "本次输入";
+            if (text is null)
+            {
+                var last = await db.QaMessages.AsNoTracking()
+                    .Where(m => m.SessionId == session.Id && m.Answer != null && m.Intent == IntentRouter.Knowledge)
+                    .OrderByDescending(m => m.At).FirstOrDefaultAsync(ct);
+                if (last?.Answer is { Length: > 0 })
+                {
+                    text = last.Answer;
+                    from = "上一条回答";
+                }
+            }
+
             yield return new QaEvent("meta", new { sessionId = session.Id, intent, hitCount = 0, topScore = 0.0, rewrittenQuery = req.Question });
-            yield return new QaEvent("redirect", new
+            if (text is null)
+            {
+                yield return new QaEvent("text", new
+                {
+                    intent,
+                    message = ask.WantsFile
+                        ? "要译整份文档的话，把文件发过来我就地翻译并按原格式回填。只译一段文字的话，直接把那段话发给我。"
+                        : "把要翻译的文字发给我就行——整段贴过来，或者先问一个问题，我可以直接翻上一条回答。"
+                });
+                message.Answer = "[翻译] 等待提供正文";
+            }
+            else
+            {
+                TextTranslationResult? tr = null;
+                string? failed = null;
+                try
+                {
+                    tr = await translation.TranslateTextAsync(
+                        new TextTranslationRequest(text, ask.Direction, TermDomain: null, Bilingual: true), ct);
+                }
+                catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+                {
+                    failed = "翻译服务暂时不可用，稍后再试。原文没有丢。";
+                }
+
+                if (tr is null)
+                {
+                    yield return new QaEvent("text", new { intent, message = failed });
+                    message.Answer = "[翻译] 服务不可用";
+                }
+                else
+                {
+                    yield return new QaEvent("translation", new
+                    {
+                        intent,
+                        direction = ask.Direction,
+                        source = from,
+                        sourceText = text,
+                        translation = tr.Translation,
+                        pairs = tr.Pairs,
+                        termsApplied = tr.TermsApplied,
+                        contractNotice = tr.ContractNotice,
+                        note = "术语按已审定术语表强制注入；译法不当可就地提交修正。"
+                    });
+                    message.Answer = $"[翻译] {ask.Direction}，{text.Length} 字";
+                }
+            }
+        }
+        else if (intent == IntentRouter.Case)
+        {
+            // 就地查案例（FR-8.7）：命中一条就直接把详情摊开，多条给列表让他点。
+            if (!me.Permissions.Contains(PermissionKeys.CaseRead))
+                throw new ForbiddenException("FORBIDDEN", "你的角色没有故障案例检索权限。本次请求已被记录。");
+            var keyword = IntentRouter.CaseKeywords(req.Question);
+            var rows = await cases.SearchAsync(new CaseSearchRequest(Keyword: keyword, Limit: 8), ct);
+            yield return new QaEvent("meta", new { sessionId = session.Id, intent, hitCount = rows.Count, topScore = 0.0, rewrittenQuery = keyword });
+
+            CaseDetail? only = rows.Count == 1 ? await cases.GetAsync(rows[0].Id, ct) : null;
+            yield return new QaEvent("cases", new
             {
                 intent,
-                module = target,
-                message = templates is not null
-                    ? "识别到你想生成文档。点选下面的模板即可开始对话式填写（会带上这句话，能确定的项直接帮你填了）。判定有误可按知识问答重新回答。"
-                    : $"这个请求更适合在「{name}」里完成，已为你准备切换。判定有误可用 forcedIntent=knowledge 按知识问答处理。",
-                templates
+                keyword,
+                rows,
+                detail = only,
+                note = rows.Count == 0
+                    ? "没有匹配的故障案例。换个说法，或把设备型号与报警代码一起给我。"
+                    : only is not null ? "只命中一条，详情直接展开在下面。" : "点任意一条看完整的现象、原因与处理步骤。"
             });
-            message.Answer = $"[分流] 已转交{name}模块";
+            message.Answer = $"[案例] 按「{keyword}」命中 {rows.Count} 条";
+        }
+        else
+        {
+            // 生成：在同一个对话里把模板递给他，点选即开始对话式填写——不切页面。
+            object? templates = null;
+            if (me.Permissions.Contains(PermissionKeys.Generate))
+                templates = await RecommendTemplatesAsync(req.Question, ct);
+            yield return new QaEvent("meta", new { sessionId = session.Id, intent, hitCount = 0, topScore = 0.0, rewrittenQuery = req.Question });
+            yield return new QaEvent("generate", new
+            {
+                intent,
+                templates,
+                message = templates is not null
+                    ? "识别到你想出一份文档。挑一个模板就在这儿开始填——你这句话会带进去，能确定的项我直接填好。"
+                    : "你的角色没有方案生成权限。判定有误可按知识问答重新回答。"
+            });
+            message.Answer = "[生成] 已在对话内递出模板";
         }
 
         db.QaMessages.Add(message);

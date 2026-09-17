@@ -218,6 +218,12 @@ export interface GenChatPayload {
   rendered?: { fileName: string; filled: number; blank: number } | null;
 }
 /** 问答分流事件里携带的模板推荐（点选即开聊）。 */
+/** 台账查询的结构化结果（FR-4.1）：不经模型生成，筛选条件由提问解析而来。 */
+export interface LedgerTable {
+  filters: { customer: string | null; deviceType: string | null; yearFrom: number | null; yearTo: number | null };
+  rows: ProjectRow[]; amountVisible: boolean; note: string;
+}
+
 export interface QaTemplateRec { id: string; name: string; docType: string; slotCount: number; }
 
 export interface ClauseRow {

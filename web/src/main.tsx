@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from './lib/auth'
 import { Spinner } from './components/Common'
 import LoginPage from './pages/Login'
 import Shell from './Shell'
+import ChatPage from './pages/chat/ChatPage'
 import QaPage from './pages/qa/QaPage'
 import ProjectsPage from './pages/projects/ProjectsPage'
 import ProjectDetailPage from './pages/projects/ProjectDetailPage'
@@ -51,7 +52,7 @@ function Guarded({ children }: { children: React.ReactNode }) {
 /** 各角色的落地页：管理员进后台首页（决策 3），总部审核人进审核台，其余进问答。 */
 function HomeRedirect() {
   const { profile } = useAuth()
-  const to = profile?.roleCode === 'admin' ? '/admin' : profile?.roleCode === 'hq_reviewer' ? '/review' : '/qa'
+  const to = profile?.roleCode === 'admin' ? '/admin' : profile?.roleCode === 'hq_reviewer' ? '/review' : '/chat'
   return <Navigate to={to} replace />
 }
 
@@ -68,6 +69,7 @@ function App() {
         }
       >
         <Route index element={<HomeRedirect />} />
+        <Route path="chat" element={<ChatPage />} />
         <Route path="qa" element={<QaPage />} />
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="projects/:projectNo" element={<ProjectDetailPage />} />

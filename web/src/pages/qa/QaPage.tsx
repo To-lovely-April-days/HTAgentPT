@@ -3,16 +3,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { get, post, sse, download, ApiError } from '../../lib/api';
 import { DELIVERY_LABEL } from '../../lib/types';
-import type { QaMessageRow, QaSessionRow, QaTemplateRec, Source, VocabRow, ProjectRow } from '../../lib/types';
+import type { LedgerTable, QaMessageRow, QaSessionRow, QaTemplateRec, Source, VocabRow } from '../../lib/types';
 import { AuthImage, ClsBadge, ErrorBox, InfoBox, Spinner } from '../../components/Common';
 import { Prose } from '../../components/Prose';
 import type { Classification } from '../../lib/types';
 
 // ── 一轮问答在界面上的形态（对应 SSE 事件契约）──────────────────────
-interface LedgerTable {
-  filters: { customer: string | null; deviceType: string | null; yearFrom: number | null; yearTo: number | null };
-  rows: ProjectRow[]; amountVisible: boolean; note: string;
-}
 interface Turn {
   id: string;
   question: string;
