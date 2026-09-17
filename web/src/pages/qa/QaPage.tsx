@@ -5,6 +5,7 @@ import { get, post, sse, download, ApiError } from '../../lib/api';
 import { DELIVERY_LABEL } from '../../lib/types';
 import type { QaMessageRow, QaSessionRow, QaTemplateRec, Source, VocabRow, ProjectRow } from '../../lib/types';
 import { AuthImage, ClsBadge, ErrorBox, InfoBox, Spinner } from '../../components/Common';
+import { Prose } from '../../components/Prose';
 import type { Classification } from '../../lib/types';
 
 // ── 一轮问答在界面上的形态（对应 SSE 事件契约）──────────────────────
@@ -45,9 +46,15 @@ export default function QaPage() {
     deviceType: preset?.presetDeviceType ?? '',
   });
   const [activeSources, setActiveSources] = useState<Source[] | null>(null);
+  // 正文里点了 [n] 角标：右栏滚到那一条并短暂高亮
+  const [focusSource, setFocusSource] = useState<number | null>(null);
   // 来源图片放大查看（FR-4.9 来源出图）
   const [lightbox, setLightbox] = useState<{ docId: string; id: number; caption: string | null; pageNo: number | null } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const showSources = useCallback((s: Source[], focus?: number) => {
+    setActiveSources(s);
+    setFocusSource(focus ?? null);
+  }, []);
 
   const sessions = useQuery({ queryKey: ['qa-sessions'], queryFn: () => get<QaSessionRow[]>('/api/qa-sessions') });
   const customers = useQuery({ queryKey: ['vocab', 'customer_name'], queryFn: () => get<VocabRow[]>('/api/vocab/customer_name'), staleTime: 60_000 });
@@ -198,7 +205,7 @@ export default function QaPage() {
               </div>
             </div>
           )}
-          {turns.map((t) => <TurnView key={t.id} turn={t} onFeedback={feedback} onCorrect={(fi) => void ask(t.question, fi)} onShowSources={setActiveSources} />)}
+          {turns.map((t) => <TurnView key={t.id} turn={t} onFeedback={feedback} onCorrect={(fi) => void ask(t.question, fi)} onShowSources={showSources} />)}
           <div ref={bottomRef} />
         </div>
 
@@ -219,7 +226,14 @@ export default function QaPage() {
         <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 9 }}>来源</div>
         {!activeSources && <div className="hint">回答生成后，这里列出每条依据的文档、章节与页码。</div>}
         {activeSources?.map((s) => (
-          <div key={s.index} className="card" style={{ padding: '10px 12px', marginBottom: 8 }}>
+          <div key={s.index} className="card"
+            ref={s.index === focusSource ? (el) => el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) : undefined}
+            style={{
+              padding: '10px 12px', marginBottom: 8,
+              ...(s.index === focusSource
+                ? { borderColor: 'var(--accent)', boxShadow: '0 0 0 3px var(--accent-bg)' }
+                : {}),
+            }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
               <span className="pill pill-accent m">[{s.index}]</span>
               <ClsBadge cls={s.classification as Classification} />
@@ -266,7 +280,7 @@ function TurnView({ turn: t, onFeedback, onCorrect, onShowSources }: {
   turn: Turn;
   onFeedback: (t: Turn, helpful: boolean) => void;
   onCorrect: (forcedIntent: string) => void;
-  onShowSources: (s: Source[]) => void;
+  onShowSources: (s: Source[], focus?: number) => void;
 }) {
   const nav = useNavigate();
   return (
@@ -323,7 +337,8 @@ function TurnView({ turn: t, onFeedback, onCorrect, onShowSources }: {
 
       {(t.answer || t.streaming) && !t.table && !t.redirect && (
         <div className="card" style={{ padding: '12px 16px' }}>
-          <div style={{ fontSize: 14, lineHeight: 1.9, whiteSpace: 'pre-wrap' }}>{t.answer}</div>
+          <Prose text={t.answer} style={{ fontSize: 14 }}
+            onCite={t.sources ? (n) => onShowSources(t.sources!, n) : undefined} />
           {t.streaming && <div style={{ marginTop: 6 }}><Spinner text="生成中…" /></div>}
           {!t.streaming && t.sources && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--line-soft)' }}>

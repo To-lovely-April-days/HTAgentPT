@@ -12,7 +12,8 @@ import type {
   SlotState, SlotSuggestion, SlotView, TemplateRowT,
 } from '../../lib/types';
 import { ErrorBox, InfoBox, Spinner } from '../../components/Common';
-import { AdviceCard, EvidenceCard } from './AdviceCards';
+import { AdviceCard, EvidenceCard, SummaryCard } from './ChatCards';
+import { Prose } from '../../components/Prose';
 
 export default function GeneratePage() {
   // 从问答分流跳来：state 带模板与原话，落地即建会话开聊，原话作首轮输入自动抽取
@@ -276,7 +277,7 @@ function AssistantChatMsg({ msg, active, sessionId, onTurn, onError }: {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 10 }}>
       <div className="card" style={{ maxWidth: '88%', padding: '10px 14px' }}>
-        <div style={{ fontSize: 13, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+        <Prose text={msg.content} style={{ fontSize: 13 }} />
 
         {payload.baseCandidates && payload.baseCandidates.length > 0 && (
           <div style={{ marginTop: 9 }}>
@@ -320,21 +321,7 @@ function AssistantChatMsg({ msg, active, sessionId, onTurn, onError }: {
           </div>
         )}
 
-        {payload.summary && (
-          <div style={{ marginTop: 9, border: '1px solid var(--line-soft)', borderRadius: 5, overflow: 'hidden' }}>
-            {payload.summary.map((sec) => (
-              <div key={sec.section}>
-                <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-2)', padding: '6px 10px', background: 'var(--bg-soft)', borderBottom: '1px solid var(--line-soft)' }}>{sec.section}</div>
-                {sec.items.map((it) => (
-                  <div key={it.name} style={{ display: 'flex', gap: 8, padding: '4px 10px', borderBottom: '1px solid var(--line-soft)', fontSize: 12 }}>
-                    <span style={{ width: 130, flexShrink: 0, color: 'var(--ink-3)' }}>{it.name}</span>
-                    <span style={{ whiteSpace: 'pre-wrap', color: it.value ? 'var(--ink)' : 'var(--ink-3)' }}>{it.value ?? '（未填）'}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
+        {payload.summary && <SummaryCard summary={payload.summary} />}
 
         {payload.rendered && (
           <div style={{ marginTop: 9 }}>

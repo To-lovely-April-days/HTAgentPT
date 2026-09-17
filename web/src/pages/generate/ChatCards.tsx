@@ -1,7 +1,8 @@
-// 方案生成对话里的两张建议卡。一条建议默认只占一行，点开才看理由/风险/出处——
-// 信息分层而不是一次性全泼出来：工程师先扫一遍哪几项要动，再决定读哪条的为什么。
-import React, { useState } from 'react';
-import type { GenAdvice, GenSuggestion } from '../../lib/types';
+// 方案生成对话里的输出件：两张建议卡与一张汇总卡。
+// 共同的口径是信息分层——先给能一眼扫完的概览，细节点开再看，
+// 而不是把几十条内容一次性铺满屏幕。
+import React, { useMemo, useState } from 'react';
+import type { GenAdvice, GenChatPayload, GenSuggestion } from '../../lib/types';
 
 /** 一条建议一行：名称 + 现值→建议值 + 状态，点开才展开理由/风险/出处。
     默认收起是有意的——工程师先扫一眼哪几项要动，再决定读哪条的为什么，
@@ -109,6 +110,48 @@ export function EvidenceCard({ suggestions, active, onTurn }: {
             onClick={() => void onTurn({ adoptTags: suggestions.map((s) => s.tag) })}>全部采纳</button>
         </div>
       )}
+    </div>
+  );
+}
+
+/** 汇总卡：几十项平铺过去没人看得下来。先给「已填 / 未填」的数，
+    再按章节分组，未填的标出来并且可以一键只看未填——汇总是用来查漏的。 */
+export function SummaryCard({ summary }: { summary: NonNullable<GenChatPayload['summary']> }) {
+  const [onlyBlank, setOnlyBlank] = useState(false);
+  const { filled, blank } = useMemo(() => {
+    const all = summary.flatMap((s) => s.items);
+    return { filled: all.filter((i) => i.value).length, blank: all.filter((i) => !i.value).length };
+  }, [summary]);
+  const sections = summary
+    .map((sec) => ({ ...sec, items: onlyBlank ? sec.items.filter((i) => !i.value) : sec.items }))
+    .filter((sec) => sec.items.length > 0);
+
+  return (
+    <div className="advc" style={{ borderColor: 'var(--line)' }}>
+      <div className="advc-head" style={{ background: 'var(--bg-soft)' }}>
+        <span className="advc-cap" style={{ color: 'var(--ink-2)' }}>汇总</span>
+        <span className="pill pill-ok">已填 {filled}</span>
+        {blank > 0 && <span className="pill pill-int">未填 {blank}</span>}
+        {blank > 0 && (
+          <button type="button" className="gbtn" style={{ height: 21, fontSize: 11, padding: '0 8px', marginLeft: 'auto' }}
+            onClick={() => setOnlyBlank(!onlyBlank)}>{onlyBlank ? '看全部' : '只看未填'}</button>
+        )}
+      </div>
+      {sections.map((sec) => (
+        <div key={sec.section}>
+          <div className="sum-sec">
+            {sec.section}
+            <span className="sum-cnt">{sec.items.filter((i) => i.value).length}/{sec.items.length}</span>
+          </div>
+          {sec.items.map((it) => (
+            <div key={it.name} className={`sum-row${it.value ? '' : ' blank'}`}>
+              <span className="sum-name">{it.name}</span>
+              <span className="sum-val">{it.value ?? '未填'}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+      {sections.length === 0 && <div className="sum-row"><span className="hint">没有未填的项。</span></div>}
     </div>
   );
 }
