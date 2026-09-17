@@ -225,9 +225,23 @@ bge-m3 输出 1024 维，与部署包的向量列维度一致，不需要动数�
 - **构建源**：后端镜像构建期除基础镜像外零联网（备份用的 `pg_dump` 及其依赖库
   直接取自数据库同款镜像）；web/portal 的 npm 源默认指向国内镜像 npmmirror，
   海外环境可 `--build-arg NPM_REGISTRY=https://registry.npmjs.org` 换回官方。
-- **拉基础镜像失败**（`load metadata … EOF / not found`）：新版 Docker 的 bake
-  构建器每次都联网核对基础镜像，即使本地已有缓存。两步排障：
+- **拉基础镜像失败**（`load metadata … EOF / not found`，或
+  `failed to resolve source metadata for mcr.microsoft.com/dotnet/sdk:8.0`）：
+  构建期连不上镜像仓，跟本项目代码无关。三步排障，从轻到重：
   ① 先 `set COMPOSE_BAKE=false`（PowerShell 用 `$env:COMPOSE_BAKE="false"`）
-  再 `docker compose up -d --build`——退回传统构建器，本地已有的基础镜像不再联网；
+  再 `docker compose up -d --build`——退回传统构建器，本地已有的基础镜像不再联网核对；
   ② 仍不行则打开 `.env`，把「基础镜像加速」一节四行取消注释（切到 DaoCloud
-  加速源）后重来。
+  加速源）后重来；
+  ③ 机器本来就上不了外网（客户现场常态）→ 走下面的「离线部署」，现场不构建。
+- **离线部署**（现场无外网，或镜像仓怎么都拉不通）：在一台能上网的机器上把镜像
+  做成一个 tar 带过去，现场只导入不构建。
+  ```
+  # 能上网的机器（deploy/ 目录下）
+  ./offline/save-images.sh              # Windows：.\offline\save-images.ps1
+  # 产出 htagent-images.tar（约 1.5~2 GB）
+
+  # 把 htagent-images.tar 与整个 deploy/ 目录一起拷到现场，然后
+  ./offline/load-images.sh              # Windows：.\offline\load-images.ps1
+  ```
+  导入后 `docker compose up -d` 不会再构建（镜像已在本地），也就不会去联网核对
+  基础镜像。升级时在能上网的机器上重跑一次 save，把新 tar 带过去 load 即可。
