@@ -297,24 +297,56 @@ export default function ChatPage() {
   );
 }
 
-/** 空态：不摆功能标签，给几句能直接说的话。 */
+/** 空态。原来是五个宽窄不一的按钮竖着堆在左上角，像一列待办，
+    而且只给例句、没说清系统到底能干什么——新人看不出还能查工单、能出文档。
+    改成等宽的能力卡：每张写清这件事是什么、能到什么程度，底下挂一句可以直接点的例子。 */
 function Welcome({ has, onPick }: { has: (p: string) => boolean; onPick: (q: string) => void }) {
-  const samples = [
-    [Perm.QaInternal, 'CJF-5L 磁力耦合轴承的复装力矩是多少'],
-    [Perm.ProjectSearch, '华东理工近三年做过哪些反应釜'],
-    [Perm.CaseRead, 'CJF-5L 显示 E12 报警怎么处理'],
-    [Perm.Translate, '把这段翻译成英文：本设备采用磁力耦合密封'],
-    [Perm.Generate, '帮我出一份 C 类生产任务单'],
-  ].filter(([p]) => has(p as string)) as [string, string][];
+  const cards: { perm: string | string[]; title: string; desc: string; sample: string }[] = [
+    {
+      perm: [Perm.QaInternal, Perm.QaPublic], title: '查资料',
+      desc: '参数、规程、原理。答案逐句标来源，点角标能看到是哪份文档第几页。',
+      sample: 'CJF-5L 磁力耦合轴承的复装力矩是多少',
+    },
+    {
+      perm: Perm.ProjectSearch, title: '查历史项目',
+      desc: '某个客户做过哪些设备、哪年做的、什么型号。只命中一条就直接摊开项目档案。',
+      sample: '华东理工近三年做过哪些反应釜',
+    },
+    {
+      perm: Perm.CaseRead, title: '看故障案例',
+      desc: '按报警代码或现象找处理办法，给出现象、原因判断与处理步骤。',
+      sample: 'CJF-5L 显示 E12 报警怎么处理',
+    },
+    {
+      perm: Perm.TicketHandle, title: '看报修工单',
+      desc: '哪几单待处理、某一单办到哪了，带流转记录。',
+      sample: '待处理的工单有哪些',
+    },
+    {
+      perm: Perm.Translate, title: '要英文版',
+      desc: '整段文字或上一条回答，术语按已审定术语表统一，默认给中英对照。',
+      sample: '把这段翻译成英文：本设备采用磁力耦合密封，最高工作压力 10MPa',
+    },
+    {
+      perm: Perm.Generate, title: '出一份文档',
+      desc: '挑个模板就在这条对话里逐项填完，能按工况给选型建议，填好直接下载。',
+      sample: '帮我出一份 C 类生产任务单',
+    },
+  ].filter((c) => (Array.isArray(c.perm) ? c.perm.some(has) : has(c.perm)));
+
   return (
     <div className="chat-empty">
-      <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 5 }}>说一句话就行</div>
-      <div className="hint" style={{ marginBottom: 14 }}>
-        问参数、查历史项目、看故障案例、要英文版、出一份文档——不用先选功能，直接说。
+      <div className="welcome-hd">
+        <div className="welcome-t">说一句话就行</div>
+        <div className="welcome-s">不用先选功能，直接说你要做什么。下面是这个账号能做的事，点例子就能试。</div>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start' }}>
-        {samples.map(([, q]) => (
-          <button key={q} className="gbtn" style={{ height: 28, fontSize: 12 }} onClick={() => onPick(q)}>{q}</button>
+      <div className="welcome-grid">
+        {cards.map((c) => (
+          <button key={c.title} type="button" className="welcome-card" onClick={() => onPick(c.sample)}>
+            <span className="welcome-card-t">{c.title}</span>
+            <span className="welcome-card-d">{c.desc}</span>
+            <span className="welcome-card-s">「{c.sample}」</span>
+          </button>
         ))}
       </div>
     </div>

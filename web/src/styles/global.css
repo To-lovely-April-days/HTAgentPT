@@ -171,7 +171,24 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .chat-root { flex-grow: 1; min-height: 0; display: flex; flex-direction: column; }
 .chat-view { flex-grow: 1; min-height: 0; overflow-y: auto; padding: 18px 20px 6px; }
 .chat-view > * { max-width: var(--chat-w); margin-left: auto; margin-right: auto; box-sizing: border-box; }
-.chat-empty { max-width: var(--chat-w); margin: 40px auto 0; }
+/* 空态：整块往下挪一点再居中，别贴着顶；能力卡等宽成网格，
+   不是宽窄不一地竖着堆 */
+/* 引导块不必铺满整条对话栏——五六张卡排成一条细带反而不好看。
+   收到 3 列左右的宽度居中，卡片才有地方把话说清楚。 */
+.chat-empty { max-width: min(var(--chat-w), 1100px); margin: 0 auto; padding: 7vh 0 24px; }
+.welcome-hd { margin-bottom: 18px; }
+.welcome-t { font-size: 19px; font-weight: 600; letter-spacing: .01em; margin-bottom: 5px; }
+.welcome-s { font-size: 12.5px; line-height: 1.75; color: var(--ink-3); }
+.welcome-grid { display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.welcome-card { display: flex; flex-direction: column; gap: 5px; align-items: flex-start;
+  padding: 12px 14px 11px; text-align: left; cursor: pointer;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
+  font-family: var(--font); transition: border-color .12s ease, box-shadow .12s ease; }
+.welcome-card:hover { border-color: var(--accent-line); box-shadow: 0 1px 6px rgba(16,24,40,.06); }
+.welcome-card-t { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.welcome-card-d { font-size: 11.5px; line-height: 1.7; color: var(--ink-2); }
+.welcome-card-s { margin-top: 2px; font-size: 11.5px; line-height: 1.6; color: var(--accent); }
 .chat-user { display: flex; justify-content: flex-end; margin-bottom: 11px; }
 .chat-user-bubble { max-width: 78%; padding: 8px 13px; border-radius: 8px; font-size: 13.5px;
   line-height: 1.7; white-space: pre-wrap; background: var(--accent-bg);
