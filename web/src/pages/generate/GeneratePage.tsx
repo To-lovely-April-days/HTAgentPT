@@ -12,6 +12,7 @@ import type {
   SlotState, SlotSuggestion, SlotView, TemplateRowT,
 } from '../../lib/types';
 import { ErrorBox, InfoBox, Spinner } from '../../components/Common';
+import { AdviceCard, EvidenceCard } from './AdviceCards';
 
 export default function GeneratePage() {
   // 从问答分流跳来：state 带模板与原话，落地即建会话开聊，原话作首轮输入自动抽取
@@ -297,55 +298,12 @@ function AssistantChatMsg({ msg, active, sessionId, onTurn, onError }: {
 
         {/* 工况顾问：模型按工艺常识给的判断，没有文档依据——与资料建议分色，并写明须工程师确认 */}
         {payload.advices && payload.advices.length > 0 && (
-          <div style={{ marginTop: 9, padding: '10px 12px', borderRadius: 5, background: '#fdf4e7', border: '1px solid #f0ddbd' }}>
-            <div style={{ fontSize: 11.5, fontWeight: 600, color: '#8a5a12', marginBottom: 7 }}>
-              工况建议 · 按工艺常识判断，无文档依据，请工程师确认
-            </div>
-            {payload.advices.map((a) => (
-              <div key={a.tag} style={{ marginBottom: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 11.5, fontWeight: 600, color: '#8a5a12' }}>{a.name}</span>
-                  <span style={{ fontSize: 12.5, whiteSpace: 'pre-wrap' }}>{a.value}</span>
-                  {a.current && a.current !== a.value && (
-                    <span className="hint">现为 {a.current.length > 20 ? `${a.current.slice(0, 20)}…` : a.current}</span>
-                  )}
-                  {active && <button className="pbtn" style={{ height: 22, fontSize: 11, padding: '0 9px' }}
-                    onClick={() => void onTurn({ adoptTags: [a.tag] })}>采纳</button>}
-                </div>
-                {a.reason && <div style={{ fontSize: 11.5, lineHeight: 1.65, color: 'var(--ink-2)' }}>{a.reason}</div>}
-                {a.risk && <div style={{ fontSize: 11.5, lineHeight: 1.65, color: '#a4451a' }}>风险：{a.risk}</div>}
-              </div>
-            ))}
-            {active && payload.advices.length > 1 && (
-              <button className="gbtn" style={{ height: 24, fontSize: 11.5 }}
-                onClick={() => void onTurn({ adoptTags: payload.advices!.map((a) => a.tag) })}>全部采纳</button>
-            )}
-          </div>
+          <AdviceCard advices={payload.advices} active={active} onTurn={onTurn} />
         )}
 
         {/* 参数顾问的建议：带依据、待确认；采纳才落表（FR-5.9/5.13） */}
         {payload.suggestions && payload.suggestions.length > 0 && (
-          <div style={{ marginTop: 9, padding: '9px 11px', borderRadius: 5, background: '#fbeff7', border: '1px solid #edd2e3' }}>
-            {payload.suggestions.map((s) => (
-              <div key={s.tag} style={{ marginBottom: 7 }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 11.5, fontWeight: 600, color: '#8f3d74' }}>{s.name}</span>
-                  <span style={{ fontSize: 12.5, whiteSpace: 'pre-wrap' }}>{s.value}</span>
-                  {active && <button className="pbtn" style={{ height: 22, fontSize: 11, padding: '0 9px' }}
-                    onClick={() => void onTurn({ adoptTags: [s.tag] })}>采纳</button>}
-                </div>
-                {s.evidence.map((e, i) => (
-                  <div key={i} style={{ fontSize: 11, lineHeight: 1.6, color: 'var(--ink-2)' }}>
-                    <span className="m" style={{ color: '#8f3d74' }}>[{i + 1}]</span> {e.sourceTitle}{e.section ? ` › ${e.section}` : ''}{e.pageNo != null ? ` · 第 ${e.pageNo} 页` : ''}
-                  </div>
-                ))}
-              </div>
-            ))}
-            {active && payload.suggestions.length > 1 && (
-              <button className="gbtn" style={{ height: 24, fontSize: 11.5 }}
-                onClick={() => void onTurn({ adoptTags: payload.suggestions!.map((s) => s.tag) })}>全部采纳</button>
-            )}
-          </div>
+          <EvidenceCard suggestions={payload.suggestions} active={active} onTurn={onTurn} />
         )}
 
         {active && choiceAsks.length > 0 && (

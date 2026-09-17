@@ -165,10 +165,13 @@ public static class GenChatLogic
 
     /// <summary>工况顾问的一条建议：给哪一项、建议什么值、为什么、有什么风险。
     /// 这是模型按工艺常识给的，不是文档依据——界面上必须与「有依据的建议」分开，人工确认才落表。</summary>
-    public sealed record EngineeringAdvice(string Tag, string Value, string? Reason, string? Risk);
+    /// <summary>工况顾问的一条建议。Level 是模型判定的要紧程度（high=安全相关/不改会出事），
+    /// 界面据此排序与标色——工程师先看要命的那几条，不是从头读到尾。</summary>
+    public sealed record EngineeringAdvice(string Tag, string Value, string? Reason, string? Risk, string Level = "normal");
 
-    /// <summary>解析工况顾问的回复：{"notes":"…","advices":[{tag,value,reason,risk}]}。
-    /// 缺 tag 或 value 的丢弃；解析失败返回空——宁可不给，也不给半截建议。</summary>
+    /// <summary>解析工况顾问的回复：{"notes":"…","advices":[{tag,value,reason,risk,level}]}。
+    /// 缺 tag 或 value 的丢弃；level 只认 high/normal，别的一律按 normal；
+    /// 解析失败返回空——宁可不给，也不给半截建议。</summary>
     public static (string? Notes, IReadOnlyList<EngineeringAdvice> Advices) ParseAdvice(string reply)
     {
         var start = reply.IndexOf('{');
@@ -189,7 +192,9 @@ public static class GenChatLogic
                     var tag = Text(a, "tag");
                     var value = Text(a, "value");
                     if (string.IsNullOrWhiteSpace(tag) || string.IsNullOrWhiteSpace(value)) continue;
-                    list.Add(new EngineeringAdvice(tag!.Trim(), value!.Trim(), Text(a, "reason"), Text(a, "risk")));
+                    var level = Text(a, "level")?.Trim();
+                    list.Add(new EngineeringAdvice(tag!.Trim(), value!.Trim(), Text(a, "reason"), Text(a, "risk"),
+                        string.Equals(level, "high", StringComparison.OrdinalIgnoreCase) ? "high" : "normal"));
                 }
             }
             return (string.IsNullOrWhiteSpace(notes) ? null : notes, list);

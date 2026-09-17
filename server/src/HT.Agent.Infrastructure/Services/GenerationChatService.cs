@@ -537,12 +537,15 @@ public class GenerationChatService(
         var byTag = Parse(ctx.Session).ToDictionary(s => s.Tag);
         var sb = new StringBuilder();
         sb.AppendLine("你是化工实验设备（反应釜等）的资深工艺工程师。用户交代了工况，请判断这个工况对下列参数的选型有什么影响，逐项给建议。");
-        sb.AppendLine("只输出一个 JSON：{\"notes\":\"一两句话点出这个工况的关键风险或要点\",\"advices\":[{\"tag\":\"槽位tag\",\"value\":\"建议取值\",\"reason\":\"为什么\",\"risk\":\"不这样做的风险，没有就留空\"}]}");
+        sb.AppendLine("只输出一个 JSON：{\"notes\":\"一句话点出这个工况的关键风险\",\"advices\":[" +
+            "{\"tag\":\"槽位tag\",\"value\":\"建议取值\",\"level\":\"high 或 normal\",\"reason\":\"为什么\",\"risk\":\"不这样做的风险，没有就留空\"}]}");
         sb.AppendLine("规则：");
         sb.AppendLine("- 只对这个工况**确实影响**的项给建议，通常 3～8 项；无关的项不要凑数");
         sb.AppendLine("- 选择类槽位的 value 必须是可选值之一；带单位的只给数值与必要修饰");
         sb.AppendLine("- 已有取值若在该工况下不合适，务必给出建议并在 reason 里说明为什么要改");
         sb.AppendLine("- 安全相关（材质耐蚀、压力等级、防爆、连锁、泄压）要重点覆盖，risk 写清楚");
+        sb.AppendLine("- level：安全相关（耐蚀、压力等级、防爆、连锁、泄压）或不改就会出事故的写 high，其余写 normal");
+        sb.AppendLine("- notes 一句话说完；reason 一句话（40 字以内），risk 一句话（30 字以内）——界面上是可展开的短注解，不是长篇");
         sb.AppendLine("- 你给的是工程判断不是文献结论，不要编造具体标准号或文献出处");
         sb.AppendLine();
         sb.AppendLine("[已知工况] " + string.Join("；", ctx.State.Conditions));
@@ -590,24 +593,32 @@ public class GenerationChatService(
             return;
         }
 
-        var body = new StringBuilder();
-        body.Append("按这个工况，").Append(string.IsNullOrWhiteSpace(notes) ? "以下几项建议调整" : notes);
+        // 要紧的排前面：安全相关 > 与现值冲突（要改）> 待补。明细一律交给卡片，正文只留一句摘要——
+        // 同一份内容正文复述一遍、卡片再排一遍，读起来最累。
+        accepted = accepted
+            .OrderByDescending(x => x.Advice.Level == "high")
+            .ThenByDescending(x => Kind(x.Value, x.Current) == "change")
+            .ToList();
         foreach (var (def, adv, value, current) in accepted)
         {
-            body.Append($"\n· {def.Name}：建议「{Truncate(value, 40)}」");
-            if (current is not null && !string.Equals(current, value, StringComparison.Ordinal))
-                body.Append($"（现为「{Truncate(current, 24)}」）");
-            if (!string.IsNullOrWhiteSpace(adv.Reason)) body.Append("——").Append(Truncate(adv.Reason!, 120));
-            if (!string.IsNullOrWhiteSpace(adv.Risk)) body.Append("；风险：").Append(Truncate(adv.Risk!, 90));
             ctx.State.LastSuggestions[def.Tag] = value;                   // 说「采纳」时按这份改
             ctx.Reply.Advices.Add(new
             {
-                tag = def.Tag, name = def.Name, value,
-                current, reason = adv.Reason, risk = adv.Risk
+                tag = def.Tag, name = def.Name, value, current,
+                reason = adv.Reason, risk = adv.Risk,
+                level = adv.Level, kind = Kind(value, current)
             });
         }
-        body.Append("\n这几条是按工艺常识给的判断，**没有文档依据**，请工程师确认后再采纳（说「都采纳」或点采纳）。");
-        ctx.Reply.Add(body.ToString());
+        var changes = accepted.Count(x => Kind(x.Value, x.Current) == "change");
+        var highs = accepted.Count(x => x.Advice.Level == "high");
+        ctx.Reply.Add((string.IsNullOrWhiteSpace(notes) ? "按这个工况，有几项要调整。" : notes!) +
+            $"\n梳理出 {accepted.Count} 项：{(changes > 0 ? $"{changes} 项与当前填写冲突、" : "")}" +
+            $"{(highs > 0 ? $"{highs} 项关系到安全，" : "")}逐条可展开看理由，确认后点采纳。");
+
+        // 建议相对现值是「要改」「待补」还是「一致」——界面据此分色，工程师一眼看出哪几项动了
+        static string Kind(string value, string? current)
+            => string.IsNullOrWhiteSpace(current) ? "fill"
+             : string.Equals(current.Trim(), value.Trim(), StringComparison.Ordinal) ? "keep" : "change";
     }
 
     // ── 专员：答疑员 ─────────────────────────────────────────

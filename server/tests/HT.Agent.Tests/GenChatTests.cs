@@ -137,13 +137,17 @@ public class GenChatTests
     {
         var (notes, advices) = GenChatLogic.ParseAdvice(
             "好的：\n```json\n{\"notes\":\"硝化强放热且强腐蚀\",\"advices\":[" +
-            "{\"tag\":\"material\",\"value\":\"哈氏合金 C276\",\"reason\":\"硝酸体系对 316L 腐蚀严重\",\"risk\":\"点蚀穿孔\"}," +
+            "{\"tag\":\"material\",\"value\":\"哈氏合金 C276\",\"level\":\"high\",\"reason\":\"硝酸体系对 316L 腐蚀严重\",\"risk\":\"点蚀穿孔\"}," +
             "{\"tag\":\"inner_cooling\",\"value\":\"盘管\",\"reason\":\"需快速移热\"}," +
+            "{\"tag\":\"ctrl\",\"value\":\"触摸屏\",\"level\":\"极高\"}," +
             "{\"value\":\"缺 tag 丢弃\"},{\"tag\":\"x\"}]}\n```");
         Assert.Equal("硝化强放热且强腐蚀", notes);
-        Assert.Equal(2, advices.Count);
+        Assert.Equal(3, advices.Count);
         Assert.Equal(("material", "哈氏合金 C276", "点蚀穿孔"), (advices[0].Tag, advices[0].Value, advices[0].Risk));
+        Assert.Equal("high", advices[0].Level);
         Assert.Null(advices[1].Risk);                       // 没给风险就是 null，不编
+        Assert.Equal("normal", advices[1].Level);           // 没给要紧程度按普通
+        Assert.Equal("normal", advices[2].Level);           // 模型自创的等级不认
         Assert.Empty(GenChatLogic.ParseAdvice("不是 JSON").Advices);
         Assert.Empty(GenChatLogic.ParseAdvice("{\"advices\":\"不是数组\"}").Advices);
     }

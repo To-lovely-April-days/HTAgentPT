@@ -202,6 +202,10 @@ export interface GenSuggestion {
 export interface GenAdvice {
   tag: string; name: string; value: string;
   current: string | null; reason: string | null; risk: string | null;
+  /** 要紧程度：high=安全相关/不改会出事，界面标红并排在前面 */
+  level: 'high' | 'normal';
+  /** 相对当前填写：change 要改、fill 待补、keep 与现值一致 */
+  kind: 'change' | 'fill' | 'keep';
 }
 /** 助手消息 payload（jsonb 字符串反序列化后）：都是可选段，前端有则渲染对应交互件。 */
 export interface GenChatPayload {

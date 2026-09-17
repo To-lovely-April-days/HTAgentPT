@@ -76,3 +76,36 @@ select.inp { padding: 0 6px; }
 
 .hint { font-size: 11.5px; color: var(--ink-3); line-height: 1.7; }
 .sect { font-size: 11px; color: var(--ink-3); letter-spacing: .03em; margin: 0 0 4px; }
+
+/* ── 建议卡（工况建议 / 资料依据）──────────────────────────────
+   一条建议默认只占一行：名称 + 现值→建议值 + 状态，点开才看理由与风险。
+   信息分层而不是一次性全泼出来——工程师先扫一遍哪几项要动，再逐条看为什么。 */
+.advc { margin-top: 9px; border: 1px solid; border-radius: 6px; overflow: hidden; }
+.advc-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 11px; }
+.advc-cap { font-size: 11.5px; font-weight: 600; letter-spacing: .02em; }
+.advc-note { font-size: 11px; color: var(--ink-3); margin-left: auto; }
+.advc-sum { padding: 0 11px 8px; font-size: 12px; line-height: 1.7; color: var(--ink-2); }
+.advc-row { display: flex; align-items: center; background: var(--panel); border-top: 1px solid var(--line-soft); }
+.advc-bar { flex: 0 0 3px; align-self: stretch; background: transparent; }
+.advc-bar.on { background: var(--cls-conf); }
+.advc-tog { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px;
+  padding: 7px 8px 7px 9px; background: none; border: none; cursor: pointer;
+  font-family: var(--font); font-size: 12.5px; color: var(--ink); text-align: left; }
+.advc-tog:hover { background: #f7f9fc; }
+.advc-row.open { background: #fafbfd; }
+.advc-tri { flex: 0 0 auto; color: var(--ink-4); font-size: 9px; width: 9px;
+  transition: transform .12s ease; }
+.advc-row.open .advc-tri { transform: rotate(90deg); }
+.advc-name { flex: 0 0 auto; width: 104px; font-size: 12px; color: var(--ink-2); }
+.advc-val { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.advc-row.open .advc-val { white-space: normal; }
+/* 现值只是对照，长了就截断——一行里该抢眼的是建议值 */
+.advc-old { display: inline-block; max-width: 132px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; vertical-align: bottom; color: var(--ink-4); text-decoration: line-through; }
+.advc-row.open .advc-old { max-width: none; white-space: normal; }
+.advc-act { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding-right: 10px; }
+.advc-body { padding: 1px 12px 9px 141px; background: #fafbfd; font-size: 11.5px;
+  line-height: 1.75; color: var(--ink-2); }
+.advc-risk { margin-top: 5px; padding-left: 8px; border-left: 2px solid var(--cls-conf-line); color: var(--cls-conf); }
+.advc-src { margin-top: 3px; font-size: 11px; color: var(--ink-3); }
+.advc-foot { display: flex; gap: 7px; padding: 7px 11px; border-top: 1px solid var(--line-soft); }
