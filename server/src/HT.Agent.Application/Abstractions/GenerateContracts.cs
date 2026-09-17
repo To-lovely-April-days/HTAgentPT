@@ -51,7 +51,9 @@ public interface IGenerationService
     /// <summary>填写或确认单个槽位（表 8-1 PUT slots/{key}）。</summary>
     Task<SlotState> PutSlotAsync(Guid sessionId, string tag, SlotPut put, CancellationToken ct = default);
     /// <summary>AI 建议（FR-5.9/5.10）：检索取得并附依据；无依据明确说暂无。</summary>
-    Task<SlotSuggestion> SuggestAsync(Guid sessionId, string tag, CancellationToken ct = default);
+    /// <param name="hint">用户这句原话：「这个材质我想改一下，推荐一下」里对现状的描述，
+    /// 并进检索词能显著提准——不给也能用。</param>
+    Task<SlotSuggestion> SuggestAsync(Guid sessionId, string tag, string? hint = null, CancellationToken ct = default);
     /// <summary>单项追问（FR-5.12）：就地对话，不影响其他槽位。</summary>
     Task<string> SlotChatAsync(Guid sessionId, string tag, string question, CancellationToken ct = default);
     /// <summary>完成校验（FR-5.13）：待填或待确认的必填槽位清单。</summary>

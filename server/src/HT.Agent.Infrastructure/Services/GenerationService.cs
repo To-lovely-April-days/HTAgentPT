@@ -316,7 +316,7 @@ public class GenerationService(
         return states[idx];
     }
 
-    public async Task<SlotSuggestion> SuggestAsync(Guid sessionId, string tag, CancellationToken ct = default)
+    public async Task<SlotSuggestion> SuggestAsync(Guid sessionId, string tag, string? hint = null, CancellationToken ct = default)
     {
         var session = await MustFindAsync(sessionId, ct);
         var template = await db.Templates.AsNoTracking().Include(t => t.Slots)
@@ -349,7 +349,7 @@ public class GenerationService(
         }
 
         // 检索建议（FR-5.9）：附依据；无检索结果就明说（FR-5.10），绝不凭常识编
-        var query = $"{def.Name} {def.Section} {session.ProjectHint ?? ""} {template.DocType}".Trim();
+        var query = $"{def.Name} {def.Section} {hint ?? ""} {session.ProjectHint ?? ""} {template.DocType}".Trim();
         var result = await retrieval.RetrieveAsync(new RetrievalRequest(query), ct);
         if (!result.AboveThreshold || result.Chunks.Count == 0)
         {

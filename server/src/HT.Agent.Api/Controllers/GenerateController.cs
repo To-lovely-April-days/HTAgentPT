@@ -45,9 +45,10 @@ public class GenerateController(IGenerationService gen, IGenerationChatService g
     public async Task<IActionResult> PutSlot(Guid id, string tag, [FromBody] SlotPut put, CancellationToken ct)
         => Ok(await gen.PutSlotAsync(id, tag, put, ct));
 
+    /// <summary>hint 可带上用户的原话（工作台里不传，对话里会传），并进检索词提准。</summary>
     [HttpPost("sessions/{id:guid}/slots/{tag}/suggest")]
-    public async Task<IActionResult> Suggest(Guid id, string tag, CancellationToken ct)
-        => Ok(await gen.SuggestAsync(id, tag, ct));
+    public async Task<IActionResult> Suggest(Guid id, string tag, [FromQuery] string? hint, CancellationToken ct)
+        => Ok(await gen.SuggestAsync(id, tag, hint, ct));
 
     public record SlotChatBody(string Question);
 

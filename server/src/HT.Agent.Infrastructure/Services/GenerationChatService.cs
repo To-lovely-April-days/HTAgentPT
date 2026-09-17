@@ -47,6 +47,9 @@ public class GenerationChatService(
         public bool BaseOffered { get; set; }
         public string? LastSection { get; set; }
         public List<string> SuggestedSections { get; set; } = [];
+        /// <summary>上一轮给过的建议值（tag→值）。已填槽位的建议不落库（5.2.2 不覆盖前序来源），
+        /// 但用户说「采纳」时要能按这份记录改过去——那是用户主动修改。</summary>
+        public Dictionary<string, string> LastSuggestions { get; set; } = [];
     }
 
     private sealed record Ask(string Tag, string Name, string Section, string DataType,
@@ -181,7 +184,7 @@ public class GenerationChatService(
         if (fills.Count > 0) ApplyFills(ctx, fills);
 
         foreach (var a in actions.Where(a => a.Type == "ledger")) await LedgerAsync(ctx, a, text, ct);
-        foreach (var a in actions.Where(a => a.Type == "suggest")) await SuggestAsync(ctx, a, ct);
+        foreach (var a in actions.Where(a => a.Type == "suggest")) await SuggestAsync(ctx, a, text, ct);
         foreach (var a in actions.Where(a => a.Type == "ask")) await AnswerAsync(ctx, a, text, ct);
 
         if (actions.Any(a => a.Type == "skip"))
@@ -375,10 +378,16 @@ public class GenerationChatService(
     // ── 专员：参数顾问 ─────────────────────────────────────────
 
     /// <summary>对指定项（默认当前在问的项）逐项检索基准文档与知识库给建议——只给带依据的，没有就明说。</summary>
-    private async Task SuggestAsync(Ctx ctx, PlanAction a, CancellationToken ct)
+    private async Task SuggestAsync(Ctx ctx, PlanAction a, string? text, CancellationToken ct)
     {
         ctx.Reply.Handled = true;
         var tags = (a.Tags ?? []).Select(t => ResolveSlot(ctx.Template, t)?.Tag).Where(t => t != null).Select(t => t!).ToList();
+        // 用户在这句话里点了名就按点名的来——「这个材质我想改一下，你推荐一下」要的是材质，
+        // 不是当前在问的那几项（那样会答非所问）
+        if (tags.Count == 0 && !string.IsNullOrWhiteSpace(text))
+            tags = CurrentSlots(ctx.Template)
+                .Where(d => d.Name.Length >= 2 && text.Contains(d.Name, StringComparison.Ordinal))
+                .OrderByDescending(d => d.Name.Length).Take(5).Select(d => d.Tag).ToList();
         if (tags.Count == 0)
         {
             var states = Parse(ctx.Session).ToDictionary(s => s.Tag);
@@ -397,7 +406,7 @@ public class GenerationChatService(
                 : "没有待填的项可推荐了。");
             return;
         }
-        var results = await RunSuggestionsAsync(ctx, tags.Take(5).ToList(), ct);
+        var results = await RunSuggestionsAsync(ctx, tags.Take(5).ToList(), ct, text);
         var sb = new StringBuilder("参数顾问查了基准项目文档与知识库：");
         foreach (var (def, sug) in results)
             sb.Append('\n').Append(sug.HasEvidence
@@ -408,7 +417,8 @@ public class GenerationChatService(
     }
 
     /// <summary>逐项调既有建议能力（FR-5.9/5.10）；有依据的建议会以「待确认」落到空槽位。</summary>
-    private async Task<List<(TemplateSlot Def, SlotSuggestion Sug)>> RunSuggestionsAsync(Ctx ctx, List<string> tags, CancellationToken ct)
+    private async Task<List<(TemplateSlot Def, SlotSuggestion Sug)>> RunSuggestionsAsync(Ctx ctx, List<string> tags,
+        CancellationToken ct, string? hint = null)
     {
         var defs = ctx.Template.Slots.ToDictionary(s => s.Tag);
         var results = new List<(TemplateSlot, SlotSuggestion)>();
@@ -416,7 +426,7 @@ public class GenerationChatService(
         {
             if (!defs.TryGetValue(tag, out var def) || def.Stage != SlotStage.Current) continue;
             SlotSuggestion sug;
-            try { sug = await gen.SuggestAsync(ctx.Session.Id, tag, ct); }
+            try { sug = await gen.SuggestAsync(ctx.Session.Id, tag, hint, ct); }
             catch (DomainRuleException) { continue; }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
@@ -427,6 +437,7 @@ public class GenerationChatService(
             if (sug.HasEvidence)
             {
                 ctx.Reply.Changed = true;
+                if (sug.Value is not null) ctx.State.LastSuggestions[tag] = sug.Value;
                 ctx.Reply.Suggestions.Add(new
                 {
                     tag,
@@ -453,8 +464,12 @@ public class GenerationChatService(
             var def = ResolveSlot(ctx.Template, name);
             targets = def is null ? [] : [def.Tag];
         }
-        else targets = tags is { Count: > 0 } ? tags.ToList() : pending;
-        targets = targets.Where(pending.Contains).ToList();
+        else targets = tags is { Count: > 0 }
+            ? tags.ToList()
+            : pending.Concat(ctx.State.LastSuggestions.Keys).Distinct().ToList();
+        // 已填过的槽位：建议不会落库成「待采纳」，但用户说了采纳就是要改过去（5.2.2 的用户主动修改）
+        var fromLast = targets.Where(x => !pending.Contains(x) && ctx.State.LastSuggestions.ContainsKey(x)).ToList();
+        targets = targets.Where(x => pending.Contains(x) || fromLast.Contains(x)).ToList();
         if (targets.Count == 0)
         {
             ctx.Reply.Add(name is not null ? $"「{name}」当前没有待采纳的建议。" : "当前没有待采纳的建议——先说「推荐一下」。");
@@ -462,7 +477,11 @@ public class GenerationChatService(
         }
         var defs = ctx.Template.Slots.ToDictionary(s => s.Tag);
         foreach (var t in targets)
-            await gen.PutSlotAsync(ctx.Session.Id, t, new SlotPut(null, true, AdoptSuggestion: true), ct);
+            await gen.PutSlotAsync(ctx.Session.Id, t,
+                fromLast.Contains(t)
+                    ? new SlotPut(ctx.State.LastSuggestions[t], true)
+                    : new SlotPut(null, true, AdoptSuggestion: true), ct);
+        await db.Entry(ctx.Session).ReloadAsync(ct);
         var after = Parse(ctx.Session).ToDictionary(s => s.Tag);
         ctx.Reply.Changed = true;
         ctx.Reply.Add($"已采纳 {targets.Count} 项建议：" +
