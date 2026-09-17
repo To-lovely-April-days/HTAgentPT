@@ -262,3 +262,30 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .lp-empty { color: var(--cls-int); }
 .lp-src { margin-left: 6px; vertical-align: 1px; }
 @media (max-width: 1280px) { .lp { display: none; } }
+
+/* ── 项目档案预览（对话里点「预览」弹出）──────────────────────── */
+.modal-mask { position: fixed; inset: 0; z-index: 60; display: flex;
+  align-items: center; justify-content: center; padding: 3vh 3vw;
+  background: rgba(28, 37, 48, .42); }
+.modal-box { display: flex; flex-direction: column; min-height: 0;
+  background: var(--panel); border-radius: 8px; overflow: hidden;
+  box-shadow: 0 18px 50px rgba(16, 24, 40, .24); }
+.pv { width: min(1280px, 94vw); height: min(88vh, 940px); }
+.pv-hd { flex: 0 0 auto; display: flex; align-items: center; gap: 9px;
+  padding: 11px 14px; border-bottom: 1px solid var(--line); background: var(--bg-soft); }
+.pv-body { flex: 1 1 auto; min-height: 0; display: flex; }
+.pv-side { flex: 0 0 292px; min-height: 0; overflow-y: auto; border-right: 1px solid var(--line); }
+.pv-main { flex: 1 1 auto; min-width: 0; min-height: 0; overflow: auto; background: var(--bg); }
+.pv-doc { display: block; width: 100%; text-align: left; cursor: pointer;
+  padding: 7px 11px; border: none; border-top: 1px solid var(--line-soft);
+  border-left: 2px solid transparent; background: var(--panel); font-family: var(--font); }
+.pv-doc:hover { background: var(--bg-soft); }
+.pv-doc.on { background: var(--accent-bg); border-left-color: var(--accent); }
+.pv-doc-t { display: block; font-size: 12px; line-height: 1.5; color: var(--ink); margin-bottom: 3px; }
+.pv-doc-m { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-3); }
+
+/* 原件本身 */
+.fv { min-height: 100%; }
+.fv-pdf { display: block; width: 100%; height: 100%; min-height: 78vh; border: none; background: #fff; }
+.fv-doc .docx-wrapper { background: transparent; padding: 14px 0; }
+.fv-doc .docx-wrapper > section.docx { margin: 0 auto 12px; box-shadow: 0 1px 6px rgba(16, 24, 40, .12); }

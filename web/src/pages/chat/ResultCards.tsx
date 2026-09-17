@@ -8,12 +8,14 @@ import type {
   TextTranslationResult, TicketRow, TicketStatus,
 } from '../../lib/types';
 import { Prose } from '../../components/Prose';
+import { ProjectPreviewModal } from './ProjectPreviewModal';
 import { ClsBadge } from '../../components/Common';
 import type { Classification } from '../../lib/types';
 
 /** 台账查询：结构化结果，不经模型生成（FR-3.4/4.1）。点行看项目档案。 */
 export function LedgerCard({ table, onCorrect }: { table: LedgerTable; onCorrect: () => void }) {
   const nav = useNavigate();
+  const [peek, setPeek] = useState<string | null>(null);
   if (table.detail) return <ProjectCard detail={table.detail} amountVisible={table.amountVisible} />;
   const f = table.filters;
   const cond = [f.customer && `客户=${f.customer}`, f.deviceType && `设备=${f.deviceType}`,
@@ -29,8 +31,8 @@ export function LedgerCard({ table, onCorrect }: { table: LedgerTable; onCorrect
       <div style={{ overflowX: 'auto', background: 'var(--panel)' }}>
         <table className="ltable">
           <thead><tr>
-            {['项目编号', '客户', '年份', '设备型号', ...(table.amountVisible ? ['合同金额'] : []), '交付状态'].map((h) => (
-              <th key={h}>{h}</th>
+            {['项目编号', '客户', '年份', '设备型号', ...(table.amountVisible ? ['合同金额'] : []), '交付状态', ''].map((h, i) => (
+              <th key={h || `x${i}`}>{h}</th>
             ))}
           </tr></thead>
           <tbody>
@@ -43,16 +45,20 @@ export function LedgerCard({ table, onCorrect }: { table: LedgerTable; onCorrect
                 <td className="m">{r.deviceModel ?? '—'}</td>
                 {table.amountVisible && <td className="m">{r.contractAmount != null ? r.contractAmount.toLocaleString() : '—'}</td>}
                 <td>{r.deliveryStatus ? (DELIVERY_LABEL[r.deliveryStatus] ?? r.deliveryStatus) : '—'}</td>
+                <td onClick={(e) => { e.stopPropagation(); setPeek(r.projectNo); }}>
+                  <span className="gbtn" style={{ height: 20, fontSize: 11, padding: '0 8px' }}>预览</span>
+                </td>
               </tr>
             ))}
-            {table.rows.length === 0 && <tr><td colSpan={6} style={{ color: 'var(--ink-3)' }}>没有匹配的项目记录</td></tr>}
+            {table.rows.length === 0 && <tr><td colSpan={7} style={{ color: 'var(--ink-3)' }}>没有匹配的项目记录</td></tr>}
           </tbody>
         </table>
       </div>
       <div className="advc-foot">
         <button className="gbtn" style={{ height: 24, fontSize: 11.5 }} onClick={onCorrect}>不是查台账？按知识问答回答</button>
-        <span className="hint" style={{ alignSelf: 'center' }}>点任意一行看项目档案</span>
+        <span className="hint" style={{ alignSelf: 'center' }}>点「预览」就地看原件，点行打开完整档案</span>
       </div>
+      {peek && <ProjectPreviewModal projectNo={peek} onClose={() => setPeek(null)} />}
     </div>
   );
 }
@@ -369,6 +375,8 @@ export function BaseCards({ items, active, onPick }: {
   items: { projectNo: string; customerName: string; year: number; deviceType: string; deviceModel: string | null; inheritableSlots: number }[];
   active: boolean; onPick: (projectNo: string | null) => void;
 }) {
+  // 拿它当基准之前先看一眼这单当时是怎么做的——光有编号和型号决定不了
+  const [peek, setPeek] = useState<string | null>(null);
   return (
     <div className="advc" style={{ borderColor: 'var(--accent-line)' }}>
       <div className="advc-head" style={{ background: 'var(--accent-bg)' }}>
@@ -389,6 +397,8 @@ export function BaseCards({ items, active, onPick }: {
           </button>
           <span className="advc-act">
             <span className="pill pill-ok">可继承 {c.inheritableSlots} 项</span>
+            <button className="gbtn" style={{ height: 22, fontSize: 11, padding: '0 9px' }}
+              onClick={() => setPeek(c.projectNo)}>预览</button>
             {active && <button className="pbtn" style={{ height: 22, fontSize: 11, padding: '0 9px' }}
               onClick={() => onPick(c.projectNo)}>用这个</button>}
           </span>
@@ -400,6 +410,10 @@ export function BaseCards({ items, active, onPick }: {
             不用基准，逐项填
           </button>
         </div>
+      )}
+      {peek && (
+        <ProjectPreviewModal projectNo={peek} onClose={() => setPeek(null)}
+          onPick={active ? onPick : undefined} />
       )}
     </div>
   );
