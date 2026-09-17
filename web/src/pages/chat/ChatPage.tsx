@@ -210,7 +210,7 @@ export default function ChatPage() {
         rebuilt.push({ id: `h${r.id}-q`, role: 'user', text: r.question });
         let sources: Source[] | undefined;
         try { sources = r.sources ? (JSON.parse(r.sources) as Source[]) : undefined; } catch { /* 老数据容错 */ }
-        rebuilt.push({ id: `h${r.id}-a`, role: 'assistant', text: r.answer ?? '', sources });
+        rebuilt.push({ id: `h${r.id}-a`, role: 'assistant', text: r.answer ?? '', sources, ...restore(r.payload) });
       }
       setMsgs(rebuilt);
       setQaSessionId(id);
@@ -443,6 +443,34 @@ function AssistantMessage() {
       </div>
     </MessagePrimitive.Root>
   );
+}
+
+/** 把存下来的结果件还原成这条消息的字段。老数据没有 payload，就只剩正文与依据。 */
+function restore(raw: string | null | undefined): Partial<Msg> {
+  if (!raw) return {};
+  try {
+    const { kind, data } = JSON.parse(raw) as { kind: string; data: Record<string, unknown> };
+    switch (kind) {
+      case 'table': return { table: data as unknown as LedgerTable, text: '' };
+      case 'translation': return { translation: data as unknown as Msg['translation'], text: '' };
+      case 'cases': return {
+        text: '',
+        cases: {
+          rows: data.rows as CaseRow[], detail: (data.detail as CaseDetailData | null) ?? null,
+          keyword: (data.keyword as string) ?? '', note: (data.note as string) ?? '',
+        },
+      };
+      case 'tickets': return {
+        text: '',
+        tickets: {
+          rows: data.rows as TicketRow[], status: (data.status as string | null) ?? null,
+          note: (data.note as string) ?? '',
+        },
+      };
+      case 'generate': return { templates: (data.templates as QaTemplateRec[] | null) ?? null };
+      default: return {};
+    }
+  } catch { return {}; }
 }
 
 /** 这条助手消息对应的那句提问——纠正意图时要把原话再发一次。 */

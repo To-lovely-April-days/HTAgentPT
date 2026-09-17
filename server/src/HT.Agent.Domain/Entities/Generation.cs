@@ -108,6 +108,10 @@ public class QaMessage
     public string? NoResultHints { get; set; }
     /// <summary>来源清单（jsonb）：文档、章节、页码、分块（FR-4.9）。</summary>
     public string? Sources { get; set; }
+    /// <summary>这一轮长出来的结果件（jsonb）：台账表、译文对照、案例、工单、模板推荐。
+    /// 存下来是为了打开历史对话时还能原样看见——只留一句正文的话，
+    /// 台账表和译文就全没了，等于没有历史。</summary>
+    public string? Payload { get; set; }
     public bool? Helpful { get; set; }
     public string? FeedbackReason { get; set; }
     public DateTimeOffset At { get; set; }

@@ -226,6 +226,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
         b.Entity<QaMessage>(e =>
         {
             e.Property(x => x.Sources).HasColumnType("jsonb");
+            e.Property(x => x.Payload).HasColumnType("jsonb");
         });
 
         ApplyConventions(b);

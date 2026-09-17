@@ -28,7 +28,7 @@ public class QaSessionsController(AppDbContext db, ICurrentUser me) : Controller
         return Ok(await db.QaMessages.AsNoTracking()
             .Where(m => m.SessionId == id)
             .OrderBy(m => m.At)
-            .Select(m => new { m.Id, m.Question, m.RewrittenQuery, m.Answer, m.Sources, m.NoResultHints, m.Helpful, m.At })
+            .Select(m => new { m.Id, m.Question, m.RewrittenQuery, m.Answer, m.Sources, m.Payload, m.Intent, m.NoResultHints, m.Helpful, m.At })
             .ToListAsync(ct));
     }
 

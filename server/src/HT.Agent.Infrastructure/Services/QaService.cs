@@ -227,6 +227,17 @@ public class QaService(
             .ToList();
     }
 
+    /// <summary>把这一轮的结果件原样存进消息，打开历史对话时照着重建。
+    /// 正文另存人能读的一句话——早先存的是 [生成]/[台账] 这类内部标记，
+    /// 用户点开历史看到的就是那串标记，等于没有历史。</summary>
+    private static readonly JsonSerializerOptions PayloadJson = new(JsonSerializerDefaults.Web);
+
+    private static void Keep(QaMessage m, string answer, object payload)
+    {
+        m.Answer = answer;
+        m.Payload = JsonSerializer.Serialize(payload, PayloadJson);
+    }
+
     /// <summary>「待处理的工单」「已完成的报修」——问法里带状态就按状态筛。</summary>
     private static TicketStatus? TicketStatusFrom(string q)
     {
@@ -356,7 +367,7 @@ public class QaService(
             ProjectDetail? only = result.Rows.Count == 1
                 ? await projects.GetAsync(result.Rows[0].ProjectNo, ct)
                 : null;
-            yield return new QaEvent("table", new
+            var table = new
             {
                 intent,
                 filters = new { customer = f.CustomerName, deviceType = f.DeviceType, yearFrom, yearTo },
@@ -364,8 +375,9 @@ public class QaService(
                 amountVisible = result.AmountVisible,
                 detail = only,
                 note = "台账查询为结构化结果，不经模型生成。筛选条件由提问解析而来，可修改后重查；若这不是台账问题，可选择按知识问答重新回答。"
-            });
-            message.Answer = $"[台账] 按解析出的条件返回 {result.Rows.Count} 条项目记录";
+            };
+            yield return new QaEvent("table", table);
+            Keep(message, $"按条件在台账里找到 {result.Rows.Count} 条项目记录。", new { kind = "table", data = table });
         }
         else if (intent == IntentRouter.Translate)
         {
@@ -396,7 +408,7 @@ public class QaService(
                         ? "要译整份文档的话，把文件发过来我就地翻译并按原格式回填。只译一段文字的话，直接把那段话发给我。"
                         : "把要翻译的文字发给我就行——整段贴过来，或者先问一个问题，我可以直接翻上一条回答。"
                 });
-                message.Answer = "[翻译] 等待提供正文";
+                message.Answer = "等你把要翻译的正文发过来。";
             }
             else
             {
@@ -415,11 +427,11 @@ public class QaService(
                 if (tr is null)
                 {
                     yield return new QaEvent("text", new { intent, message = failed });
-                    message.Answer = "[翻译] 服务不可用";
+                    message.Answer = failed;
                 }
                 else
                 {
-                    yield return new QaEvent("translation", new
+                    var tv = new
                     {
                         intent,
                         direction = ask.Direction,
@@ -430,8 +442,10 @@ public class QaService(
                         termsApplied = tr.TermsApplied,
                         contractNotice = tr.ContractNotice,
                         note = "术语按已审定术语表强制注入；译法不当可就地提交修正。"
-                    });
-                    message.Answer = $"[翻译] {ask.Direction}，{text.Length} 字";
+                    };
+                    yield return new QaEvent("translation", tv);
+                    Keep(message, ask.Direction == "zh2en" ? "已译成英文。" : "已译成中文。",
+                        new { kind = "translation", data = tv });
                 }
             }
         }
@@ -445,7 +459,7 @@ public class QaService(
             var kw = IntentRouter.CaseKeywords(req.Question);
             var rows = Narrow(list, kw);
             yield return new QaEvent("meta", new { sessionId = session.Id, intent, hitCount = rows.Count, topScore = 0.0, rewrittenQuery = kw });
-            yield return new QaEvent("tickets", new
+            var kv = new
             {
                 intent,
                 status = status?.ToString(),
@@ -453,8 +467,9 @@ public class QaService(
                 note = rows.Count == 0
                     ? "没有匹配的报修工单。可以说「待处理的工单」，或给我设备编号、工单号。"
                     : "点任意一条看流转记录；要改状态或派工在工单台里做。"
-            });
-            message.Answer = $"[工单] 命中 {rows.Count} 条";
+            };
+            yield return new QaEvent("tickets", kv);
+            Keep(message, $"找到 {rows.Count} 条报修工单。", new { kind = "tickets", data = kv });
         }
         else if (intent == IntentRouter.Case)
         {
@@ -466,7 +481,7 @@ public class QaService(
             yield return new QaEvent("meta", new { sessionId = session.Id, intent, hitCount = rows.Count, topScore = 0.0, rewrittenQuery = keyword });
 
             CaseDetail? only = rows.Count == 1 ? await cases.GetAsync(rows[0].Id, ct) : null;
-            yield return new QaEvent("cases", new
+            var cv = new
             {
                 intent,
                 keyword,
@@ -475,8 +490,9 @@ public class QaService(
                 note = rows.Count == 0
                     ? "没有匹配的故障案例。换个说法，或把设备型号与报警代码一起给我。"
                     : only is not null ? "只命中一条，详情直接展开在下面。" : "点任意一条看完整的现象、原因与处理步骤。"
-            });
-            message.Answer = $"[案例] 按「{keyword}」命中 {rows.Count} 条";
+            };
+            yield return new QaEvent("cases", cv);
+            Keep(message, $"按「{keyword}」找到 {rows.Count} 条故障案例。", new { kind = "cases", data = cv });
         }
         else
         {
@@ -485,15 +501,16 @@ public class QaService(
             if (me.Permissions.Contains(PermissionKeys.Generate))
                 templates = await RecommendTemplatesAsync(req.Question, ct);
             yield return new QaEvent("meta", new { sessionId = session.Id, intent, hitCount = 0, topScore = 0.0, rewrittenQuery = req.Question });
-            yield return new QaEvent("generate", new
+            var gv = new
             {
                 intent,
                 templates,
                 message = templates is not null
                     ? "识别到你想出一份文档。挑一个模板就在这儿开始填——你这句话会带进去，能确定的项我直接填好。"
                     : "你的角色没有方案生成权限。判定有误可按知识问答重新回答。"
-            });
-            message.Answer = "[生成] 已在对话内递出模板";
+            };
+            yield return new QaEvent("generate", gv);
+            Keep(message, gv.message, new { kind = "generate", data = gv });
         }
 
         db.QaMessages.Add(message);

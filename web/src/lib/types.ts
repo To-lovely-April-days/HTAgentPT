@@ -27,6 +27,9 @@ export interface QaSessionRow { id: string; title: string; createdAt: string; up
 export interface QaMessageRow {
   id: string; question: string; rewrittenQuery: string | null; answer: string | null;
   sources: string | null; noResultHints: string | null; helpful: boolean | null; at: string;
+  /** 这一轮长出来的结果件（jsonb 字符串）：{kind,data}，打开历史对话时照着重建 */
+  payload?: string | null;
+  intent?: string | null;
 }
 
 export interface Source {
