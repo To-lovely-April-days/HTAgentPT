@@ -89,6 +89,33 @@ public class TemplateExtractorTests
         var header = doc.MainDocumentPart.HeaderParts.Single().Header.InnerText;
         Assert.Contains("待复核", header); // FR-5.15
     }
+
+    [Fact]
+    public async Task 填好的草稿能整篇译出_填进去的值本身也译_版式仍在()
+    {
+        // 「英文版」走的就是这条链：草稿（与正式产出同一条回填路径）→ 整篇翻译 → 按原位置回填。
+        // 这里锁住两件事：填进控件里的取值也在可译范围内（不是只译模板里的固定文字），
+        // 页眉的「待复核」同样译得到——译文一样是待复核件。
+        var filled = await DocxSlotFiller.FillAsync(new MemoryStream(TemplateDocx()),
+        [
+            new DocxSlotFiller.FillInput("customer_name", "华东理工", SlotDataType.Text),
+            new DocxSlotFiller.FillInput("tech_overview", "采用夹套油浴控温", SlotDataType.LongText)
+        ]);
+
+        var result = await Infrastructure.Translation.DocxTranslator.TranslateAsync(
+            new MemoryStream(filled.Output),
+            (batch, _) => Task.FromResult<IReadOnlyList<string>>(batch.Select(t => "[EN] " + t).ToList()),
+            3000);
+
+        Assert.True(result.Translated > 0);
+        Assert.Equal(result.Paragraphs, result.Translated);   // 这份夹具里没有译不了的元素
+        using var doc = WordprocessingDocument.Open(new MemoryStream(result.Output), false);
+        var text = doc.MainDocumentPart!.Document.InnerText;
+        Assert.Contains("[EN] ", text);
+        Assert.Contains("华东理工", text);                     // 填进去的取值进了译文的输入
+        Assert.Contains("采用夹套油浴控温", text);
+        Assert.Contains("[EN] ", doc.MainDocumentPart.HeaderParts.Single().Header.InnerText);
+    }
 }
 
 public class CompletenessTests

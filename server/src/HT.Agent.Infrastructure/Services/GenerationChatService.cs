@@ -22,6 +22,7 @@ public class GenerationChatService(
     AppDbContext db,
     IGenerationService gen,
     IChatModelClient chat,
+    ITranslationService translation,
     IRetrievalService retrieval,
     IRuntimeConfig config,
     IConfiguration appConfig,
@@ -75,6 +76,8 @@ public class GenerationChatService(
         public object? Summary;
         public bool? CanRender;
         public object? Rendered;
+        /// <summary>这一轮译出的整篇译文：文件、回填报告、命中术语。</summary>
+        public object? Translated;
         /// <summary>槽位有变动：下一批提问重新算。</summary>
         public bool Changed;
         /// <summary>有专员干了活：整句没抽到值时不再提示「没识别到」。</summary>
@@ -91,7 +94,8 @@ public class GenerationChatService(
             advices = Advices.Count == 0 ? null : Advices,
             summary = Summary,
             canRender = CanRender,
-            rendered = Rendered
+            rendered = Rendered,
+            translated = Translated
         };
     }
 
@@ -175,7 +179,8 @@ public class GenerationChatService(
 
     private async Task DispatchAsync(Ctx ctx, string text, CancellationToken ct)
     {
-        var actions = PlanByRules(text);
+        var rules = PlanByRules(text);
+        var actions = rules.ToList();
         // 「跳过/汇总/生成/采纳/用第几个」是操作不是对话，规则更快更准，不劳模型。
         // 其余一律交给模型：它先正面回答，再顺带派活。
         // 规则在这里只是模型不可用时的退路——判意图这件事本来就不该靠正则穷举。
@@ -185,17 +190,23 @@ public class GenerationChatService(
             var turn = await PlanByModelAsync(ctx, text, ct);
             if (turn is not null)
             {
+                actions = turn.Actions.ToList();
+                // 「给我一份英文版」这类规则判得很死的活，模型没派就替它派上。
+                // 译文出不出得来由翻译链路说了算，不该由模型在正文里劝退——
+                // 它劝退的那段话这轮也就不上屏了，省得跟下面真出来的译文自相矛盾。
+                var declined = rules.Count == 1 && rules[0].Type == "translate"
+                    && !actions.Any(a => a.Type == "translate");
+                if (declined) actions.Add(rules[0]);
                 // 模型说的话一定上屏——这是这套东西"像不像个懂行的人"的分界线
-                if (turn.Reply is not null)
+                else if (turn.Reply is not null)
                 {
                     ctx.Reply.Add(turn.Reply);
                     ctx.Reply.Handled = true;
                 }
-                actions = turn.Actions.ToList();
             }
             // 模型没接上（不可用或输出崩了）才退回规则单，且去掉无 tag 的整句填值，
             // 免得把闲聊或它没读懂的话塞进槽位
-            else actions = actions.Where(a => a.Type != "fill" || a.Tag is not null).ToList();
+            else actions = rules.Where(a => a.Type != "fill" || a.Tag is not null).ToList();
         }
 
         foreach (var a in actions.Where(a => a.Type == "pick_base")) await PickBaseAsync(ctx, ResolveProject(ctx, a), ct);
@@ -208,6 +219,7 @@ public class GenerationChatService(
         foreach (var a in actions.Where(a => a.Type == "suggest")) await SuggestAsync(ctx, a, text, ct);
         foreach (var a in actions.Where(a => a.Type == "ask")) await AnswerAsync(ctx, a, text, ct);
         foreach (var a in actions.Where(a => a.Type == "advise")) await AdviseAsync(ctx, a.Question ?? text, a.Name, ct);
+        foreach (var a in actions.Where(a => a.Type == "translate")) await TranslateAsync(ctx, a.Value, ct);
 
         if (actions.Any(a => a.Type == "skip"))
         {
@@ -261,8 +273,13 @@ public class GenerationChatService(
             "①用户交代了工况、用途、介质或硬性约束（「我要做硝化反应」「介质有强腐蚀」「要过夜无人值守」）；" +
             "②用户对上一版建议不买账要换（「材质换其他的」「这个不合适」「再给一个」）——" +
             "这时 name 填他说的那一项，没点名就留空");
+        sb.AppendLine("- {\"type\":\"translate\",\"value\":\"zh2en\"}：用户要这份文档的英文版/中文版（「给我一份英文的」「翻译成英文」）；" +
+            "value 取 zh2en（出英文）或 en2zh（出中文）");
         sb.AppendLine("- {\"type\":\"skip\"}、{\"type\":\"summary\"}、{\"type\":\"render\"}");
         sb.AppendLine("规则：只抽取用户明确说出的取值，绝不猜测补全；选择类取值必须是可选值之一；日期 yyyy-MM-dd；");
+        sb.AppendLine("要译文就派 translate，不要以「机器翻译不准」「术语会译错」为由拒绝——" +
+            "整篇翻译由系统的翻译链路做，已审定术语按标准译法强制注入，材质牌号与安全条款正是靠这个统一的；" +
+            "你也不要在回答里自己手工翻译整篇，那样版式会丢。回答里说一句「这就出」即可。");
         sb.AppendLine("带单位的参数只填数值与必要修饰；一句话可以含多个动作；");
         sb.AppendLine("只是在答疑、不需要动表时就只写回答，不要加代码块——但回答一定要有内容，不能交白卷。");
         sb.AppendLine();
@@ -774,6 +791,74 @@ public class GenerationChatService(
         var r = await gen.RenderAsync(ctx.Session.Id, ct);
         ctx.Reply.Add($"已生成《{r.OutputFileName}》：回填 {r.SlotsFilled} 项，留空 {r.LeftBlank} 项。文件页眉带「待复核」标注，请下载核对后再对外使用。");
         ctx.Reply.Rendered = new { fileName = r.OutputFileName, filled = r.SlotsFilled, blank = r.LeftBlank };
+    }
+
+    // ── 专员：译员 ───────────────────────────────────────────
+
+    /// <summary>出整篇译文：拿当前草稿（与最终产出同一条填充路径）整篇翻译并按原版式回填。
+    ///
+    /// 这件事以前是被模型一句「机翻会把材质牌号和安全条款译错」挡回去的——挡错了：
+    /// 术语一致本来就不靠模型自觉，而是靠已审定术语表在提示词里强制对照（FR-6.1），
+    /// 这套东西存在的理由就是解决牌号与条款的译法。所以这里只管把译文出出来，
+    /// 同时把「哪些段没能回填」「命中了哪些术语」「合同类要人工复核」如实摆在明处（FR-6.3、FR-6.6）。</summary>
+    private async Task TranslateAsync(Ctx ctx, string? direction, CancellationToken ct)
+    {
+        ctx.Reply.Handled = true;
+        ctx.Reply.SuppressAsks = true;   // 译文是一件产出，别在它后面又接着追问槽位
+        var dir = direction?.Trim().ToLowerInvariant() == "en2zh" ? "en2zh" : "zh2en";
+        var lang = dir == "zh2en" ? "英文" : "中文";
+        if (!me.Permissions.Contains(PermissionKeys.Translate))
+        {
+            ctx.Reply.Add($"{lang}版我这边出不了：你的角色没有开通翻译权限。找管理员在角色里加上就行，文档本身不用重做。");
+            return;
+        }
+        if (ctx.Stub)
+        {
+            // 演示应答下硬出一份，得到的是一篇假译文——那比不出更糟
+            ctx.Reply.Add($"{lang}版要真译才有意义，当前是内置演示应答，出来的只会是占位文本。" +
+                "在设置里把对话模型接上（在线接口或本地模型都行），这份文档不用重做，说一声就能出。");
+            return;
+        }
+
+        var draft = await gen.RenderDraftAsync(ctx.Session.Id, ct);
+        FileTranslationResult r;
+        try
+        {
+            using var ms = new MemoryStream(draft.Content);
+            r = await translation.TranslateDocxAsync(ms, $"{ctx.Template.Name}.docx", dir, null, ct);
+        }
+        catch (DomainRuleException ex)
+        {
+            // 模型不可用一类：说清楚是哪一步没成，别含糊成「译不了」
+            ctx.Reply.Add($"{lang}版这次没出来——{ex.Message}");
+            return;
+        }
+
+        var parts = new List<string>
+        {
+            $"{lang}版出好了：《{r.OutputFileName}》，全篇 {r.Report.Paragraphs} 段译出 {r.Report.Translated} 段，版式按原件回填。"
+        };
+        if (r.TermsApplied.Count > 0)
+            parts.Add($"其中 {r.TermsApplied.Count} 条已审定术语按标准译法统一，全篇一个写法。");
+        if (r.Report.Unfillable.Count > 0)
+            parts.Add($"有 {r.Report.Unfillable.Count} 处没能回填（清单在下面），这些位置还是原文，得人工补。");
+        if (draft.Blank > 0)
+            parts.Add($"中文稿里留空的 {draft.Blank} 项，{lang}版同样是空的——先把中文补齐再出一版更省事。");
+        parts.Add("机器译文须人工复核后再对外。");
+        ctx.Reply.Add(string.Join("", parts));
+
+        ctx.Reply.Translated = new
+        {
+            taskId = r.TaskId,
+            fileName = r.OutputFileName,
+            direction = dir,
+            paragraphs = r.Report.Paragraphs,
+            translated = r.Report.Translated,
+            unfillable = r.Report.Unfillable,
+            terms = r.TermsApplied,
+            notice = r.ContractNotice,
+            draftBlank = draft.Blank
+        };
     }
 
     // ── 收尾：下一批提问 + 主动性 ──────────────────────────────

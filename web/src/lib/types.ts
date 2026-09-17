@@ -232,6 +232,22 @@ export interface GenChatPayload {
   summary?: { section: string; items: { name: string; value: string | null }[] }[] | null;
   canRender?: boolean | null;
   rendered?: { fileName: string; filled: number; blank: number } | null;
+  translated?: GenTranslated | null;
+}
+
+/** 这一轮译出的整篇译文（FR-6.3）：文件、回填报告、命中的已审定术语。 */
+export interface GenTranslated {
+  taskId: string;
+  fileName: string;
+  direction: string;
+  paragraphs: number;
+  translated: number;
+  /** 没能回填的元素，如实列出，不静默 */
+  unfillable: string[];
+  terms: TermHit[];
+  notice: string | null;
+  /** 中文稿里留空的项数——译文里同样是空的 */
+  draftBlank: number;
 }
 /** 问答分流事件里携带的模板推荐（点选即开聊）。 */
 /** 台账查询的结构化结果（FR-4.1）：不经模型生成，筛选条件由提问解析而来。 */

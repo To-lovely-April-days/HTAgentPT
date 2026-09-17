@@ -11,7 +11,8 @@ namespace HT.Agent.Api.Controllers;
 [Route("api/generate")]
 [Authorize]
 [RequirePermission(PermissionKeys.Generate)]
-public class GenerateController(IGenerationService gen, IGenerationChatService genChat) : ControllerBase
+public class GenerateController(
+    IGenerationService gen, IGenerationChatService genChat, ITranslationService translation) : ControllerBase
 {
     public record CreateBody(Guid TemplateId, string? ProjectHint, Guid? QaSessionId);
 
@@ -84,6 +85,16 @@ public class GenerateController(IGenerationService gen, IGenerationChatService g
         Response.Headers["X-Filled"] = d.Filled.ToString();
         Response.Headers["X-Blank"] = d.Blank.ToString();
         return File(d.Content, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    }
+
+    /// <summary>取这条对话里译出的那一版（英文/中文）。产物归属校验在翻译服务里做：
+    /// 译出它的人本人可取，同公司持翻译权限者可取（校对协作），跨公司不可。</summary>
+    [HttpGet("translated/{taskId:guid}.docx")]
+    public async Task<IActionResult> Translated(Guid taskId, CancellationToken ct)
+    {
+        var (content, fileName) = await translation.OpenOutputAsync(taskId, ct);
+        return File(content,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", fileName);
     }
 
     [HttpPost("sessions/{id:guid}/render")]

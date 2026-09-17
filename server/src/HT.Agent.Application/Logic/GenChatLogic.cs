@@ -96,7 +96,7 @@ public static class GenChatLogic
 
     // ── 总指挥派工单 ──────────────────────────────────────────
 
-    /// <summary>一条派工：Type 为 fill / ledger / pick_base / suggest / adopt / ask / skip / summary / render。
+    /// <summary>一条派工：Type 为 fill / ledger / pick_base / suggest / adopt / ask / advise / translate / skip / summary / render。
     /// 总指挥（模型或规则）只产出派工单，具体活由服务端各专员按既有能力执行。</summary>
     public sealed record PlanAction(
         string Type,
@@ -109,7 +109,7 @@ public static class GenChatLogic
         string? Name = null);
 
     private static readonly HashSet<string> KnownActions =
-        ["fill", "ledger", "pick_base", "suggest", "adopt", "ask", "advise", "skip", "summary", "render"];
+        ["fill", "ledger", "pick_base", "suggest", "adopt", "ask", "advise", "translate", "skip", "summary", "render"];
 
     /// <summary>解析总指挥模型的派工单：{"actions":[...]}；兼容早期只有 {"fills":[...]} 的抽取格式。
     /// 未知动作类型丢弃，解析失败返回空表——由调用方退回规则规划。</summary>
@@ -282,6 +282,18 @@ public static class GenChatLogic
         @"|(过夜|连续运行|无人值守|洁净|无菌|GMP|防爆要求|高真空)",
         RegexOptions.Compiled);
 
+    /// <summary>要整篇译文：「给我一份英文版」「把这份翻译成英文」「出个 English version」。
+    /// 这是要一份产出，不是填某一项——所以在规则里排在取值之前判。</summary>
+    private static readonly Regex TranslateWant = new(
+        @"(翻译|翻成|译成|译为|英文版|中文版|英文的|中文的|英文(文档|文件|版本|稿)|中文(文档|文件|版本|稿)|English)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>往哪个方向译。没明说就按「中文文档出英文」这个常态取 zh2en。</summary>
+    public static string TranslateDirection(string message)
+        => Regex.IsMatch(message, @"(中文|汉语|Chinese)", RegexOptions.IgnoreCase)
+           && !Regex.IsMatch(message, @"(英文|英语|English)", RegexOptions.IgnoreCase)
+            ? "en2zh" : "zh2en";
+
     /// <summary>对上一轮给过的建议不买账：「材质换其他的」「这个不合适」「再给一个」。
     /// 要点在于**后面不能跟具体取值**——「材质换成316L」是给值不是要新方案，
     /// 所以只认后面是「其他/别的/一个」这类含糊说法或干脆没有下文的。</summary>
@@ -334,6 +346,8 @@ public static class GenChatLogic
         if (no.Success && (m.Length <= no.Length + 8 || Regex.IsMatch(m, "基准|用这个|就这个|选这个|参考")))
             return [new PlanAction("pick_base", ProjectNo: no.Groups[1].Value)];
         if (LedgerAsk.IsMatch(m)) return [new PlanAction("ledger")];
+        // 要英文版/中文版：整篇译，不要当成某一项的取值塞进表里
+        if (TranslateWant.IsMatch(m)) return [new PlanAction("translate", Value: TranslateDirection(m))];
         // 对上一轮的建议不买账：接着给新方案，而不是回一句「没识别到可入表的信息」
         var rev = ParseRevise(m);
         if (rev.Revise) return [new PlanAction("advise", Question: message.Trim(), Name: rev.Name)];

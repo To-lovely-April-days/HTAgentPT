@@ -1,12 +1,14 @@
 // 对话里各类意图的结果卡。全部就地展示，不跳页——
 // 用户说什么，结果就在同一条对话流里长出来。
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { download } from '../../lib/api';
 import { DELIVERY_LABEL, TICKET_LABEL } from '../../lib/types';
 import type {
-  CaseDetailData, CaseRow, LedgerTable, ProjectDetail, QaTemplateRec, Source,
+  CaseDetailData, CaseRow, GenTranslated, LedgerTable, ProjectDetail, QaTemplateRec, Source,
   TextTranslationResult, TicketRow, TicketStatus,
 } from '../../lib/types';
+import { FileView } from '../../components/FileView';
 import { Prose } from '../../components/Prose';
 import { ProjectPreviewModal } from './ProjectPreviewModal';
 import { ClsBadge } from '../../components/Common';
@@ -415,6 +417,99 @@ export function BaseCards({ items, active, onPick }: {
         <ProjectPreviewModal projectNo={peek} onClose={() => setPeek(null)}
           onPick={active ? onPick : undefined} />
       )}
+    </div>
+  );
+}
+
+/** 一份文件的版式预览：不进语料库也能看，比如刚译出来的那一版。 */
+export function DocPreviewModal({ src, fileName, onClose }: {
+  src: string; fileName: string; onClose: () => void;
+}) {
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [onClose]);
+  return (
+    <div className="modal-mask" onClick={onClose}>
+      <div className="modal-box pv" onClick={(e) => e.stopPropagation()}>
+        <div className="pv-hd">
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{fileName}</span>
+          <div style={{ flexGrow: 1 }} />
+          <button className="pbtn" style={{ height: 26, fontSize: 12, padding: '0 12px' }}
+            onClick={() => void download(src, fileName)}>下载 ↓</button>
+          <button className="gbtn" style={{ height: 26, fontSize: 12 }} onClick={onClose}>关闭</button>
+        </div>
+        <div className="pv-body">
+          <div className="pv-main"><FileView src={src} fileName={fileName} /></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 整篇译文（FR-6.3）：译出来的是一份排好版的文件，所以这里给的是「看原件版式」和「下载」，
+    不是一段贴在对话里的文字。回填不了的地方、套用了哪些已审定术语，都摆在明处——
+    译文能不能对外，得由人看着这两样决定（FR-6.6）。 */
+export function TranslatedCard({ data }: { data: GenTranslated }) {
+  const [peek, setPeek] = useState(false);
+  const [more, setMore] = useState(false);
+  const zh2en = data.direction === 'zh2en';
+  const src = `/api/generate/translated/${data.taskId}.docx`;
+  return (
+    <div className="advc" style={{ borderColor: 'var(--cls-pub-line)', marginTop: 9 }}>
+      <div className="advc-head" style={{ background: 'var(--cls-pub-bg)' }}>
+        <span className="advc-cap" style={{ color: 'var(--cls-pub)' }}>{zh2en ? '英文版' : '中文版'}</span>
+        <span style={{ fontSize: 12, color: 'var(--ink-2)' }}>{data.fileName}</span>
+        <span className="pill pill-neutral">{data.translated}/{data.paragraphs} 段</span>
+        {data.terms.length > 0 && <span className="pill pill-pub">{data.terms.length} 条术语已套用</span>}
+        {data.unfillable.length > 0 && <span className="pill pill-int">{data.unfillable.length} 处未回填</span>}
+        <span style={{ marginLeft: 'auto', display: 'flex', gap: 5 }}>
+          <button className="gbtn" style={{ height: 21, fontSize: 11, padding: '0 8px' }}
+            onClick={() => setPeek(true)}>看版式</button>
+          <button className="pbtn" style={{ height: 21, fontSize: 11, padding: '0 10px' }}
+            onClick={() => void download(src, data.fileName)}>下载 ↓</button>
+        </span>
+      </div>
+      {data.notice && (
+        <div style={{ padding: '7px 11px', background: 'var(--cls-int-bg)', borderTop: '1px solid var(--cls-int-line)',
+          color: 'var(--cls-int)', fontSize: 11.5, lineHeight: 1.7 }}>{data.notice}</div>
+      )}
+      {data.draftBlank > 0 && (
+        <div style={{ padding: '7px 11px', borderTop: '1px solid var(--line-soft)', fontSize: 11.5,
+          color: 'var(--ink-2)', lineHeight: 1.7 }}>
+          中文稿里还有 {data.draftBlank} 项留空，译文里同样是空的。补齐后说一声「再出一版英文的」即可。
+        </div>
+      )}
+      {(data.terms.length > 0 || data.unfillable.length > 0) && (
+        <div className="advc-foot" style={{ flexWrap: 'wrap' }}>
+          <button className="gbtn" style={{ height: 21, fontSize: 11, padding: '0 8px' }}
+            onClick={() => setMore(!more)}>{more ? '收起明细' : '看术语与未回填明细'}</button>
+        </div>
+      )}
+      {more && (
+        <div style={{ padding: '9px 12px', borderTop: '1px solid var(--line-soft)', background: 'var(--panel)' }}>
+          {data.terms.length > 0 && (
+            <>
+              <div className="sum-sec" style={{ marginBottom: 6 }}>按已审定译法统一</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: data.unfillable.length ? 10 : 0 }}>
+                {data.terms.map((t) => (
+                  <span key={t.zh + t.en} className="pill pill-pub">{t.zh} → {t.en}</span>
+                ))}
+              </div>
+            </>
+          )}
+          {data.unfillable.length > 0 && (
+            <>
+              <div className="sum-sec" style={{ marginBottom: 6 }}>没能回填，仍是原文</div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 11.5, lineHeight: 1.8, color: 'var(--ink-2)' }}>
+                {data.unfillable.map((u, i) => <li key={i}>{u}</li>)}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+      {peek && <DocPreviewModal src={src} fileName={data.fileName} onClose={() => setPeek(false)} />}
     </div>
   );
 }

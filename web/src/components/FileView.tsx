@@ -58,7 +58,9 @@ async function pptOutline(blob: Blob): Promise<{ title: string; lines: string[] 
   return out;
 }
 
-export function FileView({ docId, fileName }: { docId: string; fileName: string }) {
+/** 要看的东西在哪：语料给 docId，别处（比如刚译出来的那一版）直接给取文件的地址。 */
+export function FileView({ docId, src, fileName }: { docId?: string; src?: string; fileName: string }) {
+  const url = src ?? `/api/files/${docId}`;
   const box = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<'loading' | 'docx' | 'pdf' | 'xlsx' | 'pptx' | 'other' | 'fail'>('loading');
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -69,18 +71,18 @@ export function FileView({ docId, fileName }: { docId: string; fileName: string 
 
   useEffect(() => {
     let alive = true;
-    let url: string | null = null;
+    let objUrl: string | null = null;
     setState('loading');
     setError(null);
     void (async () => {
       try {
-        const blob = await fetchBlob(`/api/files/${docId}`);
+        const blob = await fetchBlob(url);
         if (!alive) return;
         const kind = await sniff(blob);
         if (!alive) return;
         if (kind === 'pdf') {
-          url = URL.createObjectURL(blob);
-          setPdfUrl(url);
+          objUrl = URL.createObjectURL(blob);
+          setPdfUrl(objUrl);
           setState('pdf');
           return;
         }
@@ -120,8 +122,8 @@ export function FileView({ docId, fileName }: { docId: string; fileName: string 
         setState('fail');
       }
     })();
-    return () => { alive = false; if (url) URL.revokeObjectURL(url); };
-  }, [docId]);
+    return () => { alive = false; if (objUrl) URL.revokeObjectURL(objUrl); };
+  }, [url]);
 
   return (
     <div className="fv">
@@ -157,14 +159,14 @@ export function FileView({ docId, fileName }: { docId: string; fileName: string 
             </div>
           ))}
           <div style={{ padding: '4px 14px 16px' }}>
-            <button className="gbtn" onClick={() => void download(`/api/files/${docId}`, fileName)}>下载原件 ↓</button>
+            <button className="gbtn" onClick={() => void download(url, fileName)}>下载原件 ↓</button>
           </div>
         </div>
       )}
       {state === 'other' && (
         <div style={{ padding: 16, textAlign: 'center' }}>
           <div className="hint" style={{ marginBottom: 8 }}>这个格式没法在浏览器里还原版式。</div>
-          <button className="pbtn" onClick={() => void download(`/api/files/${docId}`, fileName)}>
+          <button className="pbtn" onClick={() => void download(url, fileName)}>
             下载原件 ↓
           </button>
         </div>

@@ -23,7 +23,7 @@ import type {
 import { Prose } from '../../components/Prose';
 import { ErrorBox, Spinner } from '../../components/Common';
 import { AdviceCard, EvidenceCard, SummaryCard } from '../generate/ChatCards';
-import { BaseCards, CasesCard, LedgerCard, NoResultCard, SourcesCard, TemplatePicker, TicketsCard, TranslationCard } from './ResultCards';
+import { BaseCards, CasesCard, LedgerCard, NoResultCard, SourcesCard, TemplatePicker, TicketsCard, TranslatedCard, TranslationCard } from './ResultCards';
 import { LivePreview } from './LivePreview';
 
 /** 对话里的一条消息。text 是正文，其余字段是这一轮长出来的结果件。 */
@@ -417,6 +417,7 @@ function AssistantMessage() {
           <EvidenceCard suggestions={m.gen.suggestions} active={active} onTurn={genTurn} />
         )}
         {m.gen?.summary && <SummaryCard summary={m.gen.summary} />}
+        {m.gen?.translated && <TranslatedCard data={m.gen.translated} />}
         {active && m.gen?.asks && m.gen.asks.filter((a) => a.choices?.length).length > 0 && (
           <div style={{ marginTop: 9, display: 'flex', flexDirection: 'column', gap: 6 }}>
             {m.gen.asks.filter((a) => a.choices?.length).map((a) => (
@@ -440,9 +441,10 @@ function AssistantMessage() {
         )}
         {active && genSessionId && m.gen && !m.gen.rendered && (
           <div style={{ marginTop: 9, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {(['查历史项目', '推荐参数', '跳过', '汇总', '生成文档'] as const).map((label) => (
+            {(['查历史项目', '推荐参数', '出英文版', '跳过', '汇总', '生成文档'] as const).map((label) => (
               <button key={label} className="gbtn" style={{ height: 24, fontSize: 11.5 }}
-                onClick={() => void genTurn({ message: label === '查历史项目' ? '查一下历史做过的项目' : label })}>{label}</button>
+                onClick={() => void genTurn({ message: label === '查历史项目' ? '查一下历史做过的项目'
+                  : label === '出英文版' ? '给我一份英文版的文档' : label })}>{label}</button>
             ))}
           </div>
         )}

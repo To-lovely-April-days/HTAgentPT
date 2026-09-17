@@ -223,6 +223,36 @@ public class GenChatTests
         Assert.Single(t.Actions);
     }
 
+    [Theory]
+    [InlineData("给我一份英文版", "zh2en")]
+    [InlineData("把这份翻译成英文", "zh2en")]
+    [InlineData("能出个 English version 吗", "zh2en")]
+    [InlineData("英文的文档也要一份", "zh2en")]
+    [InlineData("翻译成中文", "en2zh")]
+    public void 要整篇译文_派翻译不当成取值(string text, string direction)
+    {
+        var plan = GenChatLogic.PlanByRules(text);
+        var a = Assert.Single(plan);
+        Assert.Equal("translate", a.Type);
+        Assert.Equal(direction, a.Value);
+    }
+
+    [Theory]
+    [InlineData("材质是316L")]
+    [InlineData("设计压力1.6MPa")]
+    public void 普通取值不会被当成要译文(string text)
+        => Assert.DoesNotContain(GenChatLogic.PlanByRules(text), a => a.Type == "translate");
+
+    [Fact]
+    public void 模型派翻译单_方向按value解析()
+    {
+        var t = GenChatLogic.ParseTurn(
+            "这就出英文版。\n```json\n{\"actions\":[{\"type\":\"translate\",\"value\":\"zh2en\"}]}\n```");
+        var a = Assert.Single(t.Actions);
+        Assert.Equal("translate", a.Type);
+        Assert.Equal("zh2en", a.Value);
+    }
+
     [Fact]
     public void 只有动作没有话_动作照办话由专员补()
     {
