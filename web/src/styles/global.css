@@ -19,8 +19,8 @@
   --cls-pub: #00696b;  --cls-pub-bg: #e3f4f4;  --cls-pub-line: #b8dedd;
   --ok: #1c6b45; --ok-bg: #e6f2ec; --ok-line: #c2ded1;
   --pending: #8f3d74; --pending-bg: #fbeff7; --pending-line: #edd2e3;
-  /* 对话栏宽度：卡片里有表格与对照，780 太挤，两侧留白也太多 */
-  --chat-w: 1180px;
+  /* 对话栏宽度：卡片里有表格与对照，窄了挤、两侧留白又太多；超宽屏才封顶 */
+  --chat-w: 1560px;
   --font: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
 }
@@ -167,7 +167,7 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
   background: var(--accent-bg); border-bottom: 1px solid var(--accent-line); }
 .chat-root { flex-grow: 1; min-height: 0; display: flex; flex-direction: column; }
 .chat-view { flex-grow: 1; min-height: 0; overflow-y: auto; padding: 18px 20px 6px; }
-.chat-view > * { max-width: var(--chat-w); margin-left: auto; margin-right: auto; }
+.chat-view > * { max-width: var(--chat-w); margin-left: auto; margin-right: auto; box-sizing: border-box; }
 .chat-empty { max-width: var(--chat-w); margin: 40px auto 0; }
 .chat-user { display: flex; justify-content: flex-end; margin-bottom: 11px; }
 .chat-user-bubble { max-width: 78%; padding: 8px 13px; border-radius: 8px; font-size: 13.5px;
@@ -175,9 +175,15 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
   border: 1px solid var(--accent-line); }
 .chat-assistant { margin-bottom: 13px; }
 .chat-bubble { padding: 11px 15px; }
-.chat-composer { flex-shrink: 0; display: flex; gap: 8px; align-items: flex-end;
+/* 输入框：flex 里 textarea 的固有宽度很小，少一条 width 就会缩成一小格，
+   所以宽度与拉伸都写死，不靠父级的默认行为 */
+.chat-composer { flex: 0 0 auto; align-self: stretch; box-sizing: border-box;
+  display: flex; gap: 8px; align-items: flex-end;
   max-width: var(--chat-w); width: 100%; margin: 0 auto; padding: 10px 20px 16px; }
-.chat-input { flex-grow: 1; min-height: 36px; max-height: 160px; padding: 8px 12px; resize: none;
+/* 输入框吃掉 100% 宽度后，发送按钮会被挤扁成两行——钉住它不许压缩 */
+.chat-composer > .pbtn { flex: 0 0 auto; white-space: nowrap; }
+.chat-input { flex: 1 1 auto; width: 100%; min-width: 0; box-sizing: border-box;
+  min-height: 36px; max-height: 160px; padding: 8px 12px; resize: none;
   font-size: 14px; font-family: var(--font); line-height: 1.6; color: var(--ink);
   background: var(--panel); border: 1px solid var(--line-strong); border-radius: 6px; outline: none; }
 .chat-input:focus { border-color: var(--accent); }

@@ -180,34 +180,58 @@ public class GenChatTests
     }
 
     [Fact]
-    public void 模型一轮_回答与派工同出()
+    public void 模型一轮_正文在前动作块在后()
     {
         var t = GenChatLogic.ParseTurn(
-            "```json\n{\"reply\":\"能换。1.6MPa 是按使用压力 1.0 的 1.5 倍给的裕度；" +
-            "要降到 1.2 得先把使用压力压到 0.8 以下，硝化工况我不建议这么做。\"," +
-            "\"actions\":[{\"type\":\"advise\",\"question\":\"设计压力能换吗\",\"name\":\"设计压力\"}]}\n```");
+            "能换。\n\n现在的 1.6MPa 是按使用压力 1.0 取 1.5 倍裕度来的——\n" +
+            "「飞温」工况下裕度小了泄压来不及。\n\n- 压到 0.8 以下：可以降到 1.2\n- 保持 1.0：不建议低于 1.6\n\n" +
+            "```json\n{\"actions\":[{\"type\":\"advise\",\"question\":\"设计压力能换吗\",\"name\":\"设计压力\"}]}\n```");
         Assert.NotNull(t.Reply);
         Assert.Contains("1.5 倍", t.Reply!);
+        Assert.Contains("- 保持 1.0", t.Reply!);          // 正文里的换行与要点原样留着
+        Assert.DoesNotContain("actions", t.Reply!);       // 代码块不混进正文
         Assert.Single(t.Actions);
         Assert.Equal(("advise", "设计压力"), (t.Actions[0].Type, t.Actions[0].Name));
     }
 
     [Fact]
-    public void 模型只答话不派活也算数()
+    public void 纯答疑_整段都是正文()
     {
-        var t = GenChatLogic.ParseTurn("{\"reply\":\"这项按 GB150 取，通常留 1.5 倍裕度。\",\"actions\":[]}");
+        var t = GenChatLogic.ParseTurn("这项按 GB150 取，通常留 1.5 倍裕度。\n换低了爆破片动作会不可靠。");
         Assert.NotNull(t.Reply);
+        Assert.Contains("GB150", t.Reply!);
         Assert.Empty(t.Actions);
     }
 
     [Fact]
-    public void 模型输出崩了_回答为空由调用方兜底()
+    public void 回答里有引号和换行也不影响解析()
     {
-        Assert.Null(GenChatLogic.ParseTurn("完全不是 JSON").Reply);
-        Assert.Empty(GenChatLogic.ParseTurn("完全不是 JSON").Actions);
-        // 只有动作没有话：动作照办，话由专员补
+        // 这正是把回答塞进 JSON 字符串时会崩的情形
+        var t = GenChatLogic.ParseTurn(
+            "按「最坏工况」算：\n温度 200℃ 时压力会到 1.4MPa，\n所以 1.6 是下限，不是「保守」。\n" +
+            "```json\n{\"actions\":[]}\n```");
+        Assert.NotNull(t.Reply);
+        Assert.Contains("最坏工况", t.Reply!);
+        Assert.Empty(t.Actions);
+    }
+
+    [Fact]
+    public void 兼容老格式_整体JSON时取reply字段()
+    {
+        var t = GenChatLogic.ParseTurn("{\"reply\":\"能换，看你使用压力定多少。\",\"actions\":[{\"type\":\"summary\"}]}");
+        Assert.Equal("能换，看你使用压力定多少。", t.Reply);
+        Assert.Single(t.Actions);
+    }
+
+    [Fact]
+    public void 只有动作没有话_动作照办话由专员补()
+    {
         var onlyActions = GenChatLogic.ParseTurn("{\"actions\":[{\"type\":\"summary\"}]}");
         Assert.Null(onlyActions.Reply);
         Assert.Single(onlyActions.Actions);
+
+        // 什么都没给才是真的没接住
+        Assert.Null(GenChatLogic.ParseTurn("   ").Reply);
+        Assert.Empty(GenChatLogic.ParseTurn("   ").Actions);
     }
 }

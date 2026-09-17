@@ -236,15 +236,20 @@ public class GenerationChatService(
         var byTag = Parse(ctx.Session).ToDictionary(s => s.Tag);
         var sb = new StringBuilder();
         sb.AppendLine("你是化工实验设备（反应釜等）的资深工艺工程师，正陪用户填一份技术文档。每轮你做两件事：");
-        sb.AppendLine("① reply：用工程师的口吻正面回答用户这句话。");
+        sb.AppendLine("① 回答：用工程师的口吻正面回答用户这句话。");
         sb.AppendLine("   他问「这个能换吗」「为什么取这个值」「这样选有什么问题」「低一点行不行」，");
         sb.AppendLine("   你就答出取值依据、约束条件与取舍代价（换成什么、要付什么代价、什么工况下不能换），");
         sb.AppendLine("   而不是把问题推回去让他「告诉我要填的值」。拿不准就说拿不准，别编。");
-        sb.AppendLine("   他给的是取值、指令或闲聊，reply 就简短应一句。");
-        sb.AppendLine("② actions：这句话同时要求落值、查历史、给建议、出文档时，派对应的活；没有就给空数组。");
-        sb.AppendLine("台账表格、建议清单、汇总表会另行呈现，reply 里不要复述它们的内容，一句带过即可。");
+        sb.AppendLine("   他给的是取值、指令或闲聊，就简短应一句。");
+        sb.AppendLine("② 动作：这句话同时要求落值、查历史、给建议、出文档时，派对应的活。");
+        sb.AppendLine("台账表格、建议清单、汇总表会另行呈现，正文里不要复述它们的内容，一句带过即可。");
         sb.AppendLine();
-        sb.AppendLine("只输出一个 JSON 对象：{\"reply\":\"要对用户说的话\",\"actions\":[...]}，不要任何其他文字。");
+        sb.AppendLine("【输出格式】先正常写回答，想分段就分段，可以用小标题和要点——这段直接给用户看。");
+        sb.AppendLine("如果这轮还需要动表/查历史/给建议/出文档，就在回答末尾追加一个 json 代码块：");
+        sb.AppendLine("```json");
+        sb.AppendLine("{\"actions\":[...]}");
+        sb.AppendLine("```");
+        sb.AppendLine("不需要动表就不要加这个块。不要把回答塞进 JSON 里——正文归正文，代码块只放动作。");
         sb.AppendLine("动作类型：");
         sb.AppendLine("- {\"type\":\"fill\",\"tag\":\"槽位tag\",\"value\":\"值\"}：用户明确给出的槽位取值，可多条；用户改口时给新值");
         sb.AppendLine("- {\"type\":\"ledger\",\"customer\":\"客户名或空\",\"device\":\"设备类型或空\",\"keyword\":\"型号/容积等关键词或空\"}：用户想查历史项目、以前做过的、台账、类似项目");
@@ -259,7 +264,7 @@ public class GenerationChatService(
         sb.AppendLine("- {\"type\":\"skip\"}、{\"type\":\"summary\"}、{\"type\":\"render\"}");
         sb.AppendLine("规则：只抽取用户明确说出的取值，绝不猜测补全；选择类取值必须是可选值之一；日期 yyyy-MM-dd；");
         sb.AppendLine("带单位的参数只填数值与必要修饰；一句话可以含多个动作；");
-        sb.AppendLine("只是在答疑、不需要动表时 actions 给 []——但 reply 一定要有内容，不能交白卷。");
+        sb.AppendLine("只是在答疑、不需要动表时就只写回答，不要加代码块——但回答一定要有内容，不能交白卷。");
         sb.AppendLine();
         sb.AppendLine("[已交代的工况] " + (ctx.State.Conditions.Count == 0 ? "（无）" : string.Join("；", ctx.State.Conditions)));
         sb.AppendLine("[上一版给过的建议] " + (ctx.State.LastSuggestions.Count == 0 ? "（无）"

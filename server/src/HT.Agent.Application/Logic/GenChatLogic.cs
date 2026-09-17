@@ -170,24 +170,59 @@ public static class GenChatLogic
     /// Reply 为空说明模型没说话（回了废话或格式崩了），调用方据此决定退回规则。</summary>
     public sealed record ModelTurn(string? Reply, IReadOnlyList<PlanAction> Actions);
 
-    /// <summary>解析 {"reply":"…","actions":[…]}。
-    /// 回答与派工在同一次调用里出，模型才既能说人话又能干活——
-    /// 只让它输出 actions 的话，它遇到「这个能换吗」这种问题就只会交白卷。</summary>
+    /// <summary>解析模型一轮的产出：正文在前，可选的动作块在后。
+    ///
+    /// 不让模型把整段回答塞进 JSON 字符串——中文回答里有换行、有「」引号，
+    /// 它十次有三次写出不合法的 JSON，一崩整条回答就没了（界面上就是「这句我没接住」）。
+    /// 所以正文让它正常写，只把要动表的部分放进末尾一个 json 代码块里。
+    /// 没有代码块就是纯答疑，整段都是正文。</summary>
     public static ModelTurn ParseTurn(string raw)
     {
-        var start = raw.IndexOf('{');
-        var end = raw.LastIndexOf('}');
-        if (start < 0 || end <= start) return new ModelTurn(null, []);
-        string? reply = null;
-        try
+        var text = (raw ?? "").Trim();
+        if (text.Length == 0) return new ModelTurn(null, []);
+
+        // 末尾的 ```json … ``` 块（模型偶尔漏掉 json 标注，兼容裸围栏）
+        var fence = LastFence().Match(text);
+        if (fence.Success)
         {
-            using var doc = JsonDocument.Parse(raw[start..(end + 1)]);
-            if (doc.RootElement.TryGetProperty("reply", out var r) && r.ValueKind == JsonValueKind.String)
-                reply = r.GetString()?.Trim();
+            var body = fence.Groups["body"].Value;
+            if (body.Contains("\"actions\"") || body.Contains("\"fills\""))
+            {
+                var head = text[..fence.Index].TrimEnd();
+                return new ModelTurn(Blank(head), ParsePlan(body));
+            }
         }
-        catch (JsonException) { /* 格式崩了就只剩动作那条路 */ }
-        return new ModelTurn(string.IsNullOrWhiteSpace(reply) ? null : reply, ParsePlan(raw));
+
+        // 没有围栏：看末尾是不是直接跟了一个带 actions 的对象
+        var brace = text.LastIndexOf('{');
+        if (brace >= 0 && text.EndsWith('}'))
+        {
+            var tail = text[brace..];
+            if (tail.Contains("\"actions\"") || tail.Contains("\"fills\""))
+                return new ModelTurn(Blank(text[..brace].TrimEnd()), ParsePlan(tail));
+        }
+
+        // 整段都是话。若它仍旧整体输出了 JSON（老格式），把 reply 字段取出来当正文
+        if (text.StartsWith('{') && text.EndsWith('}'))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(text);
+                if (doc.RootElement.TryGetProperty("reply", out var r) && r.ValueKind == JsonValueKind.String)
+                    return new ModelTurn(Blank(r.GetString()), ParsePlan(text));
+            }
+            catch (JsonException) { /* 崩了就当纯文本 */ }
+            return new ModelTurn(null, ParsePlan(text));
+        }
+
+        return new ModelTurn(text, []);
     }
+
+    private static string? Blank(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    private static Regex LastFence() => FenceRe;
+    private static readonly Regex FenceRe = new(
+        @"```(?:json)?\s*(?<body>\{[\s\S]*?\})\s*```\s*$", RegexOptions.Compiled);
 
     /// <summary>工况顾问的一条建议。Level 是模型判定的要紧程度（high=安全相关/不改会出事），
     /// 界面据此排序与标色——工程师先看要命的那几条，不是从头读到尾。</summary>
