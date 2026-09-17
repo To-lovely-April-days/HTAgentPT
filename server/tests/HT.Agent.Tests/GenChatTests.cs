@@ -151,4 +151,31 @@ public class GenChatTests
         Assert.Empty(GenChatLogic.ParseAdvice("不是 JSON").Advices);
         Assert.Empty(GenChatLogic.ParseAdvice("{\"advices\":\"不是数组\"}").Advices);
     }
+
+    [Theory]
+    [InlineData("材质换其他的", "材质")]
+    [InlineData("材质不合适", "材质")]
+    [InlineData("加热形式换一个", "加热形式")]
+    [InlineData("换个别的", null)]
+    [InlineData("这个不行", null)]
+    [InlineData("再给一个", null)]
+    public void 对建议不买账_认出是哪一项(string text, string? name)
+    {
+        var (revise, got) = GenChatLogic.ParseRevise(text);
+        Assert.True(revise);
+        Assert.Equal(name, got);
+        var plan = GenChatLogic.PlanByRules(text);
+        Assert.Equal("advise", plan[0].Type);
+        Assert.Equal(name, plan[0].Name);
+    }
+
+    [Theory]
+    [InlineData("材质换成316L")]      // 给了具体取值，是填值不是要新方案
+    [InlineData("改成电加热")]
+    [InlineData("转速范围改到 30~300")]
+    public void 换成具体取值仍算填值(string text)
+    {
+        Assert.False(GenChatLogic.ParseRevise(text).Revise);
+        Assert.Equal("fill", GenChatLogic.PlanByRules(text)[0].Type);
+    }
 }

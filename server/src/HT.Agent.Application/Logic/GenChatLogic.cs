@@ -139,6 +139,7 @@ public static class GenChatLogic
                             ? tags.EnumerateArray().Select(t => t.GetString()).Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t!).ToList()
                             : null,
                         Question: Blank(Str(a, "question")),
+                        Name: Blank(Str(a, "name")),
                         ProjectNo: Blank(Str(a, "projectNo")),
                         Index: a.TryGetProperty("index", out var idx) && idx.ValueKind == JsonValueKind.Number && idx.TryGetInt32(out var i) ? i : null));
                 }
@@ -223,6 +224,34 @@ public static class GenChatLogic
         @"|(过夜|连续运行|无人值守|洁净|无菌|GMP|防爆要求|高真空)",
         RegexOptions.Compiled);
 
+    /// <summary>对上一轮给过的建议不买账：「材质换其他的」「这个不合适」「再给一个」。
+    /// 要点在于**后面不能跟具体取值**——「材质换成316L」是给值不是要新方案，
+    /// 所以只认后面是「其他/别的/一个」这类含糊说法或干脆没有下文的。</summary>
+    private static readonly Regex ReviseAsk = new(
+        @"^(?<name>.{0,14}?)[的]?\s*(换|改|重选|重新选|重新推荐|再给|再来|再推荐)\s*" +
+        @"(一?[个种款条])?\s*(其他|其它|别的|另外的?|新的|个别的)?\s*(的|吧|呢|看看)?$",
+        RegexOptions.Compiled);
+
+    private static readonly Regex RejectAsk = new(
+        @"^(?<name>.{0,14}?)[的]?\s*(不合适|不满意|不行|不好|不太行|不想要|不要这个|太贵|不靠谱)\s*(吧|啊|呀|了)?$",
+        RegexOptions.Compiled);
+
+    /// <summary>「换一个」类追问 → (是不是, 说的哪一项)。项名为空表示没点名，按上一轮给过的建议整体重来。</summary>
+    public static (bool Revise, string? Name) ParseRevise(string message)
+    {
+        var m = Regex.Replace(message.Trim(), @"[。！!，,~～\s]+$", "");
+        foreach (var re in new[] { ReviseAsk, RejectAsk })
+        {
+            var hit = re.Match(m);
+            if (!hit.Success) continue;
+            var name = hit.Groups["name"].Value.Trim();
+            // 「这个」「那个」不是项名，当作没点名
+            if (Regex.IsMatch(name, @"^(这|那|它|他)[个条项]?$")) name = "";
+            return (true, name.Length == 0 ? null : name);
+        }
+        return (false, null);
+    }
+
     private static readonly Regex QuestionAsk = new(
         @"[?？]$|什么区别|怎么(选|定|算|填|理解)|为什么|要不要|需要吗|是什么意思|什么是|多少合适|合适吗|可以吗|行不行", RegexOptions.Compiled);
 
@@ -247,6 +276,9 @@ public static class GenChatLogic
         if (no.Success && (m.Length <= no.Length + 8 || Regex.IsMatch(m, "基准|用这个|就这个|选这个|参考")))
             return [new PlanAction("pick_base", ProjectNo: no.Groups[1].Value)];
         if (LedgerAsk.IsMatch(m)) return [new PlanAction("ledger")];
+        // 对上一轮的建议不买账：接着给新方案，而不是回一句「没识别到可入表的信息」
+        var rev = ParseRevise(m);
+        if (rev.Revise) return [new PlanAction("advise", Question: message.Trim(), Name: rev.Name)];
         // 工况说明优先于泛泛的「推荐」：说了做什么反应，要的是按工况选型，不是照抄历史
         if (ConditionTell.IsMatch(m)) return [new PlanAction("advise", Question: message.Trim())];
         if (SuggestAsk.IsMatch(m)) return [new PlanAction("suggest", Tags: [])];

@@ -178,7 +178,8 @@ public class GenerationChatService(
         var actions = PlanByRules(text);
         // 规则能直接定的指令（跳过/汇总/生成/采纳/选第几个）不劳模型；其余交总指挥模型，
         // 它能在一句里派多个活（填值 + 查台账 + 提问）。模型不可用或没派出活就退回规则单
-        var direct = actions.Count == 1 && actions[0].Type is "skip" or "summary" or "render" or "adopt" or "pick_base";
+        var direct = (actions.Count == 1 && actions[0].Type is "skip" or "summary" or "render" or "adopt" or "pick_base")
+            || ParseRevise(text).Revise;   // 「材质换其他的」意思很明确，规则直接办
         if (!ctx.Stub && !direct)
         {
             var planned = await PlanByModelAsync(ctx, text, ct);
@@ -197,7 +198,7 @@ public class GenerationChatService(
         foreach (var a in actions.Where(a => a.Type == "ledger")) await LedgerAsync(ctx, a, text, ct);
         foreach (var a in actions.Where(a => a.Type == "suggest")) await SuggestAsync(ctx, a, text, ct);
         foreach (var a in actions.Where(a => a.Type == "ask")) await AnswerAsync(ctx, a, text, ct);
-        foreach (var a in actions.Where(a => a.Type == "advise")) await AdviseAsync(ctx, a.Question ?? text, ct);
+        foreach (var a in actions.Where(a => a.Type == "advise")) await AdviseAsync(ctx, a.Question ?? text, a.Name, ct);
 
         if (actions.Any(a => a.Type == "skip"))
         {
@@ -210,9 +211,17 @@ public class GenerationChatService(
         if (actions.Any(a => a.Type == "render")) await RenderAsync(ctx, ct);
 
         if (!ctx.Reply.Handled)
+        {
+            // 句子里点到了某一项就顺着那一项接话——用户是在说这份单子里的东西，
+            // 回一句「没识别到可入表的信息」等于装作没听见
+            var touched = CurrentSlots(ctx.Template)
+                .FirstOrDefault(d => d.Name.Length >= 2 && text.Contains(d.Name, StringComparison.Ordinal));
             ctx.Reply.Add(ctx.Stub
                 ? "当前是内置演示应答，不能从整句里自动抽取（接入对话模型后可以）。咱们逐项来。"
-                : "这句里没有识别到可入表的信息，也不像在查历史或要建议。可以直接回答当前问题，或换个说法。");
+                : touched is not null
+                    ? $"你是说「{touched.Name}」这一项吧？告诉我要填的值，或者说「{touched.Name}推荐一下」我来给方案。"
+                    : "这句我没接住。可以直接给某一项的值、说「推荐一下」、查历史项目，或者告诉我工况（做什么反应、什么介质）。");
+        }
     }
 
     /// <summary>总指挥模型：给它槽位清单、当前在问的项、上一轮列出的历史项目与最近对话，要一张派工单。</summary>
@@ -229,13 +238,18 @@ public class GenerationChatService(
         sb.AppendLine("- {\"type\":\"suggest\",\"tags\":[\"tag\"]}：用户要参数推荐/建议/参考；tags 留空表示当前在问的项");
         sb.AppendLine("- {\"type\":\"adopt\",\"tags\":[\"tag\"]}：用户同意采纳建议；tags 留空=全部待确认的建议");
         sb.AppendLine("- {\"type\":\"ask\",\"question\":\"用户原话\",\"tag\":\"相关槽位tag或空\"}：用户在提问/咨询而不是给值");
-        sb.AppendLine("- {\"type\":\"advise\",\"question\":\"用户原话\"}：用户交代了工况、用途、介质或硬性约束" +
-            "（「我要做硝化反应」「介质有强腐蚀」「要过夜无人值守」），需要按工艺常识判断影响哪些选型并给建议");
+        sb.AppendLine("- {\"type\":\"advise\",\"question\":\"用户原话\",\"name\":\"项名或空\"}：" +
+            "①用户交代了工况、用途、介质或硬性约束（「我要做硝化反应」「介质有强腐蚀」「要过夜无人值守」）；" +
+            "②用户对上一版建议不买账要换（「材质换其他的」「这个不合适」「再给一个」）——" +
+            "这时 name 填他说的那一项，没点名就留空");
         sb.AppendLine("- {\"type\":\"skip\"}、{\"type\":\"summary\"}、{\"type\":\"render\"}");
         sb.AppendLine("规则：只抽取用户明确说出的取值，绝不猜测补全；选择类取值必须是可选值之一；日期 yyyy-MM-dd；");
         sb.AppendLine("带单位的参数只填数值与必要修饰；一句话可以含多个动作；确实没有可做的输出 {\"actions\":[]}。");
         sb.AppendLine();
         sb.AppendLine("[已交代的工况] " + (ctx.State.Conditions.Count == 0 ? "（无）" : string.Join("；", ctx.State.Conditions)));
+        sb.AppendLine("[上一版给过的建议] " + (ctx.State.LastSuggestions.Count == 0 ? "（无）"
+            : string.Join("；", ctx.State.LastSuggestions.Take(12)
+                .Select(kv => $"{defs.FirstOrDefault(d => d.Tag == kv.Key)?.Name ?? kv.Key}={Truncate(kv.Value, 24)}"))));
         sb.AppendLine("[当前在问的项] " + (ctx.State.LastAsked.Count == 0 ? "（无）"
             : string.Join("、", ctx.State.LastAsked.Select(t => defs.FirstOrDefault(d => d.Tag == t)?.Name ?? t))));
         sb.AppendLine("[上一轮列出的历史项目] " + (ctx.State.LastCandidates.Count == 0 ? "（无）"
@@ -437,7 +451,7 @@ public class GenerationChatService(
             string.Equals(statesNow.GetValueOrDefault(r.Def.Tag)?.Value, r.Sug.Value, StringComparison.Ordinal));
         var wantsChange = text is not null && WantsChange.IsMatch(text);
         if (!ctx.Stub && wantsChange && (sameAsCurrent || results.All(r => !r.Sug.HasEvidence)))
-            await AdviseAsync(ctx, text, ct);
+            await AdviseAsync(ctx, text, null, ct);
     }
 
     /// <summary>逐项调既有建议能力（FR-5.9/5.10）；有依据的建议会以「待确认」落到空槽位。</summary>
@@ -518,38 +532,68 @@ public class GenerationChatService(
     /// 逐项给建议值 + 理由 + 风险。这是模型的领域知识，不是文档依据——单独一档呈现、
     /// 明确标注需工程师确认、采纳才落表；已有取值与建议不同的会点出来让人对比。
     /// 演示档没有这份知识，如实说明而不是假装。</summary>
-    private async Task AdviseAsync(Ctx ctx, string? text, CancellationToken ct)
+    private async Task AdviseAsync(Ctx ctx, string? text, string? focusName, CancellationToken ct)
     {
         ctx.Reply.Handled = true;
-        var condition = (text ?? "").Trim();
-        if (condition.Length == 0) return;
-        if (!ctx.State.Conditions.Contains(condition)) ctx.State.Conditions.Add(condition);
+        var message = (text ?? "").Trim();
+        if (message.Length == 0) return;
+
+        // 「材质换其他的」是对上一轮建议不买账，不是新工况——别把它记成工况
+        var (revise, _) = ParseRevise(message);
+        if (!revise && !ctx.State.Conditions.Contains(message)) ctx.State.Conditions.Add(message);
+
+        // 点名的那一项（「材质换其他的」→ 材质）；没点名就对上一轮给过的那批重来
+        var focus = focusName is null ? null : ResolveSlot(ctx.Template, focusName);
+        var redo = revise
+            ? (focus is not null ? [focus.Tag] : ctx.State.LastSuggestions.Keys.ToList())
+            : new List<string>();
 
         if (ctx.Stub)
         {
-            ctx.Reply.Add($"记下了工况：{Truncate(condition, 60)}。" +
-                "按工况推荐选型要靠对话模型的工艺知识，当前是内置演示应答给不了——" +
-                "接入对话模型后我会据此逐项给建议。这条工况已记住，后面问到相关项时会带上。");
+            ctx.Reply.Add(revise
+                ? "想换个方案得靠对话模型的工艺知识，当前是内置演示应答给不了。接入对话模型后再说这句我就能换。"
+                : $"记下了工况：{Truncate(message, 60)}。" +
+                  "按工况推荐选型要靠对话模型的工艺知识，当前是内置演示应答给不了——" +
+                  "接入对话模型后我会据此逐项给建议。这条工况已记住，后面问到相关项时会带上。");
             return;
         }
 
         var defs = CurrentSlots(ctx.Template);
         var byTag = Parse(ctx.Session).ToDictionary(s => s.Tag);
         var sb = new StringBuilder();
-        sb.AppendLine("你是化工实验设备（反应釜等）的资深工艺工程师。用户交代了工况，请判断这个工况对下列参数的选型有什么影响，逐项给建议。");
+        sb.AppendLine(redo.Count > 0
+            ? "你是化工实验设备（反应釜等）的资深工艺工程师。用户对你上一版的选型建议不满意，要换方案。"
+            : "你是化工实验设备（反应釜等）的资深工艺工程师。用户交代了工况，请判断这个工况对下列参数的选型有什么影响，逐项给建议。");
         sb.AppendLine("只输出一个 JSON：{\"notes\":\"一句话点出这个工况的关键风险\",\"advices\":[" +
             "{\"tag\":\"槽位tag\",\"value\":\"建议取值\",\"level\":\"high 或 normal\",\"reason\":\"为什么\",\"risk\":\"不这样做的风险，没有就留空\"}]}");
         sb.AppendLine("规则：");
-        sb.AppendLine("- 只对这个工况**确实影响**的项给建议，通常 3～8 项；无关的项不要凑数");
+        if (redo.Count == 0)
+            sb.AppendLine("- 只对这个工况**确实影响**的项给建议，通常 3～8 项；无关的项不要凑数");
         sb.AppendLine("- 选择类槽位的 value 必须是可选值之一；带单位的只给数值与必要修饰");
         sb.AppendLine("- 已有取值若在该工况下不合适，务必给出建议并在 reason 里说明为什么要改");
         sb.AppendLine("- 安全相关（材质耐蚀、压力等级、防爆、连锁、泄压）要重点覆盖，risk 写清楚");
         sb.AppendLine("- level：安全相关（耐蚀、压力等级、防爆、连锁、泄压）或不改就会出事故的写 high，其余写 normal");
         sb.AppendLine("- notes 一句话说完；reason 一句话（40 字以内），risk 一句话（30 字以内）——界面上是可展开的短注解，不是长篇");
         sb.AppendLine("- 你给的是工程判断不是文献结论，不要编造具体标准号或文献出处");
+        sb.AppendLine("- value 给一个确定取值，不要在一个值里塞「A（若X则选B）」这种分支；" +
+            "有条件差别就写进 reason，让人看得懂为什么是这个值");
+        if (redo.Count > 0)
+        {
+            var names = redo.Select(t => defs.FirstOrDefault(d => d.Tag == t)?.Name ?? t).ToList();
+            sb.AppendLine($"- 【这次只重做这几项】{string.Join("、", names)}。" +
+                "用户对上一版不满意，要给**明显不同的**方案，不能把上次那条换个说法再来一遍；" +
+                "reason 里点明与上一版的取舍差别（贵一些但更耐蚀、加工周期长但扭矩裕度大，诸如此类）");
+        }
         sb.AppendLine();
-        sb.AppendLine("[已知工况] " + string.Join("；", ctx.State.Conditions));
+        sb.AppendLine("[已知工况] " + (ctx.State.Conditions.Count == 0 ? "（用户还没明说，从下面的对话里推断）"
+            : string.Join("；", ctx.State.Conditions)));
         sb.AppendLine("[项目要点] " + (ctx.Session.ProjectHint ?? "（未提供）"));
+        if (ctx.State.LastSuggestions.Count > 0)
+        {
+            sb.AppendLine("[上一版已经给过的建议]（用户看到的就是这些）");
+            foreach (var (tag, val) in ctx.State.LastSuggestions.Take(20))
+                sb.AppendLine($"{defs.FirstOrDefault(d => d.Tag == tag)?.Name ?? tag} = {Truncate(val, 60)}");
+        }
         sb.AppendLine();
         sb.AppendLine("[参数清单] tag | 名称 | 章节 | 可选值 | 当前值");
         foreach (var d in defs)
@@ -561,11 +605,19 @@ public class GenerationChatService(
                 $" | {(st?.Value is null ? "未填" : Truncate(st.Value, 40))}");
         }
 
+        // 把最近几轮原话带上：用户说「材质换其他的」时，得知道「材质」指的是上一条里那个建议
+        var recent = await db.GenChatMessages.AsNoTracking()
+            .Where(x => x.SessionId == ctx.Session.Id)
+            .OrderByDescending(x => x.Id).Take(6).OrderBy(x => x.Id).ToListAsync(ct);
+        var turns = new List<ChatTurn> { new("system", sb.ToString()) };
+        foreach (var h in recent)
+            turns.Add(new ChatTurn(h.Role == "user" ? "user" : "assistant", Truncate(h.Content, 400)));
+        turns.Add(new ChatTurn("user", message));
+
         string reply;
         try
         {
-            reply = await chat.CompleteAsync(
-                [new ChatTurn("system", sb.ToString()), new ChatTurn("user", condition)], ct);
+            reply = await chat.CompleteAsync(turns, ct);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
@@ -579,17 +631,24 @@ public class GenerationChatService(
         foreach (var adv in advices)
         {
             if (!defMap.TryGetValue(adv.Tag, out var def)) continue;      // 模型编的 tag 直接丢
+            if (redo.Count > 0 && !redo.Contains(adv.Tag)) continue;      // 说了只换这几项就只换这几项
             var (ok, value, _) = Validate(def, adv.Value);               // 选项/日期照样过校验
             if (!ok || value is null) continue;
+            // 要求换方案却原样端回来的不算数——那不是换，是复读
+            if (redo.Count > 0 && ctx.State.LastSuggestions.TryGetValue(adv.Tag, out var prev)
+                && string.Equals(prev.Trim(), value.Trim(), StringComparison.Ordinal)) continue;
             var current = byTag.GetValueOrDefault(adv.Tag)?.Value;
             accepted.Add((def, adv, value, current));
         }
 
         if (accepted.Count == 0)
         {
-            ctx.Reply.Add(string.IsNullOrWhiteSpace(notes)
-                ? "这个工况我记下了，但没得出明确要改的选型项。你也可以直接问某一项该怎么选。"
-                : $"{notes}\n工况已记下；没有得出需要改动的具体选型项，有疑问可以就某一项问我。");
+            var which = focus?.Name ?? (redo.Count > 0 ? "这几项" : null);
+            ctx.Reply.Add(revise
+                ? $"没能给出与上一版明显不同的{which ?? "方案"}。说说是哪儿不合适——太贵、加工周期长、还是耐蚀不够——我照着这个方向再选。"
+                : string.IsNullOrWhiteSpace(notes)
+                    ? "这个工况我记下了，但没得出明确要改的选型项。你也可以直接问某一项该怎么选。"
+                    : $"{notes}\n工况已记下；没有得出需要改动的具体选型项，有疑问可以就某一项问我。");
             return;
         }
 
@@ -611,9 +670,14 @@ public class GenerationChatService(
         }
         var changes = accepted.Count(x => Kind(x.Value, x.Current) == "change");
         var highs = accepted.Count(x => x.Advice.Level == "high");
-        ctx.Reply.Add((string.IsNullOrWhiteSpace(notes) ? "按这个工况，有几项要调整。" : notes!) +
-            $"\n梳理出 {accepted.Count} 项：{(changes > 0 ? $"{changes} 项与当前填写冲突、" : "")}" +
-            $"{(highs > 0 ? $"{highs} 项关系到安全，" : "")}逐条可展开看理由，确认后点采纳。");
+        ctx.Reply.Add(revise
+            ? $"换了个方向，{(focus is null ? "这几项" : focus.Name)}给你重选如下。" +
+              (string.IsNullOrWhiteSpace(notes) ? "" : $"\n{notes}")
+            : (string.IsNullOrWhiteSpace(notes) ? "按这个工况，有几项要调整。" : notes!) +
+              $"\n梳理出 {accepted.Count} 项：{(changes > 0 ? $"{changes} 项与当前填写冲突、" : "")}" +
+              $"{(highs > 0 ? $"{highs} 项关系到安全，" : "")}逐条可展开看理由，确认后点采纳。");
+        // 刚给了一屏建议就再追问基本信息，注意力会被撕开——这一轮到此为止，等他处理完
+        ctx.Reply.SuppressAsks = true;
 
         // 建议相对现值是「要改」「待补」还是「一致」——界面据此分色，工程师一眼看出哪几项动了
         static string Kind(string value, string? current)
