@@ -157,6 +157,17 @@ export async function* sse(path: string, body: unknown, signal?: AbortSignal): A
 }
 
 /** 带鉴权取二进制并转对象 URL（<img>/pdf 渲染不能带 Authorization 头）。调用方负责 revokeObjectURL。 */
+/** 带鉴权取原始文件（docx 渲染要字节，不是 objectURL）。 */
+export async function fetchBlob(path: string): Promise<Blob> {
+  const headers = new Headers();
+  const token = getToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  headers.set('X-Terminal-Id', terminalId());
+  const resp = await fetch(path, { headers });
+  if (!resp.ok) throw await parseError(resp);
+  return await resp.blob();
+}
+
 export async function fetchBlobUrl(path: string): Promise<string> {
   const headers = new Headers();
   const token = getToken();

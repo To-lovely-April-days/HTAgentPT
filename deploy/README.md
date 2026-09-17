@@ -147,6 +147,9 @@ docker compose -f docker-compose.yml -f docker-compose.mineru.yml up -d --build
   再到「系统设置」把解析服务地址改成 `http://<那台机器IP>:8000/file_parse`。
 - **解析后端**：默认 `pipeline`（通用、显存要求低）。显存充足想要更高精度，可在
   「系统设置 → 切分与解析 → 解析后端」按所装 MinerU 版本支持的取值切换（如 vlm 系列）。
+- **对照预览**：PDF 逐页渲染并按坐标叠亮框；Word 在浏览器里还原版面（表格、图片、样式都在，
+  不出网也不需要转换服务），点右侧分块按文字定位并高亮，右上角可切「文本版」；
+  Excel、演示稿等仍是文本版对照。
 - `.txt` / `.md` 与 Office 文件（Word `.docx/.docm/.dotx`、Excel `.xlsx/.xlsm`、
   PowerPoint `.pptx/.pptm`）始终本地解析，不经过 MinerU：这些文件的标题层级、表格单元格、
   工作表、幻灯片在文件里是现成的，本地读更准也不出网（Excel 多数解析引擎还不收）。

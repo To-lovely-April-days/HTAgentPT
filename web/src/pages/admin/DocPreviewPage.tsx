@@ -1,13 +1,15 @@
-// 语料对照预览（E1 增强，RAGFlow 式）：左侧原件逐页渲染（pdfjs，懒渲染省内存），
-// 右侧解析分块列表；点分块 → 左侧滚到对应页并按 bbox 叠亮框。
+// 语料对照预览（E1 增强，RAGFlow 式）：左侧渲染原件，右侧解析分块列表，点分块 → 左侧定位。
+// 左侧按原件类型分三档：PDF 走 pdfjs 逐页渲染（懒渲染省内存，bbox 叠亮框）；
+// Word 走 docx-preview 在浏览器里还原版面（表格、图片、样式都在，不出网、不需要转换服务），
+// 点分块时按分块开头的文字在渲染结果里找到位置滚过去；其余格式（Excel/演示稿等）退化为文本版。
 // bbox 坐标口径：解析引擎给的是 PDF 点单位、左上角原点——与 pdfjs scale=1 视口同基，
-// 叠框只需乘显示缩放比。office 原件（解析走转换后版面）与无 bbox 的文档退化为列表对照。
+// 叠框只需乘显示缩放比。
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import * as pdfjs from 'pdfjs-dist';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import { get, fetchBlobUrl, download, ApiError } from '../../lib/api';
+import { get, fetchBlob, download, ApiError } from '../../lib/api';
 import { AuthImage, ErrorBox, Spinner } from '../../components/Common';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
@@ -34,7 +36,11 @@ export default function DocPreviewPage() {
   const images = useQuery({ queryKey: ['doc-images', docId], queryFn: () => get<ImgRow[]>(`/api/files/${docId}/images`) });
 
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
-  const [pdfState, setPdfState] = useState<'loading' | 'ready' | 'unavailable'>('loading');
+  // loading → pdf（逐页渲染）/ docx（还原版面）/ text（文本版兜底）
+  const [mode, setMode] = useState<'loading' | 'pdf' | 'docx' | 'text'>('loading');
+  const [forceText, setForceText] = useState(false);   // 用户手动切到文本版
+  const docxRef = useRef<HTMLDivElement | null>(null);
+  const docxBlob = useRef<Blob | null>(null);
   const [target, setTarget] = useState<Target | null>(null);
   const [activeChunk, setActiveChunk] = useState<number | null>(null);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
@@ -47,15 +53,26 @@ export default function DocPreviewPage() {
     let task: ReturnType<typeof pdfjs.getDocument> | null = null;
     void (async () => {
       try {
-        blobUrl = await fetchBlobUrl(`/api/files/${docId}`);
-        task = pdfjs.getDocument({ url: blobUrl });
-        const doc = await task.promise;
+        const blob = await fetchBlob(`/api/files/${docId}`);
         if (!alive) return;
-        setPdf(doc);
-        setPdfState('ready');
+        docxBlob.current = blob;
+        // 看文件头定类型，不依赖文件名：%PDF / PK（OOXML 压缩包）
+        const head = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+        const isPdf = head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 && head[3] === 0x46;
+        if (isPdf) {
+          blobUrl = URL.createObjectURL(blob);
+          task = pdfjs.getDocument({ url: blobUrl });
+          const doc = await task.promise;
+          if (!alive) return;
+          setPdf(doc);
+          setMode('pdf');
+          return;
+        }
+        const isZip = head[0] === 0x50 && head[1] === 0x4b;
+        if (isZip) { setMode('docx'); return; }   // 真正的渲染在下一个 effect（要等容器挂上）
+        setMode('text');
       } catch {
-        // 非 PDF 原件或渲染失败：退化为纯列表对照，不报错打断
-        if (alive) setPdfState('unavailable');
+        if (alive) setMode('text');               // 取不到或不认得：文本版兜底，不报错打断
       }
     })();
     return () => {
@@ -65,16 +82,59 @@ export default function DocPreviewPage() {
     };
   }, [docId]);
 
-  const jumpTo = (page: number | null, bbox: string | null, chunkId: number | null) => {
-    setActiveChunk(chunkId);
-    if (pdfState !== 'ready') {
-      // 文本版：直接滚到这一块
-      if (chunkId != null) chunkRefs.current[chunkId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // Word 渲染：容器挂上之后才能画。不是 Word 的 OOXML（Excel/演示稿）会抛错 → 退文本版
+  useEffect(() => {
+    if (mode !== 'docx' || forceText || !docxRef.current || !docxBlob.current) return;
+    let alive = true;
+    const container = docxRef.current;
+    const blob = docxBlob.current;
+    container.innerHTML = '';
+    // 渲染器按需加载：只有真的打开 Word 原件才下载这段代码，不压在主包里
+    void import('docx-preview')
+      .then(({ renderAsync }) => renderAsync(blob, container, undefined, {
+        className: 'docx', inWrapper: true, breakPages: true,
+        ignoreHeight: false, ignoreWidth: false, renderHeaders: true, renderFooters: true,
+      }))
+      .catch(() => { if (alive) setMode('text'); });
+    return () => { alive = false; };
+  }, [mode, forceText, docId]);
+
+  const view = forceText ? 'text' : mode;
+
+  /// Word 渲染结果里按文字定位：分块开头的一段字找到对应节点，滚过去并闪一下。
+  /// docx 没有坐标可用（版面是浏览器排的），按文字找是唯一可靠的对法。
+  const locateInDocx = (text: string) => {
+    const container = docxRef.current;
+    if (!container) return;
+    const probe = text.replace(/[|\s]+/g, ' ').trim().slice(0, 14).trim();
+    if (probe.length < 3) return;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (!node.textContent?.includes(probe.slice(0, Math.min(8, probe.length)))) continue;
+      const el = node.parentElement;
+      if (!el) continue;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const prev = el.style.backgroundColor;
+      el.style.backgroundColor = 'rgba(217,119,6,.22)';
+      window.setTimeout(() => { el.style.backgroundColor = prev; }, 2200);
       return;
     }
-    if (page == null) return;
-    setTarget({ page, bbox: parseBbox(bbox), ts: Date.now() });
-    pageRefs.current[page]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const jumpTo = (page: number | null, bbox: string | null, chunkId: number | null) => {
+    setActiveChunk(chunkId);
+    if (view === 'pdf') {
+      if (page == null) return;
+      setTarget({ page, bbox: parseBbox(bbox), ts: Date.now() });
+      pageRefs.current[page]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    if (view === 'docx') {
+      const hit = (chunks.data ?? []).find((c) => c.id === chunkId);
+      if (hit) locateInDocx(hit.text);
+      return;
+    }
+    if (chunkId != null) chunkRefs.current[chunkId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
   const title = state?.title ?? '文档对照预览';
@@ -93,6 +153,11 @@ export default function DocPreviewPage() {
         <span className="hint" style={{ marginLeft: 'auto', flexShrink: 0 }}>
           分块 {chunks.data?.length ?? '…'} · 图片 {images.data?.length ?? '…'}
         </span>
+        {mode === 'docx' && (
+          <button className="gbtn" style={{ height: 26, flexShrink: 0 }} onClick={() => setForceText((v) => !v)}>
+            {forceText ? '看原件版面' : '看文本版'}
+          </button>
+        )}
         <button className="gbtn" style={{ height: 26, flexShrink: 0 }}
           onClick={() => void download(`/api/files/${docId}`, title).catch((e) => alert(e instanceof ApiError ? e.message : '下载失败'))}>
           下载原件
@@ -102,10 +167,14 @@ export default function DocPreviewPage() {
       <div style={{ flexGrow: 1, display: 'flex', minHeight: 0 }}>
         {/* 左：原件 */}
         <div className="sc" style={{ flexGrow: 1, minWidth: 0, background: '#565c66', padding: '16px 0 24px' }}>
-          {pdfState === 'loading' && <div style={{ padding: 30 }}><Spinner text="载入原件…" /></div>}
+          {view === 'loading' && <div style={{ padding: 30 }}><Spinner text="载入原件…" /></div>}
+
+          {/* Word 原件：在浏览器里还原版面（表格、图片、样式都在），点右侧分块按文字定位 */}
+          <div ref={docxRef} className="docx-host"
+            style={{ display: view === 'docx' ? 'block' : 'none', maxWidth: PAGE_WIDTH + 120, margin: '0 auto' }} />
           {/* Office 等不能逐页渲染的原件：左侧给解析出的文本版，仍然能与右侧分块一一对照。
               留一片空白比没有更糟——版面还原不了，内容是可以照着看的 */}
-          {pdfState === 'unavailable' && (
+          {view === 'text' && (
             <div style={{ maxWidth: PAGE_WIDTH, margin: '0 auto 24px' }}>
               <div className="hint" style={{ color: '#d8dde4', padding: '0 4px 10px', lineHeight: 1.7 }}>
                 原件版面不能在页面里还原（Word / Excel 这类文件的分页由打开时决定）。下面是解析出的文本版，
@@ -142,7 +211,7 @@ export default function DocPreviewPage() {
               </div>
             </div>
           )}
-          {pdfState === 'ready' && pdf && Array.from({ length: pdf.numPages }, (_, i) => (
+          {view === 'pdf' && pdf && Array.from({ length: pdf.numPages }, (_, i) => (
             <PdfPage key={i + 1} pdf={pdf} pageNo={i + 1} width={PAGE_WIDTH}
               refCb={(el) => { pageRefs.current[i + 1] = el; }}
               highlight={target?.page === i + 1 ? target : null} />
@@ -153,7 +222,7 @@ export default function DocPreviewPage() {
         <aside className="sc" style={{ width: 430, flexShrink: 0, background: 'var(--panel)', borderLeft: '1px solid var(--line)', padding: '12px 12px 20px' }}>
           <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 4 }}>解析分块</div>
           <div className="hint" style={{ marginBottom: 10, lineHeight: 1.6 }}>
-            检索命中的就是这些块。点一块，左侧跳到它在原文里的位置{pdfState === 'ready' ? '并标出色框' : ''}。
+            检索命中的就是这些块。点一块，左侧跳到它在原文里的位置{view === 'pdf' ? '并标出色框' : view === 'docx' ? '并高亮' : ''}。
           </div>
           {chunks.isLoading && <Spinner text="载入分块…" />}
           {chunks.isError && <ErrorBox message="分块载入失败" />}
