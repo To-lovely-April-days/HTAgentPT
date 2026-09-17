@@ -23,7 +23,8 @@ import type {
 import { Prose } from '../../components/Prose';
 import { ErrorBox, Spinner } from '../../components/Common';
 import { AdviceCard, EvidenceCard, SummaryCard } from '../generate/ChatCards';
-import { CasesCard, LedgerCard, NoResultCard, SourcesCard, TemplatePicker, TicketsCard, TranslationCard } from './ResultCards';
+import { BaseCards, CasesCard, LedgerCard, NoResultCard, SourcesCard, TemplatePicker, TicketsCard, TranslationCard } from './ResultCards';
+import { LivePreview } from './LivePreview';
 
 /** 对话里的一条消息。text 是正文，其余字段是这一轮长出来的结果件。 */
 interface Msg {
@@ -67,6 +68,8 @@ export default function ChatPage() {
   const [genSessionId, setGenSessionId] = useState<string | null>(null);
   const [genTitle, setGenTitle] = useState<string | null>(null);
   const [focusSource, setFocusSource] = useState<number | null>(null);
+  const [showPreview, setShowPreview] = useState(true);
+  const [revision, setRevision] = useState(0);
   const seq = useRef(0);
   const nav = useNavigate();
   const qc = useQueryClient();
@@ -154,6 +157,7 @@ export default function ChatPage() {
         try { payload = m.payload ? (JSON.parse(m.payload) as GenChatPayload) : {}; } catch { /* 老数据容错 */ }
         push({ id: `g${m.id}`, role: 'assistant', text: m.content, gen: payload, genSessionId: sessionId });
       }
+      setRevision((n) => n + 1);   // 文档变了，右边预览跟着重取
     } catch (err) {
       push({ id: newId(), role: 'assistant', text: '', error: err instanceof ApiError ? err.message : '这一轮没能完成' });
     }
@@ -268,6 +272,8 @@ export default function ChatPage() {
               <span className="hint">这条对话里说的都算这份文档的内容；问知识、要建议也照常。</span>
               <div style={{ flexGrow: 1 }} />
               <button className="gbtn" style={{ height: 22, fontSize: 11, padding: '0 9px' }}
+                onClick={() => setShowPreview(!showPreview)}>{showPreview ? '收起预览' : '看预览'}</button>
+              <button className="gbtn" style={{ height: 22, fontSize: 11, padding: '0 9px' }}
                 onClick={() => nav(`/generate?session=${genSessionId}`)}>逐项核对</button>
               <button className="gbtn" style={{ height: 22, fontSize: 11, padding: '0 9px' }}
                 onClick={() => { setGenSessionId(null); setGenTitle(null); }}>结束这份文档</button>
@@ -291,6 +297,11 @@ export default function ChatPage() {
             </ComposerPrimitive.Root>
           </ThreadPrimitive.Root>
         </div>
+
+        {genSessionId && showPreview && (
+          <LivePreview sessionId={genSessionId} title={genTitle} revision={revision}
+            onClose={() => setShowPreview(false)} />
+        )}
         </div>
       </MsgCtx.Provider>
     </AssistantRuntimeProvider>
@@ -380,6 +391,10 @@ function AssistantMessage() {
 
         {m.noResult && <NoResultCard message={m.noResult.message} docs={m.noResult.docs} />}
         {m.sources && m.sources.length > 0 && <SourcesCard sources={m.sources} focus={focusSource} />}
+        {m.gen?.baseCandidates && m.gen.baseCandidates.length > 0 && (
+          <BaseCards items={m.gen.baseCandidates} active={active}
+            onPick={(no) => void genTurn({ baseProjectNo: no ?? '' })} />
+        )}
         {m.table && <LedgerCard table={m.table} onCorrect={() => correctIntent(lastQuestion(byId, id))} />}
         {m.translation && <TranslationCard data={m.translation} />}
         {m.cases && <CasesCard {...m.cases} />}

@@ -363,3 +363,44 @@ export function TicketsCard({ rows, status, note }: {
     </div>
   );
 }
+
+/** 基准候选：查到历史项目后递出来，点一张就按它的配置继承。 */
+export function BaseCards({ items, active, onPick }: {
+  items: { projectNo: string; customerName: string; year: number; deviceType: string; deviceModel: string | null; inheritableSlots: number }[];
+  active: boolean; onPick: (projectNo: string | null) => void;
+}) {
+  return (
+    <div className="advc" style={{ borderColor: 'var(--accent-line)' }}>
+      <div className="advc-head" style={{ background: 'var(--accent-bg)' }}>
+        <span className="advc-cap" style={{ color: 'var(--accent)' }}>可作基准的历史项目</span>
+        <span className="pill pill-neutral">{items.length} 条</span>
+        <span className="advc-note">选一条就按它的配置往当前单子里填，逐项可改</span>
+      </div>
+      {items.map((c) => (
+        <div key={c.projectNo} className="advc-row">
+          <span className="advc-bar" />
+          <button type="button" className="advc-tog" disabled={!active} onClick={() => onPick(c.projectNo)}>
+            <span className="m" style={{ flex: '0 0 auto', width: 132, fontSize: 11.5, color: 'var(--accent)', fontWeight: 500 }}>
+              {c.projectNo}
+            </span>
+            <span className="advc-val">
+              {c.customerName} · {c.year} · {c.deviceType}{c.deviceModel ? ` ${c.deviceModel}` : ''}
+            </span>
+          </button>
+          <span className="advc-act">
+            <span className="pill pill-ok">可继承 {c.inheritableSlots} 项</span>
+            {active && <button className="pbtn" style={{ height: 22, fontSize: 11, padding: '0 9px' }}
+              onClick={() => onPick(c.projectNo)}>用这个</button>}
+          </span>
+        </div>
+      ))}
+      {active && (
+        <div className="advc-foot">
+          <button className="gbtn" style={{ height: 24, fontSize: 11.5 }} onClick={() => onPick(null)}>
+            不用基准，逐项填
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

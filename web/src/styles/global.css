@@ -225,3 +225,29 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 
 /* 正文里的普通链接：内网系统不往外跳，只显示文字 */
 .plink { color: var(--accent); }
+
+/* ── 正在填的文档，实时预览 ─────────────────────────────────────
+   说一句、填一项，右边这栏立刻跟着变；刚变的那几项短暂点亮，
+   让人看得见「刚才那句落在哪」。 */
+.lp { flex: 0 0 360px; display: flex; flex-direction: column; min-height: 0;
+  background: var(--panel); border-left: 1px solid var(--line); }
+.lp-hd { flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px; border-bottom: 1px solid var(--line); background: var(--bg-soft); }
+.lp-t { flex: 1 1 auto; min-width: 0; font-size: 12.5px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lp-x { flex: 0 0 auto; height: 22px; font-size: 11px; padding: 0 8px; }
+.lp-body { flex-grow: 1; min-height: 0; overflow-y: auto; }
+.lp-sec { display: flex; align-items: center; gap: 8px; padding: 5px 12px;
+  font-size: 11.5px; font-weight: 600; color: var(--ink-2);
+  background: var(--bg-soft); border-top: 1px solid var(--line-soft);
+  position: sticky; top: 0; }
+.lp-cnt { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); font-weight: 400; }
+.lp-row { padding: 6px 12px 6px 10px; border-top: 1px solid var(--line-soft);
+  border-left: 2px solid transparent; transition: background .4s ease, border-color .4s ease; }
+.lp-row.blank { border-left-color: var(--cls-int-line); }
+.lp-row.flash { background: var(--accent-bg); border-left-color: var(--accent); }
+.lp-name { font-size: 11px; color: var(--ink-3); margin-bottom: 1px; }
+.lp-val { font-size: 12.5px; line-height: 1.7; word-break: break-word; white-space: pre-wrap; }
+.lp-empty { color: var(--cls-int); }
+.lp-src { margin-left: 6px; vertical-align: 1px; }
+@media (max-width: 1280px) { .lp { display: none; } }
