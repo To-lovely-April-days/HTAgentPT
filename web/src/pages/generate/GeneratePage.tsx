@@ -295,6 +295,34 @@ function AssistantChatMsg({ msg, active, sessionId, onTurn, onError }: {
           </div>
         )}
 
+        {/* 工况顾问：模型按工艺常识给的判断，没有文档依据——与资料建议分色，并写明须工程师确认 */}
+        {payload.advices && payload.advices.length > 0 && (
+          <div style={{ marginTop: 9, padding: '10px 12px', borderRadius: 5, background: '#fdf4e7', border: '1px solid #f0ddbd' }}>
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: '#8a5a12', marginBottom: 7 }}>
+              工况建议 · 按工艺常识判断，无文档依据，请工程师确认
+            </div>
+            {payload.advices.map((a) => (
+              <div key={a.tag} style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11.5, fontWeight: 600, color: '#8a5a12' }}>{a.name}</span>
+                  <span style={{ fontSize: 12.5, whiteSpace: 'pre-wrap' }}>{a.value}</span>
+                  {a.current && a.current !== a.value && (
+                    <span className="hint">现为 {a.current.length > 20 ? `${a.current.slice(0, 20)}…` : a.current}</span>
+                  )}
+                  {active && <button className="pbtn" style={{ height: 22, fontSize: 11, padding: '0 9px' }}
+                    onClick={() => void onTurn({ adoptTags: [a.tag] })}>采纳</button>}
+                </div>
+                {a.reason && <div style={{ fontSize: 11.5, lineHeight: 1.65, color: 'var(--ink-2)' }}>{a.reason}</div>}
+                {a.risk && <div style={{ fontSize: 11.5, lineHeight: 1.65, color: '#a4451a' }}>风险：{a.risk}</div>}
+              </div>
+            ))}
+            {active && payload.advices.length > 1 && (
+              <button className="gbtn" style={{ height: 24, fontSize: 11.5 }}
+                onClick={() => void onTurn({ adoptTags: payload.advices!.map((a) => a.tag) })}>全部采纳</button>
+            )}
+          </div>
+        )}
+
         {/* 参数顾问的建议：带依据、待确认；采纳才落表（FR-5.9/5.13） */}
         {payload.suggestions && payload.suggestions.length > 0 && (
           <div style={{ marginTop: 9, padding: '9px 11px', borderRadius: 5, background: '#fbeff7', border: '1px solid #edd2e3' }}>

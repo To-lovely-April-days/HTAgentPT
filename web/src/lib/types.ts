@@ -198,11 +198,17 @@ export interface GenSuggestion {
   tag: string; name: string; value: string | null; hasEvidence: boolean; note: string | null;
   evidence: { sourceTitle: string; section: string | null; pageNo: number | null }[];
 }
+/** 工况顾问的建议：模型按工艺常识给的判断，没有文档依据，界面上与资料建议分开。 */
+export interface GenAdvice {
+  tag: string; name: string; value: string;
+  current: string | null; reason: string | null; risk: string | null;
+}
 /** 助手消息 payload（jsonb 字符串反序列化后）：都是可选段，前端有则渲染对应交互件。 */
 export interface GenChatPayload {
   asks?: GenAsk[];
   baseCandidates?: { projectNo: string; customerName: string; year: number; deviceType: string; deviceModel: string | null; inheritableSlots: number }[] | null;
   suggestions?: GenSuggestion[] | null;
+  advices?: GenAdvice[] | null;
   summary?: { section: string; items: { name: string; value: string | null }[] }[] | null;
   canRender?: boolean | null;
   rendered?: { fileName: string; filled: number; blank: number } | null;

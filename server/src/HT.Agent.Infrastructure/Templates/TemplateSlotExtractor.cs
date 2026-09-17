@@ -13,7 +13,8 @@ namespace HT.Agent.Infrastructure.Templates;
 public static class TemplateSlotExtractor
 {
     public record ExtractedSlot(string Tag, string? Name, string? Section, string? Prompt,
-        SlotDataType DataType, string? Choices, bool ForbidInherit, string? SubFields, int SortOrder);
+        SlotDataType DataType, string? Choices, bool ForbidInherit, string? SubFields, int SortOrder,
+        string? Unit = null);
 
     public record ExtractResult(IReadOnlyList<ExtractedSlot> Slots, IReadOnlyList<string> Warnings);
 
@@ -58,13 +59,14 @@ public static class TemplateSlotExtractor
 
             var (dataType, choices, subFields) = DetectType(sdt, warnings);
             var (name, section) = ParseAlias(props?.GetFirstChild<SdtAlias>()?.Val?.Value);
+            var unit = UnitAfter(sdt);
             slots.Add(new ExtractedSlot(
                 tag, name, section,
                 string.IsNullOrWhiteSpace(placeholder) ? null : placeholder.Trim(),
                 dataType, choices,
                 ForbidHints.Any(h => tag.Contains(h, StringComparison.OrdinalIgnoreCase) ||
                                      (placeholder?.Contains(h) ?? false)),
-                subFields, order++));
+                subFields, order++, unit));
         }
         if (slots.Count == 0)
             warnings.Add("模板中没有任何带 Tag 的内容控件。用下划线/方括号/底纹标注的可变项抽不出来，须先改为内容控件");
@@ -104,6 +106,18 @@ public static class TemplateSlotExtractor
         }
         // 块级控件包整段/整表 → 长段落；行内控件 → 文本（数值/日期等由管理员在界面细分）
         return (sdt is SdtBlock ? SlotDataType.LongText : SlotDataType.Text, null, null);
+    }
+
+    /// <summary>控件紧后面那截文字里的计量单位（模板写成「全容积 ____ ml」，ml 是版面固定文字）。
+    /// 存下来有三处用：提问时显示单位、继承取值时把重复单位去掉、回填时不会出现「20000ml ml」。</summary>
+    private static string? UnitAfter(SdtElement sdt)
+    {
+        var text = string.Concat(sdt.ElementsAfter().SelectMany(e => e.Descendants<Text>()).Select(t => t.Text));
+        if (text.Length == 0 && sdt.Parent is not null)
+            text = string.Concat(sdt.Parent.ElementsAfter().SelectMany(e => e.Descendants<Text>()).Select(t => t.Text));
+        var m = System.Text.RegularExpressions.Regex.Match(text.TrimStart(),
+            @"^(ml|mL|L|µL|uL|kg|g|t|MPa|kPa|bar|Pa|℃|°C|K|cp|cP|mPa·s|rpm|r/min|Hz|kW|W|V|A|mm|cm|m|m3|m³|%)");
+        return m.Success ? m.Value : null;
     }
 
     /// <summary>控件标题（别名）→ (显示名称, 章节)。「章节/名称」按第一个斜杠切分（全角／也认）；

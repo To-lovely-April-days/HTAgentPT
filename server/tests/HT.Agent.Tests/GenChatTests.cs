@@ -118,4 +118,33 @@ public class GenChatTests
         Assert.True(GenChatLogic.TemplateScore("起草一个方案", "投标书模板", "方案") > 0); // 类别命中
         Assert.Equal(0, GenChatLogic.TemplateScore("水泵怎么保养", "投标书模板", "投标"));
     }
+
+    [Theory]
+    [InlineData("我要做硝化反应呢")]
+    [InlineData("介质有强腐蚀性")]
+    [InlineData("这个要过夜连续运行")]
+    [InlineData("用来做加氢的")]
+    [InlineData("物料是淤浆，容易结垢")]
+    public void 工况说明_派给工况顾问(string text)
+    {
+        var plan = GenChatLogic.PlanByRules(text);
+        Assert.Equal("advise", plan[0].Type);
+        Assert.Equal(text, plan[0].Question);
+    }
+
+    [Fact]
+    public void 工况顾问输出解析_缺项丢弃_失败给空()
+    {
+        var (notes, advices) = GenChatLogic.ParseAdvice(
+            "好的：\n```json\n{\"notes\":\"硝化强放热且强腐蚀\",\"advices\":[" +
+            "{\"tag\":\"material\",\"value\":\"哈氏合金 C276\",\"reason\":\"硝酸体系对 316L 腐蚀严重\",\"risk\":\"点蚀穿孔\"}," +
+            "{\"tag\":\"inner_cooling\",\"value\":\"盘管\",\"reason\":\"需快速移热\"}," +
+            "{\"value\":\"缺 tag 丢弃\"},{\"tag\":\"x\"}]}\n```");
+        Assert.Equal("硝化强放热且强腐蚀", notes);
+        Assert.Equal(2, advices.Count);
+        Assert.Equal(("material", "哈氏合金 C276", "点蚀穿孔"), (advices[0].Tag, advices[0].Value, advices[0].Risk));
+        Assert.Null(advices[1].Risk);                       // 没给风险就是 null，不编
+        Assert.Empty(GenChatLogic.ParseAdvice("不是 JSON").Advices);
+        Assert.Empty(GenChatLogic.ParseAdvice("{\"advices\":\"不是数组\"}").Advices);
+    }
 }

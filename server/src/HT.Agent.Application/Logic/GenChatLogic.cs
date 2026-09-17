@@ -109,7 +109,7 @@ public static class GenChatLogic
         string? Name = null);
 
     private static readonly HashSet<string> KnownActions =
-        ["fill", "ledger", "pick_base", "suggest", "adopt", "ask", "skip", "summary", "render"];
+        ["fill", "ledger", "pick_base", "suggest", "adopt", "ask", "advise", "skip", "summary", "render"];
 
     /// <summary>解析总指挥模型的派工单：{"actions":[...]}；兼容早期只有 {"fills":[...]} 的抽取格式。
     /// 未知动作类型丢弃，解析失败返回空表——由调用方退回规则规划。</summary>
@@ -163,6 +163,43 @@ public static class GenChatLogic
         };
     }
 
+    /// <summary>工况顾问的一条建议：给哪一项、建议什么值、为什么、有什么风险。
+    /// 这是模型按工艺常识给的，不是文档依据——界面上必须与「有依据的建议」分开，人工确认才落表。</summary>
+    public sealed record EngineeringAdvice(string Tag, string Value, string? Reason, string? Risk);
+
+    /// <summary>解析工况顾问的回复：{"notes":"…","advices":[{tag,value,reason,risk}]}。
+    /// 缺 tag 或 value 的丢弃；解析失败返回空——宁可不给，也不给半截建议。</summary>
+    public static (string? Notes, IReadOnlyList<EngineeringAdvice> Advices) ParseAdvice(string reply)
+    {
+        var start = reply.IndexOf('{');
+        var end = reply.LastIndexOf('}');
+        if (start < 0 || end <= start) return (null, []);
+        try
+        {
+            using var doc = JsonDocument.Parse(reply[start..(end + 1)]);
+            var root = doc.RootElement;
+            var notes = root.TryGetProperty("notes", out var n) && n.ValueKind == JsonValueKind.String
+                ? n.GetString()?.Trim() : null;
+            var list = new List<EngineeringAdvice>();
+            if (root.TryGetProperty("advices", out var arr) && arr.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var a in arr.EnumerateArray())
+                {
+                    if (a.ValueKind != JsonValueKind.Object) continue;
+                    var tag = Text(a, "tag");
+                    var value = Text(a, "value");
+                    if (string.IsNullOrWhiteSpace(tag) || string.IsNullOrWhiteSpace(value)) continue;
+                    list.Add(new EngineeringAdvice(tag!.Trim(), value!.Trim(), Text(a, "reason"), Text(a, "risk")));
+                }
+            }
+            return (string.IsNullOrWhiteSpace(notes) ? null : notes, list);
+        }
+        catch (JsonException) { return (null, []); }
+
+        static string? Text(JsonElement e, string name)
+            => e.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
+    }
+
     private static readonly Regex AdoptAll = new(@"^(都采纳|全部采纳|采纳全部|采纳|就用建议的|按建议的?来|采纳建议|用建议的)$", RegexOptions.Compiled);
     private static readonly Regex AdoptOne = new(@"^采纳[:：]?(.{1,20})$", RegexOptions.Compiled);
     private static readonly Regex PickIndex = new(@"^(?:就?用|选|拿|要)?第([一二三四五12345])(?:个|条|项)?(?:做|作|当|为)?(?:基准)?(?:吧|啊)?$", RegexOptions.Compiled);
@@ -172,6 +209,15 @@ public static class GenChatLogic
         RegexOptions.Compiled);
     private static readonly Regex SuggestAsk = new(
         @"(推荐|建议|参考一下|参考.{0,6}(参数|值|数据)|一般(用|是|取|选)什么|通常|给个参考|帮我定|帮我选)", RegexOptions.Compiled);
+    /// <summary>工况、用途、介质、硬性约束一类的说明：「我要做硝化反应」「介质有腐蚀性」
+    /// 「要过夜连续运行」。这类话既不是取值也不是查历史，而是应当影响一批参数选型的前提。</summary>
+    private static readonly Regex ConditionTell = new(
+        @"(硝化|氢化|加氢|聚合|氧化|还原|酯化|磺化|重氮|光催化|电催化|超临界|发酵|结晶|萃取|蒸馏|煅烧)" +
+        @"|(腐蚀|强酸|强碱|氯离子|卤素|易燃|易爆|有毒|剧毒|放热|热失控|高粘|结垢|析出|淤浆)" +
+        @"|(我要做|要做|用来做|用于|拿来做|工况是|介质是|物料是|反应是|做的是|场景是)" +
+        @"|(过夜|连续运行|无人值守|洁净|无菌|GMP|防爆要求|高真空)",
+        RegexOptions.Compiled);
+
     private static readonly Regex QuestionAsk = new(
         @"[?？]$|什么区别|怎么(选|定|算|填|理解)|为什么|要不要|需要吗|是什么意思|什么是|多少合适|合适吗|可以吗|行不行", RegexOptions.Compiled);
 
@@ -196,6 +242,8 @@ public static class GenChatLogic
         if (no.Success && (m.Length <= no.Length + 8 || Regex.IsMatch(m, "基准|用这个|就这个|选这个|参考")))
             return [new PlanAction("pick_base", ProjectNo: no.Groups[1].Value)];
         if (LedgerAsk.IsMatch(m)) return [new PlanAction("ledger")];
+        // 工况说明优先于泛泛的「推荐」：说了做什么反应，要的是按工况选型，不是照抄历史
+        if (ConditionTell.IsMatch(m)) return [new PlanAction("advise", Question: message.Trim())];
         if (SuggestAsk.IsMatch(m)) return [new PlanAction("suggest", Tags: [])];
         if (QuestionAsk.IsMatch(m)) return [new PlanAction("ask", Question: message.Trim())];
         return [new PlanAction("fill", Value: message.Trim())];

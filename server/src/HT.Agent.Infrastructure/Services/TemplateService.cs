@@ -54,6 +54,7 @@ public class TemplateService(
                 Name = s.Name ?? s.Tag,
                 Section = s.Section ?? "",
                 DataType = s.DataType,
+                Unit = s.Unit,          // 模板里控件后面跟的单位文字（ml / MPa / ℃…）
                 Choices = s.Choices,
                 Required = true,
                 Stage = SlotStage.Current,
