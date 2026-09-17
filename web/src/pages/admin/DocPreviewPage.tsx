@@ -38,6 +38,8 @@ export default function DocPreviewPage() {
   const [target, setTarget] = useState<Target | null>(null);
   const [activeChunk, setActiveChunk] = useState<number | null>(null);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  // 文本版（Office 等不能逐页渲染的原件）里各分块的位置，点右侧卡片时滚过去
+  const chunkRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   useEffect(() => {
     let alive = true;
@@ -65,7 +67,12 @@ export default function DocPreviewPage() {
 
   const jumpTo = (page: number | null, bbox: string | null, chunkId: number | null) => {
     setActiveChunk(chunkId);
-    if (page == null || pdfState !== 'ready') return;
+    if (pdfState !== 'ready') {
+      // 文本版：直接滚到这一块
+      if (chunkId != null) chunkRefs.current[chunkId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (page == null) return;
     setTarget({ page, bbox: parseBbox(bbox), ts: Date.now() });
     pageRefs.current[page]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -96,18 +103,42 @@ export default function DocPreviewPage() {
         {/* 左：原件 */}
         <div className="sc" style={{ flexGrow: 1, minWidth: 0, background: '#565c66', padding: '16px 0 24px' }}>
           {pdfState === 'loading' && <div style={{ padding: 30 }}><Spinner text="载入原件…" /></div>}
+          {/* Office 等不能逐页渲染的原件：左侧给解析出的文本版，仍然能与右侧分块一一对照。
+              留一片空白比没有更糟——版面还原不了，内容是可以照着看的 */}
           {pdfState === 'unavailable' && (
-            <div style={{ maxWidth: 560, margin: '40px auto', padding: '16px 18px', background: 'var(--panel)', borderRadius: 6, fontSize: 12.5, lineHeight: 1.8 }}>
-              该原件不能在页面里逐页渲染（office 文件的解析坐标对应转换后版面，或文件由业务模块自动维护）。
-              右侧分块与下方图片仍可对照查看；需要原文时点右上角「下载原件」。
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>
-                {(images.data ?? []).map((im) => (
-                  <figure key={im.id} style={{ margin: 0 }}>
-                    <AuthImage src={`/api/files/${docId}/images/${im.id}`} alt={im.caption ?? ''}
-                      style={{ maxWidth: 240, maxHeight: 180, borderRadius: 4, border: '1px solid var(--line)' }} />
-                    <figcaption className="hint" style={{ marginTop: 3 }}>{im.caption ?? '图片'}{im.pageNo != null ? ` · 第 ${im.pageNo} 页` : ''}</figcaption>
-                  </figure>
+            <div style={{ maxWidth: PAGE_WIDTH, margin: '0 auto 24px' }}>
+              <div className="hint" style={{ color: '#d8dde4', padding: '0 4px 10px', lineHeight: 1.7 }}>
+                原件版面不能在页面里还原（Word / Excel 这类文件的分页由打开时决定）。下面是解析出的文本版，
+                与右侧分块一一对应；要看原样式点右上角「下载原件」。
+              </div>
+              <div style={{ background: 'var(--panel)', borderRadius: 6, padding: '26px 30px' }}>
+                {(chunks.data ?? []).map((c) => (
+                  <div key={c.id} ref={(el) => { chunkRefs.current[c.id] = el; }}
+                    style={{
+                      padding: '8px 10px', margin: '0 -10px 4px', borderRadius: 4,
+                      background: activeChunk === c.id ? 'rgba(217,119,6,.12)' : 'transparent',
+                      boxShadow: activeChunk === c.id ? 'inset 0 0 0 1.5px rgba(217,119,6,.5)' : 'none',
+                      transition: 'background .15s',
+                    }}>
+                    {c.sectionPath && (
+                      <div className="hint" style={{ marginBottom: 4 }}>{c.sectionPath}</div>
+                    )}
+                    <div style={{ fontSize: 13, lineHeight: 1.85, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                      {c.text}
+                    </div>
+                  </div>
                 ))}
+                {(images.data ?? []).length > 0 && (
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--line-soft)' }}>
+                    {(images.data ?? []).map((im) => (
+                      <figure key={im.id} style={{ margin: 0 }}>
+                        <AuthImage src={`/api/files/${docId}/images/${im.id}`} alt={im.caption ?? ''}
+                          style={{ maxWidth: 240, maxHeight: 180, borderRadius: 4, border: '1px solid var(--line)' }} />
+                        <figcaption className="hint" style={{ marginTop: 3, maxWidth: 240 }}>{im.caption ?? '图片'}</figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

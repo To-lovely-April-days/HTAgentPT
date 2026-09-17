@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using HT.Agent.Application.Abstractions;
+using HT.Agent.Application.Logic;
 using HT.Agent.Domain;
 using HT.Agent.Domain.Entities;
 using HT.Agent.Infrastructure.Persistence;
@@ -123,12 +124,13 @@ public class GenerationService(
             .ThenByDescending(p => p.Year).ThenByDescending(p => p.UpdatedAt)
             .Take(take).ToListAsync(ct);
 
-        var structuralSlots = template.Slots.Count(s =>
-            !s.ForbidInherit && s.Stage == SlotStage.Current &&
-            (s.SuggestSource ?? "").StartsWith("project.", StringComparison.Ordinal));
-        var sectionSlots = template.Slots.Count(s =>
-            !s.ForbidInherit && s.Stage == SlotStage.Current &&
-            (s.SuggestSource ?? "").StartsWith("doc:", StringComparison.Ordinal));
+        // 「可继承 N 项」要是真数字：按台账字段规则能取到的，加上从该项目资料里按字段名真能抽到的。
+        // 数不准还不如不显示——选基准的人就是按这个数决定用不用它
+        var inheritable = template.Slots
+            .Where(s => !s.ForbidInherit && s.Stage == SlotStage.Current).ToList();
+        var labels = template.Slots.Select(s => s.Name).ToList();
+        var projectNos = projects.Select(p => p.ProjectNo).ToList();
+        var docTexts = await ProjectChunkTextsAsync(projectNos, ct);
 
         var result = new List<BaseCandidate>();
         foreach (var p in projects)
@@ -136,11 +138,33 @@ public class GenerationService(
             var linkedDocs = await db.DocMetadatas.AsNoTracking()
                 .CountAsync(m => m.ProjectNo == p.ProjectNo &&
                     db.Documents.Any(d => d.Id == m.DocumentId && d.ParseStatus == ParseStatus.Parsed), ct);
+            var texts = docTexts.GetValueOrDefault(p.ProjectNo) ?? [];
+            var count = inheritable.Count(s =>
+                (s.SuggestSource ?? "").StartsWith("project.", StringComparison.Ordinal)
+                    ? ProjectField(p, s.SuggestSource!["project.".Length..]) is not null
+                    : FormFieldExtractor.ExtractFirst(texts, s.Name, s.Unit, labels, s.Section) is not null);
             result.Add(new BaseCandidate(p.ProjectNo, p.CustomerName, p.Year, p.DeviceType, p.DeviceModel,
-                p.SpecParams, p.DeliveryStatus?.ToString(),
-                structuralSlots + (linkedDocs > 0 ? sectionSlots : 0), linkedDocs));
+                p.SpecParams, p.DeliveryStatus?.ToString(), count, linkedDocs));
         }
         return result;
+    }
+
+    /// <summary>取这些项目关联文档的分块文本（只取调用者可及密级——继承与候选计数都不是越权通道）。</summary>
+    private async Task<Dictionary<string, List<string>>> ProjectChunkTextsAsync(
+        List<string> projectNos, CancellationToken ct)
+    {
+        if (projectNos.Count == 0) return [];
+        var rows = await db.Chunks.AsNoTracking()
+            .Where(c => c.IsActive)
+            .Join(db.DocMetadatas.AsNoTracking().Where(m => projectNos.Contains(m.ProjectNo!)),
+                c => c.DocId, m => m.DocumentId, (c, m) => new { m.ProjectNo, c.Text, c.DocId })
+            .Join(db.Documents.AsNoTracking().Where(d => d.ParseStatus == ParseStatus.Parsed),
+                x => x.DocId, d => d.Id, (x, d) => new { x.ProjectNo, x.Text, d.Classification })
+            .ToListAsync(ct);
+        return rows
+            .Where(x => me.Classifications.Contains(x.Classification) && x.ProjectNo is not null)
+            .GroupBy(x => x.ProjectNo!)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Text).ToList());
     }
 
     public async Task<SessionView> SetBaseProjectAsync(Guid sessionId, string? projectNo, CancellationToken ct = default)
@@ -175,6 +199,8 @@ public class GenerationService(
     {
         var project = await db.Projects.AsNoTracking().FirstAsync(p => p.ProjectNo == projectNo, ct);
         var defs = template.Slots.ToDictionary(s => s.Tag);
+        // 同模板的字段名：用来认出表头行——右邻也是字段名的话那是列名，不是取值
+        var labels = template.Slots.Select(s => s.Name).ToList();
         // 基准项目关联文档的分块（仅调用者可及密级——继承不是越权通道）
         var chunks = await db.Chunks.AsNoTracking()
             .Where(c => c.IsActive && db.DocMetadatas.Any(m => m.ProjectNo == projectNo && m.DocumentId == c.DocId))
@@ -223,7 +249,23 @@ public class GenerationService(
                 });
                 continue;
             }
-            result.Add(s);
+            // 没配来源规则：按槽位显示名到基准项目的资料里找同名字段。
+            // 历史任务单、参数表本来就是「字段名 + 取值」的形态，这才是「拿历史项目做基准」的常态；
+            // 要求管理员先给几十个槽位逐个配规则，继承就永远是 0 项。
+            // 资料常被切成多块（一份任务单就分了两块）：跨块比分取最贴的一处，
+            // 不能碰到哪块算哪块——设备表与配件表都有「名称」列，先遇到的未必是要的那张
+            var byName = chunks
+                .Select(c => new { c, Hit = FormFieldExtractor.ExtractScored(c.Text, def.Name, def.Unit, labels, def.Section) })
+                .Where(x => x.Hit is not null)
+                .OrderByDescending(x => x.Hit!.Value.Score)
+                .FirstOrDefault();
+            result.Add(byName is null ? s : s with
+            {
+                Value = byName.Hit!.Value.Value,
+                Source = SlotFillSource.Inherited,
+                Origin = $"{projectNo} ·《{byName.c.DocTitle}》· {def.Name}",
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
         }
         return result;
     }
@@ -284,6 +326,12 @@ public class GenerationService(
         if (def.Stage == SlotStage.Later)
             throw new DomainRuleException("SLOT_LATER_STAGE", "后续阶段槽位不提问、不预填、不给建议（表 5-2）");
 
+        // 项目专属信息不从历史资料带值（FR-5.7）：给个来自别的项目的合同编号或客户名，
+        // 比不给更糟——用户还得逐条核对是不是串了项目
+        if (def.ForbidInherit)
+            return new SlotSuggestion(tag, null, [], false,
+                $"「{def.Name}」属项目专属信息（客户、编号、日期、金额、联系人一类），按规则不从历史资料带值，请直接填写。");
+
         var states = Parse(session.SlotValues);
         var state = states.First(s => s.Tag == tag);
 
@@ -309,9 +357,15 @@ public class GenerationService(
                 "暂无可参考数据：知识库中没有检索到足以支撑建议的内容，请自行填写（FR-5.10）");
         }
         var top = result.Chunks[0];
-        var value = def.DataType is SlotDataType.LongText
+        // 命中的块常是整张表（「| 合同编号 | … | 下单日期 | … |」），整块或首行都不是这一项的值——
+        // 先按字段名把该项取出来，取不到才退回按行挑
+        var byField = def.DataType is SlotDataType.LongText
+            ? null
+            : FormFieldExtractor.ExtractFirst(result.Chunks.Select(c => c.Text), def.Name, def.Unit,
+                template.Slots.Select(s => s.Name).ToList(), def.Section);
+        var value = byField ?? (def.DataType is SlotDataType.LongText
             ? StripHeadingPrefix(top.Text)
-            : BestLine(StripHeadingPrefix(top.Text), def.Name);
+            : BestLine(StripHeadingPrefix(top.Text), def.Name));
         var evidence = result.Chunks.Take(3)
             .Select(c => new SuggestEvidence(c.DocTitle, c.SectionPath, c.PageNo,
                 c.Text.Length <= 200 ? c.Text : c.Text[..200], c.ChunkId)).ToList();

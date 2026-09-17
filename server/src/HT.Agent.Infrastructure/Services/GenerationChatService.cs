@@ -385,7 +385,18 @@ public class GenerationChatService(
             tags = ctx.State.LastAsked.Where(t => IsOpen(states.GetValueOrDefault(t))).ToList();
             if (tags.Count == 0) tags = NextAsks(ctx.Template, Parse(ctx.Session), ctx.State, 4).Select(x => x.Tag).ToList();
         }
-        if (tags.Count == 0) { ctx.Reply.Add("没有待填的项可推荐了。"); return; }
+        // 项目专属信息（客户、编号、日期、金额）不带历史值，也不必刷一屏「不带值」的说明
+        var defsByTag = ctx.Template.Slots.ToDictionary(s => s.Tag);
+        var skipped = tags.Where(t => defsByTag.TryGetValue(t, out var d) && d.ForbidInherit).ToList();
+        tags = tags.Where(t => !skipped.Contains(t)).ToList();
+        if (tags.Count == 0)
+        {
+            ctx.Reply.Add(skipped.Count > 0
+                ? $"当前这几项（{string.Join("、", skipped.Select(t => defsByTag[t].Name))}）是本项目专属信息，" +
+                  "不从历史资料带值，直接告诉我就行。"
+                : "没有待填的项可推荐了。");
+            return;
+        }
         var results = await RunSuggestionsAsync(ctx, tags.Take(5).ToList(), ct);
         var sb = new StringBuilder("参数顾问查了基准项目文档与知识库：");
         foreach (var (def, sug) in results)
@@ -559,7 +570,9 @@ public class GenerationChatService(
                 if (section != state.LastSection && !state.SuggestedSections.Contains(section) && reply.Suggestions.Count == 0)
                 {
                     state.SuggestedSections.Add(section);
-                    var openTags = asks.Where(a => byTag.GetValueOrDefault(a.Tag)?.Value is null).Select(a => a.Tag).ToList();
+                    var forbid = ctx.Template.Slots.Where(s => s.ForbidInherit).Select(s => s.Tag).ToHashSet();
+                    var openTags = asks.Where(a => byTag.GetValueOrDefault(a.Tag)?.Value is null && !forbid.Contains(a.Tag))
+                        .Select(a => a.Tag).ToList();
                     var results = openTags.Count == 0
                         ? new List<(TemplateSlot Def, SlotSuggestion Sug)>()
                         : await RunSuggestionsAsync(ctx, openTags, ct);
