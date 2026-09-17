@@ -229,13 +229,24 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 /* ── 正在填的文档，实时预览 ─────────────────────────────────────
    说一句、填一项，右边这栏立刻跟着变；刚变的那几项短暂点亮，
    让人看得见「刚才那句落在哪」。 */
-.lp { flex: 0 0 360px; display: flex; flex-direction: column; min-height: 0;
+.lp { flex: 0 0 440px; display: flex; flex-direction: column; min-height: 0;
   background: var(--panel); border-left: 1px solid var(--line); }
 .lp-hd { flex-shrink: 0; display: flex; align-items: center; gap: 8px;
   padding: 9px 12px; border-bottom: 1px solid var(--line); background: var(--bg-soft); }
 .lp-t { flex: 1 1 auto; min-width: 0; font-size: 12.5px; font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lp-x { flex: 0 0 auto; height: 22px; font-size: 11px; padding: 0 8px; }
+.lp-tabs { flex: 0 0 auto; display: inline-flex; border: 1px solid var(--line-strong); border-radius: 4px; overflow: hidden; }
+.lp-tab { height: 22px; padding: 0 9px; font-size: 11px; font-family: var(--font);
+  color: var(--ink-2); background: var(--panel); border: none; cursor: pointer; }
+.lp-tab + .lp-tab { border-left: 1px solid var(--line); }
+.lp-tab.on { color: #fff; background: var(--accent); }
+/* 草稿 docx 渲染出来的页面：按预览栏宽度缩一下，整页看得见版式 */
+.lp-doc .docx-wrapper { background: transparent; padding: 10px 0; }
+.lp-doc .docx-wrapper > section.docx { width: 100% !important; min-height: 0 !important;
+  padding: 16px !important; margin: 0 0 10px; box-shadow: 0 1px 4px rgba(16,24,40,.1); }
+.lp-doc table { max-width: 100% !important; }
+.lp-doc { font-size: 12px; }
 .lp-body { flex-grow: 1; min-height: 0; overflow-y: auto; }
 .lp-sec { display: flex; align-items: center; gap: 8px; padding: 5px 12px;
   font-size: 11.5px; font-weight: 600; color: var(--ink-2);

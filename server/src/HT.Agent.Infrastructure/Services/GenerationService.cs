@@ -561,6 +561,26 @@ public class GenerationService(
         return new RenderResult(session.Id, outputName, filledDoc.Filled, filledDoc.LeftBlank);
     }
 
+    public async Task<DraftPreview> RenderDraftAsync(Guid sessionId, CancellationToken ct = default)
+    {
+        var session = await MustFindAsync(sessionId, ct);
+        var template = await db.Templates.AsNoTracking().Include(t => t.Slots)
+            .FirstAsync(t => t.Id == session.TemplateId, ct);
+        var byTag = Parse(session.SlotValues).ToDictionary(s => s.Tag);
+        // 与正式渲染同一条填充路径，差别只在：不校验完成度、不落盘、不留记录。
+        // 版式必须和最终产出一模一样，否则「预览」就没意义了。
+        var inputs = template.Slots.Select(def => new DocxSlotFiller.FillInput(
+            def.Tag,
+            def.Stage == SlotStage.Later ? null : byTag.GetValueOrDefault(def.Tag)?.Value,
+            def.DataType)).ToList();
+
+        DocxSlotFiller.FillResult filled;
+        await using (var tpl = await storage.OpenAsync(template.FileKey, ct))
+            filled = await DocxSlotFiller.FillAsync(tpl, inputs, ct);
+
+        return new DraftPreview(filled.Output, $"{template.Name}（草稿）.docx", filled.Filled, filled.LeftBlank);
+    }
+
     public async Task<(Stream Content, string FileName)> OpenOutputAsync(Guid sessionId, CancellationToken ct = default)
     {
         var session = await MustFindAsync(sessionId, ct);

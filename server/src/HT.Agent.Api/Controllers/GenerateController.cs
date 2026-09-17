@@ -74,6 +74,18 @@ public class GenerateController(IGenerationService gen, IGenerationChatService g
     public async Task<IActionResult> Preview(Guid id, CancellationToken ct)
         => Ok(await gen.PreviewAsync(id, ct));
 
+    /// <summary>草稿预览的 docx 字节：界面拿去在浏览器里还原版式，边填边看。
+    /// inline 返回，不当附件下载；它不是产出，不落盘也不记生成记录。</summary>
+    [HttpGet("sessions/{id:guid}/draft.docx")]
+    public async Task<IActionResult> Draft(Guid id, CancellationToken ct)
+    {
+        var d = await gen.RenderDraftAsync(id, ct);
+        Response.Headers.CacheControl = "no-store";
+        Response.Headers["X-Filled"] = d.Filled.ToString();
+        Response.Headers["X-Blank"] = d.Blank.ToString();
+        return File(d.Content, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    }
+
     [HttpPost("sessions/{id:guid}/render")]
     public async Task<IActionResult> Render(Guid id, CancellationToken ct)
         => Ok(await gen.RenderAsync(id, ct));

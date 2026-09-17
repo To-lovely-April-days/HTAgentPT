@@ -62,6 +62,10 @@ public interface IGenerationService
     Task<PreviewView> PreviewAsync(Guid sessionId, CancellationToken ct = default);
     /// <summary>校验完成度后生成 Word（FR-5.15）：槽位回填、页眉待复核、后续阶段留空。</summary>
     Task<RenderResult> RenderAsync(Guid sessionId, CancellationToken ct = default);
+    /// <summary>草稿预览：按当前已填值渲染一份 docx 只给界面看版式，未填的留占位。
+    /// 不过完成度门、不落存储、不改会话状态、不记生成记录——
+    /// 「生成文档」才是产出，预览只是让人边填边看（FR-5.13/5.17 的边界不能被预览绕过）。</summary>
+    Task<DraftPreview> RenderDraftAsync(Guid sessionId, CancellationToken ct = default);
     Task<(Stream Content, string FileName)> OpenOutputAsync(Guid sessionId, CancellationToken ct = default);
 }
 
@@ -115,6 +119,9 @@ public record PreviewView(
 public record PreviewSection(string Section, IReadOnlyList<PreviewItem> Items);
 
 public record PreviewItem(string Tag, string Name, string? Value, string SourceLabel, string? Origin);
+
+/// <summary>草稿预览的字节与填充情况。文件名只用于界面显示，不落盘。</summary>
+public record DraftPreview(byte[] Content, string FileName, int Filled, int Blank);
 
 public record RenderResult(Guid SessionId, string OutputFileName, int SlotsFilled, int LeftBlank);
 
