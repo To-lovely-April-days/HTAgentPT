@@ -13,6 +13,8 @@ public static class IntentRouter
     public const string Translate = "translate";
     /// <summary>故障案例：报警代码、故障现象、维修处理。</summary>
     public const string Case = "case";
+    /// <summary>报修工单：进度、状态、派工。与案例的分界是「这一单办到哪了」而不是「这毛病怎么修」。</summary>
+    public const string Ticket = "ticket";
 
     private static readonly Regex TranslatePattern = new(
         @"(翻译|译成|译为|英文版|中文版|译文|translate)", RegexOptions.Compiled);
@@ -28,6 +30,15 @@ public static class IntentRouter
         @"|(案例|维修记录|处理记录|以前.{0,6}(修|处理)过)" +
         @"|(E|ER|ERR|AL|ALM)[-_ ]?\d{1,3}",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>工单信号：问的是某一单的进度与状态，不是故障本身怎么修。
+    /// 「报修」两边都有，所以工单判在案例之前——带进度/状态语境的归工单。</summary>
+    private static readonly Regex TicketPattern = new(
+        @"(工单|报修单|派工单)" +
+        @"|(报修|维修|返修).{0,8}(进度|状态|到哪|怎么样|安排|派给谁|什么时候)" +
+        @"|我的.{0,4}(工单|报修)" +
+        @"|(待处理|未处理|挂起|已完成).{0,6}(工单|报修)",
+        RegexOptions.Compiled);
 
     // 台账信号分两类：直指台账的（台账、合同金额、交付状态），与「历史项目 + 筛选维度」组合。
     // 项目编号格式因公司而异（10.4：编号规则不得硬编码），由配置注入。
@@ -47,14 +58,37 @@ public static class IntentRouter
         if (TranslatePattern.IsMatch(question)) return Translate;
         if (GeneratePattern.IsMatch(question)) return Generate;
         if (LedgerStrong.IsMatch(question)) return Ledger;
+        if (TicketPattern.IsMatch(question)) return Ticket;
         if (CasePattern.IsMatch(question)) return Case;
         if (!string.IsNullOrWhiteSpace(projectNoPattern) && SafeMatch(question, projectNoPattern)) return Ledger;
 
-        var mentionsCustomer = vocabCustomers.Any(c => c.Length >= 2 && question.Contains(c));
-        var inventoryAsk = Regex.IsMatch(question, @"(做过|卖过|供过|交付过|合作过|有没有|几个|多少个|哪几)");
-        if (mentionsCustomer && inventoryAsk) return Ledger;
+        // 盘点类问法 + （客户 或 设备类型）就算查台账。
+        // 只认客户会漏掉「近三年做过哪些反应釜」这种不提客户的盘点。
+        if (InventoryAsk.IsMatch(question) &&
+            (vocabCustomers.Any(c => Mentions(question, c)) || vocabDevices.Any(d => Mentions(question, d))))
+            return Ledger;
 
         return Knowledge;
+    }
+
+    private static readonly Regex InventoryAsk = new(
+        @"(做过|卖过|买过|供过|采购过|交付过|合作过|用过|上过)" +
+        @"|(有没有|有哪些|哪些|哪几|几台|几个|多少台|多少个|什么设备|哪款|哪种)",
+        RegexOptions.Compiled);
+
+    /// <summary>企业与机构名的后缀，去掉后是可用于匹配的主干。
+    /// 词表里存「华东理工大学」而用户说「华东理工」（或反过来）都得认出来。</summary>
+    private static readonly Regex OrgSuffix = new(
+        @"(股份有限公司|有限责任公司|有限公司|科技有限公司|大学|学院|公司|集团|研究院|研究所|医院|工厂|厂|中心)$",
+        RegexOptions.Compiled);
+
+    /// <summary>词表项是否在提问里出现——全称、简称两头都认。</summary>
+    public static bool Mentions(string question, string term)
+    {
+        if (string.IsNullOrWhiteSpace(term) || term.Length < 2) return false;
+        if (question.Contains(term)) return true;
+        var stem = OrgSuffix.Replace(term, "");
+        return stem.Length >= 3 && stem.Length < term.Length && question.Contains(stem);
     }
 
     /// <summary>从台账类问题里抽取结构化筛选条件——抽取结果随表格一起返回（对用户可见，可改后重查）。</summary>
@@ -63,10 +97,10 @@ public static class IntentRouter
         IReadOnlyCollection<string> vocabDevices)
     {
         string? customer = vocabCustomers
-            .Where(c => c.Length >= 2 && question.Contains(c))
+            .Where(c => Mentions(question, c))
             .OrderByDescending(c => c.Length).FirstOrDefault();
         string? device = vocabDevices
-            .Where(d => d.Length >= 2 && question.Contains(d))
+            .Where(d => Mentions(question, d))
             .OrderByDescending(d => d.Length).FirstOrDefault();
 
         int? yearFrom = null, yearTo = null;

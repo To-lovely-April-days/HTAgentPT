@@ -222,7 +222,10 @@ export interface GenChatPayload {
 export interface LedgerTable {
   filters: { customer: string | null; deviceType: string | null; yearFrom: number | null; yearTo: number | null };
   rows: ProjectRow[]; amountVisible: boolean; note: string;
+  /** 只命中一条时服务端直接带上项目档案，不用再点一次 */
+  detail?: ProjectDetail | null;
 }
+
 
 export interface QaTemplateRec { id: string; name: string; docType: string; slotCount: number; }
 

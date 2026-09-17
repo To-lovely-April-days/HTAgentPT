@@ -7,22 +7,23 @@
 // 自动滚动、输入框与运行态。领域结果卡按消息 id 从我们自己的表里取，
 // 不经它的 part 体系——那样两边都不别扭。
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   AssistantRuntimeProvider, ComposerPrimitive, MessagePrimitive,
   ThreadPrimitive, useAuiState, useExternalStoreRuntime,
 } from '@assistant-ui/react';
-import { ApiError, download, post, sse } from '../../lib/api';
+import { ApiError, download, get, post, sse } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { Perm } from '../../lib/types';
 import type {
-  CaseDetailData, CaseRow, GenChatPayload, GenChatTurnResult, LedgerTable,
-  QaTemplateRec, SessionView, Source, TextTranslationResult,
+  CaseDetailData, CaseRow, GenChatPayload, GenChatTurnResult, LedgerTable, QaMessageRow,
+  QaSessionRow, QaTemplateRec, SessionView, Source, TextTranslationResult, TicketRow,
 } from '../../lib/types';
 import { Prose } from '../../components/Prose';
 import { ErrorBox, Spinner } from '../../components/Common';
 import { AdviceCard, EvidenceCard, SummaryCard } from '../generate/ChatCards';
-import { CasesCard, LedgerCard, NoResultCard, SourcesCard, TemplatePicker, TranslationCard } from './ResultCards';
+import { CasesCard, LedgerCard, NoResultCard, SourcesCard, TemplatePicker, TicketsCard, TranslationCard } from './ResultCards';
 
 /** 对话里的一条消息。text 是正文，其余字段是这一轮长出来的结果件。 */
 interface Msg {
@@ -37,6 +38,7 @@ interface Msg {
   table?: LedgerTable;
   translation?: (TextTranslationResult & { direction: string; source: string | null; sourceText: string }) | null;
   cases?: { rows: CaseRow[]; detail: CaseDetailData | null; keyword: string; note: string };
+  tickets?: { rows: TicketRow[]; status: string | null; note: string };
   templates?: QaTemplateRec[] | null;
   gen?: GenChatPayload;          // 方案生成的一轮
   genSessionId?: string;
@@ -67,6 +69,8 @@ export default function ChatPage() {
   const [focusSource, setFocusSource] = useState<number | null>(null);
   const seq = useRef(0);
   const nav = useNavigate();
+  const qc = useQueryClient();
+  const sessions = useQuery({ queryKey: ['qa-sessions'], queryFn: () => get<QaSessionRow[]>('/api/qa-sessions') });
 
   const newId = () => `m${++seq.current}-${Date.now()}`;
   const push = (m: Msg) => setMsgs((x) => [...x, m]);
@@ -117,6 +121,15 @@ export default function ChatPage() {
               },
             });
             break;
+          case 'tickets':
+            patch(id, {
+              text: '',
+              tickets: {
+                rows: p.rows as TicketRow[], status: (p.status as string | null) ?? null,
+                note: (p.note as string) ?? '',
+              },
+            });
+            break;
           case 'generate':
             patch(id, { text: (p.message as string) ?? '', templates: (p.templates as QaTemplateRec[] | null) ?? null });
             break;
@@ -153,8 +166,9 @@ export default function ChatPage() {
     try {
       if (genSessionId) await runGenTurn(genSessionId, { message: text });
       else await askQa(text);
+      void qc.invalidateQueries({ queryKey: ['qa-sessions'] });
     } finally { setBusy(false); }
-  }, [busy, genSessionId, askQa, runGenTurn]);
+  }, [busy, genSessionId, askQa, runGenTurn, qc]);
 
   // 选中模板：就地建会话并开场，此后这条对话交给它
   const pickTemplate = useCallback(async (t: QaTemplateRec) => {
@@ -178,6 +192,36 @@ export default function ChatPage() {
   }, [genSessionId, busy, runGenTurn]);
 
   const correctIntent = useCallback((q: string) => { void askQa(q, 'knowledge'); }, [askQa]);
+
+  // 打开一条历史对话：把存下来的问答重建成消息流。
+  // 结果件（表格、译文、案例）是当时那一轮的现场，历史里只留正文与依据——
+  // 要重新拿结果，再问一次就是了。
+  const openSession = useCallback(async (id: string) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const rows = await get<QaMessageRow[]>(`/api/qa-sessions/${id}`);
+      const rebuilt: Msg[] = [];
+      for (const r of rows) {
+        rebuilt.push({ id: `h${r.id}-q`, role: 'user', text: r.question });
+        let sources: Source[] | undefined;
+        try { sources = r.sources ? (JSON.parse(r.sources) as Source[]) : undefined; } catch { /* 老数据容错 */ }
+        rebuilt.push({ id: `h${r.id}-a`, role: 'assistant', text: r.answer ?? '', sources });
+      }
+      setMsgs(rebuilt);
+      setQaSessionId(id);
+      setGenSessionId(null);
+      setGenTitle(null);
+      setFocusSource(null);
+    } catch (err) {
+      push({ id: newId(), role: 'assistant', text: '', error: err instanceof ApiError ? err.message : '这条对话打不开' });
+    } finally { setBusy(false); }
+  }, [busy]);
+
+  const newChat = useCallback(() => {
+    if (busy) return;
+    setMsgs([]); setQaSessionId(null); setGenSessionId(null); setGenTitle(null); setFocusSource(null);
+  }, [busy]);
 
   const byId = useMemo(() => new Map(msgs.map((m) => [m.id, m])), [msgs]);
 
@@ -203,6 +247,20 @@ export default function ChatPage() {
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <MsgCtx.Provider value={ctx}>
+        <div className="chat-shell">
+        <aside className="chat-side sc">
+          <button className="gbtn chat-new" disabled={busy} onClick={newChat}>＋ 新对话</button>
+          <div className="grp">最近</div>
+          {sessions.data?.length === 0 && <div className="hint" style={{ padding: '0 10px' }}>还没有对话记录。</div>}
+          {sessions.data?.map((x) => (
+            <button key={x.id} className={'item' + (x.id === qaSessionId ? ' on' : '')}
+              disabled={busy} title={x.title} onClick={() => void openSession(x.id)}>
+              <div style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.title}</div>
+              <div className="hint" style={{ fontSize: 10.5 }}>{x.updatedAt.slice(0, 10)}</div>
+            </button>
+          ))}
+        </aside>
+
         <div className="chat-page">
           {genSessionId && (
             <div className="chat-mode">
@@ -232,6 +290,7 @@ export default function ChatPage() {
               <ComposerPrimitive.Send className="pbtn" style={{ height: 36, padding: '0 16px' }}>发送</ComposerPrimitive.Send>
             </ComposerPrimitive.Root>
           </ThreadPrimitive.Root>
+        </div>
         </div>
       </MsgCtx.Provider>
     </AssistantRuntimeProvider>
@@ -292,6 +351,7 @@ function AssistantMessage() {
         {m.table && <LedgerCard table={m.table} onCorrect={() => correctIntent(lastQuestion(byId, id))} />}
         {m.translation && <TranslationCard data={m.translation} />}
         {m.cases && <CasesCard {...m.cases} />}
+        {m.tickets && <TicketsCard {...m.tickets} />}
         {m.templates && m.templates.length > 0 && (
           <TemplatePicker templates={m.templates} onPick={pickTemplate} busy={busy} />
         )}

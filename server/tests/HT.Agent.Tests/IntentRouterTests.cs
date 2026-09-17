@@ -118,4 +118,38 @@ public class ChunkSplitterTests
         Assert.DoesNotContain("有没有", k);
         Assert.DoesNotContain("怎么处理", k);
     }
+
+    // 实际词表（customer_name / device_type）下的判定
+    private static readonly string[] Customers = ["华东理工", "南方药业"];
+    private static readonly string[] Devices =
+        ["光化学反应仪", "冻干机", "反应釜", "平行合成仪", "旋转蒸发仪", "真空干燥箱", "离心机"];
+
+    [Theory]
+    [InlineData("华东理工近三年做过哪些反应釜")]
+    [InlineData("华东理工大学近三年做过哪些反应釜")]   // 用户说全称，词表里是简称
+    [InlineData("近三年做过哪些反应釜")]                // 没提客户，只说设备
+    [InlineData("华东理工都买过什么设备")]
+    public void 盘点类提问归台账(string q)
+        => Assert.Equal(IntentRouter.Ledger, IntentRouter.Classify(q, Customers, Devices));
+
+    [Theory]
+    [InlineData("待处理的工单有哪些", IntentRouter.Ticket)]
+    [InlineData("HT-2025-0031 这单报修到哪了", IntentRouter.Ticket)]
+    [InlineData("我的工单", IntentRouter.Ticket)]
+    [InlineData("报修进度怎么样了", IntentRouter.Ticket)]
+    // 「这毛病怎么修」仍归案例，不被工单抢走
+    [InlineData("磁力搅拌不转了怎么处理", IntentRouter.Case)]
+    [InlineData("E12 报警的维修记录", IntentRouter.Case)]
+    public void 工单与案例的分界(string q, string expected)
+        => Assert.Equal(expected, IntentRouter.Classify(q, Customers, Devices));
+
+    [Fact]
+    public void 客户简称全称互认()
+    {
+        Assert.True(IntentRouter.Mentions("华东理工做过哪些釜", "华东理工大学"));
+        Assert.True(IntentRouter.Mentions("华东理工大学做过哪些釜", "华东理工"));
+        Assert.False(IntentRouter.Mentions("南方药业做过哪些釜", "华东理工大学"));
+        // 主干太短不做简称匹配，免得「厂」「公司」这类残渣乱命中
+        Assert.False(IntentRouter.Mentions("我们厂的设备", "厂"));
+    }
 }

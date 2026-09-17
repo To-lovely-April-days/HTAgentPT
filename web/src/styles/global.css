@@ -154,7 +154,13 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .sum-row.blank .sum-val { color: var(--cls-int); }
 
 /* ── 唯一入口的对话页 ─────────────────────────────────────────── */
-.chat-page { height: 100%; display: flex; flex-direction: column; background: var(--bg); }
+.chat-shell { height: 100%; display: flex; min-height: 0; }
+.chat-side { flex: 0 0 216px; display: flex; flex-direction: column; overflow-y: auto;
+  padding: 10px 0 14px; background: var(--panel); border-right: 1px solid var(--line); }
+.chat-new { height: 30px; margin: 0 10px 4px; justify-content: center; font-size: 12.5px; }
+.chat-side .item { padding: 6px 10px; }
+@media (max-width: 900px) { .chat-side { display: none; } }
+.chat-page { flex-grow: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; background: var(--bg); }
 .chat-mode { flex-shrink: 0; display: flex; align-items: center; gap: 9px; padding: 7px 20px;
   background: var(--accent-bg); border-bottom: 1px solid var(--accent-line); }
 .chat-root { flex-grow: 1; min-height: 0; display: flex; flex-direction: column; }

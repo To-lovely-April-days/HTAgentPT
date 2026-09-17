@@ -20,6 +20,7 @@ public class QaService(
     IProjectService projects,
     ITranslationService translation,
     IFaultCaseService cases,
+    ICustomerService customers,
     IAuditWriter audit,
     ICurrentUser me) : IQaService
 {
@@ -198,9 +199,63 @@ public class QaService(
         return query + " " + string.Join(' ', additions.Distinct().Take(8));
     }
 
+    /// <summary>意图判定与筛选抽取用的词表：受控词表 ∪ 台账里实际出现过的客户名与设备类型。
+    /// 只认受控词表的话，管理员没录客户名，用户问「华东理工做过哪些反应釜」就会掉进知识问答
+    /// 然后答「没找到内容」——而台账里明明有。词表是给口径统一用的，不该是能不能查的前提。</summary>
+    private async Task<(List<string> Customers, List<string> Devices)> VocabAsync(CancellationToken ct)
+    {
+        var customers = await db.VocabTerms.AsNoTracking()
+            .Where(v => v.VocabKey == VocabKeys.CustomerName && v.IsActive)
+            .Select(v => v.Value).ToListAsync(ct);
+        var devices = await db.VocabTerms.AsNoTracking()
+            .Where(v => v.VocabKey == VocabKeys.DeviceType && v.IsActive)
+            .Select(v => v.Value).ToListAsync(ct);
+
+        // 台账本身就是最准的名录——它有什么，用户就可能问什么
+        var fromLedger = await db.Projects.AsNoTracking()
+            .Select(p => new { p.CustomerName, p.DeviceType })
+            .Distinct().Take(2000).ToListAsync(ct);
+        customers.AddRange(fromLedger.Select(x => x.CustomerName));
+        devices.AddRange(fromLedger.Select(x => x.DeviceType));
+
+        return (Clean(customers), Clean(devices));
+
+        static List<string> Clean(IEnumerable<string?> xs) => xs
+            .Where(x => !string.IsNullOrWhiteSpace(x) && x!.Trim().Length >= 2)
+            .Select(x => x!.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>「待处理的工单」「已完成的报修」——问法里带状态就按状态筛。</summary>
+    private static TicketStatus? TicketStatusFrom(string q)
+    {
+        if (System.Text.RegularExpressions.Regex.IsMatch(q, "(待处理|未处理|新报的|刚报的|新提交)")) return TicketStatus.Submitted;
+        if (System.Text.RegularExpressions.Regex.IsMatch(q, "(已派|派给|已分配|指派)")) return TicketStatus.Assigned;
+        if (System.Text.RegularExpressions.Regex.IsMatch(q, "(处理中|进行中|在修|正在)")) return TicketStatus.InProgress;
+        if (System.Text.RegularExpressions.Regex.IsMatch(q, "(已完成|修好了|已解决|完工)")) return TicketStatus.Resolved;
+        if (System.Text.RegularExpressions.Regex.IsMatch(q, "(已关闭|结单|已结)")) return TicketStatus.Closed;
+        return null;
+    }
+
+    /// <summary>提问里给了工单号、设备编号或客户号就再收一道；给不出关键词就返回全部。</summary>
+    private static List<TicketRow> Narrow(IReadOnlyList<TicketRow> rows, string keyword)
+    {
+        var terms = keyword.Split(new char[] { ' ', '\u3000' }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(t => t.Length >= 3).ToList();
+        if (terms.Count == 0) return rows.Take(20).ToList();
+        var hit = rows.Where(r => terms.Any(t =>
+                r.TicketNo.Contains(t, StringComparison.OrdinalIgnoreCase) ||
+                r.DeviceNo.Contains(t, StringComparison.OrdinalIgnoreCase) ||
+                r.CustomerNo.Contains(t, StringComparison.OrdinalIgnoreCase) ||
+                r.Description.Contains(t, StringComparison.OrdinalIgnoreCase)))
+            .Take(20).ToList();
+        return hit.Count > 0 ? hit : rows.Take(20).ToList();
+    }
+
     private static readonly string[] KnownIntents =
         [IntentRouter.Knowledge, IntentRouter.Ledger, IntentRouter.Generate,
-         IntentRouter.Translate, IntentRouter.Case];
+         IntentRouter.Translate, IntentRouter.Case, IntentRouter.Ticket];
 
     private async Task<string> RouteIntentAsync(QaRequest req, CancellationToken ct)
     {
@@ -211,12 +266,7 @@ public class QaService(
         }
         else
         {
-            var customers = await db.VocabTerms.AsNoTracking()
-                .Where(v => v.VocabKey == VocabKeys.CustomerName && v.IsActive)
-                .Select(v => v.Value).ToListAsync(ct);
-            var devices = await db.VocabTerms.AsNoTracking()
-                .Where(v => v.VocabKey == VocabKeys.DeviceType && v.IsActive)
-                .Select(v => v.Value).ToListAsync(ct);
+            var (customers, devices) = await VocabAsync(ct);
             var pattern = await config.GetAsync(ConfigKeys.IntentProjectNoPattern, ct);
             intent = IntentRouter.Classify(req.Question, customers, devices, pattern);
         }
@@ -226,6 +276,7 @@ public class QaService(
         {
             IntentRouter.Ledger => PermissionKeys.ProjectSearch,
             IntentRouter.Case => PermissionKeys.CaseRead,
+            IntentRouter.Ticket => PermissionKeys.TicketHandle,
             IntentRouter.Translate => PermissionKeys.Translate,
             _ => null
         };
@@ -259,12 +310,7 @@ public class QaService(
             if (!me.Permissions.Contains(PermissionKeys.ProjectSearch))
                 throw new ForbiddenException("FORBIDDEN", "你的角色没有项目台账检索权限。本次请求已被记录。");
             // 台账查询以结构化方式返回表格，不经模型生成（FR-3.4/4.1）
-            var customers = await db.VocabTerms.AsNoTracking()
-                .Where(v => v.VocabKey == VocabKeys.CustomerName && v.IsActive)
-                .Select(v => v.Value).ToListAsync(ct);
-            var devices = await db.VocabTerms.AsNoTracking()
-                .Where(v => v.VocabKey == VocabKeys.DeviceType && v.IsActive)
-                .Select(v => v.Value).ToListAsync(ct);
+            var (customers, devices) = await VocabAsync(ct);
             var f = IntentRouter.ExtractFilters(req.Question, customers, devices);
             int? yearFrom = f.YearFrom, yearTo = f.YearTo;
             if (yearFrom is null && f.RecentYears is not null)
@@ -273,12 +319,17 @@ public class QaService(
                 CustomerName: f.CustomerName, YearFrom: yearFrom, YearTo: yearTo, DeviceType: f.DeviceType), ct);
 
             yield return new QaEvent("meta", new { sessionId = session.Id, intent, hitCount = result.Rows.Count, topScore = 0.0, rewrittenQuery = req.Question });
+            // 只命中一条时把项目档案直接摊开——还让人再点一次没有意义
+            ProjectDetail? only = result.Rows.Count == 1
+                ? await projects.GetAsync(result.Rows[0].ProjectNo, ct)
+                : null;
             yield return new QaEvent("table", new
             {
                 intent,
                 filters = new { customer = f.CustomerName, deviceType = f.DeviceType, yearFrom, yearTo },
                 rows = result.Rows,
                 amountVisible = result.AmountVisible,
+                detail = only,
                 note = "台账查询为结构化结果，不经模型生成。筛选条件由提问解析而来，可修改后重查；若这不是台账问题，可选择按知识问答重新回答。"
             });
             message.Answer = $"[台账] 按解析出的条件返回 {result.Rows.Count} 条项目记录";
@@ -350,6 +401,27 @@ public class QaService(
                     message.Answer = $"[翻译] {ask.Direction}，{text.Length} 字";
                 }
             }
+        }
+        else if (intent == IntentRouter.Ticket)
+        {
+            // 就地看工单（FR-8.8）：问的是「这一单办到哪了」，给状态与流转记录。
+            if (!me.Permissions.Contains(PermissionKeys.TicketHandle))
+                throw new ForbiddenException("FORBIDDEN", "你的角色没有报修工单处理权限。本次请求已被记录。");
+            var status = TicketStatusFrom(req.Question);
+            var list = await customers.ListTicketsAsync(status, ct);
+            var kw = IntentRouter.CaseKeywords(req.Question);
+            var rows = Narrow(list, kw);
+            yield return new QaEvent("meta", new { sessionId = session.Id, intent, hitCount = rows.Count, topScore = 0.0, rewrittenQuery = kw });
+            yield return new QaEvent("tickets", new
+            {
+                intent,
+                status = status?.ToString(),
+                rows,
+                note = rows.Count == 0
+                    ? "没有匹配的报修工单。可以说「待处理的工单」，或给我设备编号、工单号。"
+                    : "点任意一条看流转记录；要改状态或派工在工单台里做。"
+            });
+            message.Answer = $"[工单] 命中 {rows.Count} 条";
         }
         else if (intent == IntentRouter.Case)
         {

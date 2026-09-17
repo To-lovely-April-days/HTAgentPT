@@ -2,9 +2,10 @@
 // 用户说什么，结果就在同一条对话流里长出来。
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DELIVERY_LABEL } from '../../lib/types';
+import { DELIVERY_LABEL, TICKET_LABEL } from '../../lib/types';
 import type {
-  CaseDetailData, CaseRow, LedgerTable, QaTemplateRec, Source, TextTranslationResult,
+  CaseDetailData, CaseRow, LedgerTable, ProjectDetail, QaTemplateRec, Source,
+  TextTranslationResult, TicketRow, TicketStatus,
 } from '../../lib/types';
 import { Prose } from '../../components/Prose';
 import { ClsBadge } from '../../components/Common';
@@ -13,6 +14,7 @@ import type { Classification } from '../../lib/types';
 /** 台账查询：结构化结果，不经模型生成（FR-3.4/4.1）。点行看项目档案。 */
 export function LedgerCard({ table, onCorrect }: { table: LedgerTable; onCorrect: () => void }) {
   const nav = useNavigate();
+  if (table.detail) return <ProjectCard detail={table.detail} amountVisible={table.amountVisible} />;
   const f = table.filters;
   const cond = [f.customer && `客户=${f.customer}`, f.deviceType && `设备=${f.deviceType}`,
     f.yearFrom && `${f.yearFrom}${f.yearTo && f.yearTo !== f.yearFrom ? `–${f.yearTo}` : ''} 年`]
@@ -245,6 +247,119 @@ export function NoResultCard({ message, docs }: { message: string; docs: string[
       border: '1px solid var(--cls-int-line)', fontSize: 12, lineHeight: 1.8, color: 'var(--cls-int)' }}>
       <Prose text={message} style={{ fontSize: 12, color: 'inherit' }} />
       {docs.length > 0 && <div style={{ marginTop: 4 }}>可能相关的文档：{docs.map((d) => `《${d}》`).join('、')}</div>}
+    </div>
+  );
+}
+
+/** 项目档案：台账只命中一条时直接摊开，省掉再点一次。 */
+export function ProjectCard({ detail, amountVisible }: { detail: ProjectDetail; amountVisible: boolean }) {
+  const nav = useNavigate();
+  const r = detail.row;
+  const fields: [string, string][] = [
+    ['客户', r.customerName],
+    ['年份', String(r.year)],
+    ['设备类型', r.deviceType],
+    ['设备型号', r.deviceModel ?? '—'],
+    ['规格参数', r.specParams ?? '—'],
+    ...(amountVisible && r.contractAmount != null
+      ? ([['合同金额', r.contractAmount.toLocaleString()]] as [string, string][]) : []),
+    ['交付状态', r.deliveryStatus ? (DELIVERY_LABEL[r.deliveryStatus] ?? r.deliveryStatus) : '—'],
+    ['负责人', r.ownerName ?? '—'],
+  ];
+  return (
+    <div className="advc" style={{ borderColor: 'var(--accent-line)' }}>
+      <div className="advc-head" style={{ background: 'var(--accent-bg)' }}>
+        <span className="advc-cap m" style={{ color: 'var(--accent)' }}>{r.projectNo}</span>
+        <span className="pill pill-neutral">{r.customerName}</span>
+        <span className="advc-note">台账只命中这一条，档案直接摊开</span>
+      </div>
+      <div style={{ background: 'var(--panel)', borderTop: '1px solid var(--line-soft)' }}>
+        {fields.map(([k, v]) => (
+          <div key={k} className="sum-row"><span className="sum-name">{k}</span><span className="sum-val">{v}</span></div>
+        ))}
+      </div>
+      {detail.documents.length > 0 && (
+        <>
+          <div className="sum-sec">项目资料<span className="sum-cnt">{detail.documents.length}</span></div>
+          {detail.documents.map((d) => (
+            <div key={d.docId} className="advc-row">
+              <span className="advc-bar" />
+              <button type="button" className="advc-tog"
+                onClick={() => nav(`/admin/corpus/${d.docId}/preview`, { state: { from: 'chat' } })}>
+                <span className="advc-val">{d.title}</span>
+              </button>
+              <span className="advc-act">
+                <ClsBadge cls={d.classification} />
+                <span className="hint">{d.docCategory}</span>
+              </span>
+            </div>
+          ))}
+        </>
+      )}
+      <div className="advc-foot">
+        <button className="gbtn" style={{ height: 24, fontSize: 11.5 }}
+          onClick={() => nav(`/projects/${encodeURIComponent(r.projectNo)}`, { state: { from: 'chat' } })}>
+          打开完整档案
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const TICKET_PILL: Record<TicketStatus, string> = {
+  Submitted: 'pill-int', Assigned: 'pill-accent', InProgress: 'pill-accent',
+  Resolved: 'pill-ok', Closed: 'pill-neutral',
+};
+
+/** 报修工单：一行一单，点开看流转记录（FR-8.8）。 */
+export function TicketsCard({ rows, status, note }: {
+  rows: TicketRow[]; status: string | null; note: string;
+}) {
+  const nav = useNavigate();
+  const [open, setOpen] = useState<string | null>(rows.length === 1 ? rows[0].id : null);
+  return (
+    <div className="advc" style={{ borderColor: 'var(--cls-int-line)' }}>
+      <div className="advc-head" style={{ background: 'var(--cls-int-bg)' }}>
+        <span className="advc-cap" style={{ color: 'var(--cls-int)' }}>报修工单</span>
+        <span className="pill pill-neutral">{rows.length} 条</span>
+        {status && <span className="pill pill-int">{TICKET_LABEL[status as TicketStatus] ?? status}</span>}
+        <span className="advc-note">点一条看流转记录</span>
+      </div>
+      {rows.map((t) => (
+        <div key={t.id}>
+          <div className={`advc-row${open === t.id ? ' open' : ''}`}>
+            <span className="advc-bar" />
+            <button type="button" className="advc-tog" aria-expanded={open === t.id}
+              onClick={() => setOpen(open === t.id ? null : t.id)}>
+              <span className="advc-tri">▶</span>
+              <span className="m" style={{ flex: '0 0 auto', width: 104, fontSize: 11.5, color: 'var(--cls-int)' }}>{t.ticketNo}</span>
+              <span className="advc-val"><b>{t.deviceNo}</b> — {t.description}</span>
+            </button>
+            <span className="advc-act">
+              <span className={`pill ${TICKET_PILL[t.status] ?? 'pill-neutral'}`}>{TICKET_LABEL[t.status] ?? t.status}</span>
+              {t.assigneeName && <span className="hint">{t.assigneeName}</span>}
+            </span>
+          </div>
+          {open === t.id && (
+            <div className="advc-body">
+              <div style={{ marginBottom: 5 }}>联系方式：{t.contact}　·　客户号：{t.customerNo}</div>
+              {t.trail.length === 0 ? <div className="hint">还没有流转记录。</div> : t.trail.map((e, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 2 }}>
+                  <span className="m" style={{ flex: '0 0 auto', color: 'var(--ink-3)' }}>{e.at.slice(0, 16).replace('T', ' ')}</span>
+                  <span className="pill pill-neutral">{TICKET_LABEL[e.status as TicketStatus] ?? e.status}</span>
+                  <span style={{ minWidth: 0 }}>{e.by}{e.note ? `：${e.note}` : ''}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+      <div className="advc-foot">
+        <button className="gbtn" style={{ height: 24, fontSize: 11.5 }} onClick={() => nav('/tickets', { state: { from: 'chat' } })}>
+          去工单台改状态或派工
+        </button>
+        <span className="hint" style={{ alignSelf: 'center' }}>{note}</span>
+      </div>
     </div>
   );
 }
