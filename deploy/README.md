@@ -183,27 +183,107 @@ docker compose -f docker-compose.yml -f docker-compose.mineru.yml up -d --build
 ## 按选型表部署模型服务（GPU 机器到货后）
 
 选型：对话与视觉模型 Qwen3.8-27B、向量化 bge-m3、重排 bge-reranker、推理框架 vLLM。
-三个服务共卡部署，按显存占比分配（27B 模型是大头，向量化与重排都很小）：
+三个服务共卡部署。下面这组参数是在一台 RTX PRO 5000 Blackwell 72GB / 驱动 615 /
+CUDA 13.4 / Ubuntu 24.04 上核对过的，其它卡按同样口径重新算显存账。
+
+**三个推理服务建议裸装 + systemd，不进 Docker**：共卡要精细控显存，裸装好调；
+而且能绕开镜像仓拉取这件事。Docker 只留给 MinerU（它只发镜像）。
 
 ```bash
-pip install vllm   # 或用 vllm/vllm-openai 官方容器镜像
+python3 -m venv /opt/vllm/venv && source /opt/vllm/venv/bin/activate
+pip install "vllm==0.30.0"
+```
 
+> 不要传 `--torch-backend=cu129`，也不要照抄官方安装文档里那条 cu129 命令——
+> 该文档已过期。当前 PyPI 默认 wheel 就是 CUDA 13 构建（torch 2.13 + cu13 依赖），
+> 混装 cu12 会报 `ImportError: libcudart.so.13`。装完先自检：
+> `python -c "import torch;print(torch.__version__, torch.version.cuda, torch.cuda.get_device_capability(0))"`，
+> 期望 `torch.version.cuda` 是 13.x。
+
+权重用**官方 FP8**（约 28.75 GiB），不要 BF16（51.7 GiB，加上两个 bge 放不下），
+也不要在线 `--quantization fp8`（per-tensor 粒度比官方的 128×128 块缩放粗，还会把
+刻意留在 BF16 的视觉塔一起量化）。国内走 ModelScope：
+
+```bash
+pip install -U modelscope
+ms-hub download Qwen/Qwen3.8-27B-FP8    --local-dir /data/models/Qwen3.8-27B-FP8
+ms-hub download BAAI/bge-m3             --local-dir /data/models/bge-m3
+ms-hub download BAAI/bge-reranker-v2-m3 --local-dir /data/models/bge-reranker-v2-m3
+```
+
+`--gpu-memory-utilization` 的基数是**总显存**，且是一道启动硬门槛：启动那一刻的空闲
+显存必须 ≥ `总显存 × util`，否则直接 ValueError 退出。所以多服务共卡时各 util 之和
+要留余量（每个 vLLM 进程另有约 0.5 GiB CUDA context 不计入该预算）。v0.30 默认值是
+0.92，三个服务都用默认值第二个必然起不来。72GB 卡上的分配：
+
+| 服务 | 端口 | util（不上 MinerU） | util（上 MinerU） |
+|---|---|---|---|
+| 对话 27B | 8000 | 0.80 | 0.70 |
+| bge-m3 | 8001 | 0.05 | 0.05 |
+| bge-reranker | 8002 | 0.05 | 0.05 |
+| MinerU | 18000 | — | 0.12 |
+
+```bash
 # 对话模型（端口 8000，OpenAI 兼容 /v1）
-vllm serve Qwen/Qwen3.8-27B --port 8000 --gpu-memory-utilization 0.75
+vllm serve /data/models/Qwen3.8-27B-FP8 --served-model-name chat-27b \
+  --host 0.0.0.0 --port 8000 --gpu-memory-utilization 0.70 \
+  --max-model-len 65536 --max-num-seqs 32 --max-num-batched-tokens 8192 \
+  --language-model-only --enable-prefix-caching --reasoning-parser qwen3
 
 # 向量化 bge-m3（端口 8001，/v1/embeddings，1024 维——与系统向量列一致）
-vllm serve BAAI/bge-m3 --task embed --port 8001 --gpu-memory-utilization 0.08
+vllm serve /data/models/bge-m3 --served-model-name bge-m3 \
+  --host 0.0.0.0 --port 8001 --runner pooling --dtype float16 \
+  --max-model-len 8192 --max-num-batched-tokens 8192 --gpu-memory-utilization 0.05
 
-# 重排 bge-reranker（端口 8002，/rerank）
-vllm serve BAAI/bge-reranker-v2-m3 --task score --port 8002 --gpu-memory-utilization 0.08
+# 重排 bge-reranker（端口 8002，/v1/rerank）
+vllm serve /data/models/bge-reranker-v2-m3 --served-model-name bge-reranker-v2-m3 \
+  --host 0.0.0.0 --port 8002 --runner pooling --dtype float16 \
+  --max-model-len 8192 --max-num-batched-tokens 8192 --gpu-memory-utilization 0.05
 ```
+
+几个参数不是可有可无的：
+
+- `--runner pooling`：**不是 `--task embed` / `--task score`**。`--task` 这个开关在
+  vLLM v0.13 就删了，`score` 这个 task 名也删了（改叫 `classify`）。照旧写法会报
+  unrecognized arguments。
+- `--max-num-batched-tokens 8192` 且 ≥ `--max-model-len`：encoder-only 双向注意力不支持
+  chunked prefill，不写会在启动校验时抛 ValueError。
+- `--reasoning-parser qwen3`：这个模型的 chat template 每轮以 `<think>` 开头，不加 parser
+  会把整段推理混进 `message.content`，界面上就把思考过程当答案显示了。
+- `--language-model-only`：这是个带视觉塔的模型，纯文本用不上，省下来的显存给 KV cache。
+  文档解析有独立的 MinerU。
+- **思考档位要降**：该模型默认 `reasoning_effort` 为 `xhigh`，不降档在几十人并发下
+  token 会被思考链吃光，表现为「显存够、GPU 忙、吞吐极低」。服务端能不能全局降档要
+  用 `vllm serve --help | grep -i chat-template` 确认；不行就客户端每请求带
+  `"chat_template_kwargs": {"reasoning_effort": "low"}`，翻译、抽取这类任务直接
+  `{"enable_thinking": false}`。
+
+起完立刻验三件事（第二条能挡住最贵的一类事故）：
+
+```bash
+for p in 8000 8001 8002; do curl -s -o /dev/null -w "$p:%{http_code} " http://127.0.0.1:$p/health; done; echo
+curl -s http://127.0.0.1:8001/v1/embeddings -H 'Content-Type: application/json' \
+  -d '{"model":"bge-m3","input":["测试"]}' \
+  | python3 -c "import sys,json;print('dim=',len(json.load(sys.stdin)['data'][0]['embedding']))"   # 必须是 1024
+journalctl -u vllm-chat -b --no-pager | grep -E 'GPU KV cache size|maximum concurrency'
+```
+
+**MinerU 与这三个服务端口相撞**：它的 compose 默认把 `mineru-api` 放 8000、
+`mineru-router` 放 8002，正面撞上对话与重排。host 侧改成 18000 / 18002；
+同时它 compose 里 `--gpu-memory-utilization 0.5` 那行是**注释掉的**状态，
+生效的是后端默认 0.92，一起容器就 ValueError——必须取消注释并改成 0.12。
 
 然后 admin 登录 → 系统设置，三张卡各选「本地部署」并把地址指到 GPU 机器
 （设其地址为 `<GPU_IP>`，与主系统同机部署时用 `host.docker.internal`）：
 
 - **对话模型**：选 Qwen/Qwen3.8-27B，地址 `http://<GPU_IP>:8000/v1`；
 - **向量化模型**：选本地 bge-m3，地址 `http://<GPU_IP>:8001/v1/embeddings`；
-- **重排模型**：选本地 bge-reranker，地址 `http://<GPU_IP>:8002/rerank`。
+- **重排模型**：选本地 bge-reranker，地址 `http://<GPU_IP>:8002/v1/rerank`
+  （带 `/v1` 前缀——vLLM 的 `--api-key` 只认证 `/v1`、`/v2`、`/inference` 前缀，
+  裸 `/rerank` 不受保护）。
+
+> 注意 8001 也会暴露一个 `/rerank`，走的是双塔余弦而不是交叉编码器。两个端口配串了
+> **不会报错**，只会悄悄变差——所以上面给两个服务起了不同的 `--served-model-name`。
 
 若之前一直用硅基流动在线档（同为 bge-m3），切回本地不触发重建；若从演示档切来，
 页底哨兵会亮，点**重建不一致向量**逐篇补齐（期间这些内容按关键词检索，数字回落到 0 即完成）。
