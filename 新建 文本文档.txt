@@ -1,0 +1,5 @@
+cd D:\Project\企业智能体平台
+git pull origin claude/fervent-tesla-pf2u1d
+cd deploy
+set COMPOSE_BAKE=false
+docker compose up -d --build
