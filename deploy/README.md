@@ -2,6 +2,8 @@
 
 一条命令把整套系统起在本机：数据库、公司节点、总部节点、公司内网界面、总部审核台、客户门户。
 
+Ubuntu 24.04 + NVIDIA 工作站部署请按 [完整操作指南](ubuntu24-workstation.md) 执行：使用仓库外的独立配置保存密码，依次验证业务系统、本地模型、检索和开机自启。
+
 ## 前置条件
 
 - Docker（含 Compose v2，`docker compose version` 能出版本号即可）
@@ -176,120 +178,47 @@ docker compose -f docker-compose.yml -f docker-compose.mineru.yml up -d --build
 
 步骤：admin 登录 → 系统设置，四张卡各选在线档、贴上密钥/令牌、点应用即可，
 不用改任何部署文件。切了向量化后记得点页底的「重建不一致向量」。
-在线档的向量化/重排与本地部署是**同一个模型**（bge 系列），显卡到货切回本地时
-向量库不用重建。注意：选在线即意味着相应内容会发往外部服务，机密语料是否
+在线档与本地部署都提供 bge 系列模型；切换向量化服务前应确认权重、维度和预处理一致，
+再判断已有向量能否复用。注意：选在线即意味着相应内容会发往外部服务，机密语料是否
 允许出网请先按公司规定确认。
 
-## 按选型表部署模型服务（GPU 机器到货后）
+## 部署本地模型服务
 
-选型：对话与视觉模型 Qwen3.8-27B、向量化 bge-m3、重排 bge-reranker、推理框架 vLLM。
-三个服务共卡部署。下面这组参数是在一台 RTX PRO 5000 Blackwell 72GB / 驱动 615 /
-CUDA 13.4 / Ubuntu 24.04 上核对过的，其它卡按同样口径重新算显存账。
+Ubuntu 工作站的安装、下载、启动、systemd 配置和功能验收命令见
+[Ubuntu 24.04 工作站部署指南](ubuntu24-workstation.md)。业务服务使用 Docker Compose，
+模型服务在宿主机的独立 Python 环境运行；公司和总部通过 `host.docker.internal` 访问。
 
-**三个推理服务建议裸装 + systemd，不进 Docker**：共卡要精细控显存，裸装好调；
-而且能绕开镜像仓拉取这件事。Docker 只留给 MinerU（它只发镜像）。
+当前系统界面会写入固定模型名称，vLLM 的 `--served-model-name` 必须与之完全一致：
 
-```bash
-python3 -m venv /opt/vllm/venv && source /opt/vllm/venv/bin/activate
-pip install "vllm==0.30.0"
-```
+| 能力 | `--served-model-name` | 后台填写的同机服务地址 |
+|---|---|---|
+| 对话 | `Qwen/Qwen3.8-27B` | `http://host.docker.internal:8000/v1` |
+| 向量化 | `BAAI/bge-m3` | `http://host.docker.internal:8001/v1/embeddings` |
+| 重排 | `BAAI/bge-reranker-v2-m3` | `http://host.docker.internal:8002/v1/rerank` |
 
-> 不要传 `--torch-backend=cu129`，也不要照抄官方安装文档里那条 cu129 命令——
-> 该文档已过期。当前 PyPI 默认 wheel 就是 CUDA 13 构建（torch 2.13 + cu13 依赖），
-> 混装 cu12 会报 `ImportError: libcudart.so.13`。装完先自检：
-> `python -c "import torch;print(torch.__version__, torch.version.cuda, torch.cuda.get_device_capability(0))"`，
-> 期望 `torch.version.cuda` 是 13.x。
+不能用 `chat-27b`、`bge-m3` 等短别名替代完整名称。实际权重目录可以不同，
+但服务对外发布的名称和请求中的 `model` 必须一致。后端容器中的 `127.0.0.1` 指容器自身，
+不能用它访问宿主机上的模型。
 
-权重用**官方 FP8**（约 28.75 GiB），不要 BF16（51.7 GiB，加上两个 bge 放不下），
-也不要在线 `--quantization fp8`（per-tensor 粒度比官方的 128×128 块缩放粗，还会把
-刻意留在 BF16 的视觉塔一起量化）。国内走 ModelScope：
+先启动 Qwen 并验证真实生成，再启动向量化和重排。原始权重、量化权重、上下文长度、
+并发和解析服务都会影响显存占用；指南中的参数仅作为首次验收起点，不保证标称 72GB
+显存能以任意参数同时运行所有服务。应用默认检索上下文和多轮历史可能超过 8K，
+还需用真实文档与多轮问答验证上下文预算。
 
-```bash
-pip install -U modelscope
-ms-hub download Qwen/Qwen3.8-27B-FP8    --local-dir /data/models/Qwen3.8-27B-FP8
-ms-hub download BAAI/bge-m3             --local-dir /data/models/bge-m3
-ms-hub download BAAI/bge-reranker-v2-m3 --local-dir /data/models/bge-reranker-v2-m3
-```
+- 向量化必须实测输出 **1024 维**，与数据库 `vector(1024)` 一致。
+- 当前应用没有发送关闭思考的模板参数；需要在推理服务设置支持的默认值，
+  并确认 `message.content` 非空、正文未混入推理过程。
+- 系统设置中分别选择本地对话、向量化和重排即可，约 5 秒生效。
+  `MODELS_USESTUBS` 是尚未选择 provider 时的兜底，不是切换本地的前置条件。
+- 若已有演示向量，点击「重建不一致向量」并等待完成。不同服务即使使用相同名称，
+  也应确认权重与预处理一致，再判断能否复用已有向量。
+- 公司和总部是独立数据库，需要分别配置。
 
-`--gpu-memory-utilization` 的基数是**总显存**，且是一道启动硬门槛：启动那一刻的空闲
-显存必须 ≥ `总显存 × util`，否则直接 ValueError 退出。所以多服务共卡时各 util 之和
-要留余量（每个 vLLM 进程另有约 0.5 GiB CUDA context 不计入该预算）。v0.30 默认值是
-0.92，三个服务都用默认值第二个必然起不来。72GB 卡上的分配：
-
-| 服务 | 端口 | util（不上 MinerU） | util（上 MinerU） |
-|---|---|---|---|
-| 对话 27B | 8000 | 0.80 | 0.70 |
-| bge-m3 | 8001 | 0.05 | 0.05 |
-| bge-reranker | 8002 | 0.05 | 0.05 |
-| MinerU | 18000 | — | 0.12 |
-
-```bash
-# 对话模型（端口 8000，OpenAI 兼容 /v1）
-vllm serve /data/models/Qwen3.8-27B-FP8 --served-model-name chat-27b \
-  --host 0.0.0.0 --port 8000 --gpu-memory-utilization 0.70 \
-  --max-model-len 65536 --max-num-seqs 32 --max-num-batched-tokens 8192 \
-  --language-model-only --enable-prefix-caching --reasoning-parser qwen3
-
-# 向量化 bge-m3（端口 8001，/v1/embeddings，1024 维——与系统向量列一致）
-vllm serve /data/models/bge-m3 --served-model-name bge-m3 \
-  --host 0.0.0.0 --port 8001 --runner pooling --dtype float16 \
-  --max-model-len 8192 --max-num-batched-tokens 8192 --gpu-memory-utilization 0.05
-
-# 重排 bge-reranker（端口 8002，/v1/rerank）
-vllm serve /data/models/bge-reranker-v2-m3 --served-model-name bge-reranker-v2-m3 \
-  --host 0.0.0.0 --port 8002 --runner pooling --dtype float16 \
-  --max-model-len 8192 --max-num-batched-tokens 8192 --gpu-memory-utilization 0.05
-```
-
-几个参数不是可有可无的：
-
-- `--runner pooling`：**不是 `--task embed` / `--task score`**。`--task` 这个开关在
-  vLLM v0.13 就删了，`score` 这个 task 名也删了（改叫 `classify`）。照旧写法会报
-  unrecognized arguments。
-- `--max-num-batched-tokens 8192` 且 ≥ `--max-model-len`：encoder-only 双向注意力不支持
-  chunked prefill，不写会在启动校验时抛 ValueError。
-- `--reasoning-parser qwen3`：这个模型的 chat template 每轮以 `<think>` 开头，不加 parser
-  会把整段推理混进 `message.content`，界面上就把思考过程当答案显示了。
-- `--language-model-only`：这是个带视觉塔的模型，纯文本用不上，省下来的显存给 KV cache。
-  文档解析有独立的 MinerU。
-- **思考档位要降**：该模型默认 `reasoning_effort` 为 `xhigh`，不降档在几十人并发下
-  token 会被思考链吃光，表现为「显存够、GPU 忙、吞吐极低」。服务端能不能全局降档要
-  用 `vllm serve --help | grep -i chat-template` 确认；不行就客户端每请求带
-  `"chat_template_kwargs": {"reasoning_effort": "low"}`，翻译、抽取这类任务直接
-  `{"enable_thinking": false}`。
-
-起完立刻验三件事（第二条能挡住最贵的一类事故）：
-
-```bash
-for p in 8000 8001 8002; do curl -s -o /dev/null -w "$p:%{http_code} " http://127.0.0.1:$p/health; done; echo
-curl -s http://127.0.0.1:8001/v1/embeddings -H 'Content-Type: application/json' \
-  -d '{"model":"bge-m3","input":["测试"]}' \
-  | python3 -c "import sys,json;print('dim=',len(json.load(sys.stdin)['data'][0]['embedding']))"   # 必须是 1024
-journalctl -u vllm-chat -b --no-pager | grep -E 'GPU KV cache size|maximum concurrency'
-```
-
-**MinerU 与这三个服务端口相撞**：它的 compose 默认把 `mineru-api` 放 8000、
-`mineru-router` 放 8002，正面撞上对话与重排。host 侧改成 18000 / 18002；
-同时它 compose 里 `--gpu-memory-utilization 0.5` 那行是**注释掉的**状态，
-生效的是后端默认 0.92，一起容器就 ValueError——必须取消注释并改成 0.12。
-
-然后 admin 登录 → 系统设置，三张卡各选「本地部署」并把地址指到 GPU 机器
-（设其地址为 `<GPU_IP>`，与主系统同机部署时用 `host.docker.internal`）：
-
-- **对话模型**：选 Qwen/Qwen3.8-27B，地址 `http://<GPU_IP>:8000/v1`；
-- **向量化模型**：选本地 bge-m3，地址 `http://<GPU_IP>:8001/v1/embeddings`；
-- **重排模型**：选本地 bge-reranker，地址 `http://<GPU_IP>:8002/v1/rerank`
-  （带 `/v1` 前缀——vLLM 的 `--api-key` 只认证 `/v1`、`/v2`、`/inference` 前缀，
-  裸 `/rerank` 不受保护）。
-
-> 注意 8001 也会暴露一个 `/rerank`，走的是双塔余弦而不是交叉编码器。两个端口配串了
-> **不会报错**，只会悄悄变差——所以上面给两个服务起了不同的 `--served-model-name`。
-
-若之前一直用硅基流动在线档（同为 bge-m3），切回本地不触发重建；若从演示档切来，
-页底哨兵会亮，点**重建不一致向量**逐篇补齐（期间这些内容按关键词检索，数字回落到 0 即完成）。
-
-bge-m3 输出 1024 维，与部署包的向量列维度一致，不需要动数据库。总部节点如需同样能力，
-在总部审核台的系统设置里做同样的配置（两个节点各自独立）。
+DOCX/XLSX/PPTX 可本地解析；PDF 和扫描件再接 MinerU。本仓库的
+`docker-compose.mineru.yml` 实际映射为宿主机 **8093 → 容器 8000**，
+不与上述三个宿主机端口冲突，也没有独立的 MinerU router。
+后端使用 `http://mineru:8000/file_parse`。叠加文件没有设置解析进程显存上限，
+应在确认模型占用后再配置解析后端和并发。
 
 ## 说明
 
@@ -298,12 +227,11 @@ bge-m3 输出 1024 维，与部署包的向量列维度一致，不需要动数�
 - **首启初始化**：数据库第一次为空时自动建表并写入初始数据（公司、角色、admin、
   三级库、词表、同步令牌）。`.env` 里的 `ADMIN_PASSWORD`、`SYNC_TOKEN` 只在这一次生效，
   之后改密码/改配置一律走界面。
-- **接入真实的嵌入/重排/解析服务**：在 compose 的两个 server 服务里加环境变量
-  `Models__UseStubs: "false"`，再到「系统设置」里把各服务地址指到实际部署
-  （宿主机上的服务用 `http://host.docker.internal:端口`），然后 `docker compose up -d` 重建。
+- **接入真实的嵌入/重排/解析服务**：在各节点「系统设置」里选择对应提供方并配置地址
+  （宿主机上的服务用 `http://host.docker.internal:端口`），应用后生效，无需重建容器。
 - **端口被占**：改 `.env` 里对应的 `*_PORT` 再 `docker compose up -d`。
-- **构建源**：后端镜像构建期除基础镜像外零联网（备份用的 `pg_dump` 及其依赖库
-  直接取自数据库同款镜像）；web/portal 的 npm 源默认指向国内镜像 npmmirror，
+- **构建源**：后端构建阶段需要访问 NuGet 恢复依赖；运行镜像中的 `pg_dump` 及其依赖库
+  直接取自数据库同款镜像，无需在运行阶段通过 apt 安装；web/portal 的 npm 源默认指向国内镜像 npmmirror，
   海外环境可 `--build-arg NPM_REGISTRY=https://registry.npmjs.org` 换回官方。
 - **拉基础镜像失败**（`load metadata … EOF / not found`，或
   `failed to resolve source metadata for mcr.microsoft.com/dotnet/sdk:8.0`）：
