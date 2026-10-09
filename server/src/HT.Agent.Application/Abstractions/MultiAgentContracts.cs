@@ -14,4 +14,10 @@ public interface IMultiAgentQaService
         QaSession session,
         string initialIntent,
         CancellationToken ct = default);
+
+    /// <summary>项目台账问题的多 Agent 协作：规划条件、执行受权限保护的台账工具、检索资料并汇总。</summary>
+    IAsyncEnumerable<QaEvent> RunLedgerAsync(
+        QaRequest request,
+        QaSession session,
+        CancellationToken ct = default);
 }

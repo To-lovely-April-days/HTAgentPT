@@ -33,12 +33,18 @@ public class QaService(
         // 意图路由（FR-4.1）：台账查询转 M3 结构化返回，生成与翻译转对应模块，
         // 其余进检索流程。判定结果对用户可见（intent 事件），可传 forcedIntent 手动纠正。
         var intent = await RouteIntentAsync(req, ct);
-        // 知识问答与通用对话都交给多 Agent 协调器：资料研究员、通用知识员、
-        // 任务分析员并行协作，最后由汇总员回答。台账/案例/工单/生成/翻译等
-        // 结构化能力仍沿用各自的专员服务和权限检查。
+        // 知识问答与通用对话交给通用多 Agent 协调器；项目台账进入专用的
+        // 查询规划、台账工具、资料研究、条件核验和回答整理协作链。案例、
+        // 工单、生成、翻译等其它结构化能力仍沿用各自的专员服务和权限检查。
         if (intent is IntentRouter.Knowledge or IntentRouter.General)
         {
             await foreach (var ev in multiAgent.RunAsync(req, session, intent, ct))
+                yield return ev;
+            yield break;
+        }
+        if (intent == IntentRouter.Ledger)
+        {
+            await foreach (var ev in multiAgent.RunLedgerAsync(req, session, ct))
                 yield return ev;
             yield break;
         }

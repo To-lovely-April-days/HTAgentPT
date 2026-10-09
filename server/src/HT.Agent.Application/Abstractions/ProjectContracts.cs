@@ -22,7 +22,9 @@ public record ProjectSearchRequest(
     decimal? AmountMax = null,
     DeliveryStatus? DeliveryStatus = null,
     string? Keyword = null,
-    int Limit = 200);
+    int Limit = 200,
+    /// <summary>地点候选：同时匹配客户名或项目规格文本；项目台账没有独立实施地字段。</summary>
+    string? LocationHint = null);
 
 public record ProjectSearchResult(
     IReadOnlyList<ProjectRow> Rows,

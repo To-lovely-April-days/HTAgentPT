@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { download } from '../../lib/api';
-import { DELIVERY_LABEL, TICKET_LABEL } from '../../lib/types';
+import { DELIVERY_LABEL, TICKET_LABEL, ledgerFilterSummary } from '../../lib/types';
 import type {
   CaseDetailData, CaseRow, GenTranslated, LedgerTable, ProjectDetail, QaTemplateRec, Source,
   TextTranslationResult, TicketRow, TicketStatus,
@@ -119,16 +119,26 @@ export function AgentProgressCard({ steps, streaming }: { steps: AgentStep[]; st
 export function LedgerCard({ table, onCorrect }: { table: LedgerTable; onCorrect: () => void }) {
   const nav = useNavigate();
   const [peek, setPeek] = useState<string | null>(null);
-  if (table.detail) return <ProjectCard detail={table.detail} amountVisible={table.amountVisible} />;
+  if (table.detail && !table.isCandidate) return <ProjectCard detail={table.detail} amountVisible={table.amountVisible} />;
+  if (table.detail && table.isCandidate) {
+    return <>
+      <div className="card" style={{ marginBottom: 8, padding: '9px 12px', color: 'var(--ink-2)' }}>
+        <span className="pill pill-pending" style={{ marginRight: 7 }}>待核实项目</span>
+        {table.note || '地点条件只产生候选匹配，实施地尚未核实。'}
+      </div>
+      <ProjectCard detail={table.detail} amountVisible={table.amountVisible} />
+    </>;
+  }
   const f = table.filters;
-  const cond = [f.customer && `客户=${f.customer}`, f.deviceType && `设备=${f.deviceType}`,
-    f.yearFrom && `${f.yearFrom}${f.yearTo && f.yearTo !== f.yearFrom ? `–${f.yearTo}` : ''} 年`]
-    .filter(Boolean).join('，') || '无（返回最近记录）';
+  const cond = ledgerFilterSummary(f);
+  const candidate = table.isCandidate || table.rows.some((r) => r.isCandidate);
+  const displayedRows = table.rows.length;
+  const columnCount = table.amountVisible ? 7 : 6;
   return (
     <div className="advc" style={{ borderColor: 'var(--line)' }}>
       <div className="advc-head" style={{ background: 'var(--bg-soft)' }}>
-        <span className="advc-cap" style={{ color: 'var(--ink-2)' }}>项目台账</span>
-        <span className="pill pill-neutral">{table.rows.length} 条</span>
+        <span className="advc-cap" style={{ color: 'var(--ink-2)' }}>{candidate ? '待核实项目' : '项目台账'}</span>
+        <span className="pill pill-neutral">{displayedRows} 条{table.truncated ? '（部分结果）' : ''}</span>
         <span className="advc-note">解析条件：{cond}</span>
       </div>
       <div style={{ overflowX: 'auto', background: 'var(--panel)' }}>
@@ -142,7 +152,10 @@ export function LedgerCard({ table, onCorrect }: { table: LedgerTable; onCorrect
             {table.rows.map((r) => (
               <tr key={r.projectNo} onClick={() => nav(`/projects/${encodeURIComponent(r.projectNo)}`, { state: { from: 'chat' } })}
                 title="打开项目档案">
-                <td className="m" style={{ color: 'var(--accent)', fontWeight: 500 }}>{r.projectNo}</td>
+                <td className="m" style={{ color: 'var(--accent)', fontWeight: 500 }}>
+                  {r.projectNo}
+                  {(r.isCandidate || table.isCandidate) && <span className="pill pill-pending" style={{ marginLeft: 5, fontSize: 10 }}>待核实</span>}
+                </td>
                 <td>{r.customerName}</td>
                 <td className="m">{r.year}</td>
                 <td className="m">{r.deviceModel ?? '—'}</td>
@@ -153,13 +166,15 @@ export function LedgerCard({ table, onCorrect }: { table: LedgerTable; onCorrect
                 </td>
               </tr>
             ))}
-            {table.rows.length === 0 && <tr><td colSpan={7} style={{ color: 'var(--ink-3)' }}>没有匹配的项目记录</td></tr>}
+            {table.rows.length === 0 && <tr><td colSpan={columnCount} style={{ color: 'var(--ink-3)' }}>没有匹配的项目记录</td></tr>}
           </tbody>
         </table>
       </div>
       <div className="advc-foot">
         <button className="gbtn" style={{ height: 24, fontSize: 11.5 }} onClick={onCorrect}>不是查台账？按知识问答回答</button>
-        <span className="hint" style={{ alignSelf: 'center' }}>点「预览」就地看原件，点行打开完整档案</span>
+        <span className="hint" style={{ alignSelf: 'center' }}>
+          {table.note || (candidate ? '结果含待核实候选，请打开项目档案确认；不代表全部匹配项目。' : '点「预览」就地看原件，点行打开完整档案')}
+        </span>
       </div>
       {peek && <ProjectPreviewModal projectNo={peek} onClose={() => setPeek(null)} />}
     </div>

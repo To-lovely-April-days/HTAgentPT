@@ -25,6 +25,14 @@ public class ProjectService(AppDbContext db, IVocabService vocab, IAuditWriter a
         if (req.YearTo is not null) q = q.Where(p => p.Year <= req.YearTo);
         if (!string.IsNullOrWhiteSpace(req.DeviceType)) q = q.Where(p => p.DeviceType == req.DeviceType);
         if (req.DeliveryStatus is not null) q = q.Where(p => p.DeliveryStatus == req.DeliveryStatus);
+        if (!string.IsNullOrWhiteSpace(req.LocationHint))
+        {
+            var location = req.LocationHint.Trim();
+            // 台账目前没有独立实施地字段；地点只作为候选提示，匹配客户名或规格参数，
+            // 并与其它条件同时生效。上层会在返回表格中明确标注“未核实实施地”。
+            q = q.Where(p => p.CustomerName.Contains(location) ||
+                             (p.SpecParams != null && p.SpecParams.Contains(location)));
+        }
         if (!string.IsNullOrWhiteSpace(req.Keyword))
             q = q.Where(p => p.ProjectNo.Contains(req.Keyword) ||
                              (p.DeviceModel != null && p.DeviceModel.Contains(req.Keyword)) ||
@@ -44,7 +52,11 @@ public class ProjectService(AppDbContext db, IVocabService vocab, IAuditWriter a
 
         await audit.WriteAsync(new AuditEntry("project.search", AuditResult.Success,
             UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
-            Detail: new { req.CustomerName, req.YearFrom, req.YearTo, req.DeviceType, rows = rows.Count, amountVisible }), ct);
+            Detail: new
+            {
+                req.CustomerName, req.YearFrom, req.YearTo, req.DeviceType, req.DeliveryStatus,
+                req.Keyword, req.LocationHint, rows = rows.Count, amountVisible, amountFilterIgnored
+            }), ct);
         return new ProjectSearchResult(rows, amountVisible, amountFilterIgnored);
     }
 

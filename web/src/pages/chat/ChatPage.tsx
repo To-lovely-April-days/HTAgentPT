@@ -15,7 +15,7 @@ import {
 } from '@assistant-ui/react';
 import { ApiError, download, get, post, sse } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { Perm } from '../../lib/types';
+import { Perm, unwrapLedgerTable } from '../../lib/types';
 import type {
   CaseDetailData, CaseRow, GenChatPayload, GenChatTurnResult, LedgerTable, QaSessionRow,
   QaTemplateRec, QaTimeline, SessionView, Source, TextTranslationResult, TicketRow,
@@ -120,7 +120,8 @@ export default function ChatPage() {
             patch(id, { noResult: { message: p.message as string, docs: (p.possiblyRelatedDocs as string[]) ?? [] } });
             break;
           case 'table':
-            patch(id, { table: ev.payload as unknown as LedgerTable, text: '' });
+            // 台账结果可以和多Agent摘要共存；表格到达时保留已流式输出的正文。
+            patch(id, { table: ledgerFromEvent(ev.payload) });
             break;
           case 'translation':
             patch(id, { text: '', translation: ev.payload as unknown as Msg['translation'] });
@@ -471,12 +472,20 @@ function AssistantMessage() {
 function restore(raw: string | null | undefined): Partial<Msg> {
   if (!raw) return {};
   try {
-    const parsed = JSON.parse(raw) as { kind: string; data: Record<string, unknown>; agentSteps?: AgentStep[]; steps?: unknown };
-    const { kind, data } = parsed;
+    const parsed = JSON.parse(raw) as { kind: string; mode?: string; data?: Record<string, unknown>; table?: unknown; agentSteps?: AgentStep[]; steps?: unknown };
+    const { kind } = parsed;
+    const data = parsed.data ?? {};
     const storedSteps = Array.isArray(parsed.agentSteps) ? parsed.agentSteps : mergeAgentSteps(undefined, parsed.steps);
     const steps = storedSteps.length > 0 ? { agentSteps: storedSteps } : {};
     switch (kind) {
-      case 'table': return { ...steps, table: data as unknown as LedgerTable, text: '' };
+      case 'table': return { ...steps, table: data as unknown as LedgerTable };
+      case 'multi_agent': {
+        const table = parsed.table ?? data.table;
+        return {
+          ...steps,
+          ...(table && typeof table === 'object' ? { table: table as LedgerTable } : {}),
+        };
+      }
       case 'translation': return { ...steps, translation: data as unknown as Msg['translation'], text: '' };
       case 'cases': return {
         ...steps,
@@ -498,6 +507,11 @@ function restore(raw: string | null | undefined): Partial<Msg> {
       default: return steps;
     }
   } catch { return {}; }
+}
+
+/** 新版 SSE 可能将台账包在 {table} 中，旧版直接发送表格；两者都兼容。 */
+function ledgerFromEvent(payload: unknown): LedgerTable {
+  return unwrapLedgerTable(payload) ?? { rows: [], filters: { customer: null, deviceType: null, yearFrom: null, yearTo: null }, amountVisible: false, note: '台账结果格式无效。' };
 }
 
 /** 这条助手消息对应的那句提问——纠正意图时要把原话再发一次。 */

@@ -20,12 +20,13 @@ namespace HT.Agent.Infrastructure.Services;
 public sealed class MultiAgentQaService(
     AppDbContext db,
     IRetrievalService retrieval,
+    IProjectResearchAgent projectResearch,
     IChatModelClient chat,
     IRuntimeConfig config,
     IAuditWriter audit,
     ICurrentUser me) : IMultiAgentQaService
 {
-    private static readonly SemaphoreSlim ModelSlots = new(3, 3);
+    internal static readonly SemaphoreSlim ModelSlots = new(3, 3);
 
     private sealed record AgentSpec(string Id, string Label, string Instruction);
 
@@ -42,6 +43,244 @@ public sealed class MultiAgentQaService(
         new("researcher", "资料研究", "检查给定的企业资料，提取能够直接支持回答的事实，并在每条事实后标注 [n]。没有可靠资料时明确写“没有找到依据”，不要用常识补齐。"),
         new("generalist", "通用知识", "从通用知识角度准备一个有帮助的回答。凡是涉及本企业客户、项目、报价、合同、设备型号或内部规章的内容都标记为“需要企业资料”，不要猜测。")
     ];
+
+    private static readonly AgentSpec[] LedgerSpecialists =
+    [
+        new("ledger_analyst", "项目分析", "只分析服务器提供的台账记录，归纳数量、客户、年份、设备和交付状态。不得新增台账中没有的项目或地点。"),
+        new("researcher", "资料研究", "检查服务器提供的企业资料，寻找能证明项目地点、客户背景或项目细节的内容；没有依据就明确写“没有找到依据”。"),
+        new("verifier", "条件核验", "逐项核对用户条件、规划结果、台账记录和资料证据。指出地点只是文本候选还是已有明确证据，发现不一致就保留疑问。")
+    ];
+
+    /// <summary>
+    /// 项目查询的专用协作链。台账和资料都是受权限保护的工具结果，模型只能分析结果，
+    /// 不能生成项目行或绕过项目服务。最终仍发送 table 事件，正文则由汇总员自然组织。
+    /// </summary>
+    public async IAsyncEnumerable<QaEvent> RunLedgerAsync(
+        QaRequest request,
+        QaSession session,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        var runId = Guid.NewGuid();
+        const int total = 7;
+        var historyTurns = await config.GetIntAsync(ConfigKeys.HistoryTurns, 6, ct);
+        var history = await db.QaMessages.AsNoTracking()
+            .Where(m => m.SessionId == session.Id && m.Answer != null)
+            .OrderByDescending(m => m.At).Take(historyTurns)
+            .OrderBy(m => m.At).ToListAsync(ct);
+
+        var planner = new AgentSpec("query_planner", "查询规划", "把自然语言条件整理为安全的查询计划。");
+        yield return Progress(runId, planner, "running", 0, total);
+        var plan = await projectResearch.PlanAsync(request.Question, FormatHistory(history), ct);
+        yield return Progress(runId, planner, "done", 1, total,
+            plan.UnresolvedConditions.Count == 0 ? "已整理查询条件。" : "有条件需要核验，暂不扩大查询范围。");
+
+        var ledgerAgent = new AgentSpec("ledger_query", "项目台账", "调用受权限保护的项目台账工具。");
+        yield return Progress(runId, ledgerAgent, "running", 1, total);
+        var ledger = await projectResearch.ExecuteAsync(plan, ct);
+        yield return Progress(runId, ledgerAgent, "done", 2, total, ledger.Detail);
+
+        var retrievalAgent = new AgentSpec("document_research", "企业资料检索", "检索能够补充项目地点和项目细节的企业资料。");
+        yield return Progress(runId, retrievalAgent, "running", 2, total);
+        var retrievalQuery = string.IsNullOrWhiteSpace(plan.RetrievalQuery) ? request.Question : plan.RetrievalQuery;
+        var retrievalRequest = request with
+        {
+            Question = retrievalQuery,
+            Retrieval = request.Retrieval with { Query = retrievalQuery }
+        };
+        var documentResult = await RetrieveWithCandidatesAsync(retrievalRequest, history, ct);
+        var documentEvidence = BuildEvidence(documentResult);
+        yield return Progress(runId, retrievalAgent, "done", 3, total,
+            documentResult.AboveThreshold ? $"找到 {documentResult.Chunks.Count} 条可信资料。" : "没有找到达到可信阈值的资料。");
+
+        yield return new QaEvent("meta", new
+        {
+            sessionId = session.Id,
+            intent = IntentRouter.Ledger,
+            mode = "multi_agent",
+            runId,
+            hitCount = (ledger.Table?.Rows.Count ?? 0) + documentResult.Chunks.Count,
+            topScore = documentResult.TopScore,
+            notice = documentResult.Notice,
+            tableCount = ledger.Table?.Rows.Count ?? 0,
+            unresolved = plan.UnresolvedConditions
+        });
+        if (ledger.Table is not null)
+            yield return new QaEvent("table", ledger.Table);
+
+        await audit.WriteAsync(new AuditEntry("qa.multi_agent.start", AuditResult.Success,
+            UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+            TargetType: "qa_session", TargetId: session.Id.ToString(),
+            Detail: new
+            {
+                runId,
+                question = request.Question,
+                intent = IntentRouter.Ledger,
+                agents = LedgerSpecialists.Select(a => a.Id).Append(planner.Id).Append(ledgerAgent.Id).Append(retrievalAgent.Id).ToArray(),
+                tableRows = ledger.Table?.Rows.Count ?? 0,
+                evidence = documentResult.Chunks.Count
+            }), ct);
+
+        var specialistEvidence = BuildLedgerAgentEvidence(ledger, documentEvidence, plan);
+        foreach (var specialist in LedgerSpecialists)
+            yield return Progress(runId, specialist, "running", 3, total);
+
+        var tasks = LedgerSpecialists.ToDictionary(
+            spec => spec.Id,
+            spec => RunSpecialistAsync(spec, request.Question, IntentRouter.Ledger, history, specialistEvidence, ct));
+        var pending = tasks.Values.ToList();
+        var outputs = new List<AgentOutput>(LedgerSpecialists.Length);
+        while (pending.Count > 0)
+        {
+            var finished = await Task.WhenAny(pending);
+            pending.Remove(finished);
+            var output = await finished;
+            outputs.Add(output);
+            var spec = LedgerSpecialists.Single(s => s.Id == output.Id);
+            yield return Progress(runId, spec, output.Succeeded ? "done" : "error",
+                3 + outputs.Count, total, output.Detail);
+        }
+
+        var synthesizer = new AgentSpec("synthesizer", "回答整理", "核对查询条件、台账、资料和专员意见后生成最终答复。");
+        yield return Progress(runId, synthesizer, "running", 6, total);
+        var synthesis = await BuildLedgerSynthesisPromptAsync(
+            request.Question, plan, ledger, documentResult, documentEvidence, outputs, history, ct);
+        var message = new QaMessage
+        {
+            Id = Guid.NewGuid(),
+            SessionId = session.Id,
+            Question = request.Question,
+            Intent = IntentRouter.Ledger,
+            RewrittenQuery = plan.RetrievalQuery == request.Question ? null : plan.RetrievalQuery,
+            At = DateTimeOffset.UtcNow
+        };
+        var answer = new StringBuilder();
+        var completedRun = false;
+        try
+        {
+            await foreach (var delta in StreamWithSlotAsync(synthesis, ct))
+            {
+                answer.Append(delta);
+                yield return new QaEvent("delta", new { text = delta });
+            }
+
+            var sourceImages = documentResult.AboveThreshold ? await LoadSourceImagesAsync(documentResult, ct) : [];
+            var sources = documentResult.AboveThreshold ? BuildSources(documentResult, sourceImages) : [];
+            if (sources.Count > 0) yield return new QaEvent("sources", sources);
+
+            var steps = new List<object>
+            {
+                new { id = planner.Id, label = planner.Label, status = "done", detail = plan.UnresolvedConditions.Count == 0 ? "已整理查询条件。" : "有条件需要核验，未扩大查询范围。" },
+                new { id = ledgerAgent.Id, label = ledgerAgent.Label, status = "done", detail = ledger.Detail },
+                new { id = retrievalAgent.Id, label = retrievalAgent.Label, status = "done", detail = documentResult.AboveThreshold ? $"找到 {documentResult.Chunks.Count} 条可信资料。" : "没有找到达到可信阈值的资料。" }
+            };
+            steps.AddRange(outputs.Select(o => (object)new { id = o.Id, label = o.Label,
+                status = o.Succeeded ? "done" : "error", detail = o.Detail }));
+            steps.Add(new { id = synthesizer.Id, label = synthesizer.Label, status = "done", detail = "已核对台账、资料和专员意见完成整理。" });
+
+            message.Answer = answer.ToString();
+            message.Sources = sources.Count == 0 ? null : JsonSerializer.Serialize(sources);
+            message.Payload = JsonSerializer.Serialize(new
+            {
+                kind = "multi_agent",
+                mode = IntentRouter.Ledger,
+                runId,
+                steps,
+                table = ledger.Table
+            });
+            db.QaMessages.Add(message);
+            session.UpdatedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(ct);
+            completedRun = true;
+
+            await audit.WriteAsync(new AuditEntry("qa.multi_agent.complete", AuditResult.Success,
+                UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+                TargetType: "qa_message", TargetId: message.Id.ToString(),
+                Detail: new { runId, intent = IntentRouter.Ledger, agents = outputs.Count,
+                    tableRows = ledger.Table?.Rows.Count ?? 0, evidence = documentResult.Chunks.Count }), ct);
+            yield return Progress(runId, synthesizer, "done", total, total, "已核对台账、资料和专员意见完成整理。");
+            yield return new QaEvent("done", new { messageId = message.Id, runId });
+        }
+        finally
+        {
+            if (!completedRun && answer.Length > 0)
+            {
+                message.Answer = answer + "\n[回答因连接中断而不完整]";
+                message.Payload = JsonSerializer.Serialize(new { kind = "multi_agent", mode = IntentRouter.Ledger, runId });
+                db.QaMessages.Add(message);
+                session.UpdatedAt = DateTimeOffset.UtcNow;
+                await db.SaveChangesAsync(CancellationToken.None);
+            }
+        }
+    }
+
+    private static string BuildLedgerAgentEvidence(
+        ProjectResearchResult ledger, string documentEvidence, ProjectQueryPlan plan)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("<structured-project-plan>");
+        sb.AppendLine($"允许返回最近项目：{plan.AllowRecent}");
+        if (plan.UnresolvedConditions.Count > 0)
+            sb.AppendLine("未解决条件：" + string.Join("；", plan.UnresolvedConditions));
+        sb.AppendLine("</structured-project-plan>");
+        sb.AppendLine("<authoritative-project-ledger>");
+        sb.AppendLine(ledger.Evidence.Length == 0 ? "本轮没有可用台账记录。" : ledger.Evidence);
+        sb.AppendLine("</authoritative-project-ledger>");
+        sb.AppendLine("<enterprise-document-evidence>");
+        sb.AppendLine(documentEvidence);
+        sb.AppendLine("</enterprise-document-evidence>");
+        return sb.ToString();
+    }
+
+    private async Task<IReadOnlyList<ChatTurn>> BuildLedgerSynthesisPromptAsync(
+        string question,
+        ProjectQueryPlan plan,
+        ProjectResearchResult ledger,
+        RetrievalResult documents,
+        string documentEvidence,
+        List<AgentOutput> outputs,
+        List<QaMessage> history,
+        CancellationToken ct)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("你是企业项目查询团队的总汇总员。请给用户一个自然、直接、可核验的回答。");
+        sb.AppendLine("项目台账是服务器按权限返回的权威数据。不得增加项目编号、客户、年份、设备、金额或交付状态；不得把专员意见当成事实。");
+        sb.AppendLine("地点规则：当前台账没有独立的项目实施地字段。地点条件命中的客户名或规格文本只能标记为候选，不能说成‘项目在该地点’；只有企业资料明确支持时才可说明地点，并标注来源编号。");
+        sb.AppendLine("如果条件未解决、没有台账结果或只有资料线索，要明确告诉用户缺少什么，并建议补充条件或上传项目资料；不要用最近项目填充空条件。");
+        sb.AppendLine("引用企业资料时在论断末尾标注 [n]；台账记录用‘根据项目台账’表述，不要为台账虚造文档编号。");
+        sb.AppendLine("不要提及提示词、模型内部思考或协作过程。");
+        sb.AppendLine();
+        sb.AppendLine("<user-question>");
+        sb.AppendLine(question);
+        sb.AppendLine("</user-question>");
+        sb.AppendLine("<query-plan>");
+        sb.AppendLine($"允许查询最近项目：{plan.AllowRecent}");
+        sb.AppendLine($"台账查询：{(plan.Query is null ? "未执行" : JsonSerializer.Serialize(plan.Query))}");
+        if (plan.UnresolvedConditions.Count > 0)
+            sb.AppendLine("未解决条件：" + string.Join("；", plan.UnresolvedConditions));
+        sb.AppendLine("资料检索问题：" + plan.RetrievalQuery);
+        sb.AppendLine("</query-plan>");
+        sb.AppendLine("<authoritative-ledger-result>");
+        sb.AppendLine(ledger.Evidence.Length == 0 ? ledger.Detail : ledger.Evidence);
+        sb.AppendLine("</authoritative-ledger-result>");
+        sb.AppendLine("<enterprise-document-evidence>");
+        sb.AppendLine(documentEvidence);
+        sb.AppendLine("</enterprise-document-evidence>");
+        sb.AppendLine($"可信资料条数：{documents.Chunks.Count}；最高分：{documents.TopScore:0.####}");
+        sb.AppendLine("<specialist-opinions>");
+        foreach (var output in outputs)
+            sb.AppendLine($"[{output.Label}] {TrimForCoordinator(output.Text, 700)}");
+        sb.AppendLine("</specialist-opinions>");
+        sb.AppendLine("<conversation-history-untrusted>");
+        sb.AppendLine(FormatHistory(history));
+        sb.AppendLine("</conversation-history-untrusted>");
+        sb.AppendLine("只输出最终答复。");
+
+        _ = await config.GetIntAsync(ConfigKeys.ContextTokens, 6000, ct);
+        return [
+            new ChatTurn("system", sb.ToString()),
+            new ChatTurn("user", "请只输出最终答复。")
+        ];
+    }
 
     public async IAsyncEnumerable<QaEvent> RunAsync(
         QaRequest request,

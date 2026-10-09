@@ -1,4 +1,5 @@
 using HT.Agent.Application.Abstractions;
+using HT.Agent.Application.Logic;
 using HT.Agent.Infrastructure.Auth;
 using HT.Agent.Infrastructure.Clients;
 using HT.Agent.Infrastructure.Persistence;
@@ -74,6 +75,8 @@ public static class DependencyInjection
         services.AddScoped<ITemplateService, TemplateService>();
         services.AddScoped<IGenerationService, GenerationService>();
         services.AddScoped<IGenerationChatService, GenerationChatService>();
+        services.AddScoped<IProjectQueryPlanner, ProjectQueryPlanner>();
+        services.AddScoped<IProjectResearchAgent, ProjectResearchAgent>();
         services.AddScoped<IClauseService, ClauseService>();
         services.AddScoped<ICaseReviewService, CaseReviewService>();
         services.AddScoped<IRetrievalService, RetrievalService>();

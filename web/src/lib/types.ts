@@ -61,6 +61,9 @@ export interface ProjectRow {
   projectNo: string; customerName: string; year: number; deviceType: string;
   deviceModel: string | null; specParams: string | null; contractAmount: number | null;
   deliveryStatus: string | null; ownerId: string | null; ownerName: string | null; updatedAt: string;
+  /** 地域等条件未落到权威字段时，服务端可将结果标成待核实候选。 */
+  isCandidate?: boolean;
+  truncated?: boolean;
 }
 
 export interface ProjectSearchResult {
@@ -254,10 +257,41 @@ export interface GenTranslated {
 /** 问答分流事件里携带的模板推荐（点选即开聊）。 */
 /** 台账查询的结构化结果（FR-4.1）：不经模型生成，筛选条件由提问解析而来。 */
 export interface LedgerTable {
-  filters: { customer: string | null; deviceType: string | null; yearFrom: number | null; yearTo: number | null };
+  filters: {
+    customer: string | null; deviceType: string | null; yearFrom: number | null; yearTo: number | null;
+    keyword?: string | null; locationHint?: string | null; deliveryStatus?: string | null;
+    amountMin?: number | null; amountMax?: number | null;
+  };
   rows: ProjectRow[]; amountVisible: boolean; note: string;
+  /** 条件涉及未建模地域或结果被截断时，展示为待核实/部分结果。 */
+  isCandidate?: boolean;
+  truncated?: boolean;
   /** 只命中一条时服务端直接带上项目档案，不用再点一次 */
   detail?: ProjectDetail | null;
+}
+
+/** 台账事件在旧版直接发送表格，新版可能包在 {table} 中；统一解包供两种页面使用。 */
+export function unwrapLedgerTable(payload: unknown): LedgerTable | null {
+  const value = payload && typeof payload === 'object' && 'table' in payload
+    ? (payload as { table?: unknown }).table
+    : payload;
+  if (!value || typeof value !== 'object' || !Array.isArray((value as { rows?: unknown }).rows)) return null;
+  return value as LedgerTable;
+}
+
+/** 只展示服务端实际解析到的条件，避免把未解析的地域词误说成“最近”。 */
+export function ledgerFilterSummary(filters: LedgerTable['filters']): string {
+  const f = filters;
+  return [
+    f.customer && `客户=${f.customer}`,
+    f.deviceType && `设备=${f.deviceType}`,
+    f.keyword && `关键词=${f.keyword}`,
+    f.locationHint && `地点条件=${f.locationHint}`,
+    f.deliveryStatus && `交付=${DELIVERY_LABEL[f.deliveryStatus] ?? f.deliveryStatus}`,
+    f.yearFrom && `${f.yearFrom}${f.yearTo && f.yearTo !== f.yearFrom ? `–${f.yearTo}` : ''} 年`,
+    f.amountMin != null && `金额≥${f.amountMin.toLocaleString()}`,
+    f.amountMax != null && `金额≤${f.amountMax.toLocaleString()}`,
+  ].filter(Boolean).join('，') || '未解析到筛选条件';
 }
 
 

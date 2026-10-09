@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { get, post, sse, download, ApiError } from '../../lib/api';
 import { randomUuid } from '../../lib/id';
-import { DELIVERY_LABEL } from '../../lib/types';
+import { DELIVERY_LABEL, ledgerFilterSummary, unwrapLedgerTable } from '../../lib/types';
 import type { LedgerTable, QaMessageRow, QaSessionRow, QaTemplateRec, Source, VocabRow } from '../../lib/types';
 import { AuthImage, ClsBadge, ErrorBox, InfoBox, Spinner } from '../../components/Common';
 import { Prose } from '../../components/Prose';
@@ -69,7 +69,7 @@ export default function QaPage() {
       id: m.id, question: m.question, rewrittenQuery: m.rewrittenQuery,
       answer: m.answer ?? '', streaming: false, messageId: m.id, helpful: m.helpful,
       intent: m.intent ?? undefined,
-      agentSteps: restoreAgentSteps(m.payload),
+      ...restoreTurnPayload(m.payload),
       sources: m.sources ? (JSON.parse(m.sources) as Source[]) : undefined,
       noResult: m.noResultHints
         ? { message: '知识库中没有找到足以回答这个问题的内容。', possiblyRelatedDocs: JSON.parse(m.noResultHints) as string[] }
@@ -127,7 +127,8 @@ export default function QaPage() {
             patch({ noResult: { message: p.message as string, possiblyRelatedDocs: (p.possiblyRelatedDocs as string[]) ?? [] }, notice: (p.notice as string) ?? null });
             break;
           case 'table':
-            patch({ table: ev.payload as unknown as LedgerTable });
+            // 多Agent先输出摘要，台账表格随后到达；保留正文和已有步骤。
+            patch({ table: ledgerFromEvent(ev.payload) });
             break;
           case 'redirect':
             patch({ redirect: { module: p.module as string, message: p.message as string, templates: (p.templates as QaTemplateRec[] | null) ?? null } });
@@ -286,15 +287,30 @@ export default function QaPage() {
   );
 }
 
-function restoreAgentSteps(raw: string | null | undefined): AgentStep[] | undefined {
-  if (!raw) return undefined;
+function restoreTurnPayload(raw: string | null | undefined): Pick<Turn, 'agentSteps' | 'table'> {
+  if (!raw) return {};
   try {
-    const payload = JSON.parse(raw) as { agentSteps?: AgentStep[]; steps?: unknown };
-    const steps = Array.isArray(payload.agentSteps) ? payload.agentSteps : mergeAgentSteps(undefined, payload.steps);
-    return steps.length > 0 ? steps : undefined;
+    const payload = JSON.parse(raw) as {
+      kind?: string; steps?: unknown; agentSteps?: AgentStep[]; table?: unknown;
+      data?: { table?: unknown };
+    };
+    const steps = Array.isArray(payload.agentSteps)
+      ? payload.agentSteps
+      : mergeAgentSteps(undefined, payload.steps);
+    const table = payload.kind === 'table'
+      ? payload.data
+      : payload.table ?? payload.data?.table;
+    return {
+      ...(steps.length > 0 ? { agentSteps: steps } : {}),
+      ...(table && typeof table === 'object' ? { table: table as LedgerTable } : {}),
+    };
   } catch {
-    return undefined;
+    return {};
   }
+}
+
+function ledgerFromEvent(payload: unknown): LedgerTable {
+  return unwrapLedgerTable(payload) ?? { rows: [], filters: { customer: null, deviceType: null, yearFrom: null, yearTo: null }, amountVisible: false, note: '台账结果格式无效。' };
 }
 
 function TurnView({ turn: t, onFeedback, onCorrect, onShowSources }: {
@@ -321,7 +337,6 @@ function TurnView({ turn: t, onFeedback, onCorrect, onShowSources }: {
       )}
       {t.agentSteps && <AgentProgressCard steps={t.agentSteps} streaming={t.streaming} />}
 
-      {t.table && <LedgerTableView table={t.table} onCorrect={onCorrect} />}
       {t.redirect && (
         <InfoBox>
           {t.redirect.message}
@@ -360,7 +375,7 @@ function TurnView({ turn: t, onFeedback, onCorrect, onShowSources }: {
       )}
       {t.error && <ErrorBox message={t.error} />}
 
-      {(t.answer || t.streaming) && !t.table && !t.redirect && (
+      {(t.answer || t.streaming) && !t.redirect && (
         <div className="card" style={{ padding: '12px 16px' }}>
           <Prose text={t.answer} style={{ fontSize: 14 }}
             onCite={t.sources ? (n) => onShowSources(t.sources!, n) : undefined} />
@@ -380,6 +395,7 @@ function TurnView({ turn: t, onFeedback, onCorrect, onShowSources }: {
           )}
         </div>
       )}
+      {t.table && <LedgerTableView table={t.table} onCorrect={onCorrect} />}
     </div>
   );
 }
@@ -389,14 +405,15 @@ function TurnView({ turn: t, onFeedback, onCorrect, onShowSources }: {
 function LedgerTableView({ table, onCorrect }: { table: LedgerTable; onCorrect: (fi: string) => void }) {
   const f = table.filters;
   const nav = useNavigate();
+  const candidate = table.isCandidate || table.rows.some((r) => r.isCandidate);
+  const conditions = ledgerFilterSummary(f);
   return (
     <div className="card" style={{ overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderBottom: '1px solid var(--line)', background: '#f8fafc' }}>
-        <span className="pill pill-accent">台账查询</span>
+        <span className="pill pill-accent">{candidate ? '待核实项目' : '台账查询'}</span>
+        <span className="pill pill-neutral">{table.rows.length} 条{table.truncated ? '（部分结果）' : ''}</span>
         <span className="hint">
-          解析条件：{[f.customer && `客户=${f.customer}`, f.deviceType && `设备=${f.deviceType}`,
-            f.yearFrom && `${f.yearFrom}${f.yearTo && f.yearTo !== f.yearFrom ? `–${f.yearTo}` : ''} 年`]
-            .filter(Boolean).join('，') || '无（返回最近记录）'}
+          解析条件：{conditions}
         </span>
         <div style={{ flexGrow: 1 }} />
         <button className="gbtn" style={{ height: 24, fontSize: 11.5 }} onClick={() => onCorrect('knowledge')}>不是查台账？按知识问答回答</button>
@@ -413,7 +430,10 @@ function LedgerTableView({ table, onCorrect }: { table: LedgerTable; onCorrect: 
           {table.rows.map((r) => (
             <tr key={r.projectNo} style={{ cursor: 'pointer' }} title="查看项目详情"
               onClick={() => nav(`/projects/${encodeURIComponent(r.projectNo)}`, { state: { from: 'qa' } })}>
-              <td className="m" style={{ ...td, color: 'var(--accent)', fontWeight: 500 }}>{r.projectNo}</td>
+              <td className="m" style={{ ...td, color: 'var(--accent)', fontWeight: 500 }}>
+                {r.projectNo}
+                {(r.isCandidate || table.isCandidate) && <span className="pill pill-pending" style={{ marginLeft: 5, fontSize: 10 }}>待核实</span>}
+              </td>
               <td style={td}>{r.customerName}</td>
               <td className="m" style={td}>{r.year}</td>
               <td style={td}>{r.deviceType}</td>
@@ -427,7 +447,9 @@ function LedgerTableView({ table, onCorrect }: { table: LedgerTable; onCorrect: 
           )}
         </tbody>
       </table>
-      <div className="hint" style={{ padding: '8px 12px', borderTop: '1px solid var(--line-soft)' }}>{table.note}</div>
+      <div className="hint" style={{ padding: '8px 12px', borderTop: '1px solid var(--line-soft)' }}>
+        {table.note || (candidate ? '结果含待核实候选，请打开项目档案确认；不代表全部匹配项目。' : '点击项目行打开完整档案。')}
+      </div>
     </div>
   );
 }
