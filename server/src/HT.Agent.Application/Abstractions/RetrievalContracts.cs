@@ -43,5 +43,5 @@ public record QaRequest(Guid? SessionId, string Question, RetrievalRequest Retri
     /// <summary>用户手动纠正的意图（FR-4.1）。空则由路由器判定。</summary>
     string? ForcedIntent = null);
 
-/// <summary>SSE 事件。Kind: meta | delta | sources | no_result | done | error。</summary>
+/// <summary>SSE 事件。Kind: meta | progress | delta | sources | no_result | done | error。</summary>
 public record QaEvent(string Kind, object Payload);

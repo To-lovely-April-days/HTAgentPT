@@ -8,12 +8,15 @@ import type { LedgerTable, QaMessageRow, QaSessionRow, QaTemplateRec, Source, Vo
 import { AuthImage, ClsBadge, ErrorBox, InfoBox, Spinner } from '../../components/Common';
 import { Prose } from '../../components/Prose';
 import type { Classification } from '../../lib/types';
+import { AgentProgressCard, mergeAgentSteps } from '../chat/ResultCards';
+import type { AgentStep } from '../chat/ResultCards';
 
 // ── 一轮问答在界面上的形态（对应 SSE 事件契约）──────────────────────
 interface Turn {
   id: string;
   question: string;
   intent?: string;
+  agentSteps?: AgentStep[];
   rewrittenQuery?: string | null;
   notice?: string | null;
   answer: string;
@@ -66,6 +69,7 @@ export default function QaPage() {
       id: m.id, question: m.question, rewrittenQuery: m.rewrittenQuery,
       answer: m.answer ?? '', streaming: false, messageId: m.id, helpful: m.helpful,
       intent: m.intent ?? undefined,
+      agentSteps: restoreAgentSteps(m.payload),
       sources: m.sources ? (JSON.parse(m.sources) as Source[]) : undefined,
       noResult: m.noResultHints
         ? { message: '知识库中没有找到足以回答这个问题的内容。', possiblyRelatedDocs: JSON.parse(m.noResultHints) as string[] }
@@ -81,6 +85,10 @@ export default function QaPage() {
     setTurns((t) => [...t, { id: turnId, question, answer: '', streaming: true }]);
     const patch = (p: Partial<Turn>) =>
       setTurns((t) => t.map((x) => (x.id === turnId ? { ...x, ...p } : x)));
+    const patchAgentSteps = (payload: unknown) =>
+      setTurns((t) => t.map((x) => (x.id === turnId
+        ? { ...x, agentSteps: mergeAgentSteps(x.agentSteps, payload) }
+        : x)));
     try {
       const body = {
         sessionId,
@@ -100,6 +108,10 @@ export default function QaPage() {
           case 'meta':
             if (p.sessionId && !sessionId) setSessionId(p.sessionId as string);
             patch({ intent: p.intent as string, rewrittenQuery: p.rewrittenQuery as string, notice: (p.notice as string) ?? null });
+            break;
+          case 'agent':
+          case 'progress':
+            patchAgentSteps(ev.payload);
             break;
           case 'delta':
             answer += p.text as string;
@@ -274,6 +286,17 @@ export default function QaPage() {
   );
 }
 
+function restoreAgentSteps(raw: string | null | undefined): AgentStep[] | undefined {
+  if (!raw) return undefined;
+  try {
+    const payload = JSON.parse(raw) as { agentSteps?: AgentStep[]; steps?: unknown };
+    const steps = Array.isArray(payload.agentSteps) ? payload.agentSteps : mergeAgentSteps(undefined, payload.steps);
+    return steps.length > 0 ? steps : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function TurnView({ turn: t, onFeedback, onCorrect, onShowSources }: {
   turn: Turn;
   onFeedback: (t: Turn, helpful: boolean) => void;
@@ -296,6 +319,7 @@ function TurnView({ turn: t, onFeedback, onCorrect, onShowSources }: {
       {t.intent === 'general' && (
         <div className="hint" style={{ marginBottom: 8 }}>通用回答 · 未引用企业资料</div>
       )}
+      {t.agentSteps && <AgentProgressCard steps={t.agentSteps} streaming={t.streaming} />}
 
       {t.table && <LedgerTableView table={t.table} onCorrect={onCorrect} />}
       {t.redirect && (

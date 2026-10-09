@@ -15,6 +15,7 @@ namespace HT.Agent.Infrastructure.Services;
 public class QaService(
     AppDbContext db,
     IRetrievalService retrieval,
+    IMultiAgentQaService multiAgent,
     IChatModelClient chat,
     IRuntimeConfig config,
     IProjectService projects,
@@ -32,9 +33,12 @@ public class QaService(
         // 意图路由（FR-4.1）：台账查询转 M3 结构化返回，生成与翻译转对应模块，
         // 其余进检索流程。判定结果对用户可见（intent 事件），可传 forcedIntent 手动纠正。
         var intent = await RouteIntentAsync(req, ct);
-        if (intent == IntentRouter.General)
+        // 知识问答与通用对话都交给多 Agent 协调器：资料研究员、通用知识员、
+        // 任务分析员并行协作，最后由汇总员回答。台账/案例/工单/生成/翻译等
+        // 结构化能力仍沿用各自的专员服务和权限检查。
+        if (intent is IntentRouter.Knowledge or IntentRouter.General)
         {
-            await foreach (var ev in HandleGeneralIntentAsync(req, session, ct))
+            await foreach (var ev in multiAgent.RunAsync(req, session, intent, ct))
                 yield return ev;
             yield break;
         }
@@ -364,71 +368,6 @@ public class QaService(
         return intent;
     }
 
-    /// <summary>通用对话不读取企业检索结果，避免把无权限或未命中的资料变成无来源答案。
-    /// 历史只带通用回答，企业问答会在下一轮继续走知识库。</summary>
-    private async IAsyncEnumerable<QaEvent> HandleGeneralIntentAsync(
-        QaRequest req, QaSession session, [EnumeratorCancellation] CancellationToken ct)
-    {
-        var historyTurns = await config.GetIntAsync(ConfigKeys.HistoryTurns, 6, ct);
-        var history = await db.QaMessages.AsNoTracking()
-            .Where(m => m.SessionId == session.Id && m.Answer != null && m.Intent == IntentRouter.General)
-            .OrderByDescending(m => m.At).Take(historyTurns)
-            .OrderBy(m => m.At).ToListAsync(ct);
-
-        yield return new QaEvent("meta", new
-        {
-            sessionId = session.Id,
-            intent = IntentRouter.General,
-            hitCount = 0,
-            topScore = 0.0,
-            rewrittenQuery = req.Question
-        });
-
-        var message = new QaMessage
-        {
-            Id = Guid.NewGuid(),
-            SessionId = session.Id,
-            Question = req.Question,
-            Intent = IntentRouter.General,
-            At = DateTimeOffset.UtcNow
-        };
-        var prompt = await BuildGeneralPromptAsync(req.Question, history, ct);
-        await audit.WriteAsync(new AuditEntry("qa.ask", AuditResult.Success,
-            UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
-            TargetType: "qa_message", TargetId: message.Id.ToString(),
-            Detail: new { question = req.Question, intent = IntentRouter.General, generated = true }), ct);
-
-        var answer = new StringBuilder();
-        var completed = false;
-        try
-        {
-            await foreach (var delta in chat.StreamAsync(prompt, ct))
-            {
-                answer.Append(delta);
-                yield return new QaEvent("delta", new { text = delta });
-            }
-
-            message.Answer = answer.ToString();
-            message.Payload = JsonSerializer.Serialize(new { kind = IntentRouter.General });
-            db.QaMessages.Add(message);
-            session.UpdatedAt = DateTimeOffset.UtcNow;
-            await db.SaveChangesAsync(ct);
-            completed = true;
-            yield return new QaEvent("done", new { messageId = message.Id });
-        }
-        finally
-        {
-            if (!completed && answer.Length > 0)
-            {
-                message.Answer = answer + "\n[回答因连接中断而不完整]";
-                message.Payload = JsonSerializer.Serialize(new { kind = IntentRouter.General });
-                db.QaMessages.Add(message);
-                session.UpdatedAt = DateTimeOffset.UtcNow;
-                await db.SaveChangesAsync(CancellationToken.None);
-            }
-        }
-    }
-
     private async IAsyncEnumerable<QaEvent> HandleRoutedIntentAsync(
         string intent, QaRequest req, QaSession session, [EnumeratorCancellation] CancellationToken ct)
     {
@@ -722,26 +661,6 @@ public class QaService(
         }
         turns.Add(new ChatTurn("user", question));
         return turns;
-    }
-
-    private Task<IReadOnlyList<ChatTurn>> BuildGeneralPromptAsync(
-        string question, List<QaMessage> history, CancellationToken ct)
-    {
-        var turns = new List<ChatTurn>
-        {
-            new("system", "你是企业智能助手的通用对话模式。可以自然回答问候、自我介绍、学习问题和通用知识问题。\n" +
-                "回答要准确、清楚、简洁，必要时分点说明；用户只是问候时友好回应并说明你能做什么。\n" +
-                "不要猜测或编造本公司的客户、项目、报价、合同、设备型号参数、内部规章等资料。" +
-                "如果问题涉及这些企业资料，应说明需要查企业知识库或请用户提供资料；本轮不要把常识当成公司的事实。")
-        };
-        foreach (var h in history.TakeLast(6))
-        {
-            turns.Add(new ChatTurn("user", h.Question));
-            if (h.Answer is not null)
-                turns.Add(new ChatTurn("assistant", h.Answer.Length <= 600 ? h.Answer : h.Answer[..600]));
-        }
-        turns.Add(new ChatTurn("user", question));
-        return Task.FromResult<IReadOnlyList<ChatTurn>>(turns);
     }
 
     /// <summary>会话留痕（FR-4.12）：提问、改写结果、命中分块与操作人。

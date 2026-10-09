@@ -77,6 +77,7 @@ public static class DependencyInjection
         services.AddScoped<IClauseService, ClauseService>();
         services.AddScoped<ICaseReviewService, CaseReviewService>();
         services.AddScoped<IRetrievalService, RetrievalService>();
+        services.AddScoped<IMultiAgentQaService, MultiAgentQaService>();
         services.AddScoped<IQaService, QaService>();
 
         services.AddScoped<BackupService>();

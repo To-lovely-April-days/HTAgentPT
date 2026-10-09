@@ -14,6 +14,107 @@ import { ProjectPreviewModal } from './ProjectPreviewModal';
 import { ClsBadge } from '../../components/Common';
 import type { Classification } from '../../lib/types';
 
+/**
+ * 一轮问答中的协作步骤。服务端只应发送高层阶段（例如检索、核验、整理），
+ * 不把模型的内部思考或提示词放进这里。
+ */
+export type AgentStepStatus = 'pending' | 'running' | 'done' | 'error' | 'skipped';
+
+export interface AgentStep {
+  id: string;
+  name: string;
+  status: AgentStepStatus;
+  summary?: string;
+  detail?: string;
+  elapsedMs?: number;
+}
+
+/**
+ * 兼容不同编排器版本发出的 agent 事件：既可直接发一个步骤，也可发
+ * { step: {...} } 或 { steps: [...] }。相同 id 的步骤会就地更新，保证
+ * 流式事件不会在界面上重复堆叠。
+ */
+export function mergeAgentSteps(current: AgentStep[] | undefined, payload: unknown): AgentStep[] {
+  const raw = payload as Record<string, unknown> | null;
+  const candidates: unknown[] = Array.isArray(payload)
+    ? payload
+    : raw && Array.isArray(raw.steps) ? raw.steps
+      : raw && raw.step && typeof raw.step === 'object' ? [raw.step]
+        : [payload];
+  const merged = [...(current ?? [])];
+  for (const item of candidates) {
+    if (!item || typeof item !== 'object') continue;
+    const p = item as Record<string, unknown>;
+    const id = asAgentText(p.id ?? p.agentId ?? p.key ?? p.name ?? p.agent ?? p.role);
+    if (!id) continue;
+    const name = asAgentText(p.name ?? p.label ?? p.title ?? p.agent ?? p.role) || id;
+    const status = normalizeAgentStatus(p.status ?? p.state ?? (p.done === true ? 'done' : undefined));
+    const next: AgentStep = {
+      id,
+      name,
+      status,
+      ...(asAgentText(p.summary ?? p.message ?? p.detail ?? p.description) ? { summary: asAgentText(p.summary ?? p.message ?? p.detail ?? p.description) } : {}),
+      ...(asAgentText(p.detail) ? { detail: asAgentText(p.detail) } : {}),
+      ...(typeof p.elapsedMs === 'number' ? { elapsedMs: p.elapsedMs } : {}),
+    };
+    const index = merged.findIndex((x) => x.id === id);
+    if (index < 0) merged.push(next);
+    else merged[index] = { ...merged[index], ...next };
+  }
+  return merged;
+}
+
+function asAgentText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeAgentStatus(value: unknown): AgentStepStatus {
+  const status = asAgentText(value).toLowerCase();
+  if (status === 'done' || status === 'complete' || status === 'completed' || status === 'success' || status === 'succeeded') return 'done';
+  if (status === 'error' || status === 'failed' || status === 'failure') return 'error';
+  if (status === 'skipped' || status === 'cancelled' || status === 'canceled') return 'skipped';
+  if (status === 'pending' || status === 'queued' || status === 'waiting') return 'pending';
+  return 'running';
+}
+
+/** 协作阶段卡：只展示各角色做到了哪一步，最终答案仍由正文流式输出。 */
+export function AgentProgressCard({ steps, streaming }: { steps: AgentStep[]; streaming?: boolean }) {
+  const [open, setOpen] = useState(true);
+  if (steps.length === 0) return null;
+  const done = steps.filter((s) => s.status === 'done' || s.status === 'skipped').length;
+  const active = steps.filter((s) => s.status === 'running');
+  const statusLabel: Record<AgentStepStatus, string> = {
+    pending: '等待中', running: '处理中', done: '已完成', error: '失败', skipped: '跳过',
+  };
+  const statusClass: Record<AgentStepStatus, string> = {
+    pending: 'pill-neutral', running: 'pill-pending', done: 'pill-ok', error: 'pill-conf', skipped: 'pill-neutral',
+  };
+  return (
+    <div className="card" style={{ marginBottom: 9, padding: '8px 11px', background: 'var(--bg-soft)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+        <span className="pill pill-accent">多Agent协作</span>
+        <span className="hint">{done}/{steps.length} 个阶段已完成</span>
+        {streaming && active.length > 0 && <span className="hint" style={{ marginLeft: 'auto' }}>{active.length > 1 ? `${active.length} 个角色并行处理中` : `当前：${active[0].name}`}</span>}
+        {streaming && active.length === 0 && <span className="hint" style={{ marginLeft: 'auto' }}>正在整理回答…</span>}
+        <button className="gbtn" style={{ height: 22, fontSize: 11, padding: '0 8px', marginLeft: streaming && active.length > 0 ? 0 : 'auto' }}
+          onClick={() => setOpen((v) => !v)}>{open ? '收起过程' : '查看过程'}</button>
+      </div>
+      {open && (
+        <div style={{ marginTop: 7, display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {steps.map((step) => (
+            <div key={step.id} style={{ display: 'flex', alignItems: 'baseline', gap: 7, minWidth: 0 }}>
+              <span className={`pill ${statusClass[step.status]}`} style={{ flexShrink: 0 }}>{statusLabel[step.status]}</span>
+              <span style={{ fontSize: 12, fontWeight: 500, flexShrink: 0 }}>{step.name}</span>
+              {(step.summary || step.detail) && <span className="hint" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{step.summary || step.detail}</span>}
+              {typeof step.elapsedMs === 'number' && <span className="hint m" style={{ marginLeft: 'auto', flexShrink: 0 }}>{step.elapsedMs}ms</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** 台账查询：结构化结果，不经模型生成（FR-3.4/4.1）。点行看项目档案。 */
 export function LedgerCard({ table, onCorrect }: { table: LedgerTable; onCorrect: () => void }) {
   const nav = useNavigate();

@@ -23,7 +23,8 @@ import type {
 import { Prose } from '../../components/Prose';
 import { ErrorBox, Spinner } from '../../components/Common';
 import { AdviceCard, EvidenceCard, SummaryCard } from '../generate/ChatCards';
-import { BaseCards, CasesCard, LedgerCard, NoResultCard, SourcesCard, TemplatePicker, TicketsCard, TranslatedCard, TranslationCard } from './ResultCards';
+import { AgentProgressCard, BaseCards, CasesCard, LedgerCard, mergeAgentSteps, NoResultCard, SourcesCard, TemplatePicker, TicketsCard, TranslatedCard, TranslationCard } from './ResultCards';
+import type { AgentStep } from './ResultCards';
 import { LivePreview } from './LivePreview';
 
 /** 对话里的一条消息。text 是正文，其余字段是这一轮长出来的结果件。 */
@@ -34,6 +35,7 @@ interface Msg {
   streaming?: boolean;
   error?: string;
   intent?: string;
+  agentSteps?: AgentStep[];
   sources?: Source[];
   noResult?: { message: string; docs: string[] };
   table?: LedgerTable;
@@ -79,6 +81,10 @@ export default function ChatPage() {
   const push = (m: Msg) => setMsgs((x) => [...x, m]);
   const patch = (id: string, p: Partial<Msg>) =>
     setMsgs((x) => x.map((m) => (m.id === id ? { ...m, ...p } : m)));
+  const patchAgentSteps = (id: string, payload: unknown) =>
+    setMsgs((x) => x.map((m) => (m.id === id
+      ? { ...m, agentSteps: mergeAgentSteps(m.agentSteps, payload) }
+      : m)));
 
   // ── 问答一轮（SSE）：意图由服务端判，结果就地长出来 ──────────
   const askQa = useCallback(async (question: string, forcedIntent?: string) => {
@@ -95,6 +101,10 @@ export default function ChatPage() {
           case 'meta':
             if (p.sessionId && !qaSessionId) setQaSessionId(p.sessionId as string);
             patch(id, { intent: p.intent as string });
+            break;
+          case 'agent':
+          case 'progress':
+            patchAgentSteps(id, ev.payload);
             break;
           case 'delta':
             answer += p.text as string;
@@ -393,6 +403,7 @@ function AssistantMessage() {
         {m.intent === 'general' && (
           <div className="hint" style={{ marginBottom: 7 }}>通用回答 · 未引用企业资料</div>
         )}
+        {m.agentSteps && <AgentProgressCard steps={m.agentSteps} streaming={m.streaming} />}
         {m.text && <Prose text={m.text} style={{ fontSize: 13.5 }}
           onCite={m.sources ? (n) => setFocusSource(n) : undefined} />}
         {m.streaming && !m.text && <Spinner text="思考中…" />}
@@ -460,11 +471,15 @@ function AssistantMessage() {
 function restore(raw: string | null | undefined): Partial<Msg> {
   if (!raw) return {};
   try {
-    const { kind, data } = JSON.parse(raw) as { kind: string; data: Record<string, unknown> };
+    const parsed = JSON.parse(raw) as { kind: string; data: Record<string, unknown>; agentSteps?: AgentStep[]; steps?: unknown };
+    const { kind, data } = parsed;
+    const storedSteps = Array.isArray(parsed.agentSteps) ? parsed.agentSteps : mergeAgentSteps(undefined, parsed.steps);
+    const steps = storedSteps.length > 0 ? { agentSteps: storedSteps } : {};
     switch (kind) {
-      case 'table': return { table: data as unknown as LedgerTable, text: '' };
-      case 'translation': return { translation: data as unknown as Msg['translation'], text: '' };
+      case 'table': return { ...steps, table: data as unknown as LedgerTable, text: '' };
+      case 'translation': return { ...steps, translation: data as unknown as Msg['translation'], text: '' };
       case 'cases': return {
+        ...steps,
         text: '',
         cases: {
           rows: data.rows as CaseRow[], detail: (data.detail as CaseDetailData | null) ?? null,
@@ -472,14 +487,15 @@ function restore(raw: string | null | undefined): Partial<Msg> {
         },
       };
       case 'tickets': return {
+        ...steps,
         text: '',
         tickets: {
           rows: data.rows as TicketRow[], status: (data.status as string | null) ?? null,
           note: (data.note as string) ?? '',
         },
       };
-      case 'generate': return { templates: (data.templates as QaTemplateRec[] | null) ?? null };
-      default: return {};
+      case 'generate': return { ...steps, templates: (data.templates as QaTemplateRec[] | null) ?? null };
+      default: return steps;
     }
   } catch { return {}; }
 }
