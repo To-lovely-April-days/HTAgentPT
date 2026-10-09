@@ -44,7 +44,7 @@ public class QaSessionsController(AppDbContext db, ICurrentUser me) : Controller
 
         var qa = await db.QaMessages.AsNoTracking()
             .Where(m => m.SessionId == id).OrderBy(m => m.At)
-            .Select(m => new { m.Id, m.Question, m.Answer, m.Sources, m.Payload, m.At })
+            .Select(m => new { m.Id, m.Question, m.Answer, m.Sources, m.Payload, m.Intent, m.At })
             .ToListAsync(ct);
 
         // 这条对话里起过的生成会话（可能不止一个：先出任务单，再出报价）
@@ -63,7 +63,7 @@ public class QaSessionsController(AppDbContext db, ICurrentUser me) : Controller
         foreach (var m in qa)
         {
             turns.Add(new Turn("qa", $"q{m.Id}", "user", m.Question, null, null, null, null, m.At));
-            turns.Add(new Turn("qa", $"a{m.Id}", "assistant", m.Answer ?? "", m.Sources, m.Payload, null, null, m.At));
+            turns.Add(new Turn("qa", $"a{m.Id}", "assistant", m.Answer ?? "", m.Sources, m.Payload, null, null, m.At, m.Intent));
         }
         var nameOf = gens.ToDictionary(g => g.Id, g => g.TemplateName);
         foreach (var m in genMsgs)
@@ -83,7 +83,8 @@ public class QaSessionsController(AppDbContext db, ICurrentUser me) : Controller
 
     /// <summary>时间线上的一轮。问答与生成两边的消息并成同一种形状，前端按 kind 分别还原。</summary>
     public record Turn(string Kind, string Id, string Role, string Text,
-        string? Sources, string? Payload, Guid? GenSessionId, string? TemplateName, DateTimeOffset At);
+        string? Sources, string? Payload, Guid? GenSessionId, string? TemplateName, DateTimeOffset At,
+        string? Intent = null);
 
     public record FeedbackBody(bool Helpful, string? Reason);
 

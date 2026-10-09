@@ -65,6 +65,7 @@ export default function QaPage() {
     setTurns(rows.map((m) => ({
       id: m.id, question: m.question, rewrittenQuery: m.rewrittenQuery,
       answer: m.answer ?? '', streaming: false, messageId: m.id, helpful: m.helpful,
+      intent: m.intent ?? undefined,
       sources: m.sources ? (JSON.parse(m.sources) as Source[]) : undefined,
       noResult: m.noResultHints
         ? { message: '知识库中没有找到足以回答这个问题的内容。', possiblyRelatedDocs: JSON.parse(m.noResultHints) as string[] }
@@ -292,6 +293,9 @@ function TurnView({ turn: t, onFeedback, onCorrect, onShowSources }: {
         <div className="hint" style={{ marginBottom: 6 }}>已改写为：{t.rewrittenQuery}（改写结果供核对理解是否正确）</div>
       )}
       {t.notice && <div style={{ marginBottom: 8 }}><InfoBox>{t.notice}</InfoBox></div>}
+      {t.intent === 'general' && (
+        <div className="hint" style={{ marginBottom: 8 }}>通用回答 · 未引用企业资料</div>
+      )}
 
       {t.table && <LedgerTableView table={t.table} onCorrect={onCorrect} />}
       {t.redirect && (

@@ -15,6 +15,10 @@ public class IntentRouterTests
     [InlineData("P-2025-0186 的交付状态", IntentRouter.Ledger)]
     [InlineData("CJF-5L 的最大工作压力是多少", IntentRouter.Knowledge)]
     [InlineData("搅拌电机过载怎么排查", IntentRouter.Knowledge)]
+    [InlineData("你好，请用一句话介绍你能提供什么帮助", IntentRouter.General)]
+    [InlineData("什么是向量数据库", IntentRouter.General)]
+    [InlineData("什么是项目管理", IntentRouter.General)]
+    [InlineData("你好，CJF-5L 的最大工作压力是多少", IntentRouter.Knowledge)]
     public void 意图分类(string q, string expected)
         => Assert.Equal(expected, IntentRouter.Classify(q, Customers, Devices));
 
@@ -152,4 +156,11 @@ public class ChunkSplitterTests
         // 主干太短不做简称匹配，免得「厂」「公司」这类残渣乱命中
         Assert.False(IntentRouter.Mentions("我们厂的设备", "厂"));
     }
+
+    [Theory]
+    [InlineData("这个呢")]
+    [InlineData("再展开")]
+    [InlineData("为什么")]
+    public void 短指代识别为追问(string q)
+        => Assert.True(IntentRouter.IsFollowUp(q));
 }

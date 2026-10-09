@@ -32,6 +32,12 @@ public class QaService(
         // 意图路由（FR-4.1）：台账查询转 M3 结构化返回，生成与翻译转对应模块，
         // 其余进检索流程。判定结果对用户可见（intent 事件），可传 forcedIntent 手动纠正。
         var intent = await RouteIntentAsync(req, ct);
+        if (intent == IntentRouter.General)
+        {
+            await foreach (var ev in HandleGeneralIntentAsync(req, session, ct))
+                yield return ev;
+            yield break;
+        }
         if (intent != IntentRouter.Knowledge)
         {
             await foreach (var ev in HandleRoutedIntentAsync(intent, req, session, ct))
@@ -266,7 +272,7 @@ public class QaService(
 
     private static readonly string[] KnownIntents =
         [IntentRouter.Knowledge, IntentRouter.Ledger, IntentRouter.Generate,
-         IntentRouter.Translate, IntentRouter.Case, IntentRouter.Ticket];
+         IntentRouter.Translate, IntentRouter.Case, IntentRouter.Ticket, IntentRouter.General];
 
     /// <summary>意图交给模型定，正则的判断只当提示。模型不可用/看不懂就按正则那版走。
     /// 判意图本来就是理解问题，不是匹配关键词——靠正则穷举，永远差一个说法。</summary>
@@ -280,6 +286,7 @@ public class QaService(
         sb.AppendLine("ticket —— 问某张报修工单的进度或状态，不是问故障怎么修。");
         sb.AppendLine("translate —— 要把一段文字或一份文档翻译成中文/英文。");
         sb.AppendLine("generate —— 要出一份文档：方案、投标书、报价、合同、任务单。");
+        sb.AppendLine("general —— 日常问候、能力介绍，以及不涉及本企业资料的通用知识问题。");
         sb.AppendLine();
         sb.AppendLine("注意区分：「这份文档的翻译流程是什么」是在问知识（knowledge），不是要翻译；");
         sb.AppendLine("「设计压力怎么取」是知识，「华东理工做过哪些釜」是盘点（ledger）。");
@@ -304,15 +311,36 @@ public class QaService(
         if (req.ForcedIntent is not null)
         {
             intent = KnownIntents.Contains(req.ForcedIntent) ? req.ForcedIntent : IntentRouter.Knowledge;
+            // 手动纠正也不能把型号、报价或企业资料问题强行变成无来源回答。
+            if (intent == IntentRouter.General && IntentRouter.IsEnterpriseQuestion(req.Question))
+                intent = IntentRouter.Knowledge;
         }
         else
         {
             var (customers, devices) = await VocabAsync(ct);
+            // 「这个呢」「再展开」沿用上一轮企业意图，避免短指代绕过检索与权限门。
+            if (req.SessionId is not null && IntentRouter.IsFollowUp(req.Question))
+            {
+                var previous = await db.QaMessages.AsNoTracking()
+                    .Where(m => m.SessionId == req.SessionId && m.Session!.UserId == me.UserId && m.Answer != null)
+                    .OrderByDescending(m => m.At)
+                    .Select(m => m.Intent)
+                    .FirstOrDefaultAsync(ct);
+                if (previous is not null && previous != IntentRouter.General)
+                    return previous;
+            }
             var pattern = await config.GetAsync(ConfigKeys.IntentProjectNoPattern, ct);
             // 正则给个初判，最终由模型定——「这份文档的翻译流程是什么」不是要翻译，
             // 「近三年做过哪些反应釜」是要查台账，这种分寸正则穷举不完。
             var guess = IntentRouter.Classify(req.Question, customers, devices, pattern);
-            intent = await RefineIntentAsync(req.Question, guess, ct);
+            // 明确的问候/通用知识由规则直接确认，避免分类模型把「你好」保守地改回 knowledge；
+            // 其余问题再让模型补充分寸，企业资料闸门随后仍会复核。
+            intent = guess == IntentRouter.General
+                ? IntentRouter.General
+                : await RefineIntentAsync(req.Question, guess, ct);
+            // 模型分类只是路由提示，企业资料闸门由规则最终裁决。
+            if (intent == IntentRouter.General && IntentRouter.IsEnterpriseQuestion(req.Question, customers, devices))
+                intent = IntentRouter.Knowledge;
         }
         // 权限门在意图确定之后，对自动判定与手动纠正一视同仁（FR-7.3）——
         // forcedIntent 不是权限提升通道。无台账权限者强指台账记一条越权审计后按知识问答走。
@@ -334,6 +362,71 @@ public class QaService(
             return IntentRouter.Knowledge;
         }
         return intent;
+    }
+
+    /// <summary>通用对话不读取企业检索结果，避免把无权限或未命中的资料变成无来源答案。
+    /// 历史只带通用回答，企业问答会在下一轮继续走知识库。</summary>
+    private async IAsyncEnumerable<QaEvent> HandleGeneralIntentAsync(
+        QaRequest req, QaSession session, [EnumeratorCancellation] CancellationToken ct)
+    {
+        var historyTurns = await config.GetIntAsync(ConfigKeys.HistoryTurns, 6, ct);
+        var history = await db.QaMessages.AsNoTracking()
+            .Where(m => m.SessionId == session.Id && m.Answer != null && m.Intent == IntentRouter.General)
+            .OrderByDescending(m => m.At).Take(historyTurns)
+            .OrderBy(m => m.At).ToListAsync(ct);
+
+        yield return new QaEvent("meta", new
+        {
+            sessionId = session.Id,
+            intent = IntentRouter.General,
+            hitCount = 0,
+            topScore = 0.0,
+            rewrittenQuery = req.Question
+        });
+
+        var message = new QaMessage
+        {
+            Id = Guid.NewGuid(),
+            SessionId = session.Id,
+            Question = req.Question,
+            Intent = IntentRouter.General,
+            At = DateTimeOffset.UtcNow
+        };
+        var prompt = await BuildGeneralPromptAsync(req.Question, history, ct);
+        await audit.WriteAsync(new AuditEntry("qa.ask", AuditResult.Success,
+            UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+            TargetType: "qa_message", TargetId: message.Id.ToString(),
+            Detail: new { question = req.Question, intent = IntentRouter.General, generated = true }), ct);
+
+        var answer = new StringBuilder();
+        var completed = false;
+        try
+        {
+            await foreach (var delta in chat.StreamAsync(prompt, ct))
+            {
+                answer.Append(delta);
+                yield return new QaEvent("delta", new { text = delta });
+            }
+
+            message.Answer = answer.ToString();
+            message.Payload = JsonSerializer.Serialize(new { kind = IntentRouter.General });
+            db.QaMessages.Add(message);
+            session.UpdatedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(ct);
+            completed = true;
+            yield return new QaEvent("done", new { messageId = message.Id });
+        }
+        finally
+        {
+            if (!completed && answer.Length > 0)
+            {
+                message.Answer = answer + "\n[回答因连接中断而不完整]";
+                message.Payload = JsonSerializer.Serialize(new { kind = IntentRouter.General });
+                db.QaMessages.Add(message);
+                session.UpdatedAt = DateTimeOffset.UtcNow;
+                await db.SaveChangesAsync(CancellationToken.None);
+            }
+        }
     }
 
     private async IAsyncEnumerable<QaEvent> HandleRoutedIntentAsync(
@@ -629,6 +722,26 @@ public class QaService(
         }
         turns.Add(new ChatTurn("user", question));
         return turns;
+    }
+
+    private Task<IReadOnlyList<ChatTurn>> BuildGeneralPromptAsync(
+        string question, List<QaMessage> history, CancellationToken ct)
+    {
+        var turns = new List<ChatTurn>
+        {
+            new("system", "你是企业智能助手的通用对话模式。可以自然回答问候、自我介绍、学习问题和通用知识问题。\n" +
+                "回答要准确、清楚、简洁，必要时分点说明；用户只是问候时友好回应并说明你能做什么。\n" +
+                "不要猜测或编造本公司的客户、项目、报价、合同、设备型号参数、内部规章等资料。" +
+                "如果问题涉及这些企业资料，应说明需要查企业知识库或请用户提供资料；本轮不要把常识当成公司的事实。")
+        };
+        foreach (var h in history.TakeLast(6))
+        {
+            turns.Add(new ChatTurn("user", h.Question));
+            if (h.Answer is not null)
+                turns.Add(new ChatTurn("assistant", h.Answer.Length <= 600 ? h.Answer : h.Answer[..600]));
+        }
+        turns.Add(new ChatTurn("user", question));
+        return Task.FromResult<IReadOnlyList<ChatTurn>>(turns);
     }
 
     /// <summary>会话留痕（FR-4.12）：提问、改写结果、命中分块与操作人。

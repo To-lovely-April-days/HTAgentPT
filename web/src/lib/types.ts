@@ -30,6 +30,8 @@ export interface QaTimelineTurn {
   id: string; role: 'user' | 'assistant'; text: string;
   sources: string | null; payload: string | null;
   genSessionId: string | null; templateName: string | null; at: string;
+  /** 问答分流结果；通用回答重开历史时仍显示同一提示。 */
+  intent?: string | null;
 }
 export interface QaTimeline {
   turns: QaTimelineTurn[];

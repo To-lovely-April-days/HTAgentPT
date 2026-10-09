@@ -214,7 +214,7 @@ export default function ChatPage() {
         }
         let sources: Source[] | undefined;
         try { sources = t.sources ? (JSON.parse(t.sources) as Source[]) : undefined; } catch { /* 老数据容错 */ }
-        return { id: t.id, role: 'assistant', text: t.text, sources, ...restore(t.payload) };
+        return { id: t.id, role: 'assistant', text: t.text, intent: t.intent ?? undefined, sources, ...restore(t.payload) };
       });
       setMsgs(rebuilt);
       setQaSessionId(id);
@@ -390,6 +390,9 @@ function AssistantMessage() {
   return (
     <MessagePrimitive.Root className="chat-assistant">
       <div className="card chat-bubble">
+        {m.intent === 'general' && (
+          <div className="hint" style={{ marginBottom: 7 }}>通用回答 · 未引用企业资料</div>
+        )}
         {m.text && <Prose text={m.text} style={{ fontSize: 13.5 }}
           onCite={m.sources ? (n) => setFocusSource(n) : undefined} />}
         {m.streaming && !m.text && <Spinner text="思考中…" />}

@@ -15,6 +15,8 @@ public static class IntentRouter
     public const string Case = "case";
     /// <summary>报修工单：进度、状态、派工。与案例的分界是「这一单办到哪了」而不是「这毛病怎么修」。</summary>
     public const string Ticket = "ticket";
+    /// <summary>通用对话：问候、能力介绍与不涉及企业资料的通用知识问题。</summary>
+    public const string General = "general";
 
     private static readonly Regex TranslatePattern = new(
         @"(翻译|译成|译为|英文版|中文版|译文|translate)", RegexOptions.Compiled);
@@ -46,6 +48,24 @@ public static class IntentRouter
         @"(台账|项目编号|合同金额|交付状态|已结项|哪些项目|做过.{0,12}(项目|设备)|历史项目)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    // 通用问题的信号只负责把明显的日常/常识问题送给模型；企业术语优先级更高，
+    // 例如「你好，CJF-5L 的压力是多少」仍必须走知识库。
+    private static readonly Regex GeneralPattern = new(
+        @"(你好|您好|嗨|哈喽|hello|hi|谢谢|感谢|再见|晚安|早上好|你是谁|你能做什么|能帮我做什么|能提供什么帮助|" +
+        @"什么是|何为|如何理解|解释一下|介绍一下|为什么会|怎么学习|如何学习|有什么区别|优缺点|讲个笑话|闲聊|天气怎么样)" +
+        @"|\b(what\s+is|who\s+are\s+you|hello|hi|thanks|how\s+to)\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    // 这些词出现时，问题通常要求企业资料、型号参数或业务数据；即使前面带有问候，
+    // 也不能由通用模型凭空回答。受控客户/设备词表会在 Classify 调用中额外补充。
+    private static readonly Regex EnterprisePattern = new(
+        @"(知识库|资料|文档|说明书|手册|规范|规程|型号|参数|规格|工作压力|设计压力|" +
+        @"温度|流量|功率|尺寸|材质|密封|扭矩|力矩|仪器|反应釜|搅拌|冻干|蒸发|" +
+        @"客户.{0,8}(项目|报价|订单|设备|合同)|报价|价格|合同|订单|台账|工单|案例|维修记录|报警|交付|采购|供应商|" +
+        @"项目.{0,8}(参数|编号|报价|合同|交付|设备|客户|台账)|" +
+        @"本公司|我们公司|公司内部|企业内部)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     /// <summary>判定意图。vocabCustomers/vocabDevices 用于台账信号增强：
     /// 客户名或设备类型出现且问的是「做过/卖过/有没有」类盘点问题时倾向台账。
     /// projectNoPattern 为部署配置的项目编号正则（intent.project_no_pattern）。</summary>
@@ -68,8 +88,27 @@ public static class IntentRouter
             (vocabCustomers.Any(c => Mentions(question, c)) || vocabDevices.Any(d => Mentions(question, d))))
             return Ledger;
 
+        if (GeneralPattern.IsMatch(question) && !IsEnterpriseQuestion(question, vocabCustomers, vocabDevices))
+            return General;
+
         return Knowledge;
     }
+
+    /// <summary>判断问题是否带有企业资料信号。它是通用回答的安全闸门，不能被模型分类结果覆盖。</summary>
+    public static bool IsEnterpriseQuestion(string question,
+        IReadOnlyCollection<string>? vocabCustomers = null,
+        IReadOnlyCollection<string>? vocabDevices = null)
+    {
+        if (EnterprisePattern.IsMatch(question)) return true;
+        return (vocabCustomers ?? []).Any(c => Mentions(question, c)) ||
+               (vocabDevices ?? []).Any(d => Mentions(question, d));
+    }
+
+    /// <summary>短指代问题需要沿用上一轮企业意图，避免「这个呢」绕过知识库。</summary>
+    public static bool IsFollowUp(string question)
+        => Regex.IsMatch(question.Trim(),
+            @"^(这个|那个|它|上述|前面|刚才|再说|再展开|继续|还有|然后|展开|详细|怎么回事|为什么|怎么样)(呢|吗|啊|？|\?)?$",
+            RegexOptions.Compiled);
 
     private static readonly Regex InventoryAsk = new(
         @"(做过|卖过|买过|供过|采购过|交付过|合作过|用过|上过)" +
