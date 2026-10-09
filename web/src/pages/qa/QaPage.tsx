@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { get, post, sse, download, ApiError } from '../../lib/api';
+import { randomUuid } from '../../lib/id';
 import { DELIVERY_LABEL } from '../../lib/types';
 import type { LedgerTable, QaMessageRow, QaSessionRow, QaTemplateRec, Source, VocabRow } from '../../lib/types';
 import { AuthImage, ClsBadge, ErrorBox, InfoBox, Spinner } from '../../components/Common';
@@ -74,8 +75,8 @@ export default function QaPage() {
 
   const ask = useCallback(async (question: string, forcedIntent?: string) => {
     if (!question.trim() || busy) return;
+    const turnId = randomUuid();
     setBusy(true);
-    const turnId = crypto.randomUUID();
     setTurns((t) => [...t, { id: turnId, question, answer: '', streaming: true }]);
     const patch = (p: Partial<Turn>) =>
       setTurns((t) => t.map((x) => (x.id === turnId ? { ...x, ...p } : x)));

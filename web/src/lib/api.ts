@@ -1,3 +1,5 @@
+import { randomUuid } from './id';
+
 // API 客户端：令牌、终端标识（决策 4）、统一错误、SSE 解析。
 
 export class ApiError extends Error {
@@ -25,7 +27,7 @@ export function setToken(t: string | null) {
 export function terminalId(): string {
   let id = localStorage.getItem(TERMINAL_KEY);
   if (!id) {
-    id = 'web-' + crypto.randomUUID().slice(0, 12);
+    id = 'web-' + randomUuid().slice(0, 12);
     localStorage.setItem(TERMINAL_KEY, id);
   }
   return id;
