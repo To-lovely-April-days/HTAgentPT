@@ -200,7 +200,7 @@ public sealed class MultiAgentQaService(
         {
             return new AgentOutput(spec.Id, spec.Label, false, "", "该角色超时，汇总员将依据其他角色继续。" );
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when ((ex is HttpRequestException or TaskCanceledException) && !ct.IsCancellationRequested)
         {
             return new AgentOutput(spec.Id, spec.Label, false, "", "该角色暂时不可用，汇总员将依据其他角色继续。" );
         }
