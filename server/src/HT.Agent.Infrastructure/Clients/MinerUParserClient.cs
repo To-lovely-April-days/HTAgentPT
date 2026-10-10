@@ -491,10 +491,9 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
                 var text = FlattenText(direct);
                 if (!string.IsNullOrWhiteSpace(text)) return text;
             }
-            if (e.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.Object
-                && content.TryGetProperty(name, out var nested))
+            if (e.TryGetProperty("content", out var content))
             {
-                var text = FlattenText(nested);
+                var text = FindNamedText(content, name);
                 if (!string.IsNullOrWhiteSpace(text)) return text;
             }
         }
@@ -522,13 +521,45 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
 
     private static string? NestedPath(JsonElement e)
     {
-        if (!e.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Object) return null;
-        if (content.TryGetProperty("image_path", out var path) && path.ValueKind == JsonValueKind.String)
-            return path.GetString();
+        return FindImagePath(e);
+    }
+
+    private static string? FindNamedText(JsonElement value, string name)
+    {
+        if (value.ValueKind == JsonValueKind.Array)
+            foreach (var item in value.EnumerateArray())
+            {
+                var found = FindNamedText(item, name);
+                if (!string.IsNullOrWhiteSpace(found)) return found;
+            }
+        if (value.ValueKind != JsonValueKind.Object) return null;
+        if (value.TryGetProperty(name, out var direct))
+        {
+            var text = FlattenText(direct);
+            if (!string.IsNullOrWhiteSpace(text)) return text;
+        }
+        if (value.TryGetProperty("content", out var content))
+            return FindNamedText(content, name);
+        return null;
+    }
+
+    private static string? FindImagePath(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Array)
+            foreach (var item in value.EnumerateArray())
+            {
+                var found = FindImagePath(item);
+                if (!string.IsNullOrWhiteSpace(found)) return found;
+            }
+        if (value.ValueKind != JsonValueKind.Object) return null;
+        if (value.TryGetProperty("image_path", out var imagePath) && imagePath.ValueKind == JsonValueKind.String)
+            return imagePath.GetString();
         foreach (var sourceName in new[] { "source", "image_source" })
-            if (content.TryGetProperty(sourceName, out var source) && source.ValueKind == JsonValueKind.Object
+            if (value.TryGetProperty(sourceName, out var source) && source.ValueKind == JsonValueKind.Object
                 && source.TryGetProperty("path", out var sourcePath) && sourcePath.ValueKind == JsonValueKind.String)
                 return sourcePath.GetString();
+        if (value.TryGetProperty("content", out var content))
+            return FindImagePath(content);
         return null;
     }
 
