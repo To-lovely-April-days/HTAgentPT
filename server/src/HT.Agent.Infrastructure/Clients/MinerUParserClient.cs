@@ -554,6 +554,14 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
         if (value.ValueKind != JsonValueKind.Object) return null;
         if (value.TryGetProperty("image_path", out var imagePath) && imagePath.ValueKind == JsonValueKind.String)
             return imagePath.GetString();
+        if (value.TryGetProperty("image_source", out var imageSource))
+        {
+            if (imageSource.ValueKind == JsonValueKind.String) return imageSource.GetString();
+            if (imageSource.ValueKind == JsonValueKind.Object
+                && imageSource.TryGetProperty("path", out var imageSourcePath)
+                && imageSourcePath.ValueKind == JsonValueKind.String)
+                return imageSourcePath.GetString();
+        }
         foreach (var sourceName in new[] { "source", "image_source" })
             if (value.TryGetProperty(sourceName, out var source) && source.ValueKind == JsonValueKind.Object
                 && source.TryGetProperty("path", out var sourcePath) && sourcePath.ValueKind == JsonValueKind.String)
