@@ -120,10 +120,11 @@ docker compose up -d --build        # 改了代码后重建并启动
 默认的内置演示解析器只认纯文本文件。接上 [MinerU](https://github.com/opendatalab/MinerU)
 之后，PDF / DOCX / PPTX / 扫描件都能做真实的版面解析（章节层级、表格结构、页码全保留）。
 
-**第一步：构建 MinerU 镜像**（官方 Dockerfile，国内网络用 china 目录的）
+**第一步：构建 MinerU 4 镜像**（当前后端使用 MinerU 4 的 V1 上传/任务接口，
+不是已删除的 `/file_parse` 接口）。国内网络使用 `china` 目录：
 
 ```bash
-curl -L -o Dockerfile.mineru https://github.com/opendatalab/MinerU/raw/master/docker/china/Dockerfile
+curl -L -o Dockerfile.mineru https://raw.githubusercontent.com/opendatalab/MinerU/master/docker/china/Dockerfile
 docker build -t mineru:latest -f Dockerfile.mineru .
 ```
 
@@ -146,12 +147,12 @@ docker compose -f docker-compose.yml -f docker-compose.mineru.yml up -d --build
 注意事项：
 
 - **数据库已经初始化过的环境**：解析地址的首启种子不再生效，登录 admin 到
-  「系统设置 → 切分与解析」把解析服务地址改成 `http://mineru:8000/file_parse`（改后即时生效）。
+  「系统设置 → 切分与解析」把解析服务地址改成 `http://mineru:8000`（V1 基地址，改后即时生效）。
 - **MinerU 跑在另一台机器上**（比如专门的 GPU 工作站）：不用叠加文件，在那台机器上
   单独起 mineru-api，然后 `.env` 里设 `MODELS_PARSER=mineru` 重建后端容器，
-  再到「系统设置」把解析服务地址改成 `http://<那台机器IP>:8000/file_parse`。
-- **解析后端**：默认 `pipeline`（通用、显存要求低）。显存充足想要更高精度，可在
-  「系统设置 → 切分与解析 → 解析后端」按所装 MinerU 版本支持的取值切换（如 vlm 系列）。
+  再到「系统设置」把解析服务地址改成 `http://<那台机器IP>:8000`。
+- **解析档位**：MinerU 4 使用 `flash/basic/standard/advanced`。旧配置中的
+  `pipeline` 或 `vlm-*` 会自动映射为 `standard`，无需先改配置。
 - **对照预览**：PDF 逐页渲染并按坐标叠亮框；Word 在浏览器里还原版面（表格、图片、样式都在，
   不出网也不需要转换服务），点右侧分块按文字定位并高亮，右上角可切「文本版」；
   Excel、演示稿等仍是文本版对照。
@@ -217,7 +218,8 @@ Ubuntu 工作站的安装、下载、启动、systemd 配置和功能验收命�
 DOCX/XLSX/PPTX 可本地解析；PDF 和扫描件再接 MinerU。本仓库的
 `docker-compose.mineru.yml` 实际映射为宿主机 **8093 → 容器 8000**，
 不与上述三个宿主机端口冲突，也没有独立的 MinerU router。
-后端使用 `http://mineru:8000/file_parse`。叠加文件没有设置解析进程显存上限，
+后端使用 MinerU 4 V1 基地址 `http://mineru:8000`，客户端会调用 `/v1/uploads`、
+`/v1/parse/jobs` 和 `/v1/files/*/content`。叠加文件没有设置解析进程显存上限，
 应在确认模型占用后再配置解析后端和并发。
 
 ## 说明

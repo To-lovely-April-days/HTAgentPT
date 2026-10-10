@@ -286,7 +286,7 @@ const PARSER_OPTIONS: ModelOption[] = [
     id: 'mineru-local', title: '本地 MinerU', badge: '本地部署',
     iconUrl: 'https://mineru.net/favicon.ico', iconFallback: 'M', fallbackBg: '#2867F2', fallbackFg: '#ffffff',
     desc: '显卡机器上的解析容器，数据不出内网。地址按实际部署修改（compose 叠加包默认为容器内地址）。',
-    url: 'http://mineru:8000/file_parse', modelName: null, needsKey: false, urlEditable: true,
+    url: 'http://mineru:8000', modelName: null, needsKey: false, urlEditable: true,
   },
 ];
 

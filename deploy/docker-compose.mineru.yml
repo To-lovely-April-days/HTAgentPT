@@ -29,17 +29,17 @@ services:
               capabilities: [gpu]
     restart: unless-stopped
 
-  # 首启种子把解析切到本地 MinerU 并指向容器内地址。数据库已初始化过的环境种子不再生效——
-  # 到「系统设置 → 文档解析」卡选「本地 MinerU」、地址填 http://mineru:8000/file_parse 即可（改后即时生效）。
+  # 首启种子把解析切到本地 MinerU 4 V1 API 并指向容器内地址。数据库已初始化过的环境种子不再生效——
+  # 到「系统设置 → 文档解析」卡选「本地 MinerU」、地址填 http://mineru:8000 即可（改后即时生效）。
   server-company:
     environment:
       Seed__Config__parser.provider: "mineru-local"
-      Seed__Config__parser.url: "http://mineru:8000/file_parse"
+      Seed__Config__parser.url: "http://mineru:8000"
 
   server-hq:
     environment:
       Seed__Config__parser.provider: "mineru-local"
-      Seed__Config__parser.url: "http://mineru:8000/file_parse"
+      Seed__Config__parser.url: "http://mineru:8000"
 
 volumes:
   mineru-models:

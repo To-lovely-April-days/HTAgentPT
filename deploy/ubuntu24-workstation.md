@@ -341,7 +341,7 @@ sudo systemctl status htagent-chat htagent-embedding htagent-rerank --no-pager
 
 DOCX/XLSX/PPTX 有本地解析，先用 DOCX 完成知识库验收。PDF/扫描件再接 MinerU；Qwen 本身不能替代当前系统的解析接口。
 
-仓库 deploy/docker-compose.mineru.yml 的实际映射为宿主机 8093 → 容器 8000，后台地址为 http://mineru:8000/file_parse。它与三个模型的 8000/8001/8002 宿主机端口不冲突。该叠加文件没有给 MinerU 设置显存硬预算，应在确认三模型占用后再确定解析后端、并发和显存；不能直接保证四个 GPU 服务同时满载。
+仓库 deploy/docker-compose.mineru.yml 的实际映射为宿主机 8093 → 容器 8000，MinerU 4 V1 基地址为 http://mineru:8000。它与三个模型的 8000/8001/8002 宿主机端口不冲突。该叠加文件没有给 MinerU 设置显存硬预算，应在确认三模型占用后再确定解析档位、并发和显存；不能直接保证四个 GPU 服务同时满载。
 
 使用 NVIDIA GPU 容器需要 nvidia-container-toolkit；nvidia-smi 和普通 Docker 正常还不足以证明 GPU 容器可用。按 NVIDIA 官方安装文档配置后，验证 GPU 容器，再按 MinerU 官方当前安装文档构建镜像，最后叠加 compose。
 

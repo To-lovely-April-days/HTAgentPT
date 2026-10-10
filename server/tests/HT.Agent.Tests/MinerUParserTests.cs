@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.IO.Compression;
+using System.Text;
 using HT.Agent.Application.Abstractions;
 using HT.Agent.Infrastructure.Clients;
 
@@ -11,6 +13,51 @@ public class MinerUParserTests
 
     private static string Wrap(string contentListJson)
         => """{"results":{"doc":{"md_content":null,"content_list":""" + contentListJson + "}}}";
+
+    [Fact]
+    public void MinerU4_structured_content按页和类型映射()
+    {
+        var blocks = MinerUParserClient.MapStructuredContent(Root("""
+            {
+              "pages": [{
+                "page_idx": 0,
+                "blocks": [
+                  {"type":"title","content":"设备维护手册","level":1},
+                  {"type":"text","content":[{"type":"text","content":"首次使用前请检查密封。"}]},
+                  {"type":"table","content":"<table><tr><th>项目</th><th>要求</th></tr><tr><td>密封</td><td>完好</td></tr></table>"}
+                ]
+              }]
+            }
+            """));
+        Assert.Equal(3, blocks.Count);
+        Assert.Equal(new ParsedBlock("heading", "设备维护手册", 1, 1, null, null), blocks[0]);
+        Assert.Equal("首次使用前请检查密封。", blocks[1].Text);
+        Assert.Equal(("table_row", "密封 | 完好"), (blocks[2].Kind, blocks[2].Text));
+        Assert.Equal("项目 | 要求", blocks[2].TableHeader);
+    }
+
+    [Fact]
+    public void MinerU4_zip读取structured_content和图片()
+    {
+        using var output = new MemoryStream();
+        using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var json = archive.CreateEntry("structured_content.json");
+            using (var writer = new StreamWriter(json.Open(), Encoding.UTF8))
+                writer.Write("""{"pages":[{"page_idx":1,"blocks":[{"type":"image","image_path":"images/page_1_image_1.png","caption":"图1"}]}]}""");
+            var image = archive.CreateEntry("images/page_1_image_1.png");
+            using var stream = image.Open();
+            stream.Write("PNG"u8);
+        }
+
+        var (blocks, images) = MinerUParserClient.ExtractV4Zip(output.ToArray());
+        Assert.Single(blocks);
+        Assert.Equal("图1", blocks[0].Text);
+        Assert.Single(images);
+        Assert.Equal("image/png", images[0].ContentType);
+        Assert.Equal("PNG"u8.ToArray(), images[0].Bytes);
+        Assert.Equal(2, images[0].PageNo);
+    }
 
     [Fact]
     public void 标题_段落_页码映射()
