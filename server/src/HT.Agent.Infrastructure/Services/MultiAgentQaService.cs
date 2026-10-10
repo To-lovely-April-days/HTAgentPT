@@ -610,25 +610,7 @@ public sealed class MultiAgentQaService(
         });
 
     private static string BuildEvidence(RetrievalResult result)
-    {
-        if (!result.AboveThreshold || result.Chunks.Count == 0)
-            return result.Notice is null
-                ? "没有找到达到可信阈值的企业资料。"
-                : $"检索提示：{result.Notice}\n没有找到达到可信阈值的企业资料。";
-
-        var sb = new StringBuilder();
-        var used = 0;
-        for (var i = 0; i < result.Chunks.Count; i++)
-        {
-            var chunk = result.Chunks[i];
-            var text = chunk.Text.Length > 700 ? chunk.Text[..700] : chunk.Text;
-            if (used + text.Length > 1800 && i > 0) break;
-            used += text.Length;
-            sb.AppendLine($"[{i + 1}] 《{chunk.DocTitle}》{(chunk.SectionPath is null ? "" : $" · {chunk.SectionPath}")}{(chunk.PageNo is null ? "" : $" · 第 {chunk.PageNo} 页")}{(string.IsNullOrWhiteSpace(chunk.ProjectNo) ? "" : $" · 关联项目 {chunk.ProjectNo}")}");
-            sb.AppendLine(text);
-        }
-        return sb.ToString();
-    }
+        => RetrievalEvidenceFormatter.Format(result);
 
     private async Task<List<DocImage>> LoadSourceImagesAsync(RetrievalResult result, CancellationToken ct)
     {
