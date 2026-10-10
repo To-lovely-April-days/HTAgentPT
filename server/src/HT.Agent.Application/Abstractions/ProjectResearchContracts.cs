@@ -25,7 +25,7 @@ public sealed record ProjectResearchResult(
     string Evidence,
     string Detail);
 
-/// <summary>项目台账表格。地点字段是候选提示，不能冒充已核实的实施地事实。</summary>
+/// <summary>项目台账表格。地点/区域条件可由企业资料关联项目编号后回填，资料仍是地点事实的依据。</summary>
 public sealed record ProjectResearchTable(
     ProjectResearchFilters Filters,
     IReadOnlyList<ProjectRow> Rows,

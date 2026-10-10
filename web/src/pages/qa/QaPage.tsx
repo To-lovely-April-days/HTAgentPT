@@ -413,7 +413,7 @@ function LedgerTableView({ table, onCorrect }: { table: LedgerTable; onCorrect: 
         <span className="pill pill-accent">{candidate ? '待核实项目' : '台账查询'}</span>
         <span className="pill pill-neutral">{table.rows.length} 条{table.truncated ? '（部分结果）' : ''}</span>
         <span className="hint">
-          解析条件：{conditions}
+          本轮理解：{conditions}
         </span>
         <div style={{ flexGrow: 1 }} />
         <button className="gbtn" style={{ height: 24, fontSize: 11.5 }} onClick={() => onCorrect('knowledge')}>不是查台账？按知识问答回答</button>
@@ -443,7 +443,11 @@ function LedgerTableView({ table, onCorrect }: { table: LedgerTable; onCorrect: 
             </tr>
           ))}
           {table.rows.length === 0 && (
-            <tr><td colSpan={7} style={{ ...td, color: 'var(--ink-3)' }}>没有匹配的项目记录</td></tr>
+            <tr><td colSpan={7} style={{ ...td, color: 'var(--ink-3)' }}>
+              {candidate
+                ? '暂未找到可确认的项目记录；可以继续查看回答中的企业资料线索。'
+                : '暂未找到项目记录；可以换一种说法继续提问。'}
+            </td></tr>
           )}
         </tbody>
       </table>

@@ -93,7 +93,7 @@ export function AgentProgressCard({ steps, streaming }: { steps: AgentStep[]; st
     <div className="card" style={{ marginBottom: 9, padding: '8px 11px', background: 'var(--bg-soft)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
         <span className="pill pill-accent">多Agent协作</span>
-        <span className="hint">{done}/{steps.length} 个阶段已完成</span>
+        <span className="hint">{done}/{steps.length} 个角色已完成</span>
         {streaming && active.length > 0 && <span className="hint" style={{ marginLeft: 'auto' }}>{active.length > 1 ? `${active.length} 个角色并行处理中` : `当前：${active[0].name}`}</span>}
         {streaming && active.length === 0 && <span className="hint" style={{ marginLeft: 'auto' }}>正在整理回答…</span>}
         <button className="gbtn" style={{ height: 22, fontSize: 11, padding: '0 8px', marginLeft: streaming && active.length > 0 ? 0 : 'auto' }}
@@ -139,7 +139,7 @@ export function LedgerCard({ table, onCorrect }: { table: LedgerTable; onCorrect
       <div className="advc-head" style={{ background: 'var(--bg-soft)' }}>
         <span className="advc-cap" style={{ color: 'var(--ink-2)' }}>{candidate ? '待核实项目' : '项目台账'}</span>
         <span className="pill pill-neutral">{displayedRows} 条{table.truncated ? '（部分结果）' : ''}</span>
-        <span className="advc-note">解析条件：{cond}</span>
+        <span className="advc-note">本轮理解：{cond}</span>
       </div>
       <div style={{ overflowX: 'auto', background: 'var(--panel)' }}>
         <table className="ltable">
@@ -166,7 +166,11 @@ export function LedgerCard({ table, onCorrect }: { table: LedgerTable; onCorrect
                 </td>
               </tr>
             ))}
-            {table.rows.length === 0 && <tr><td colSpan={columnCount} style={{ color: 'var(--ink-3)' }}>没有匹配的项目记录</td></tr>}
+            {table.rows.length === 0 && <tr><td colSpan={columnCount} style={{ color: 'var(--ink-3)' }}>
+              {candidate
+                ? '暂未找到可确认的项目记录；可以继续查看回答中的企业资料线索。'
+                : '暂未找到项目记录；可以换一种说法继续提问。'}
+            </td></tr>}
           </tbody>
         </table>
       </div>

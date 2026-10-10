@@ -20,16 +20,32 @@ public class ProjectService(AppDbContext db, IVocabService vocab, IAuditWriter a
 
         var q = db.Projects.AsNoTracking().Where(p => p.CompanyId == me.CompanyId);
         q = ApplyCustomerScope(q);
+        if (req.ProjectNos is not null)
+        {
+            // 项目编号来自已授权的企业资料检索结果。只允许回填现有台账行，
+            // 不能由模型直接生成项目记录。
+            var projectNos = req.ProjectNos
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(200)
+                .ToArray();
+            q = projectNos.Length == 0
+                ? q.Where(_ => false)
+                : q.Where(p => projectNos.Contains(p.ProjectNo));
+        }
         if (!string.IsNullOrWhiteSpace(req.CustomerName)) q = q.Where(p => p.CustomerName.Contains(req.CustomerName));
         if (req.YearFrom is not null) q = q.Where(p => p.Year >= req.YearFrom);
         if (req.YearTo is not null) q = q.Where(p => p.Year <= req.YearTo);
         if (!string.IsNullOrWhiteSpace(req.DeviceType)) q = q.Where(p => p.DeviceType == req.DeviceType);
         if (req.DeliveryStatus is not null) q = q.Where(p => p.DeliveryStatus == req.DeliveryStatus);
-        if (!string.IsNullOrWhiteSpace(req.LocationHint))
+        // LocationHint 仍支持已有的文本候选查询；当 ProjectNos 同时存在时，
+        // 资料检索已经完成语义定位，不能再用“华东”字符串二次过滤掉真实项目。
+        if (!string.IsNullOrWhiteSpace(req.LocationHint) && req.ProjectNos is not { Count: > 0 })
         {
             var location = req.LocationHint.Trim();
-            // 台账目前没有独立实施地字段；地点只作为候选提示，匹配客户名或规格参数，
-            // 并与其它条件同时生效。上层会在返回表格中明确标注“未核实实施地”。
+            // 没有资料关联项目编号时，地点退化为客户名或规格参数候选；
+            // 上层会在返回表格中明确标注“未核实实施地”。
             q = q.Where(p => p.CustomerName.Contains(location) ||
                              (p.SpecParams != null && p.SpecParams.Contains(location)));
         }

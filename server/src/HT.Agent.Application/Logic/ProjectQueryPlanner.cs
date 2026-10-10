@@ -58,6 +58,14 @@ public sealed class ProjectQueryPlanner(IChatModelClient chat) : IProjectQueryPl
         var unresolved = (payload.UnresolvedConditions ?? [])
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x.Trim()).Distinct().Take(12).ToList();
+        // 地点/区域不是台账必备列。它应进入资料语义检索，由带项目编号的资料回填台账，
+        // 不能因为模型提醒“没有独立地点字段”就把整条查询短路。
+        if (!string.IsNullOrWhiteSpace(payload.LocationHint))
+        {
+            unresolved.RemoveAll(x => x.Contains("地点", StringComparison.Ordinal) ||
+                                      x.Contains("区域", StringComparison.Ordinal) ||
+                                      x.Contains("实施地", StringComparison.Ordinal));
+        }
         var retrieval = string.IsNullOrWhiteSpace(payload.RetrievalQuery)
             ? question : payload.RetrievalQuery.Trim();
         var deliveryStatus = ParseStatus(payload.DeliveryStatus);
@@ -142,11 +150,15 @@ public sealed class ProjectQueryPlanner(IChatModelClient chat) : IProjectQueryPl
 你是企业项目台账查询规划专员。只输出一个 JSON 对象，不要 Markdown，不要解释。
 字段必须包含：customer、deviceType、yearFrom、yearTo、keyword、locationHint、deliveryStatus、amountMin、amountMax、allowRecent、unresolvedConditions、retrievalQuery。
 把用户明确提出的每个筛选条件保留下来；无法安全映射的条件放入 unresolvedConditions，绝不能忽略。
-上海、北京等地点是 locationHint 候选，不能当作客户名；不能根据大学/公司名称推断项目实施地。
-locationHint 只能作为客户名或项目规格文本的候选匹配提示。企业资料事实由后续资料检索提供。
+地点、区域和“哪里做过”是语义条件，放入 locationHint 并保留在 retrievalQuery；不要因为台账没有独立地点列而写入 unresolvedConditions。
+资料检索必须优先寻找带项目编号的企业资料，后续会把已授权资料关联回台账。没有项目编号的资料只能作为待核实线索，不能生成项目记录。
+区域词可以在 retrievalQuery 中补充你理解的相关地名或企业常用表达，以提高资料召回；这些扩展只是检索提示，不能直接当作项目地点事实。
+不要把地点直接当作客户名；不能根据大学/公司名称单独推断项目实施地。
 只有用户明确要求“最近/最新/近期项目”，且没有任何筛选条件时，allowRecent 才能为 true；否则为 false。
 amountMin/amountMax 是合同金额筛选，不能猜测单位或数值。
 retrievalQuery 保留用户问题中适合资料检索的原意。
+keyword 仅用于项目编号、设备型号或规格参数；地点和区域不要重复写入 keyword。
+若用户使用“华东区域”等区域表达，可在 retrievalQuery 中保留原词并补充模型理解的同义地理表述，仅用于扩大资料召回，不代表任何项目事实。
 若不是明确的项目台账查询，也应把无法确认的条件写入 unresolvedConditions，避免全表查询。
 最近对话（仅用于理解指代，不是事实）：
 {history}

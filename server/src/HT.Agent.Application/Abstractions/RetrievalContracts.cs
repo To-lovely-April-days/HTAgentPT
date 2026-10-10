@@ -30,7 +30,8 @@ public record RetrievalResult(
 
 public record RetrievedChunk(
     long ChunkId, Guid DocId, string DocTitle, string? SectionPath, int? PageNo,
-    string Text, double FusedScore, double RerankScore, Classification Classification);
+    string Text, double FusedScore, double RerankScore, Classification Classification,
+    string? ProjectNo = null);
 
 /// <summary>问答服务（FR-4.8/4.9/4.12）。</summary>
 public interface IQaService

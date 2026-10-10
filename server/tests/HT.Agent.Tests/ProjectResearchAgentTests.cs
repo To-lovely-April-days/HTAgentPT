@@ -25,6 +25,20 @@ public sealed class ProjectResearchAgentTests
     }
 
     [Fact]
+    public async Task 地点缺少独立字段时仍交给资料语义检索()
+    {
+        var planner = new ProjectQueryPlanner(new FakeChat("""
+            {"customer":null,"deviceType":null,"yearFrom":null,"yearTo":null,"keyword":null,"locationHint":"华东区域","deliveryStatus":null,"amountMin":null,"amountMax":null,"allowRecent":false,"unresolvedConditions":["没有独立实施地字段"],"retrievalQuery":"华东区域项目 上海 江苏 浙江"}
+            """));
+
+        var plan = await planner.PlanAsync("查询华东区域的项目", "");
+
+        Assert.NotNull(plan.Query);
+        Assert.Empty(plan.UnresolvedConditions);
+        Assert.Equal("华东区域", plan.Query!.LocationHint);
+    }
+
+    [Fact]
     public async Task 规划失败不能查询整张台账()
     {
         var planner = new ProjectQueryPlanner(new FakeChat("不是 JSON"));
@@ -68,6 +82,26 @@ public sealed class ProjectResearchAgentTests
         Assert.Contains("未核实", result.Table.Note);
     }
 
+    [Fact]
+    public async Task 资料关联项目编号后返回授权台账行()
+    {
+        var service = new FakeProjectService([
+            new ProjectRow("P-001", "客户 A", 2026, "反应釜", null, null, null,
+                null, null, null, DateTimeOffset.UtcNow)
+        ]);
+        var me = new FakeUser(new HashSet<Classification> { Classification.Confidential });
+        var agent = new ProjectResearchAgent(new ProjectQueryPlanner(new FakeChat("{}")), service, me);
+
+        var result = await agent.ExecuteAsync(new ProjectQueryPlan(
+            new ProjectSearchRequest(LocationHint: "华东区域", ProjectNos: ["P-001"]),
+            "华东区域项目", []));
+
+        Assert.NotNull(result.Table);
+        Assert.False(result.Table!.IsCandidate);
+        Assert.Contains("资料证据", result.Table.Note);
+        Assert.Equal(["P-001"], service.LastRequest!.ProjectNos);
+    }
+
     private sealed class FakeChat(string response) : IChatModelClient
     {
         public Task<string> CompleteAsync(IReadOnlyList<ChatTurn> messages, CancellationToken ct = default)
@@ -84,9 +118,11 @@ public sealed class ProjectResearchAgentTests
     {
         private readonly IReadOnlyList<ProjectRow> _rows = rows ?? [];
         public int SearchCalls { get; private set; }
+        public ProjectSearchRequest? LastRequest { get; private set; }
         public Task<ProjectSearchResult> SearchAsync(ProjectSearchRequest req, CancellationToken ct = default)
         {
             SearchCalls++;
+            LastRequest = req;
             return Task.FromResult(new ProjectSearchResult(_rows, true, false));
         }
         public Task<ProjectDetail?> GetAsync(string projectNo, CancellationToken ct = default)

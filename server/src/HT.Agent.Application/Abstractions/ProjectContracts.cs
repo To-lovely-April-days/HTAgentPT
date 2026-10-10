@@ -23,8 +23,13 @@ public record ProjectSearchRequest(
     DeliveryStatus? DeliveryStatus = null,
     string? Keyword = null,
     int Limit = 200,
-    /// <summary>地点候选：同时匹配客户名或项目规格文本；项目台账没有独立实施地字段。</summary>
-    string? LocationHint = null);
+    /// <summary>地点语义条件；没有资料项目编号时才退化为客户名或规格文本候选。</summary>
+    string? LocationHint = null,
+    /// <summary>
+    /// 由资料检索确认的项目编号集合。存在时用于把语义检索结果安全回填到台账，
+    /// 不把模型生成的项目行直接当成事实。
+    /// </summary>
+    IReadOnlyList<string>? ProjectNos = null);
 
 public record ProjectSearchResult(
     IReadOnlyList<ProjectRow> Rows,

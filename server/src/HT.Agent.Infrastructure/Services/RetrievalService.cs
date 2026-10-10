@@ -64,7 +64,9 @@ public class RetrievalService(
             .Where(c => ids.Contains(c.Id))
             .Join(db.Documents.AsNoTracking(), c => c.DocId, d => d.Id, (c, d) => new
             {
-                c.Id, c.DocId, DocTitle = d.Title, c.SectionPath, c.PageNo, c.Text, c.Classification
+                c.Id, c.DocId, DocTitle = d.Title, c.SectionPath, c.PageNo, c.Text, c.Classification,
+                ProjectNo = db.DocMetadatas.Where(m => m.DocumentId == d.Id)
+                    .Select(m => m.ProjectNo).FirstOrDefault()
             })
             .ToListAsync(ct);
         var byId = rows.ToDictionary(r => r.Id);
@@ -103,7 +105,7 @@ public class RetrievalService(
         {
             var r = byId[x.Fused.ChunkId];
             return new RetrievedChunk(r.Id, r.DocId, r.DocTitle, r.SectionPath, r.PageNo,
-                r.Text, x.Fused.Score, x.Score, r.Classification);
+                r.Text, x.Fused.Score, x.Score, r.Classification, r.ProjectNo);
         }).ToList();
         return new RetrievalResult(true, chunks, [], topScore, req.Query, notice);
     }

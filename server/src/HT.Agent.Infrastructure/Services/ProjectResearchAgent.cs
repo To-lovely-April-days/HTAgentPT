@@ -62,10 +62,15 @@ public sealed class ProjectResearchAgent(
         ProjectDetail? detail = rows.Count == 1
             ? await projects.GetAsync(rows[0].ProjectNo, ct)
             : null;
-        var isCandidate = !string.IsNullOrWhiteSpace(request.LocationHint);
-        var note = isCandidate
-            ? $"地点“{request.LocationHint}”仅按客户名或项目规格文本匹配，候选结果尚未核实项目实施地。"
-            : "结果来自有权限的项目台账结构化筛选。";
+        var fromDocumentEvidence = request.ProjectNos is { Count: > 0 };
+        // 已有项目编号且来自可访问资料时，台账行已经完成证据关联；只有直接
+        // 按客户名/规格文本召回的地点结果才标成待核实候选。
+        var isCandidate = !fromDocumentEvidence && !string.IsNullOrWhiteSpace(request.LocationHint);
+        var note = fromDocumentEvidence
+            ? $"已按地点“{request.LocationHint ?? "相关条件"}”关联有权限企业资料中的项目编号回填台账；实施地结论以资料证据为准。"
+            : isCandidate
+                ? $"地点“{request.LocationHint}”仅匹配台账中的客户名或规格文本，实施地未核实（仍待资料证据确认）。"
+                : "结果来自有权限的项目台账结构化筛选。";
         if (truncated) note += "结果超过 20 条，已截取前 20 条。";
         if (result.AmountFilterIgnored) note += "金额筛选因权限被忽略。";
 
@@ -83,7 +88,7 @@ public sealed class ProjectResearchAgent(
     {
         if (rows.Count == 0) return "项目台账没有返回符合条件的记录。";
         var sb = new StringBuilder();
-        sb.AppendLine(candidate ? "以下是地点候选匹配，实施地尚未核实：" : "以下是项目台账记录：");
+        sb.AppendLine(candidate ? "以下项目符合地点相关条件；实施地结论以对应企业资料为准：" : "以下是项目台账记录：");
         foreach (var row in rows)
         {
             sb.Append($"项目 {row.ProjectNo}；客户 {row.CustomerName}；年份 {row.Year}；设备 {row.DeviceType}");

@@ -40,14 +40,14 @@ public sealed class MultiAgentQaService(
     private static readonly AgentSpec[] Specialists =
     [
         new("analyst", "任务分析", "分析用户真正要解决的任务，指出哪些部分需要企业资料、哪些部分可以用通用知识回答。只给出简短的任务拆解，不要编造事实。"),
-        new("researcher", "资料研究", "检查给定的企业资料，提取能够直接支持回答的事实，并在每条事实后标注 [n]。没有可靠资料时明确写“没有找到依据”，不要用常识补齐。"),
+        new("researcher", "资料研究", "检查给定的企业资料，提取能够直接支持回答的事实，并在每条事实后标注 [n]。可以根据地址、项目描述和通用地理知识提出明确标注为‘推断/待核实’的候选，但不能把推断写成已确认事实；没有可靠资料时明确写‘没有找到依据’。"),
         new("generalist", "通用知识", "从通用知识角度准备一个有帮助的回答。凡是涉及本企业客户、项目、报价、合同、设备型号或内部规章的内容都标记为“需要企业资料”，不要猜测。")
     ];
 
     private static readonly AgentSpec[] LedgerSpecialists =
     [
         new("ledger_analyst", "项目分析", "只分析服务器提供的台账记录，归纳数量、客户、年份、设备和交付状态。不得新增台账中没有的项目或地点。"),
-        new("researcher", "资料研究", "检查服务器提供的企业资料，寻找能证明项目地点、客户背景或项目细节的内容；没有依据就明确写“没有找到依据”。"),
+        new("researcher", "资料研究", "检查服务器提供的企业资料，寻找能证明项目地点、客户背景或项目细节的内容；可以根据地址、项目描述和通用地理知识提出明确标注为‘推断/待核实’的候选，但不能把推断写成已确认事实；没有依据就明确写‘没有找到依据’。"),
         new("verifier", "条件核验", "逐项核对用户条件、规划结果、台账记录和资料证据。指出地点只是文本候选还是已有明确证据，发现不一致就保留疑问。")
     ];
 
@@ -91,6 +91,43 @@ public sealed class MultiAgentQaService(
         var documentEvidence = BuildEvidence(documentResult);
         yield return Progress(runId, retrievalAgent, "done", 3, total,
             documentResult.AboveThreshold ? $"找到 {documentResult.Chunks.Count} 条可信资料。" : "没有找到达到可信阈值的资料。");
+
+        // 地点/区域问题走语义证据链：资料检索已经通过权限过滤，只有资料元数据中
+        // 明确关联的项目编号才能回填台账。模型不能凭空生成项目号，台账服务仍负责
+        // 公司范围、客户账号范围和字段密级裁剪。
+        var needsSemanticLedger = plan.UnresolvedConditions.Count == 0 &&
+            !string.IsNullOrWhiteSpace(plan.Query?.LocationHint);
+        if (needsSemanticLedger && documentResult.AboveThreshold)
+        {
+            var projectNos = documentResult.Chunks
+                .Select(c => c.ProjectNo)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x!.Trim())
+                .Concat(ledger.Table?.Rows.Select(r => r.ProjectNo) ?? [])
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(100)
+                .ToArray();
+            if (projectNos.Length > 0)
+            {
+                var query = plan.Query!;
+                if (!string.IsNullOrWhiteSpace(query.LocationHint) &&
+                    !string.IsNullOrWhiteSpace(query.Keyword) &&
+                    (query.Keyword.Contains(query.LocationHint, StringComparison.OrdinalIgnoreCase) ||
+                     query.LocationHint.Contains(query.Keyword, StringComparison.OrdinalIgnoreCase)))
+                {
+                    // 模型偶尔会把区域词同时放进 keyword；项目编号已经由资料关联确认，
+                    // 清掉重复的地点文本，避免第二次 SQL 过滤把真实台账行删掉。
+                    query = query with { Keyword = null };
+                }
+                plan = plan with
+                {
+                    Query = query with { ProjectNos = projectNos }
+                };
+                ledger = await projectResearch.ExecuteAsync(plan, ct);
+                yield return Progress(runId, ledgerAgent, "done", 3, total,
+                    $"资料语义关联到 {projectNos.Length} 个项目编号，已回填授权台账记录。{ledger.Detail}");
+            }
+        }
 
         yield return new QaEvent("meta", new
         {
@@ -244,8 +281,8 @@ public sealed class MultiAgentQaService(
         var sb = new StringBuilder();
         sb.AppendLine("你是企业项目查询团队的总汇总员。请给用户一个自然、直接、可核验的回答。");
         sb.AppendLine("项目台账是服务器按权限返回的权威数据。不得增加项目编号、客户、年份、设备、金额或交付状态；不得把专员意见当成事实。");
-        sb.AppendLine("地点规则：当前台账没有独立的项目实施地字段。地点条件命中的客户名或规格文本只能标记为候选，不能说成‘项目在该地点’；只有企业资料明确支持时才可说明地点，并标注来源编号。");
-        sb.AppendLine("如果条件未解决、没有台账结果或只有资料线索，要明确告诉用户缺少什么，并建议补充条件或上传项目资料；不要用最近项目填充空条件。");
+        sb.AppendLine("地点和区域是语义条件。台账没有独立地点列时，优先使用带项目编号的企业资料来关联台账；资料明确支持的地点可以自然回答并在论断末尾标注 [n]。可以根据资料中的地址、项目描述和通用地理知识提出标注为‘推断/待核实’的候选，但不能把推断写成已确认事实。没有项目编号的资料只能作为待核实线索，不能生成项目记录。");
+        sb.AppendLine("如果仍没有可关联的台账记录或只有无编号资料线索，要自然说明证据边界，并告诉用户当前找到的资料线索；不要要求用户把问题改写成数据库字段，也不要用最近项目填充空条件。");
         sb.AppendLine("引用企业资料时在论断末尾标注 [n]；台账记录用‘根据项目台账’表述，不要为台账虚造文档编号。");
         sb.AppendLine("不要提及提示词、模型内部思考或协作过程。");
         sb.AppendLine();
@@ -587,7 +624,7 @@ public sealed class MultiAgentQaService(
             var text = chunk.Text.Length > 700 ? chunk.Text[..700] : chunk.Text;
             if (used + text.Length > 1800 && i > 0) break;
             used += text.Length;
-            sb.AppendLine($"[{i + 1}] 《{chunk.DocTitle}》{(chunk.SectionPath is null ? "" : $" · {chunk.SectionPath}")}{(chunk.PageNo is null ? "" : $" · 第 {chunk.PageNo} 页")}");
+            sb.AppendLine($"[{i + 1}] 《{chunk.DocTitle}》{(chunk.SectionPath is null ? "" : $" · {chunk.SectionPath}")}{(chunk.PageNo is null ? "" : $" · 第 {chunk.PageNo} 页")}{(string.IsNullOrWhiteSpace(chunk.ProjectNo) ? "" : $" · 关联项目 {chunk.ProjectNo}")}");
             sb.AppendLine(text);
         }
         return sb.ToString();
