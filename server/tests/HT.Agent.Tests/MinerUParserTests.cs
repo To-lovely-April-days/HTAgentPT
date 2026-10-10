@@ -44,7 +44,7 @@ public class MinerUParserTests
         {
             var json = archive.CreateEntry("structured_content.json");
             using (var writer = new StreamWriter(json.Open(), Encoding.UTF8))
-                writer.Write("""{"pages":[{"page_idx":1,"blocks":[{"type":"image","image_path":"images/page_1_image_1.png","caption":"图1"}]}]}""");
+                writer.Write("""{"pages":[{"page_idx":1,"blocks":[{"type":"image","content":{"image_source":{"path":"images/page_1_image_1.png"},"image_caption":[{"type":"text","content":"图1"}]}}]}]}""");
             var image = archive.CreateEntry("images/page_1_image_1.png");
             using var stream = image.Open();
             stream.Write("PNG"u8);

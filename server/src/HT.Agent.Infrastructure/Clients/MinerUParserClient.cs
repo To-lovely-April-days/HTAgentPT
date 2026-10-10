@@ -427,10 +427,10 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
         }
         if (type is "table" or "simple_table" or "complex_table")
         {
-            var caption = StructuredText(e, "caption") ?? StructuredText(e, "table_caption");
+            var caption = NestedText(e, "caption", "table_caption");
             if (!string.IsNullOrWhiteSpace(caption))
                 blocks.Add(new ParsedBlock("paragraph", caption.Trim(), null, page, bbox, null));
-            var html = GetString(e, "html") ?? GetString(e, "table_body") ??
+            var html = NestedText(e, "html", "table_body") ??
                        (content.Contains("<tr", StringComparison.OrdinalIgnoreCase) ? content : null);
             if (!string.IsNullOrWhiteSpace(html))
             {
@@ -445,13 +445,14 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
         }
         if (type is "image" or "chart")
         {
-            var caption = StructuredText(e, "caption") ?? StructuredText(e, "image_caption") ?? content;
+            var caption = NestedText(e, "caption", "image_caption", "chart_caption") ?? content;
             if (!string.IsNullOrWhiteSpace(caption))
                 blocks.Add(new ParsedBlock("paragraph", caption.Trim(), null, page, bbox, null));
             return;
         }
         if (type is "equation_inline" or "equation_interline" or "equation" or "code" or "algorithm")
         {
+            content = NestedText(e, "math_content", "code_body", "body") ?? content;
             if (content.Trim().Length > 0)
                 blocks.Add(new ParsedBlock("paragraph", content.Trim(), null, page, bbox, null));
             return;
@@ -481,6 +482,25 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
         return FlattenText(value);
     }
 
+    private static string? NestedText(JsonElement e, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (e.TryGetProperty(name, out var direct))
+            {
+                var text = FlattenText(direct);
+                if (!string.IsNullOrWhiteSpace(text)) return text;
+            }
+            if (e.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.Object
+                && content.TryGetProperty(name, out var nested))
+            {
+                var text = FlattenText(nested);
+                if (!string.IsNullOrWhiteSpace(text)) return text;
+            }
+        }
+        return null;
+    }
+
     private static string? FlattenText(JsonElement value)
     {
         if (value.ValueKind == JsonValueKind.String) return value.GetString();
@@ -494,7 +514,7 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
             if (value.TryGetProperty("content", out var content)) return FlattenText(content);
             if (value.TryGetProperty("text", out var text)) return FlattenText(text);
             if (value.TryGetProperty("body", out var body)) return FlattenText(body);
-            foreach (var key in new[] { "spans", "paragraph_content", "title_content", "description", "caption", "footnote", "latex", "html", "table_body" })
+            foreach (var key in new[] { "spans", "paragraph_content", "title_content", "description", "caption", "image_caption", "table_caption", "chart_caption", "footnote", "image_footnote", "table_footnote", "chart_footnote", "latex", "html", "table_body", "math_content", "code_body" })
                 if (value.TryGetProperty(key, out var nested)) return FlattenText(nested);
         }
         return null;
@@ -505,9 +525,10 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
         if (!e.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Object) return null;
         if (content.TryGetProperty("image_path", out var path) && path.ValueKind == JsonValueKind.String)
             return path.GetString();
-        if (content.TryGetProperty("source", out var source) && source.ValueKind == JsonValueKind.Object
-            && source.TryGetProperty("path", out var sourcePath) && sourcePath.ValueKind == JsonValueKind.String)
-            return sourcePath.GetString();
+        foreach (var sourceName in new[] { "source", "image_source" })
+            if (content.TryGetProperty(sourceName, out var source) && source.ValueKind == JsonValueKind.Object
+                && source.TryGetProperty("path", out var sourcePath) && sourcePath.ValueKind == JsonValueKind.String)
+                return sourcePath.GetString();
         return null;
     }
 
