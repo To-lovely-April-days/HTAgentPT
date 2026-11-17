@@ -191,8 +191,23 @@ public class RoleService(AppDbContext db, IAuditWriter audit, ICurrentUser me) :
             .Select(r => new RoleRow(r.Id, r.Code, r.Name, r.Classifications, r.Permissions, r.IsSystem))
             .ToListAsync(ct);
 
+    /// <summary>全部功能权限键（PermissionKeys 常量反射）：打错的键拒收，免得「界面上勾了、实际没生效」。</summary>
+    private static readonly IReadOnlySet<string> KnownPermissions = typeof(PermissionKeys)
+        .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+        .Where(f => f.FieldType == typeof(string)).Select(f => (string)f.GetValue(null)!).ToHashSet();
+
+    private static void Validate(RoleEdit edit)
+    {
+        if (string.IsNullOrWhiteSpace(edit.Name)) throw new DomainRuleException("ROLE_NAME_REQUIRED", "角色名称不能为空");
+        if (string.IsNullOrWhiteSpace(edit.Code) || !System.Text.RegularExpressions.Regex.IsMatch(edit.Code, "^[a-z][a-z0-9_]{1,31}$"))
+            throw new DomainRuleException("ROLE_CODE_INVALID", "角色代码用小写字母开头，只含小写字母、数字、下划线，2–32 位");
+        var unknown = edit.Permissions.Where(p => !KnownPermissions.Contains(p)).ToList();
+        if (unknown.Count > 0) throw new DomainRuleException("ROLE_PERMISSION_UNKNOWN", $"未知的功能权限：{string.Join("、", unknown)}");
+    }
+
     public async Task<Guid> CreateAsync(RoleEdit edit, CancellationToken ct = default)
     {
+        Validate(edit);
         if (await db.Roles.AnyAsync(r => r.Code == edit.Code, ct))
             throw new DomainRuleException("ROLE_CODE_TAKEN", $"角色代码 {edit.Code} 已存在");
         var role = new Role
@@ -215,6 +230,16 @@ public class RoleService(AppDbContext db, IAuditWriter audit, ICurrentUser me) :
             ?? throw new DomainRuleException("ROLE_NOT_FOUND", "角色不存在");
         if (role.IsSystem && role.Code != edit.Code)
             throw new DomainRuleException("SYSTEM_ROLE_CODE", "内置角色代码不可改（密级与权限映射可改，FR-7.2）");
+        Validate(edit);
+        // 防止把自己锁在门外：去掉「用户与权限」后，必须还有别的在用账号能管用户
+        if (role.Permissions.Contains(PermissionKeys.UserManage) && !edit.Permissions.Contains(PermissionKeys.UserManage))
+        {
+            // 权限存在 JSON 列里，先把角色读到内存里挑，再查有没有在用的人
+            var managerRoles = (await db.Roles.AsNoTracking().ToListAsync(ct))
+                .Where(r => r.Id != role.Id && r.Permissions.Contains(PermissionKeys.UserManage)).Select(r => r.Id).ToList();
+            var others = await db.Users.AnyAsync(u => u.IsActive && u.RoleId != null && managerRoles.Contains(u.RoleId.Value), ct);
+            if (!others) throw new DomainRuleException("ROLE_LAST_USER_MANAGER", "去掉以后就没有人能管用户和权限了。先让别的角色也有「用户与权限」，再来去掉");
+        }
         role.Code = edit.Code;
         role.Name = edit.Name;
         role.Classifications = edit.Classifications.ToList();
