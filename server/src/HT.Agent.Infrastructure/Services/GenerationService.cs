@@ -549,7 +549,10 @@ public class GenerationService(
         };
     }
 
-    public async Task<RenderResult> RenderAsync(Guid sessionId, CancellationToken ct = default)
+    public Task<RenderResult> RenderAsync(Guid sessionId, CancellationToken ct = default)
+        => RenderAsync(sessionId, allowIncomplete: false, ct);
+
+    public async Task<RenderResult> RenderAsync(Guid sessionId, bool allowIncomplete, CancellationToken ct = default)
     {
         var session = await MustFindAsync(sessionId, ct);
         var template = await SessionTemplateAsync(session, ct);
@@ -558,7 +561,7 @@ public class GenerationService(
         if (EquipmentBlocks.OriginalSlots(template) is not null && session.Equipment is null)
             throw new DomainRuleException("EQUIPMENT_UNDECIDED", "设备清单还没定：先确定装置里有哪些设备，再生成文档");
         var check = Completeness(template, states);
-        if (!check.CanRender)
+        if (!check.CanRender && !allowIncomplete)
             throw new DomainRuleException("INCOMPLETE",
                 $"存在未完成的必填槽位（{check.Incomplete.Count} 项），不允许生成（FR-5.13）：" +
                 string.Join("、", check.Incomplete.Take(6).Select(i => i.Name)));
@@ -568,14 +571,16 @@ public class GenerationService(
         var outputName = $"{template.Name}-{DateTimeOffset.UtcNow:yyyyMMdd}-{session.Id.ToString()[..8]}.docx";
         using (var outMs = new MemoryStream(filledDoc.Output))
             session.OutputFileKey = await storage.SaveAsync(outMs, outputName, ct);
-        session.Status = GenerationStatus.Completed;
+        // 带空项生成的只是一版草稿：会话还算没完成，接着填、再生成
+        session.Status = check.CanRender ? GenerationStatus.Completed : GenerationStatus.Draft;
         session.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
         // 生成记录（FR-5.17）：会话本身即记录——模板、基准、全部槽位值与来源、输出、操作人
         await Log("gen.render", session, new
         {
             template.Name, session.BaseProjectNo,
-            filled = filledDoc.Filled, blank = filledDoc.LeftBlank, warnings = filledDoc.Warnings
+            filled = filledDoc.Filled, blank = filledDoc.LeftBlank, warnings = filledDoc.Warnings,
+            incompleteRequired = check.Incomplete.Count
         }, ct);
         return new RenderResult(session.Id, outputName, filledDoc.Filled, filledDoc.LeftBlank);
     }

@@ -76,6 +76,8 @@ public class GenerationChatService(
         public readonly List<object> Advices = [];
         public object? Summary;
         public bool? CanRender;
+        /// <summary>必填没填完被拦下：界面给一个「仍然生成（空项留白）」按钮。</summary>
+        public bool? CanForce;
         public object? Rendered;
         /// <summary>这一轮译出的整篇译文：文件、回填报告、命中术语。</summary>
         public object? Translated;
@@ -99,6 +101,7 @@ public class GenerationChatService(
             advices = Advices.Count == 0 ? null : Advices,
             summary = Summary,
             canRender = CanRender,
+            canForce = CanForce,
             rendered = Rendered,
             translated = Translated,
             equipment = Equipment
@@ -171,8 +174,8 @@ public class GenerationChatService(
 
         if (input.Render)
         {
-            added.Add(User(session, "生成文档"));
-            await RenderAsync(ctx, ct);
+            added.Add(User(session, input.ForceRender ? "仍然生成（空项留白）" : "生成文档"));
+            await RenderAsync(ctx, ct, input.ForceRender);
         }
 
         await FinalizeAsync(ctx, ct);
@@ -244,7 +247,7 @@ public class GenerationChatService(
             ctx.Reply.Handled = true;
         }
         if (actions.Any(a => a.Type == "summary")) AddSummary(ctx);
-        if (actions.Any(a => a.Type == "render")) await RenderAsync(ctx, ct);
+        if (actions.Any(a => a.Type == "render")) await RenderAsync(ctx, ct, IsForceRender(text));
 
         // 走到这儿还没人说话，只可能是演示档或模型不可用——这才轮到模板话
         if (!ctx.Reply.Handled)
@@ -317,30 +320,25 @@ public class GenerationChatService(
         if (equipment is not null)
         {
             sb.AppendLine();
-            sb.AppendLine("[设备目录] 编号 | 名称（table=第三章设备参数表，part=第四章部件清单行）");
-            foreach (var c in equipment.Catalog) sb.AppendLine($"{c.Block} | {c.Title} | {c.Kind}");
+            // 目录写成两行（参数表一行、部件一行），比逐行列出省下一大截提示词
+            sb.AppendLine("[设备目录·第三章设备参数表] " + string.Join("；", equipment.Catalog.Where(c => c.Kind == "table").Select(c => $"{c.Block}={c.Name}")));
+            sb.AppendLine("[设备目录·第四章部件] " + string.Join("；", equipment.Catalog.Where(c => c.Kind == "part")
+                .Select(c => $"{c.Block}={c.Name}{(c.TagPrefix is null ? "" : $"({c.TagPrefix})")}")));
             sb.AppendLine("[当前设备清单] " + (!equipment.Decided ? "（还没定）"
                 : equipment.Items.Count == 0 ? "（定了，不选设备）"
                 : string.Join("；", equipment.Items.Where(i => i.LinkedTo is null)
                     .Select(i => $"{equipment.Catalog.FirstOrDefault(c => c.Block == i.Block)?.Name ?? i.Block} {i.TagNo} {i.Name} ×{i.Qty}"))));
         }
         sb.AppendLine();
-        sb.AppendLine("[槽位清单] tag | 名称 | 章节 | 类型 | 可选值 | 当前值");
-        foreach (var d in defs)
-        {
-            byTag.TryGetValue(d.Tag, out var st);
-            var choices = ChoiceList(d);
-            sb.AppendLine($"{d.Tag} | {d.Name} | {d.Section} | {d.DataType}" +
-                $" | {(choices is null ? "-" : string.Join("/", choices))}" +
-                $" | {(st?.Value is null ? "未填" : Truncate(st.Value, 40))}");
-        }
+        AppendSlotTable(sb, "槽位清单", defs,
+            PromptSlots(defs, ctx.State.LastAsked, ctx.State.LastSuggestions.Keys.ToList(), text), byTag, withType: true);
 
         var history = await db.GenChatMessages.AsNoTracking()
             .Where(m => m.SessionId == ctx.Session.Id)
             .OrderByDescending(m => m.Id).Take(6).OrderBy(m => m.Id).ToListAsync(ct);
         var turns = new List<ChatTurn> { new("system", sb.ToString()) };
         foreach (var h in history)
-            turns.Add(new ChatTurn(h.Role == "user" ? "user" : "assistant", Truncate(h.Content, 400)));
+            turns.Add(new ChatTurn(h.Role == "user" ? "user" : "assistant", Truncate(h.Content, 300)));
         turns.Add(new ChatTurn("user", text));
 
         try
@@ -736,15 +734,8 @@ public class GenerationChatService(
                 sb.AppendLine($"{defs.FirstOrDefault(d => d.Tag == tag)?.Name ?? tag} = {Truncate(val, 60)}");
         }
         sb.AppendLine();
-        sb.AppendLine("[参数清单] tag | 名称 | 章节 | 可选值 | 当前值");
-        foreach (var d in defs)
-        {
-            var choices = ChoiceList(d);
-            byTag.TryGetValue(d.Tag, out var st);
-            sb.AppendLine($"{d.Tag} | {d.Name}{(d.Unit is null ? "" : $"（{d.Unit}）")} | {d.Section}" +
-                $" | {(choices is null ? "-" : string.Join("/", choices))}" +
-                $" | {(st?.Value is null ? "未填" : Truncate(st.Value, 40))}");
-        }
+        AppendSlotTable(sb, "参数清单", defs,
+            PromptSlots(defs, ctx.State.LastAsked, redo.Concat(ctx.State.LastSuggestions.Keys).ToList(), message), byTag, withType: false);
 
         // 把最近几轮原话带上：用户说「材质换其他的」时，得知道「材质」指的是上一条里那个建议
         var recent = await db.GenChatMessages.AsNoTracking()
@@ -752,7 +743,7 @@ public class GenerationChatService(
             .OrderByDescending(x => x.Id).Take(6).OrderBy(x => x.Id).ToListAsync(ct);
         var turns = new List<ChatTurn> { new("system", sb.ToString()) };
         foreach (var h in recent)
-            turns.Add(new ChatTurn(h.Role == "user" ? "user" : "assistant", Truncate(h.Content, 400)));
+            turns.Add(new ChatTurn(h.Role == "user" ? "user" : "assistant", Truncate(h.Content, 300)));
         turns.Add(new ChatTurn("user", message));
 
         string reply;
@@ -877,23 +868,35 @@ public class GenerationChatService(
         ctx.Reply.CanRender = check.CanRender;
     }
 
-    private async Task RenderAsync(Ctx ctx, CancellationToken ct)
+    /// <summary>出文件。必填没填完时默认拦下、列出缺口，并给一个「仍然生成」的出口：
+    /// 技术协议这类几百项的文档，先出一版看整体、再回来补，是正常用法；空着的项留白，页眉本来就标「待复核」。</summary>
+    private async Task RenderAsync(Ctx ctx, CancellationToken ct, bool force = false)
     {
         var states = Parse(ctx.Session);
         var check = GenerationService.Completeness(ctx.Template, states);
         ctx.Reply.Handled = true;
         ctx.Reply.SuppressAsks = true;
-        if (!check.CanRender)
+        if (ctx.Session.Equipment is null && EquipmentBlocks.OriginalSlots(ctx.Template) is not null)
         {
-            ctx.Reply.Add($"还不能生成：{check.Incomplete.Count} 个必填项未完成——" +
-                string.Join("、", check.Incomplete.Take(8).Select(i => i.Name)) +
-                (check.Incomplete.Count > 8 ? " 等" : "") + "。补齐后再来。");
-            ctx.Reply.Summary = SummaryPayload(ctx.Template, states);
-            ctx.Reply.CanRender = false;
+            ctx.Reply.Add("先把设备清单定下来再生成——第三章参数表和第四章部件清单要按它展开。");
+            ctx.Reply.Equipment = EquipmentCard(await gen.GetEquipmentAsync(ctx.Session.Id, ct));
             return;
         }
-        var r = await gen.RenderAsync(ctx.Session.Id, ct);
-        ctx.Reply.Add($"已生成《{r.OutputFileName}》：回填 {r.SlotsFilled} 项，留空 {r.LeftBlank} 项。文件页眉带「待复核」标注，请下载核对后再对外使用。");
+        if (!check.CanRender && !force)
+        {
+            ctx.Reply.Add($"还有 {check.Incomplete.Count} 个必填项没填：" +
+                string.Join("、", check.Incomplete.Take(8).Select(i => i.Name)) +
+                (check.Incomplete.Count > 8 ? " 等" : "") +
+                "。可以接着补，也可以点「仍然生成」先出一版——空着的项留白，文件页眉标「待复核」。");
+            ctx.Reply.Summary = SummaryPayload(ctx.Template, states);
+            ctx.Reply.CanRender = false;
+            ctx.Reply.CanForce = true;
+            return;
+        }
+        var r = await gen.RenderAsync(ctx.Session.Id, allowIncomplete: force, ct);
+        ctx.Reply.Add($"已生成《{r.OutputFileName}》：回填 {r.SlotsFilled} 项，留空 {r.LeftBlank} 项。" +
+            (check.CanRender ? "" : $"其中 {check.Incomplete.Count} 个必填项还空着，接着补完可以再生成一版。") +
+            "文件页眉带「待复核」标注，请下载核对后再对外使用。");
         ctx.Reply.Rendered = new { fileName = r.OutputFileName, filled = r.SlotsFilled, blank = r.LeftBlank };
     }
 
@@ -1110,6 +1113,79 @@ public class GenerationChatService(
 
     private static object Cards(IReadOnlyList<BaseCandidate> found)
         => found.Select(c => new { c.ProjectNo, c.CustomerName, c.Year, c.DeviceType, c.DeviceModel, c.InheritableSlots }).ToList();
+
+    /// <summary>每轮交给模型的槽位上限。本地模型上下文只有 8K（还要留出回答的长度），
+    /// 技术协议按设备展开后有两三百项，全列出去提示词就超长、模型直接报错（界面上是「这句我没接住」）。</summary>
+    internal const int PromptSlotLimit = 50;
+
+    private static readonly System.Text.RegularExpressions.Regex TagNoLike = new(
+        @"[A-Z]{1,4}-?\d{2,5}[A-Z]?|表\s*\d+-\d+", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>这一轮让模型看哪些槽位：字段少的模板全给；多的按轻重挑——
+    /// ① 正在问的那几项和它们所在的整章；② 用户点了名的设备（话里出现 R-102、表3-2）那一章；
+    /// ③ 不属于任何设备的（封面、概述、公用工程）；④ 话里提到名字的项；⑤ 上一轮给过建议的项。
+    /// 挑出来按模板原顺序排；没列出的不影响落值——按名字认槽位用的是全量清单。</summary>
+    internal static List<TemplateSlot> PromptSlots(IReadOnlyList<TemplateSlot> all, IReadOnlyCollection<string> asked,
+        IReadOnlyCollection<string> extraTags, string text, int max = PromptSlotLimit)
+    {
+        if (all.Count <= max) return all.ToList();
+        var seen = new HashSet<string>();
+        void Add(IEnumerable<TemplateSlot> xs)
+        {
+            foreach (var x in xs)
+            {
+                if (seen.Count >= max) return;
+                seen.Add(x.Tag);
+            }
+        }
+        var askedSections = all.Where(s => asked.Contains(s.Tag)).Select(s => s.Section).ToHashSet();
+        var marks = TagNoLike.Matches(text).Select(m => m.Value.Replace(" ", "")).ToList();
+        var named = all.Select(s => s.Section).Distinct()
+            .Where(sec => marks.Any(m => sec.Replace(" ", "").Contains(m, StringComparison.OrdinalIgnoreCase))).ToHashSet();
+
+        bool Mentioned(TemplateSlot s) => KeyName(s.Name) is { Length: >= 2 } k && text.Contains(k);
+        // 一台设备就有四五十项，上限装不下两整章：先保证「正在问的」与「点名设备上被提到的那几项」，
+        // 再补正在问的整章，最后才是点名设备的其余项
+        Add(all.Where(s => asked.Contains(s.Tag)));
+        Add(all.Where(s => named.Contains(s.Section) && Mentioned(s)));
+        Add(all.Where(s => askedSections.Contains(s.Section)));
+        Add(all.Where(s => named.Contains(s.Section)));
+        Add(all.Where(s => EquipmentBlocks.Parse(s.Tag) is null));
+        Add(all.Where(Mentioned));
+        Add(all.Where(s => extraTags.Contains(s.Tag)));
+        return all.Where(s => seen.Contains(s.Tag)).ToList();
+    }
+
+    /// <summary>名字里真正的那个词：「内筒·设计压力（MPa）」→「设计压力」。</summary>
+    private static string KeyName(string name)
+    {
+        var bare = System.Text.RegularExpressions.Regex.Replace(name, @"[（(][^（）()]*[）)]", "").Trim();
+        var dot = bare.LastIndexOf('·');
+        return dot >= 0 ? bare[(dot + 1)..] : bare;
+    }
+
+    /// <summary>槽位表按章节分组写：章节名只写一次（技术协议的章节名很长，每行都写一遍就是几千字）；
+    /// 可选值过长的截断；没列出的项数写在末尾，模型知道还有别的。</summary>
+    internal static void AppendSlotTable(StringBuilder sb, string title, IReadOnlyList<TemplateSlot> all,
+        IReadOnlyList<TemplateSlot> shown, Dictionary<string, SlotState> byTag, bool withType)
+    {
+        sb.AppendLine($"[{title}] 按章节分组；每行 tag | 名称{(withType ? " | 类型" : "")} | 可选值 | 当前值");
+        foreach (var g in shown.GroupBy(s => s.Section))
+        {
+            sb.AppendLine($"【{g.Key}】");
+            foreach (var d in g)
+            {
+                byTag.TryGetValue(d.Tag, out var st);
+                var choices = ChoiceList(d);
+                var choiceText = choices is null ? "-" : Truncate(string.Join("/", choices), 60);
+                sb.AppendLine($"{d.Tag} | {d.Name}{(d.Unit is null || d.Name.Contains(d.Unit) ? "" : $"（{d.Unit}）")}" +
+                    (withType ? $" | {d.DataType}" : "") +
+                    $" | {choiceText} | {(st?.Value is null ? "未填" : Truncate(st.Value, 30))}");
+            }
+        }
+        if (shown.Count < all.Count)
+            sb.AppendLine($"（另有 {all.Count - shown.Count} 项本轮没列出：用户提到别的设备或参数时，按名称在对应章节里认，不要编 tag。）");
+    }
 
     private static List<TemplateSlot> CurrentSlots(Template t)
         => t.Slots.Where(s => s.Stage == SlotStage.Current).OrderBy(s => s.SortOrder).ToList();

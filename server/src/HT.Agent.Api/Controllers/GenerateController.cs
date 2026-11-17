@@ -107,8 +107,8 @@ public class GenerateController(
     }
 
     [HttpPost("sessions/{id:guid}/render")]
-    public async Task<IActionResult> Render(Guid id, CancellationToken ct)
-        => Ok(await gen.RenderAsync(id, ct));
+    public async Task<IActionResult> Render(Guid id, [FromQuery] bool allowIncomplete, CancellationToken ct)
+        => Ok(await gen.RenderAsync(id, allowIncomplete, ct));
 
     [HttpGet("sessions/{id:guid}/output")]
     public async Task<IActionResult> Output(Guid id, CancellationToken ct)

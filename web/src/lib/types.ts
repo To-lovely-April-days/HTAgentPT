@@ -236,6 +236,8 @@ export interface GenChatPayload {
   advices?: GenAdvice[] | null;
   summary?: { section: string; items: { name: string; value: string | null }[] }[] | null;
   canRender?: boolean | null;
+  /** 必填没填完被拦下：可以「仍然生成」（空项留白） */
+  canForce?: boolean | null;
   rendered?: { fileName: string; filled: number; blank: number } | null;
   translated?: GenTranslated | null;
   /** 设备卡：按设备展开的模板（技术协议），清单没定或刚改过时随消息下发。 */

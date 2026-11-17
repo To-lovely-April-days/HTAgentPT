@@ -10,6 +10,15 @@ public static class GenChatLogic
 {
     public enum ChatCommand { None, Skip, Render, Summary }
 
+    /// <summary>「仍然生成」一类：必填没填完也先出一版（空项留白）。只认独立短句。</summary>
+    public static bool IsForceRender(string message)
+    {
+        var m = Regex.Replace(message.Trim(), @"[。！!，,~～\s]+$", "");
+        return m.Length <= 14 && Regex.IsMatch(m,
+            @"^(仍然|还是|直接|先|就这样|空着也|空的也|带空项|留白)(生成|出)(文档|一版|word|吧)?$|^先出一版(吧)?$|^(空项|空着的)?留白生成$",
+            RegexOptions.IgnoreCase);
+    }
+
     /// <summary>整句指令：跳过当前问题 / 要求生成 / 要求汇总。只认独立短句，
     /// 长句里出现这些词不算（「加热形式选电加热就能生成合格品」不是生成指令）。</summary>
     public static ChatCommand DetectCommand(string message)
@@ -18,7 +27,8 @@ public static class GenChatLogic
         if (m.Length is 0 or > 12) return ChatCommand.None;
         if (Regex.IsMatch(m, @"^(跳过|先跳过|跳过这[个一]?[项个]?|下一[个项]|留空|先不填|暂不填|不填这[个项])$"))
             return ChatCommand.Skip;
-        if (Regex.IsMatch(m, @"^(生成|生成文档|生成word|开始生成|渲染|出文档|可以生成了?|生成吧)$", RegexOptions.IgnoreCase))
+        if (Regex.IsMatch(m, @"^(生成|生成文档|生成word|开始生成|渲染|出文档|可以生成了?|生成吧)$", RegexOptions.IgnoreCase)
+            || IsForceRender(m))
             return ChatCommand.Render;
         if (Regex.IsMatch(m, @"^(汇总|预览|看下进度|看看进度|进度|填了哪些)$"))
             return ChatCommand.Summary;

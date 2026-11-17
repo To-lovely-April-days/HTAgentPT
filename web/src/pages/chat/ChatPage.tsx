@@ -668,6 +668,14 @@ function AssistantMessage() {
             ))}
           </div>
         )}
+        {active && m.gen?.canForce && !m.gen.rendered && (
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <button className="pbtn" onClick={() => void genTurn({ render: true, forceRender: true })}>
+              仍然生成（空项留白）
+            </button>
+            <span className="hint">先出一版看整体，回来接着补，再生成一版</span>
+          </div>
+        )}
         {m.gen?.rendered && m.genSessionId && (
           <div style={{ marginTop: 9 }}>
             <button className="pbtn"

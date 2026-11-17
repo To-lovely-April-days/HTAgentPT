@@ -62,6 +62,9 @@ public interface IGenerationService
     Task<PreviewView> PreviewAsync(Guid sessionId, CancellationToken ct = default);
     /// <summary>校验完成度后生成 Word（FR-5.15）：槽位回填、页眉待复核、后续阶段留空。</summary>
     Task<RenderResult> RenderAsync(Guid sessionId, CancellationToken ct = default);
+    /// <summary>allowIncomplete=用户明确说了「仍然生成」：必填没填完也出文件，空着的项留白（页眉本来就标「待复核」），
+    /// 会话保持草稿状态，接着填还能再生成。</summary>
+    Task<RenderResult> RenderAsync(Guid sessionId, bool allowIncomplete, CancellationToken ct = default);
     /// <summary>草稿预览：按当前已填值渲染一份 docx 只给界面看版式，未填的留占位。
     /// 不过完成度门、不落存储、不改会话状态、不记生成记录——
     /// 「生成文档」才是产出，预览只是让人边填边看（FR-5.13/5.17 的边界不能被预览绕过）。</summary>
@@ -159,10 +162,10 @@ public interface IGenerationChatService
 /// <summary>一轮输入：Start=补开场白（会话还没有消息时）；Message=自由文本（经总指挥派工）；
 /// OptionFills=选项按钮直填（不过模型）；BaseProjectNo=选定基准（空串=明确不用）；
 /// AdoptTags=采纳建议按钮（空表=全部待确认建议）；Render=生成文档；
-/// Equipment=设备卡上确认的整份设备清单。</summary>
+/// Equipment=设备卡上确认的整份设备清单；ForceRender=「仍然生成」（必填没填完也出，空项留白）。</summary>
 public record GenChatTurnInput(string? Message = null, List<GenTagValue>? OptionFills = null,
     string? BaseProjectNo = null, bool Render = false, bool Start = false, List<string>? AdoptTags = null,
-    List<EquipmentItem>? Equipment = null);
+    List<EquipmentItem>? Equipment = null, bool ForceRender = false);
 
 public record GenTagValue(string Tag, string Value);
 
