@@ -60,6 +60,10 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("department");
 
+                    b.Property<Guid?>("DepartmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("department_id");
+
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasColumnType("text")
@@ -548,6 +552,111 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                     b.ToTable("customer_device");
                 });
 
+            modelBuilder.Entity("HT.Agent.Domain.Entities.CustomerRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<string>("FinalName")
+                        .HasColumnType("text")
+                        .HasColumnName("final_name");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset>("RequestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("requested_at");
+
+                    b.Property<Guid>("RequestedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_by_id");
+
+                    b.Property<string>("ReviewNote")
+                        .HasColumnType("text")
+                        .HasColumnName("review_note");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_customer_request");
+
+                    b.HasIndex("RequestedById")
+                        .HasDatabaseName("ix_customer_request_requested_by_id");
+
+                    b.HasIndex("CompanyId", "Status")
+                        .HasDatabaseName("ix_customer_request_company_id_status");
+
+                    b.ToTable("customer_request");
+                });
+
+            modelBuilder.Entity("HT.Agent.Domain.Entities.Department", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("HeadUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("head_user_id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<Guid?>("ParentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parent_id");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.HasKey("Id")
+                        .HasName("pk_department");
+
+                    b.HasIndex("HeadUserId")
+                        .HasDatabaseName("ix_department_head_user_id");
+
+                    b.HasIndex("CompanyId", "ParentId")
+                        .HasDatabaseName("ix_department_company_id_parent_id");
+
+                    b.ToTable("department");
+                });
+
             modelBuilder.Entity("HT.Agent.Domain.Entities.DocImage", b =>
                 {
                     b.Property<long>("Id")
@@ -764,6 +873,25 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_document_kb_id_classification_parse_status");
 
                     b.ToTable("document");
+                });
+
+            modelBuilder.Entity("HT.Agent.Domain.Entities.DocumentKb", b =>
+                {
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("document_id");
+
+                    b.Property<Guid>("KbId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("kb_id");
+
+                    b.HasKey("DocumentId", "KbId")
+                        .HasName("pk_document_kb");
+
+                    b.HasIndex("KbId")
+                        .HasDatabaseName("ix_document_kb_kb_id");
+
+                    b.ToTable("document_kb");
                 });
 
             modelBuilder.Entity("HT.Agent.Domain.Entities.FaultCase", b =>
@@ -1863,6 +1991,16 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_document__knowledge_bases_kb_id");
 
                     b.Navigation("Kb");
+                });
+
+            modelBuilder.Entity("HT.Agent.Domain.Entities.DocumentKb", b =>
+                {
+                    b.HasOne("HT.Agent.Domain.Entities.Document", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_document_kb_document_document_id");
                 });
 
             modelBuilder.Entity("HT.Agent.Domain.Entities.GenChatMessage", b =>

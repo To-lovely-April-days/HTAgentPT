@@ -57,11 +57,17 @@ public class KnowledgeBaseService(AppDbContext db, IAuditWriter audit, ICurrentU
             .GroupBy(c => c.KbId)
             .Select(g => new { KbId = g.Key, Chunks = g.LongCount() })
             .ToDictionaryAsync(x => x.KbId, ct);
+        // 同时挂进多个库的文件：在挂进的库里也算一份（分块记在主库上，这里按文档补上分块数）
+        var extraDocs = await db.DocumentKbs.AsNoTracking().GroupBy(x => x.KbId)
+            .Select(g => new { KbId = g.Key, Docs = g.Count() }).ToDictionaryAsync(x => x.KbId, x => x.Docs, ct);
+        var extraChunks = await db.DocumentKbs.AsNoTracking()
+            .Join(db.Chunks.Where(c => c.IsActive), x => x.DocumentId, c => c.DocId, (x, c) => x.KbId)
+            .GroupBy(k => k).Select(g => new { KbId = g.Key, N = g.LongCount() }).ToDictionaryAsync(x => x.KbId, x => x.N, ct);
         var kbs = await db.KnowledgeBases.AsNoTracking().OrderBy(k => k.Tier).ThenBy(k => k.Name).ToListAsync(ct);
         return kbs.Select(k => new KbRow(
             k.Id, k.Name, k.Tier, k.DefaultChunkStrategy, k.Description, k.IsActive,
-            stats.TryGetValue(k.Id, out var s) ? s.Docs : 0,
-            chunkStats.TryGetValue(k.Id, out var c) ? c.Chunks : 0,
+            (stats.TryGetValue(k.Id, out var s) ? s.Docs : 0) + extraDocs.GetValueOrDefault(k.Id),
+            (chunkStats.TryGetValue(k.Id, out var c) ? c.Chunks : 0) + extraChunks.GetValueOrDefault(k.Id),
             stats.TryGetValue(k.Id, out var s2) ? s2.Last : null)).ToList();
     }
 

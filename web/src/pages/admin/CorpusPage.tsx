@@ -196,7 +196,7 @@ export default function CorpusPage() {
                         <td style={td}>
                           <div style={{ fontSize: 12.5, fontWeight: 500, lineHeight: 1.45, whiteSpace: 'normal' }}>{r.title}</div>
                           <div style={{ fontSize: 10.5, color: 'var(--ink-3)', marginTop: 2 }}>
-                            {r.kbName}{r.customerName ? ` · ${r.customerName}` : ''}{r.projectNo ? ` · ${r.projectNo}` : ''}
+                            {(r.kbNames?.length ? r.kbNames : [r.kbName]).join('、')}{r.customerName ? ` · ${r.customerName}` : ''}{r.projectNo ? ` · ${r.projectNo}` : ''}
                           </div>
                         </td>
                         <td style={{ ...td, color: 'var(--ink-2)' }}>
@@ -260,7 +260,8 @@ export default function CorpusPage() {
         </>
       )}
 
-      {tab === 'review' && <CorpusReviewTab onChanged={refresh} />}
+      {tab === 'review' && <CorpusReviewTab onChanged={refresh}
+        extra={<button type="button" className="gbtn" style={{ height: 34 }} onClick={() => nav('/approvals')}>新增客户申请 ›</button>} />}
 
       {tab === 'queue' && (
         <>

@@ -22,7 +22,7 @@ public class UserAdminService(
                 u.Id, u.Username, u.DisplayName, u.EmployeeNo, u.Department,
                 u.Role == null ? null : u.Role.Code, u.Role == null ? null : u.Role.Name,
                 u.Company == null ? "-" : u.Company.Name,
-                u.Kind, u.CustomerNo, u.IsActive, u.LastLoginAt, u.CreatedAt))
+                u.Kind, u.CustomerNo, u.IsActive, u.LastLoginAt, u.CreatedAt, u.DepartmentId))
             .ToListAsync(ct);
     }
 

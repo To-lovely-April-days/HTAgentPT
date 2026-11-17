@@ -73,7 +73,7 @@ public interface IUserAdminService
 public record UserRow(
     Guid Id, string Username, string DisplayName, string? EmployeeNo, string? Department,
     string? RoleCode, string? RoleName, string CompanyName, UserKind Kind, string? CustomerNo,
-    bool IsActive, DateTimeOffset? LastLoginAt, DateTimeOffset CreatedAt);
+    bool IsActive, DateTimeOffset? LastLoginAt, DateTimeOffset CreatedAt, Guid? DepartmentId = null);
 
 public record CreateUserRequest(
     string Username, string DisplayName, string InitialPassword,

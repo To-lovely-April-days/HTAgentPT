@@ -35,6 +35,7 @@ public class DocumentsController(
         [FromForm] bool registerProject,
         [FromForm] string? projectDeviceModel,
         [FromForm] string? projectSpecParams,
+        [FromForm] List<Guid>? extraKbIds,
         CancellationToken ct)
     {
         if (registerProject && !string.IsNullOrWhiteSpace(projectNo))
@@ -57,7 +58,7 @@ public class DocumentsController(
             kbId, file.FileName, file.ContentType ?? "application/octet-stream", file.Length,
             classification, chunkStrategy,
             customerName, year, deviceType, docCategory, projectNo,
-            OwnerId: null, DocVersion: docVersion, EffectiveDate: null, Title: title), stream, ct);
+            OwnerId: null, DocVersion: docVersion, EffectiveDate: null, Title: title, ExtraKbIds: extraKbIds), stream, ct);
         return Ok(result);
     }
 
@@ -210,10 +211,31 @@ public class FilesController(IDocumentService docs) : ControllerBase
 [Route("api/my-files")]
 [Authorize]
 [RequirePermission(PermissionKeys.CorpusUpload)]
-public class MyFilesController(ICorpusReviewService review) : ControllerBase
+public class MyFilesController(ICorpusReviewService review, IOrgService org, ICurrentUser me) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct) => Ok(await review.ListMineAsync(ct));
+
+    /// <summary>上传弹窗要的：能选哪些库、这次交给谁审（主管本人则直接通过）、我提过的客户申请。</summary>
+    [HttpGet("context")]
+    public async Task<IActionResult> Context(CancellationToken ct)
+    {
+        var approver = await org.ApproverForAsync(me.UserId, ct);
+        return Ok(new
+        {
+            kbs = await review.SelectableKbsAsync(ct),
+            autoApprove = approver.AutoApprove,
+            approverName = approver.ApproverName,
+            customerRequests = await org.MyCustomerRequestsAsync(ct)
+        });
+    }
+
+    public record CustomerRequestBody(string Name, string? Reason);
+
+    /// <summary>名单里没有这个客户：提给部门主管（主管、管理员自己提就直接进名单）。</summary>
+    [HttpPost("customer-requests")]
+    public async Task<IActionResult> RequestCustomer([FromBody] CustomerRequestBody b, CancellationToken ct)
+        => Ok(await org.RequestCustomerAsync(b.Name, b.Reason, ct));
 
     /// <summary>上传：知识库和密级由系统定（内部资料库、内部），员工只填元数据；上传后待审核。</summary>
     [HttpPost]
@@ -225,6 +247,7 @@ public class MyFilesController(ICorpusReviewService review) : ControllerBase
         [FromForm] string docCategory,
         [FromForm] string? projectNo,
         [FromForm] string? title,
+        [FromForm] List<Guid>? kbIds,
         CancellationToken ct)
     {
         await using var stream = file.OpenReadStream();
@@ -232,7 +255,7 @@ public class MyFilesController(ICorpusReviewService review) : ControllerBase
             Guid.Empty, file.FileName, file.ContentType ?? "application/octet-stream", file.Length,
             Classification.Internal, null,
             customerName, year, deviceType, docCategory, projectNo,
-            OwnerId: null, DocVersion: null, EffectiveDate: null, Title: title), stream, ct);
+            OwnerId: null, DocVersion: null, EffectiveDate: null, Title: title), kbIds ?? [], stream, ct);
         return Ok(result);
     }
 

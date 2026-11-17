@@ -1,3 +1,4 @@
+import type React from 'react';
 // 语料管理 · 待审核：同事上传的文件，管理员通过（自动排队解析）或写明原因驳回（上传人看得到）。
 // 左边列表可勾选批量处理，点一行在右边看详情、下载原文、驳回。
 import { useMemo, useState } from 'react';
@@ -5,16 +6,20 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { download, get, post, ApiError } from '../../lib/api';
 import type { DocRow } from '../../lib/types';
 import { ErrorBox, Spinner } from '../../components/Common';
+import { ADMIN_REVIEW_API } from './reviewApi';
+import type { ReviewApi } from './reviewApi';
 
 const REASONS = ['内容重复', '非公司资料', '含价格/敏感信息', '文件打不开', '资料信息填写不全'];
 const fmtSize = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const when = (iso: string) => iso.slice(5, 16).replace('T', ' ');
 
-export default function CorpusReviewTab({ onChanged }: { onChanged: () => void }) {
+export default function CorpusReviewTab({ onChanged, api = ADMIN_REVIEW_API, title = '待审核', sub: subtitle, extra }: {
+  onChanged: () => void; api?: ReviewApi; title?: string; sub?: string; extra?: React.ReactNode;
+}) {
   const qc = useQueryClient();
   const q = useQuery({
-    queryKey: ['docs-review'],
-    queryFn: () => get<DocRow[]>('/api/documents?review=Pending'),
+    queryKey: [api.key],
+    queryFn: () => get<DocRow[]>(api.list),
     refetchInterval: 30_000,
   });
   const rows = useMemo(() => q.data ?? [], [q.data]);
@@ -36,7 +41,7 @@ export default function CorpusReviewTab({ onChanged }: { onChanged: () => void }
   // 批量条作用于勾选的；没勾选时右侧按钮只作用于当前这一份
   const targets = selected.size > 0 ? [...selected] : current ? [current.id] : [];
   const refresh = () => {
-    void qc.invalidateQueries({ queryKey: ['docs-review'] });
+    void qc.invalidateQueries({ queryKey: [api.key] });
     onChanged();
   };
 
@@ -44,7 +49,7 @@ export default function CorpusReviewTab({ onChanged }: { onChanged: () => void }
     if (!ids.length) return;
     setBusy(true); setError(null); setDone(null);
     try {
-      const r = await post<{ approved: number }>('/api/documents/review/approve', { docIds: ids });
+      const r = await post<{ approved: number }>(api.approve, { docIds: ids });
       setDone(`已通过 ${r.approved} 份，已排队解析`);
       setSelected(new Set());
       refresh();
@@ -57,7 +62,7 @@ export default function CorpusReviewTab({ onChanged }: { onChanged: () => void }
     if (!ids.length || !fullReason) return;
     setBusy(true); setError(null); setDone(null);
     try {
-      const r = await post<{ rejected: number }>('/api/documents/review/reject', { docIds: ids, reason: fullReason });
+      const r = await post<{ rejected: number }>(api.reject, { docIds: ids, reason: fullReason });
       setDone(`已驳回 ${r.rejected} 份，上传人在「文件管理」里能看到原因`);
       setSelected(new Set()); setRejecting(false); setChips(new Set()); setReason('');
       refresh();
@@ -74,9 +79,10 @@ export default function CorpusReviewTab({ onChanged }: { onChanged: () => void }
       <div className="rv-main sc">
         <div className="dash-head">
           <div>
-            <h1 className="dash-title" style={{ fontSize: 24 }}>待审核</h1>
-            <p className="dash-sub">同事上传的文件，通过后自动排队解析；驳回要写原因，上传人在「文件管理」里看得到。</p>
+            <h1 className="dash-title" style={{ fontSize: 24 }}>{title}</h1>
+            <p className="dash-sub">{subtitle ?? '同事上传的文件，通过后自动排队解析；驳回要写原因，上传人在「文件管理」里看得到。'}</p>
           </div>
+          {extra}
         </div>
 
         {selected.size > 0 && (
@@ -103,7 +109,7 @@ export default function CorpusReviewTab({ onChanged }: { onChanged: () => void }
                       <input type="checkbox" aria-label="全选" checked={allOn}
                         onChange={() => setSelected(allOn ? new Set() : new Set(rows.map((r) => r.id)))} />
                     </th>
-                    <th>文件</th><th>上传人</th><th>资料类型 · 客户/项目</th><th>提示</th><th style={{ textAlign: 'right' }}>操作</th>
+                    <th style={{ minWidth: 240 }}>文件</th><th>上传人</th><th>资料类型 · 客户/项目</th><th>进入资料库</th><th>提示</th><th style={{ textAlign: 'right' }}>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -133,6 +139,11 @@ export default function CorpusReviewTab({ onChanged }: { onChanged: () => void }
                           <span className="dash-muted" style={{ fontSize: 12 }}>{[r.customerName, r.projectNo].filter(Boolean).join(' · ') || '未关联项目'}</span>
                         </span>
                       </td>
+                      <td style={{ whiteSpace: 'normal' }}>
+                        <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          {(r.kbNames?.length ? r.kbNames : [r.kbName]).map((k) => <span key={k} className="rv-kb">{k}</span>)}
+                        </span>
+                      </td>
                       <td>{r.reviewHint ? <span className="rv-hint dup">{r.reviewHint}</span> : <span className="rv-hint new">新资料</span>}</td>
                       <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                         <span style={{ display: 'inline-flex', gap: 14 }}>
@@ -147,7 +158,7 @@ export default function CorpusReviewTab({ onChanged }: { onChanged: () => void }
             </div>
           )}
         </section>
-        <p className="dash-muted" style={{ margin: 0 }}>「文档列表」里也能看到每份文件是谁传的。管理员自己在后台上传的文件不用审核。</p>
+        {api === ADMIN_REVIEW_API && <p className="dash-muted" style={{ margin: 0 }}>「文档列表」里也能看到每份文件是谁传的。管理员自己在后台上传的文件不用审核。</p>}
       </div>
 
       <aside className="rv-side" aria-label="文件详情">
@@ -161,7 +172,7 @@ export default function CorpusReviewTab({ onChanged }: { onChanged: () => void }
             <dl className="rv-dl">
               <dt>文件名</dt><dd style={{ wordBreak: 'break-all' }}>{current.fileName}</dd>
               <dt>资料类型</dt><dd>{current.docCategory ?? '—'}</dd>
-              <dt>进入</dt><dd>{current.kbName} · 内部密级</dd>
+              <dt>进入</dt><dd>{(current.kbNames?.length ? current.kbNames : [current.kbName]).join('、')} · 内部密级</dd>
               <dt>客户/项目</dt><dd>{[current.customerName, current.projectNo].filter(Boolean).join(' · ') || '未关联'}</dd>
               <dt>大小</dt><dd>{fmtSize(current.fileSize)}</dd>
               {current.reviewHint && <><dt>提示</dt><dd style={{ color: '#8a5a00' }}>{current.reviewHint}</dd></>}

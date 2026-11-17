@@ -125,7 +125,7 @@ export interface DocRow {
   fileSize: number; uploadedAt: string; docCategory: string | null;
   customerName: string | null; projectNo: string | null;
   uploadedById: string; review: ReviewStatus; reviewNote: string | null;
-  uploaderName: string | null; uploaderRole: string | null; reviewHint: string | null;
+  uploaderName: string | null; uploaderRole: string | null; reviewHint: string | null; kbNames?: string[];
 }
 
 /** 上传审核：员工上传先待审核，管理员通过后才解析。 */
@@ -134,7 +134,7 @@ export type ReviewStatus = 'Approved' | 'Pending' | 'Rejected';
 /** 「文件管理」里自己上传的文件。 */
 export interface MyFileRow {
   id: string; title: string; fileName: string; fileSize: number; uploadedAt: string;
-  docCategory: string | null; customerName: string | null; projectNo: string | null; kbName: string;
+  docCategory: string | null; customerName: string | null; projectNo: string | null; kbName: string; kbNames?: string[];
   review: ReviewStatus; reviewNote: string | null; reviewedAt: string | null;
   parseStatus: ParseStatus; parseError: string | null; chunkCount: number;
 }
@@ -347,7 +347,7 @@ export interface UserRow {
   id: string; username: string; displayName: string; employeeNo: string | null;
   department: string | null; roleCode: string | null; roleName: string | null;
   companyName: string; kind: 'Employee' | 'Customer'; customerNo: string | null;
-  isActive: boolean; lastLoginAt: string | null; createdAt: string;
+  isActive: boolean; lastLoginAt: string | null; createdAt: string; departmentId?: string | null;
 }
 export interface RoleRow {
   id: string; code: string; name: string; classifications: Classification[];
@@ -442,3 +442,25 @@ export interface VerifyReport {
   issues: { value: string; refs: number[]; sentence: string }[];
   missingRefs: number[];
 }
+
+/** 组织架构树的一个部门。 */
+export interface DeptRow {
+  id: string; name: string; parentId: string | null; headUserId: string | null; headName: string | null;
+  sortOrder: number; memberCount: number;
+}
+
+/** 新增客户申请。 */
+export interface CustomerRequestRow {
+  id: string; name: string; reason: string | null; requestedById: string; requesterName: string; requesterDept: string | null;
+  requestedAt: string; status: 'Pending' | 'Approved' | 'Rejected'; finalName: string | null; reviewNote: string | null;
+  reviewedAt: string | null; similar: string[];
+}
+
+/** 员工上传弹窗要的：能选的库、交给谁审、我提过的客户申请。 */
+export interface MyFilesContext {
+  kbs: { id: string; name: string; description: string | null; docCount: number }[];
+  autoApprove: boolean; approverName: string | null;
+  customerRequests: CustomerRequestRow[];
+}
+
+export interface ApprovalSummary { isApprover: boolean; isAdmin?: boolean; files: number; customers: number }

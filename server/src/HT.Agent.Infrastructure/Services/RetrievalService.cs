@@ -142,10 +142,15 @@ public class RetrievalService(
               AND c.classification = ANY(@cls)
               AND d.parse_status = 'Parsed'
               AND NOT d.is_withdrawn
-              AND c.kb_id IN (SELECT kb.id FROM knowledge_base kb
-                              WHERE kb.is_active AND kb.tier = ANY(@tiers)
-                                AND (kb.tier = 'Shared' OR kb.company_id = @company)
-                                AND (@kb_filter = FALSE OR kb.id = ANY(@kb_ids)))
+              AND (c.kb_id IN (SELECT kb.id FROM knowledge_base kb
+                               WHERE kb.is_active AND kb.tier = ANY(@tiers)
+                                 AND (kb.tier = 'Shared' OR kb.company_id = @company)
+                                 AND (@kb_filter = FALSE OR kb.id = ANY(@kb_ids)))
+                   -- 一份文件同时放进了多个库：挂进的库也算（只存一份、只解析一次，分块记在主库上）
+                   OR EXISTS (SELECT 1 FROM document_kb x JOIN knowledge_base kb2 ON kb2.id = x.kb_id
+                              WHERE x.document_id = d.id AND kb2.is_active AND kb2.tier = ANY(@tiers)
+                                AND kb2.company_id = @company
+                                AND (@kb_filter = FALSE OR kb2.id = ANY(@kb_ids))))
               AND (@customer::text IS NULL OR m.customer_name = @customer)
               AND (@year::int IS NULL OR m.year = @year)
               AND (@device::text IS NULL OR m.device_type = @device)
@@ -175,10 +180,15 @@ public class RetrievalService(
               AND c.classification = ANY(@cls)
               AND d.parse_status = 'Parsed'
               AND NOT d.is_withdrawn
-              AND c.kb_id IN (SELECT kb.id FROM knowledge_base kb
-                              WHERE kb.is_active AND kb.tier = ANY(@tiers)
-                                AND (kb.tier = 'Shared' OR kb.company_id = @company)
-                                AND (@kb_filter = FALSE OR kb.id = ANY(@kb_ids)))
+              AND (c.kb_id IN (SELECT kb.id FROM knowledge_base kb
+                               WHERE kb.is_active AND kb.tier = ANY(@tiers)
+                                 AND (kb.tier = 'Shared' OR kb.company_id = @company)
+                                 AND (@kb_filter = FALSE OR kb.id = ANY(@kb_ids)))
+                   -- 一份文件同时放进了多个库：挂进的库也算（只存一份、只解析一次，分块记在主库上）
+                   OR EXISTS (SELECT 1 FROM document_kb x JOIN knowledge_base kb2 ON kb2.id = x.kb_id
+                              WHERE x.document_id = d.id AND kb2.is_active AND kb2.tier = ANY(@tiers)
+                                AND kb2.company_id = @company
+                                AND (@kb_filter = FALSE OR kb2.id = ANY(@kb_ids))))
               AND (@customer::text IS NULL OR m.customer_name = @customer)
               AND (@year::int IS NULL OR m.year = @year)
               AND (@device::text IS NULL OR m.device_type = @device)

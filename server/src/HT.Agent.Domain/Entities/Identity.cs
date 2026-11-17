@@ -35,6 +35,8 @@ public class AppUser
     public required string DisplayName { get; set; }
     public string? EmployeeNo { get; set; }
     public string? Department { get; set; }
+    /// <summary>所在部门（组织架构树）。为空即「未分配部门」，审批交系统管理员。</summary>
+    public Guid? DepartmentId { get; set; }
     public required string PasswordHash { get; set; }
     public UserKind Kind { get; set; } = UserKind.Employee;
     /// <summary>客户账号绑定的客户编号，仅可见本人名下项目（FR-7.4）。</summary>

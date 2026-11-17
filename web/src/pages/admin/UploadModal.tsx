@@ -6,8 +6,10 @@ import React, { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { get, post, upload, ApiError } from '../../lib/api';
 import { KB_TIER_LABEL, PROJECT_LINKED_CATEGORIES, STRATEGY_LABEL } from '../../lib/types';
-import type { KbRow, ProjectRow, VocabRow } from '../../lib/types';
+import type { KbRow, MyFilesContext, ProjectRow, VocabRow } from '../../lib/types';
 import { ErrorBox } from '../../components/Common';
+import { KbMultiSelect } from '../../components/KbMultiSelect';
+import type { KbChoice } from '../../components/KbMultiSelect';
 
 /** staff：员工在「文件管理」里上传——不选知识库和密级（系统定：内部资料库、内部），可一次传多份
  * （共用同一组元数据），也不能顺手登记台账；传完待管理员审核。admin：后台语料管理，原样。 */
@@ -23,7 +25,9 @@ export default function UploadModal({ kbs = [], onClose, onUploaded, mode = 'adm
   const [files, setFiles] = useState<File[]>(() => (initialFiles ?? []).slice(0, staff ? 20 : 1));
   const file = files[0] ?? null;
   const [progress, setProgress] = useState('');
-  const [kbId, setKbId] = useState('');
+  // 资料库可多选：第一个是主库，其余一起挂上（只存一份、只审一次、只解析一次）。null = 还没动过，员工默认选第一个库
+  const [kbPick, setKbPick] = useState<string[] | null>(null);
+  const [customerReason, setCustomerReason] = useState('');
   const [classification, setClassification] = useState('');
   const [title, setTitle] = useState(() => initialFiles?.[0]?.name.replace(/\.[^.]+$/, '') ?? '');
   const [customerName, setCustomerName] = useState('');
@@ -50,12 +54,30 @@ export default function UploadModal({ kbs = [], onClose, onUploaded, mode = 'adm
     staleTime: 30_000, retry: false,
   });
 
+  const ctxQ = useQuery({ queryKey: ['my-files-context'], enabled: staff, queryFn: () => get<MyFilesContext>('/api/my-files/context') });
+  const kbIds = kbPick ?? (staff && ctxQ.data?.kbs.length ? [ctxQ.data.kbs[0].id] : []);
+  const kbId = kbIds[0] ?? '';
   const kb = kbs.find((k) => k.id === kbId);
+  const pickedTiers = kbIds.map((id) => kbs.find((k) => k.id === id)?.tier);
+  // 后台：多选时只能都是内部库（公开库走审定发布）；选了公开库就只能选它一个
+  const kbChoices: KbChoice[] = staff
+    ? (ctxQ.data?.kbs ?? []).map((k) => ({ id: k.id, name: k.name, note: k.description, count: `${k.docCount} 份` }))
+    : kbs.filter((k) => k.tier !== 'Shared').map((k) => ({
+        id: k.id, name: `${k.name}（${KB_TIER_LABEL[k.tier]}）`, note: k.description,
+        count: `${k.docCount} 份`,
+        disabled: !kbIds.includes(k.id) && kbIds.length > 0 && (k.tier !== 'Private' || pickedTiers.some((t) => t !== 'Private'))
+          ? '公开库只能单独选：同时放进多个库时只能选内部库' : null,
+      }));
+  const knownCustomers = (customers.data ?? []).map((v) => v.value);
+  const typedCustomer = customerName.trim();
+  const myRequest = (ctxQ.data?.customerRequests ?? []).find((r) => r.name === typedCustomer && r.status === 'Pending');
+  // 员工输入的客户不在名单里：可以申请新增（交给部门主管），文件照常提交审核
+  const newCustomer = staff && typedCustomer.length >= 2 && !customers.isLoading && !knownCustomers.includes(typedCustomer);
   const projectRequired = PROJECT_LINKED_CATEGORIES.includes(docCategory);
   const typedNo = projectNo.trim();
   const matched = (projects.data ?? []).find((p) => p.projectNo === typedNo);
   const isNewProject = typedNo.length > 0 && !matched && !projects.isLoading && !projects.isError;
-  const ready = !!file && (staff || (!!kbId && !!classification)) && !!customerName && year.length === 4
+  const ready = !!file && kbIds.length > 0 && (staff || !!classification) && !!typedCustomer && year.length === 4
     && !!deviceType && !!docCategory && (!projectRequired || typedNo.length > 0)
     && !(staff && isNewProject);
 
@@ -65,13 +87,24 @@ export default function UploadModal({ kbs = [], onClose, onUploaded, mode = 'adm
     setBusy(true);
     setError(null);
     if (staff) {
+      // 名单里没有的客户：先提申请（主管本人提就直接进名单），再传文件
+      if (newCustomer && !myRequest) {
+        try {
+          await post('/api/my-files/customer-requests', { name: typedCustomer, reason: customerReason.trim() || null });
+        } catch (err) {
+          setError(err instanceof ApiError ? err.message : '客户申请没提交上');
+          setBusy(false);
+          return;
+        }
+      }
       // 一份一份传，哪份失败就停在哪份，前面成功的已经在审核队列里了
       for (let i = 0; i < files.length; i++) {
         const f = files[i];
         setProgress(files.length > 1 ? `${i + 1} / ${files.length}` : '');
         const form = new FormData();
         form.append('file', f);
-        form.append('customerName', customerName);
+        kbIds.forEach((id) => form.append('kbIds', id));
+        form.append('customerName', typedCustomer);
         form.append('year', year);
         form.append('deviceType', deviceType);
         form.append('docCategory', docCategory);
@@ -96,6 +129,7 @@ export default function UploadModal({ kbs = [], onClose, onUploaded, mode = 'adm
       const form = new FormData();
       form.append('file', file);
       form.append('kbId', kbId);
+      kbIds.slice(1).forEach((id) => form.append('extraKbIds', id));
       form.append('classification', classification);
       form.append('customerName', customerName);
       form.append('year', year);
@@ -131,7 +165,9 @@ export default function UploadModal({ kbs = [], onClose, onUploaded, mode = 'adm
           <div style={{ fontSize: 15, fontWeight: 600 }}>{staff ? '上传文件' : '上传文档并登记元数据'}</div>
           <div className="hint" style={{ marginTop: 3 }}>
             {staff
-              ? '进内部资料库、按「内部」密级。提交后由管理员审核，通过后自动解析，同事就能问到了。'
+              ? (ctxQ.data?.autoApprove
+                  ? '你是部门主管，上传后直接通过并自动解析，同事就能问到了。按「内部」密级。'
+                  : `提交后由${ctxQ.data?.approverName ? `你的部门主管（${ctxQ.data.approverName}）` : '系统管理员'}审核，通过后自动解析，同事就能问到了。按「内部」密级。`)
               : '必填元数据未填齐不允许提交；受控字段只能选不能写。上传后不会自动解析。'}
           </div>
         </div>
@@ -155,16 +191,18 @@ export default function UploadModal({ kbs = [], onClose, onUploaded, mode = 'adm
               : <div style={{ fontSize: 12.5, color: 'var(--ink-2)' }}>点击选择文件（PDF / DOCX / XLSX / PPTX / TXT）{staff ? '，一次最多 20 份' : ''}</div>}
           </div>
 
+          {staff && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={fl}>放进哪些资料库{req}<span className="hint">（可多选，一份文件只审一次、只解析一次）</span></div>
+              <KbMultiSelect options={kbChoices} value={kbIds} onChange={setKbPick} />
+            </div>
+          )}
+
           {!staff && <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
-            <div style={{ flex: '1 1 0' }}>
-              <div style={fl}>目标知识库{req}</div>
-              <select style={fi} value={kbId} onChange={(e) => setKbId(e.target.value)}>
-                <option value="">请选择</option>
-                {kbs.filter((k) => k.tier !== 'Shared').map((k) => (
-                  <option key={k.id} value={k.id}>{k.name}（{KB_TIER_LABEL[k.tier]}）</option>
-                ))}
-              </select>
-              {kb && <div className="hint" style={{ marginTop: 4 }}>默认切分策略：{STRATEGY_LABEL[kb.defaultChunkStrategy]}</div>}
+            <div style={{ flex: '1 1 0', minWidth: 0 }}>
+              <div style={fl}>目标知识库{req}<span className="hint">（可多选）</span></div>
+              <KbMultiSelect options={kbChoices} value={kbIds} onChange={setKbPick} placeholder="请选择" />
+              {kb && <div className="hint" style={{ marginTop: 4 }}>默认切分策略：{STRATEGY_LABEL[kb.defaultChunkStrategy]}{kbIds.length > 1 ? `（按第一个库「${kb.name}」）` : ''}</div>}
             </div>
             <div style={{ width: 150 }}>
               <div style={fl}>密级{req}</div>
@@ -194,10 +232,20 @@ export default function UploadModal({ kbs = [], onClose, onUploaded, mode = 'adm
           <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
             <div style={{ flex: '1 1 0' }}>
               <div style={fl}>客户名称{req}</div>
-              <select style={fi} value={customerName} onChange={(e) => setCustomerName(e.target.value)}>
-                <option value="">请选择</option>
-                {(customers.data ?? []).map((v) => <option key={v.id} value={v.value}>{v.value}</option>)}
-              </select>
+              {staff ? (
+                <>
+                  <input style={fi} value={customerName} onChange={(e) => setCustomerName(e.target.value)}
+                    list="upload-customer-list" autoComplete="off" placeholder="输入搜索，名单里没有可以申请新增" />
+                  <datalist id="upload-customer-list">
+                    {knownCustomers.map((v) => <option key={v} value={v} />)}
+                  </datalist>
+                </>
+              ) : (
+                <select style={fi} value={customerName} onChange={(e) => setCustomerName(e.target.value)}>
+                  <option value="">请选择</option>
+                  {(customers.data ?? []).map((v) => <option key={v.id} value={v.value}>{v.value}</option>)}
+                </select>
+              )}
             </div>
             <div style={{ width: 110 }}>
               <div style={fl}>年份{req}</div>
@@ -212,6 +260,22 @@ export default function UploadModal({ kbs = [], onClose, onUploaded, mode = 'adm
               </select>
             </div>
           </div>
+
+          {newCustomer && (
+            <div className="cust-req">
+              {myRequest ? (
+                <span>「{typedCustomer}」你已经申请过了，正在等{ctxQ.data?.approverName ?? '管理员'}确认；文件可以先提交。</span>
+              ) : ctxQ.data?.autoApprove ? (
+                <span>名单里没有「{typedCustomer}」。你是部门主管，提交时会直接把它加进客户名单。</span>
+              ) : (
+                <>
+                  <span>名单里没有「{typedCustomer}」。提交时会<b>申请新增这个客户</b>，交给{ctxQ.data?.approverName ? `${ctxQ.data.approverName}` : '管理员'}确认；确认后进名单，文件照常进审核。</span>
+                  <input style={{ ...fi, marginTop: 6 }} value={customerReason} onChange={(e) => setCustomerReason(e.target.value)}
+                    placeholder="申请理由（可选），比如：新客户，询价 5L 高压釜" />
+                </>
+              )}
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
             <div style={{ flex: '1 1 0' }}>
@@ -287,7 +351,7 @@ export default function UploadModal({ kbs = [], onClose, onUploaded, mode = 'adm
         </form>
 
         <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '13px 20px', borderTop: '1px solid var(--line)', background: 'var(--bg-soft)' }}>
-          <span className="hint">{busy && progress ? `正在上传 ${progress}…` : ready ? (staff ? '填好了，提交后等管理员审核' : '登记完整，可以提交') : '必填项未填齐时不允许提交'}</span>
+          <span className="hint">{busy && progress ? `正在上传 ${progress}…` : ready ? (staff ? (ctxQ.data?.autoApprove ? '填好了，提交后直接入库' : `填好了，提交后等${ctxQ.data?.approverName ?? '管理员'}审核`) : '登记完整，可以提交') : '必填项未填齐时不允许提交'}</span>
           <div style={{ flexGrow: 1 }} />
           <button type="button" className="gbtn" onClick={onClose}>取消</button>
           <button type="button" className="pbtn" style={{ height: 28, padding: '0 13px' }} disabled={!ready || busy} onClick={(e) => void submit(e as unknown as React.FormEvent)}>

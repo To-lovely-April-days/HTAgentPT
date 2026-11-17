@@ -1,12 +1,15 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { createContext, Fragment, useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { get } from './lib/api';
+import type { ApprovalSummary } from './lib/types';
 import { ADMIN_NAV } from './pages/admin/AdminLayout';
 import { useAuth } from './lib/auth';
 import { ClsBadge } from './components/Common';
 import { Icon } from './components/Icons';
 import { Perm } from './lib/types';
 
-interface NavItem { to: string; label: string; icon: string; }
+interface NavItem { to: string; label: string; icon: string; badge?: number; }
 
 /** 侧栏导航按角色与权限给：业务角色以对话为首页，其余入口是对话里卡片深链过去的那几页，
  * 摆出来让人也能直接进；管理后台与总部审核台仍是各自独立的管理界面（表 9-1、表 3-1）。 */
@@ -48,8 +51,16 @@ export default function Shell() {
   useEffect(() => {
     try { localStorage.setItem(COLLAPSE_KEY, min ? '1' : '0'); } catch { /* 存不了就只在本页生效 */ }
   }, [min]);
+  // 部门主管多一个「审批」（谁是主管由组织架构决定，不是角色），带待办数
+  const canUpload = !!profile?.permissions.includes(Perm.CorpusUpload) && profile?.roleCode !== 'admin';
+  const approvals = useQuery({
+    queryKey: ['approvals-summary'], enabled: canUpload, refetchInterval: 60_000, retry: false,
+    queryFn: () => get<ApprovalSummary>('/api/approvals/summary'),
+  });
   if (!profile) return null;
   const items = navFor(profile.roleCode, (p) => profile.permissions.includes(p));
+  if (canUpload && approvals.data?.isApprover)
+    items.push({ to: '/approvals', label: '审批', icon: 'shield', badge: approvals.data.files + approvals.data.customers });
   const canChat = items.some((i) => i.to === '/chat');
   // 在管理后台里：侧栏直接换成后台的分组菜单
   const inAdmin = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
@@ -90,6 +101,7 @@ export default function Shell() {
               className={({ isActive }) => 'side-link' + (isActive ? ' on' : '')}>
               <Icon name={i.icon} />
               {!min && <span className="side-label">{i.label}</span>}
+              {!min && !!i.badge && <span className="side-badge">{i.badge}</span>}
             </NavLink>
           ))}
         </nav>

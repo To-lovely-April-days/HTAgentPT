@@ -29,6 +29,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
     public DbSet<BackupRun> BackupRuns => Set<BackupRun>();
     public DbSet<KnowledgeBase> KnowledgeBases => Set<KnowledgeBase>();
     public DbSet<Document> Documents => Set<Document>();
+    public DbSet<Department> Departments => Set<Department>();
+    public DbSet<DocumentKb> DocumentKbs => Set<DocumentKb>();
+    public DbSet<CustomerRequest> CustomerRequests => Set<CustomerRequest>();
     public DbSet<DocMetadata> DocMetadatas => Set<DocMetadata>();
     public DbSet<VocabTerm> VocabTerms => Set<VocabTerm>();
     public DbSet<Chunk> Chunks => Set<Chunk>();
@@ -114,6 +117,23 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
             e.HasIndex(x => x.UploadedById);
             e.HasOne(x => x.Metadata).WithOne(m => m.Document!)
                 .HasForeignKey<DocMetadata>(m => m.DocumentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Department>(e =>
+        {
+            e.HasIndex(x => new { x.CompanyId, x.ParentId });
+            e.HasIndex(x => x.HeadUserId);
+        });
+        b.Entity<DocumentKb>(e =>
+        {
+            e.HasKey(x => new { x.DocumentId, x.KbId });
+            e.HasIndex(x => x.KbId);
+            e.HasOne<Document>().WithMany().HasForeignKey(x => x.DocumentId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<CustomerRequest>(e =>
+        {
+            e.HasIndex(x => new { x.CompanyId, x.Status });
+            e.HasIndex(x => x.RequestedById);
         });
 
         b.Entity<DocMetadata>(e =>

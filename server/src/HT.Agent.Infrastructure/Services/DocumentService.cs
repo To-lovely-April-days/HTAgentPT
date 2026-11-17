@@ -23,7 +23,8 @@ public class DocumentService(
     IRuntimeConfig config,
     IAuditWriter audit,
     ICurrentUser me,
-    IOptions<NodeOptions> node) : IDocumentService
+    IOptions<NodeOptions> node,
+    IOrgService org) : IDocumentService
 {
     /// <summary>共享库写保护（FR-2.2：同步为单向覆盖，本地不得直接修改共享库内容）。
     /// 上传、分块编辑/删除/合并/拆分、重解析、提交解析、元数据修改全部经此校验。</summary>
@@ -119,6 +120,8 @@ public class DocumentService(
             }
         };
         db.Documents.Add(doc);
+        foreach (var extra in await ExtraKbsAsync(kb, req.ExtraKbIds, ct))
+            db.DocumentKbs.Add(new DocumentKb { DocumentId = doc.Id, KbId = extra });
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(new AuditEntry("doc.upload", AuditResult.Success,
             UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
@@ -127,11 +130,25 @@ public class DocumentService(
         return new UploadResult(doc.Id, fileKey);
     }
 
+    /// <summary>多选库：除主库外的那几个，必须都是本公司启用中的内部库（公开库走审定发布，共享库总部下发）。</summary>
+    private async Task<List<Guid>> ExtraKbsAsync(KnowledgeBase primary, IReadOnlyList<Guid>? extra, CancellationToken ct)
+    {
+        var ids = (extra ?? []).Where(x => x != primary.Id).Distinct().ToList();
+        if (ids.Count == 0) return [];
+        if (primary.Tier != KnowledgeBaseTier.Private)
+            throw new DomainRuleException("MULTI_KB_PRIVATE_ONLY", "同时放进多个库时只能选内部库；公开库要走审定发布");
+        var ok = await db.KnowledgeBases.Where(k => ids.Contains(k.Id) && k.IsActive && k.Tier == KnowledgeBaseTier.Private && k.CompanyId == me.CompanyId)
+            .Select(k => k.Id).ToListAsync(ct);
+        if (ok.Count != ids.Count)
+            throw new DomainRuleException("MULTI_KB_PRIVATE_ONLY", "同时放进多个库时只能选本公司启用中的内部库");
+        return ok;
+    }
+
     public async Task<IReadOnlyList<DocRow>> ListAsync(Guid? kbId, ParseStatus? status, string? search, CancellationToken ct = default,
         ReviewStatus? review = null)
     {
         var q = db.Documents.AsNoTracking().Include(d => d.Kb).Include(d => d.Metadata).AsQueryable();
-        if (kbId is not null) q = q.Where(d => d.KbId == kbId);
+        if (kbId is not null) q = q.Where(d => d.KbId == kbId || db.DocumentKbs.Any(x => x.DocumentId == d.Id && x.KbId == kbId));
         if (status is not null) q = q.Where(d => d.ParseStatus == status);
         if (review is not null) q = q.Where(d => d.Review == review);
         if (!string.IsNullOrWhiteSpace(search)) q = q.Where(d => d.Title.Contains(search) || d.FileName.Contains(search));
@@ -153,6 +170,12 @@ public class DocumentService(
         var users = await db.Users.AsNoTracking().Where(u => userIds.Contains(u.Id))
             .Select(u => new { u.Id, u.DisplayName, Role = u.Role != null ? u.Role.Name : null })
             .ToDictionaryAsync(u => u.Id, ct);
+
+        // 主库以外还挂在哪些库
+        var docIds = rows.Select(r => r.Row.Id).ToList();
+        var extraNames = (await db.DocumentKbs.AsNoTracking().Where(x => docIds.Contains(x.DocumentId))
+                .Join(db.KnowledgeBases, x => x.KbId, k => k.Id, (x, k) => new { x.DocumentId, k.Name }).ToListAsync(ct))
+            .GroupBy(x => x.DocumentId).ToDictionary(g => g.Key, g => g.Select(x => x.Name).ToList());
 
         // 待审核的提示：内容和已有文件完全一样（指纹相同），或库里已有同名文件（多半是旧版本）
         var pending = rows.Where(r => r.Row.Review == ReviewStatus.Pending).ToList();
@@ -179,7 +202,9 @@ public class DocumentService(
                 hint = r.Sha256 != null && dupShas.Contains(r.Sha256) ? "内容与库里已有文件完全相同"
                     : dupTitles.Contains(r.Row.Title) ? "库里有同名文件（可能是旧版本）"
                     : null;
-            return r.Row with { UploaderName = u?.DisplayName ?? "已删除账号", UploaderRole = u?.Role, ReviewHint = hint };
+            var names = new List<string> { r.Row.KbName };
+            if (extraNames.TryGetValue(r.Row.Id, out var more)) names.AddRange(more);
+            return r.Row with { UploaderName = u?.DisplayName ?? "已删除账号", UploaderRole = u?.Role, ReviewHint = hint, KbNames = names };
         }).ToList();
     }
 
@@ -549,6 +574,7 @@ public class DocumentService(
             .FirstOrDefaultAsync(d => d.Id == docId, ct)
             ?? throw new DomainRuleException("DOC_NOT_FOUND", "文档不存在");
         var deny = DownloadDenyReason(doc);
+        if (deny == "not_reviewed" && (await org.ScopeAsync(ct)).Covers(doc.UploadedById)) deny = null; // 审批人要看原文才能审
         if (deny is null) return;
         await audit.WriteAsync(new AuditEntry(action, AuditResult.Denied,
             UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,

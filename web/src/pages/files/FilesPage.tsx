@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { del, download, get, ApiError } from '../../lib/api';
-import type { MyFileRow } from '../../lib/types';
+import type { MyFileRow, MyFilesContext } from '../../lib/types';
 import { ErrorBox, Spinner } from '../../components/Common';
 import { Icon } from '../../components/Icons';
 import UploadModal from '../admin/UploadModal';
@@ -38,7 +38,7 @@ const EXT_COLOR: Record<string, [string, string]> = {
 
 const FLOW = [
   { n: 1, t: '上传', d: '填资料类型、客户/项目', cls: 'f1' },
-  { n: 2, t: '管理员审核', d: '通过或写明原因驳回', cls: 'f2' },
+  { n: 2, t: '部门主管审核', d: '通过或写明原因驳回', cls: 'f2' },
   { n: 3, t: '自动解析', d: '通过后排队，不用再点', cls: 'f3' },
   { n: 4, t: '可检索', d: '同事提问能引用到', cls: 'f4' },
 ];
@@ -50,6 +50,25 @@ function when(iso: string) {
   const diff = Math.round((day(new Date()) - day(t)) / 86400000);
   const hm = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
   return diff === 0 ? `今天 ${hm}` : diff === 1 ? `昨天 ${hm}` : `${t.getMonth() + 1}/${t.getDate()} ${hm}`;
+}
+
+/** 我提过的新增客户申请：待确认的、被驳回的（带原因）摆出来；通过的不用再提醒。 */
+function MyCustomerRequests() {
+  const q = useQuery({ queryKey: ['my-files-context'], queryFn: () => get<MyFilesContext>('/api/my-files/context') });
+  const rows = (q.data?.customerRequests ?? []).filter((r) => r.status !== 'Approved').slice(0, 5);
+  if (rows.length === 0) return null;
+  return (
+    <section className="dash-card" style={{ padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <b style={{ fontSize: 13.5, fontWeight: 600 }}>我申请的新客户</b>
+      {rows.map((r) => (
+        <span key={r.id} style={{ fontSize: 13 }}>
+          「{r.name}」{r.status === 'Pending'
+            ? <span style={{ color: '#8a5a00' }}>等{q.data?.approverName ?? '管理员'}确认</span>
+            : <span style={{ color: 'var(--brand-fg)' }}>已驳回：{r.reviewNote}</span>}
+        </span>
+      ))}
+    </section>
+  );
 }
 
 export default function FilesPage() {
@@ -112,7 +131,7 @@ export default function FilesPage() {
         <div className="dash-head">
           <div>
             <h1 className="dash-title">文件管理</h1>
-            <p className="dash-sub">这里是你用自己账号上传过的全部文件，别人上传的看不到。管理员审核通过后自动解析，之后所有同事都能问到。</p>
+            <p className="dash-sub">这里是你用自己账号上传过的全部文件，别人上传的看不到。部门主管审核通过后自动解析，之后所有同事都能问到。</p>
           </div>
           <button className="pbtn dash-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }} onClick={() => setUploading([])}>
             <Icon name="upload" size={16} stroke={2} />上传文件
@@ -141,6 +160,7 @@ export default function FilesPage() {
         </section>
 
         {error && <ErrorBox message={error} />}
+        <MyCustomerRequests />
 
         <section className="dash-card" style={{ padding: 0, overflow: 'hidden' }}>
           <div className="fm-bar">
@@ -175,7 +195,7 @@ export default function FilesPage() {
                             <span className="fm-ext" style={{ background: bg, color: fg }} aria-hidden="true">{ext}</span>
                             <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                               <b style={{ fontWeight: 600, whiteSpace: 'normal' }}>{r.title}</b>
-                              <span className="dash-muted" style={{ fontSize: 12 }}>{fmtSize(r.fileSize)}</span>
+                              <span className="dash-muted" style={{ fontSize: 12 }}>{fmtSize(r.fileSize)} · {(r.kbNames?.length ? r.kbNames : [r.kbName]).join('、')}</span>
                             </span>
                           </span>
                         </td>
@@ -218,7 +238,7 @@ export default function FilesPage() {
       {uploading && (
         <UploadModal mode="staff" initialFiles={uploading}
           onClose={() => setUploading(null)}
-          onUploaded={() => { setUploading(null); setTab('pending'); refresh(); }} />
+          onUploaded={() => { setUploading(null); setTab('all'); refresh(); void qc.invalidateQueries({ queryKey: ['my-files-context'] }); }} />
       )}
     </div>
   );

@@ -8,10 +8,30 @@ import { useAuth } from '../../lib/auth';
 import { CLS_LABEL } from '../../lib/types';
 import type { RoleRow, UserRow } from '../../lib/types';
 import { ErrorBox, InfoBox, Spinner } from '../../components/Common';
+import OrgTreeTab from './OrgTreeTab';
 
 const fi: React.CSSProperties = { height: 28, padding: '0 9px', border: '1px solid var(--line-strong)', borderRadius: 4, fontSize: 12.5, fontFamily: 'var(--font)' };
 
+/** 用户与权限：组织架构（部门树、主管——决定谁审谁）和账号与角色（功能权限）两个页签。 */
 export default function UsersPage() {
+  const [tab, setTab] = useState<'org' | 'accounts'>('org');
+  const tabStyle = (on: boolean): React.CSSProperties => ({
+    height: 48, display: 'inline-flex', alignItems: 'center', fontSize: 14, cursor: 'pointer', background: 'none', border: 'none',
+    fontFamily: 'var(--font)', padding: 0, borderBottom: on ? '2px solid var(--ink)' : '2px solid transparent',
+    color: on ? 'var(--ink)' : '#5a5a5a', fontWeight: on ? 600 : 400,
+  });
+  return (
+    <>
+      <div role="tablist" style={{ flexShrink: 0, display: 'flex', gap: 28, padding: '0 40px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
+        <button type="button" role="tab" aria-selected={tab === 'org'} style={tabStyle(tab === 'org')} onClick={() => setTab('org')}>组织架构</button>
+        <button type="button" role="tab" aria-selected={tab === 'accounts'} style={tabStyle(tab === 'accounts')} onClick={() => setTab('accounts')}>账号与角色</button>
+      </div>
+      {tab === 'org' ? <OrgTreeTab /> : <AccountsTab />}
+    </>
+  );
+}
+
+function AccountsTab() {
   const qc = useQueryClient();
   const { profile } = useAuth();
   const users = useQuery({ queryKey: ['users'], queryFn: () => get<UserRow[]>('/api/users') });

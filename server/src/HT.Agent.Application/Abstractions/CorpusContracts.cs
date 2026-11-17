@@ -80,7 +80,9 @@ public record UploadDocumentRequest(
     // 表 4-5 元数据
     string CustomerName, int Year, string DeviceType, string DocCategory,
     string? ProjectNo, Guid? OwnerId, string? DocVersion, DateOnly? EffectiveDate,
-    string? Title, ReviewStatus Review = ReviewStatus.Approved);
+    string? Title, ReviewStatus Review = ReviewStatus.Approved,
+    /// <summary>除主库（KbId）外还要挂进的库：只能是本公司的内部库。一份文件只存一份、只解析一次。</summary>
+    IReadOnlyList<Guid>? ExtraKbIds = null);
 
 public record UploadResult(Guid DocId, string FileKey);
 
@@ -94,11 +96,15 @@ public record DocRow(Guid Id, string Title, string FileName, Guid KbId, string K
     public string? UploaderRole { get; init; }
     /// <summary>审核提示：只用审核前就能算出来的（内容重复、库里有同名文件）。</summary>
     public string? ReviewHint { get; init; }
+    /// <summary>这份文档挂着的全部资料库（主库在前）。</summary>
+    public IReadOnlyList<string> KbNames { get; init; } = [];
 }
+
+public record KbOption(Guid Id, string Name, string? Description, int DocCount);
 
 /// <summary>员工自己上传的文件（「文件管理」页）。</summary>
 public record MyFileRow(Guid Id, string Title, string FileName, long FileSize, DateTimeOffset UploadedAt,
-    string? DocCategory, string? CustomerName, string? ProjectNo, string KbName,
+    string? DocCategory, string? CustomerName, string? ProjectNo, string KbName, IReadOnlyList<string> KbNames,
     ReviewStatus Review, string? ReviewNote, DateTimeOffset? ReviewedAt,
     ParseStatus ParseStatus, string? ParseError, int ChunkCount);
 
@@ -106,7 +112,9 @@ public record MyFileRow(Guid Id, string Title, string FileName, long FileSize, D
 public interface ICorpusReviewService
 {
     /// <summary>员工上传：自动进本公司的内部资料库、内部密级，状态待审核。</summary>
-    Task<UploadResult> UploadMineAsync(UploadDocumentRequest req, Stream content, CancellationToken ct = default);
+    Task<UploadResult> UploadMineAsync(UploadDocumentRequest req, IReadOnlyList<Guid> kbIds, Stream content, CancellationToken ct = default);
+    /// <summary>员工能选的资料库：本公司启用中的内部库。</summary>
+    Task<IReadOnlyList<KbOption>> SelectableKbsAsync(CancellationToken ct = default);
     /// <summary>只列当前账号自己上传的文件——别人的看不到。</summary>
     Task<IReadOnlyList<MyFileRow>> ListMineAsync(CancellationToken ct = default);
     /// <summary>撤回自己还没通过（待审核/已驳回）的文件：原件一并删除。</summary>
