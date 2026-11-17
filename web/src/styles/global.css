@@ -406,6 +406,8 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .side-slot { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0 -4px; scrollbar-width: thin; }
 .side.min .side-slot { visibility: hidden; }  /* 占着位置，个人那栏才留在底部 */
 .side-grp { font-size: 12px; font-weight: 600; color: var(--ink-3); padding: 4px 14px 6px; }
+.side-nav .side-grp { padding: 12px 10px 4px; }
+.side-nav .side-grp:first-child { padding-top: 2px; }
 .side-hist { display: block; width: calc(100% - 8px); margin: 0 4px 1px; text-align: left; padding: 7px 10px;
   border: none; border-radius: 8px; background: none; color: #3a3a3a; font-family: var(--font); font-size: 13.5px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }

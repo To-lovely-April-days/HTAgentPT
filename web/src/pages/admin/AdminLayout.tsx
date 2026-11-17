@@ -1,51 +1,37 @@
 // E 系管理后台框架：左栏按域分组（落地 / 语料域 / 能力域 / 治理域）。
 // 管理后台七项 + 审核台归总部的划分见决策 1；本壳只承载公司节点的七项。
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { get, post } from '../../lib/api';
 import type { DocRow, TermRow, ClauseRow } from '../../lib/types';
 
-const GROUPS: { label: string; items: { to: string; name: string; end?: boolean }[] }[] = [
-  { label: '落地', items: [{ to: '/admin', name: '后台首页', end: true }] },
+/** 后台菜单（按域分组）。由外框侧栏在 /admin 下渲染——不再另起一列，免得「外框侧栏 + 后台菜单列」叠成三栏。 */
+export const ADMIN_NAV: { label: string; items: { to: string; name: string; icon: string; end?: boolean }[] }[] = [
+  { label: '落地', items: [{ to: '/admin', name: '后台首页', icon: 'home', end: true }] },
   {
     label: '语料域',
     items: [
-      { to: '/admin/corpus', name: '语料管理' },
-      { to: '/admin/kbs', name: '知识库管理' },
-      { to: '/admin/meta', name: '元数据与词表' },
+      { to: '/admin/corpus', name: '语料管理', icon: 'file' },
+      { to: '/admin/kbs', name: '知识库管理', icon: 'folder' },
+      { to: '/admin/meta', name: '元数据与词表', icon: 'ticket' },
     ],
   },
-  { label: '能力域', items: [{ to: '/admin/templates', name: '模板管理' }] },
+  { label: '能力域', items: [{ to: '/admin/templates', name: '模板管理', icon: 'chat' }] },
   {
     label: '治理域',
     items: [
-      { to: '/admin/users', name: '用户与权限' },
-      { to: '/admin/settings', name: '系统设置' },
-      { to: '/admin/audit', name: '审计与统计' },
+      { to: '/admin/users', name: '用户与权限', icon: 'user' },
+      { to: '/admin/settings', name: '系统设置', icon: 'settings' },
+      { to: '/admin/audit', name: '审计与统计', icon: 'shield' },
     ],
   },
 ];
 
 export default function AdminLayout() {
   return (
-    <div style={{ flexGrow: 1, display: 'flex', minHeight: 0, minWidth: 0 }}>
-      <div style={{ width: 240, flexShrink: 0, background: 'var(--panel)', borderRight: '1px solid var(--line)', overflowY: 'auto' }}>
-        {GROUPS.map((g) => (
-          <React.Fragment key={g.label}>
-            <div className="grp">{g.label}</div>
-            {g.items.map((it) => (
-              <NavLink key={it.to} to={it.to} end={it.end} className={({ isActive }) => `item${isActive ? ' on' : ''}`}
-                style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
-                {it.name}
-              </NavLink>
-            ))}
-          </React.Fragment>
-        ))}
-      </div>
-      <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
-        <Outlet />
-      </div>
+    <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, background: 'var(--panel)' }}>
+      <Outlet />
     </div>
   );
 }

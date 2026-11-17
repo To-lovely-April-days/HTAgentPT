@@ -24,6 +24,7 @@ const GROUPS: { title: string; keys: [string, string][] }[] = [
   {
     title: '检索与问答',
     keys: [
+      ['model.chat.max_tokens', '回答长度上限（token；8K 上下文建议 1024）'],
       ['retrieval.recall_top_k', '召回条数'], ['retrieval.rerank_top_n', '重排取前 N'],
       ['retrieval.score_threshold', '重排分数阈值'], ['retrieval.hybrid_alpha', '混合权重 α'],
       ['retrieval.history_turns', '多轮改写回看轮数'], ['retrieval.context_tokens', '上下文长度上限'],

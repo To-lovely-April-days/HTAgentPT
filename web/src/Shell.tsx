@@ -1,5 +1,6 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { createContext, useEffect, useState } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { createContext, Fragment, useEffect, useState } from 'react';
+import { ADMIN_NAV } from './pages/admin/AdminLayout';
 import { useAuth } from './lib/auth';
 import { ClsBadge } from './components/Common';
 import { Icon } from './components/Icons';
@@ -36,6 +37,7 @@ const COLLAPSE_KEY = 'htlab.side.min';
 export default function Shell() {
   const { profile, logout } = useAuth();
   const nav = useNavigate();
+  const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const [min, setMin] = useState(() => {
@@ -47,6 +49,8 @@ export default function Shell() {
   if (!profile) return null;
   const items = navFor(profile.roleCode, (p) => profile.permissions.includes(p));
   const canChat = items.some((i) => i.to === '/chat');
+  // 在管理后台里：侧栏直接换成后台的分组菜单
+  const inAdmin = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
 
   return (
     <div className="shell">
@@ -68,7 +72,18 @@ export default function Shell() {
         )}
 
         <nav className="side-nav" aria-label="主导航">
-          {items.map((i) => (
+          {inAdmin ? ADMIN_NAV.map((g) => (
+            <Fragment key={g.label}>
+              {!min && <div className="side-grp side-label">{g.label}</div>}
+              {g.items.map((it) => (
+                <NavLink key={it.to} to={it.to} end={it.end} title={it.name}
+                  className={({ isActive }) => 'side-link' + (isActive ? ' on' : '')}>
+                  <Icon name={it.icon} />
+                  {!min && <span className="side-label">{it.name}</span>}
+                </NavLink>
+              ))}
+            </Fragment>
+          )) : items.map((i) => (
             <NavLink key={i.to} to={i.to} title={i.label}
               className={({ isActive }) => 'side-link' + (isActive ? ' on' : '')}>
               <Icon name={i.icon} />

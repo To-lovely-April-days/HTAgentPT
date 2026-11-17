@@ -55,7 +55,8 @@ public class OpenAiChatClient(IHttpClientFactory httpFactory, IRuntimeConfig con
             model = await config.GetStringAsync(ConfigKeys.ChatModelName, "chat-default", ct),
             messages = messages.Select(m => new { role = m.Role, content = m.Content }),
             temperature = await config.GetDoubleAsync(ConfigKeys.ChatTemperature, 0.2, ct),
-            max_tokens = await config.GetIntAsync(ConfigKeys.ChatMaxTokens, 2048, ct),
+            // 默认 1024：本地模型常见 8K 上下文，提示词 + 回答长度不能超过它（技术协议的提示词本来就长）
+            max_tokens = await config.GetIntAsync(ConfigKeys.ChatMaxTokens, 1024, ct),
             stream
         };
         // 在线服务（如 DeepSeek）要求 Bearer 密钥；本地端点留空即可
