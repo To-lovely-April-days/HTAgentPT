@@ -106,10 +106,16 @@ public static class GenChatLogic
         string? Question = null,
         string? ProjectNo = null, int? Index = null,
         /// <summary>按显示名称指代的槽位（「采纳材质」），由服务端解析成 tag。</summary>
-        string? Name = null);
+        string? Name = null,
+        /// <summary>equipment 动作：要加进设备清单的设备。删除走 Tags（位号）。</summary>
+        IReadOnlyList<EquipmentPick>? Items = null);
+
+    /// <summary>模型从一句话里认出的一台（一类）设备。Kind 是设备目录里的块编号（t3_1 / part15），
+    /// 模型写成目录名称（「带搅拌反应釜」「压力表」）也认，由服务端对回目录。</summary>
+    public sealed record EquipmentPick(string? Kind, string? TagNo, string? Name, int Qty);
 
     private static readonly HashSet<string> KnownActions =
-        ["fill", "ledger", "pick_base", "suggest", "adopt", "ask", "advise", "translate", "skip", "summary", "render"];
+        ["fill", "ledger", "pick_base", "suggest", "adopt", "ask", "advise", "translate", "skip", "summary", "render", "equipment"];
 
     /// <summary>解析总指挥模型的派工单：{"actions":[...]}；兼容早期只有 {"fills":[...]} 的抽取格式。
     /// 未知动作类型丢弃，解析失败返回空表——由调用方退回规则规划。</summary>
@@ -135,16 +141,21 @@ public static class GenChatLogic
                     // 模型常写 {"type":"fill","value":"HT-2025-C0012"}，把它丢了就等于用户白给了这个值，
                     // 界面上还会把同一项再问一遍。交给服务端按「当前在问的那一项」或项名去认。
                     if (type == "fill" && string.IsNullOrWhiteSpace(value)) continue;
+                    var removeTags = type == "equipment" && a.TryGetProperty("remove", out var rm) && rm.ValueKind == JsonValueKind.Array
+                        ? rm.EnumerateArray().Select(t => t.ValueKind == JsonValueKind.String ? t.GetString() : t.GetRawText())
+                            .Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t!.Trim()).ToList()
+                        : null;
                     result.Add(new PlanAction(type,
                         Tag: Blank(Str(a, "tag")), Value: value?.Trim(),
                         Customer: Blank(Str(a, "customer")), Device: Blank(Str(a, "device")), Keyword: Blank(Str(a, "keyword")),
-                        Tags: a.TryGetProperty("tags", out var tags) && tags.ValueKind == JsonValueKind.Array
+                        Tags: removeTags ?? (a.TryGetProperty("tags", out var tags) && tags.ValueKind == JsonValueKind.Array
                             ? tags.EnumerateArray().Select(t => t.GetString()).Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t!).ToList()
-                            : null,
+                            : null),
                         Question: Blank(Str(a, "question")),
                         Name: Blank(Str(a, "name")),
                         ProjectNo: Blank(Str(a, "projectNo")),
-                        Index: a.TryGetProperty("index", out var idx) && idx.ValueKind == JsonValueKind.Number && idx.TryGetInt32(out var i) ? i : null));
+                        Index: a.TryGetProperty("index", out var idx) && idx.ValueKind == JsonValueKind.Number && idx.TryGetInt32(out var i) ? i : null,
+                        Items: type == "equipment" ? Picks(a) : null));
                 }
             }
             foreach (var (tag, value) in ParseModelFills(reply[start..(end + 1)]))
@@ -156,6 +167,22 @@ public static class GenChatLogic
 
         static string? Str(JsonElement e, string name)
             => e.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
+        static List<EquipmentPick> Picks(JsonElement a)
+        {
+            var list = new List<EquipmentPick>();
+            if (!a.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array) return list;
+            foreach (var it in items.EnumerateArray())
+            {
+                if (it.ValueKind != JsonValueKind.Object) continue;
+                var qty = it.TryGetProperty("qty", out var q) && q.ValueKind == JsonValueKind.Number && q.TryGetInt32(out var qn) ? qn
+                    : it.TryGetProperty("qty", out var qs) && qs.ValueKind == JsonValueKind.String && int.TryParse(qs.GetString(), out var qp) ? qp
+                    : 1;
+                var kind = Blank(Str(it, "kind") ?? Str(it, "block"));
+                if (kind is null) continue;
+                list.Add(new EquipmentPick(kind, Blank(Str(it, "tagNo")), Blank(Str(it, "name")), Math.Max(1, qty)));
+            }
+            return list;
+        }
         static string? Blank(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
         static string? ScalarToString(JsonElement v) => v.ValueKind switch
         {

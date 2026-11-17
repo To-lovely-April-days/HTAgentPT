@@ -6,6 +6,7 @@ using HT.Agent.Domain;
 using HT.Agent.Domain.Entities;
 using HT.Agent.Infrastructure.Clients;
 using HT.Agent.Infrastructure.Persistence;
+using HT.Agent.Infrastructure.Templates;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using static HT.Agent.Application.Logic.GenChatLogic;
@@ -78,6 +79,8 @@ public class GenerationChatService(
         public object? Rendered;
         /// <summary>这一轮译出的整篇译文：文件、回填报告、命中术语。</summary>
         public object? Translated;
+        /// <summary>设备卡：可选设备目录 + 当前清单（按设备展开的模板，清单没定或刚改过时递）。</summary>
+        public object? Equipment;
         /// <summary>这一轮刚落进去的项：无论后面状态怎么算，都不许在同一轮里再问一遍。</summary>
         public readonly HashSet<string> FilledNow = [];
         /// <summary>槽位有变动：下一批提问重新算。</summary>
@@ -97,7 +100,8 @@ public class GenerationChatService(
             summary = Summary,
             canRender = CanRender,
             rendered = Rendered,
-            translated = Translated
+            translated = Translated,
+            equipment = Equipment
         };
     }
 
@@ -106,7 +110,7 @@ public class GenerationChatService(
     public async Task<GenChatStateView> GetAsync(Guid sessionId, CancellationToken ct = default)
     {
         var session = await MustFindAsync(sessionId, ct);
-        var template = await TemplateAsync(session.TemplateId, ct);
+        var template = await TemplateAsync(session, ct);
         var messages = await db.GenChatMessages.AsNoTracking()
             .Where(m => m.SessionId == sessionId).OrderBy(m => m.Id).ToListAsync(ct);
         return new GenChatStateView(messages.Select(ToView).ToList(), Progress(session, template));
@@ -115,7 +119,7 @@ public class GenerationChatService(
     public async Task<GenChatTurnResult> TurnAsync(Guid sessionId, GenChatTurnInput input, CancellationToken ct = default)
     {
         var session = await MustFindAsync(sessionId, ct);
-        var template = await TemplateAsync(session.TemplateId, ct);
+        var template = await TemplateAsync(session, ct);
         var state = session.ChatState is null ? new ChatState()
             : JsonSerializer.Deserialize<ChatState>(session.ChatState, Json) ?? new ChatState();
         var stub = await IsStubAsync(ct);
@@ -142,6 +146,14 @@ public class GenerationChatService(
             added.Add(User(session, string.Join("；", input.OptionFills.Select(f =>
                 $"{(defs.TryGetValue(f.Tag, out var d) ? d.Name : f.Tag)}：{f.Value}"))));
             ApplyFills(ctx, input.OptionFills.Select(f => new PlanAction("fill", Tag: f.Tag, Value: f.Value)).ToList());
+        }
+
+        if (input.Equipment is not null)
+        {
+            added.Add(User(session, "确认设备清单：" + (input.Equipment.Count(i => i.LinkedTo is null) == 0 ? "不选设备"
+                : string.Join("、", input.Equipment.Where(i => i.LinkedTo is null)
+                    .Select(i => string.Join(" ", new[] { i.TagNo, i.Name }.Where(x => !string.IsNullOrWhiteSpace(x))) + (i.Qty > 1 ? $"×{i.Qty}" : ""))))));
+            await SetEquipmentAsync(ctx, input.Equipment, ct);
         }
 
         if (input.AdoptTags is not null)
@@ -213,6 +225,7 @@ public class GenerationChatService(
 
         foreach (var a in actions.Where(a => a.Type == "pick_base")) await PickBaseAsync(ctx, ResolveProject(ctx, a), ct);
         foreach (var a in actions.Where(a => a.Type == "adopt")) await AdoptAsync(ctx, a.Tags, a.Name, ct);
+        foreach (var a in actions.Where(a => a.Type == "equipment")) await EquipmentActionAsync(ctx, a, ct);
 
         var fills = actions.Where(a => a.Type == "fill").ToList();
         if (fills.Count > 0) ApplyFills(ctx, fills);
@@ -279,8 +292,14 @@ public class GenerationChatService(
             "这时 name 填他说的那一项，没点名就留空");
         sb.AppendLine("- {\"type\":\"translate\",\"value\":\"zh2en\"}：用户要这份文档的英文版/中文版（「给我一份英文的」「翻译成英文」）；" +
             "value 取 zh2en（出英文）或 en2zh（出中文）");
+        var equipment = EquipmentBlocks.OriginalSlots(ctx.Template) is null ? null : await gen.GetEquipmentAsync(ctx.Session.Id, ct);
+        if (equipment is not null)
+            sb.AppendLine("- {\"type\":\"equipment\",\"items\":[{\"kind\":\"目录编号\",\"tagNo\":\"位号\",\"name\":\"设备名称\",\"qty\":1}],\"remove\":[\"位号\"]}：" +
+                "用户说装置里有哪些设备、要加/删设备（「两台带搅拌反应釜 R-101、R-102」「再加 5 个压力表」「不要 E-101 了」）。" +
+                "kind 照抄【设备目录】里的编号；同类多台且位号各不相同就拆成多条，同类一组（压力表 5 个）用一条写 qty；" +
+                "已在清单里的位号再给一次就是修改。第三章参数表对应的第四章部件行系统会自动配，不要另加。");
         sb.AppendLine("- {\"type\":\"skip\"}、{\"type\":\"summary\"}、{\"type\":\"render\"}");
-        sb.AppendLine("规则：只抽取用户明确说出的取值，绝不猜测补全；选择类取值必须是可选值之一；日期 yyyy-MM-dd；");
+        sb.AppendLine("规则：只抽取用户明确说出的取值，绝不猜测补全；SingleChoice 取值必须是可选值之一，ChoiceOrText 优先用可选值、用户说了别的也照填；日期 yyyy-MM-dd；");
         sb.AppendLine("要译文就派 translate，不要以「机器翻译不准」「术语会译错」为由拒绝——" +
             "整篇翻译由系统的翻译链路做，已审定术语按标准译法强制注入，材质牌号与安全条款正是靠这个统一的；" +
             "你也不要在回答里自己手工翻译整篇，那样版式会丢。回答里说一句「这就出」即可。");
@@ -295,6 +314,16 @@ public class GenerationChatService(
             : string.Join("、", ctx.State.LastAsked.Select(t => defs.FirstOrDefault(d => d.Tag == t)?.Name ?? t))));
         sb.AppendLine("[上一轮列出的历史项目] " + (ctx.State.LastCandidates.Count == 0 ? "（无）"
             : string.Join("；", ctx.State.LastCandidates.Select((p, i) => $"{i + 1}. {p}"))));
+        if (equipment is not null)
+        {
+            sb.AppendLine();
+            sb.AppendLine("[设备目录] 编号 | 名称（table=第三章设备参数表，part=第四章部件清单行）");
+            foreach (var c in equipment.Catalog) sb.AppendLine($"{c.Block} | {c.Title} | {c.Kind}");
+            sb.AppendLine("[当前设备清单] " + (!equipment.Decided ? "（还没定）"
+                : equipment.Items.Count == 0 ? "（定了，不选设备）"
+                : string.Join("；", equipment.Items.Where(i => i.LinkedTo is null)
+                    .Select(i => $"{equipment.Catalog.FirstOrDefault(c => c.Block == i.Block)?.Name ?? i.Block} {i.TagNo} {i.Name} ×{i.Qty}"))));
+        }
         sb.AppendLine();
         sb.AppendLine("[槽位清单] tag | 名称 | 章节 | 类型 | 可选值 | 当前值");
         foreach (var d in defs)
@@ -375,6 +404,65 @@ public class GenerationChatService(
         }
         foreach (var n in notes) ctx.Reply.Add(n + "。");
     }
+
+    // ── 专员：设备清单员 ───────────────────────────────────────
+
+    /// <summary>整份替换设备清单并把展开后的槽位套回本轮的模板——后面落值、出下一批问题都按新清单来。</summary>
+    private async Task SetEquipmentAsync(Ctx ctx, IReadOnlyList<EquipmentItem> items, CancellationToken ct)
+    {
+        var view = await gen.SetEquipmentAsync(ctx.Session.Id, items, ct);
+        EquipmentBlocks.Apply(ctx.Template, view.Items);
+        ctx.Reply.Equipment = EquipmentCard(view);
+        ctx.Reply.Changed = true;
+        ctx.Reply.Handled = true;
+        var main = view.Items.Where(i => i.LinkedTo is null).ToList();
+        if (main.Count == 0)
+        {
+            ctx.Reply.Add("设备清单定为空：第三章设备参数表与第四章部件清单不出现在文档里。");
+            return;
+        }
+        var groups = main.GroupBy(i => view.Catalog.FirstOrDefault(c => c.Block == i.Block)?.Name ?? i.Block)
+            .Select(g => $"{g.Key} {g.Sum(i => i.Qty)}（{string.Join("、", g.Select(i => i.TagNo ?? i.Name ?? "未编位号"))}）");
+        var linked = view.Items.Count(i => i.LinkedTo is not null);
+        ctx.Reply.Add($"设备清单已更新：{string.Join("；", groups)}。" +
+                      (linked > 0 ? $"第三章参数表对应的 {linked} 行第四章部件已自动配上，参数跟着表走，不用再填一遍。" : ""));
+    }
+
+    /// <summary>模型从话里认出的设备增删：在现有清单上改（同位号=修改），再整份提交。</summary>
+    private async Task EquipmentActionAsync(Ctx ctx, PlanAction a, CancellationToken ct)
+    {
+        if (EquipmentBlocks.OriginalSlots(ctx.Template) is null) return;
+        var view = await gen.GetEquipmentAsync(ctx.Session.Id, ct);
+        var list = view.Items.ToList();
+        if (a.Tags is { Count: > 0 })
+            list.RemoveAll(i => i.LinkedTo is null && a.Tags.Any(t => t == i.TagNo || t == i.Id || t == i.Name));
+        var unknown = new List<string>();
+        foreach (var p in a.Items ?? [])
+        {
+            var block = ResolveBlock(view.Catalog, p.Kind ?? "");
+            if (block is null) { unknown.Add(p.Kind ?? p.Name ?? "?"); continue; }
+            var idx = p.TagNo is null ? -1 : list.FindIndex(i => i.LinkedTo is null && i.TagNo == p.TagNo);
+            var item = new EquipmentItem(idx >= 0 ? list[idx].Id : null, block, p.TagNo, p.Name, p.Qty);
+            if (idx >= 0) list[idx] = item; else list.Add(item);
+        }
+        if (unknown.Count > 0)
+            ctx.Reply.Add($"「{string.Join("」「", unknown)}」在设备目录里没找到对应的类别，没加进清单——可以在设备卡里手动选。");
+        await SetEquipmentAsync(ctx, list, ct);
+    }
+
+    /// <summary>目录编号原样认；写成名称的按「同名 → 目录名包含它 → 它包含目录名（取最长）」对回去。</summary>
+    internal static string? ResolveBlock(IReadOnlyList<EquipmentCatalogEntry> catalog, string kind)
+    {
+        kind = kind.Trim();
+        if (kind.Length == 0) return null;
+        return catalog.FirstOrDefault(c => c.Block == kind)?.Block
+               ?? catalog.FirstOrDefault(c => c.Name == kind || c.Title == kind)?.Block
+               ?? catalog.Where(c => c.Name.Contains(kind)).OrderBy(c => c.Kind == "table" ? 0 : 1).FirstOrDefault()?.Block
+               ?? catalog.Where(c => c.Name.Length >= 2 && kind.Contains(c.Name)).OrderByDescending(c => c.Name.Length).FirstOrDefault()?.Block;
+    }
+
+    private static object EquipmentCard(EquipmentView view)
+        => new { catalog = view.Catalog, items = view.Items, decided = view.Decided };
 
     // ── 专员：台账查询员 ───────────────────────────────────────
 
@@ -622,7 +710,7 @@ public class GenerationChatService(
         sb.AppendLine("规则：");
         if (redo.Count == 0)
             sb.AppendLine("- 只对这个工况**确实影响**的项给建议，通常 3～8 项；无关的项不要凑数");
-        sb.AppendLine("- 选择类槽位的 value 必须是可选值之一；带单位的只给数值与必要修饰");
+        sb.AppendLine("- 单选槽位的 value 必须是可选值之一，可选可填的槽位优先用可选值；带单位的只给数值与必要修饰");
         sb.AppendLine("- 已有取值若在该工况下不合适，务必给出建议并在 reason 里说明为什么要改");
         sb.AppendLine("- 安全相关（材质耐蚀、压力等级、防爆、连锁、泄压）要重点覆盖，risk 写清楚");
         sb.AppendLine("- level：安全相关（耐蚀、压力等级、防爆、连锁、泄压）或不改就会出事故的写 high，其余写 normal");
@@ -883,6 +971,14 @@ public class GenerationChatService(
     {
         var reply = ctx.Reply;
         var state = ctx.State;
+        // 按设备展开的模板：设备清单没定之前每轮都递设备卡——第三、四章长什么样全看它
+        if (!reply.SuppressAsks && reply.Equipment is null && ctx.Session.Equipment is null
+            && EquipmentBlocks.OriginalSlots(ctx.Template) is not null)
+        {
+            reply.Equipment = EquipmentCard(await gen.GetEquipmentAsync(ctx.Session.Id, ct));
+            reply.Add("这份文档按设备展开：第三章每台设备一张参数表，第四章每类部件一行。先把装置里有哪些设备定下来——" +
+                      "在下面的设备清单里选，或者直接说（如「两台带搅拌反应釜 R-101、R-102，一个收集罐 V-201，压力表 5 个」）。");
+        }
         if (!reply.SuppressAsks)
         {
             var states = Parse(ctx.Session);
@@ -1049,18 +1145,28 @@ public class GenerationChatService(
     {
         var current = CurrentSlots(template);
         var sections = current.GroupBy(s => s.Section).Select(g => $"{g.Key}（{g.Count()} 项）");
+        if (EquipmentBlocks.OriginalSlots(template) is not null)
+            return $"开始填《{template.Name}》。先定设备清单（装置里有哪些设备、哪些仪表阀门），" +
+                   "第三章的设备参数表和第四章的部件清单按清单逐台展开；其余章节共 {current.Count} 项。\n" +
+                   "可以整句描述项目（如「给华东理工做尼龙66合成装置，两台带搅拌反应釜」），能确定的项自动填入；" +
+                   "也可以让我查历史项目做基准、推荐参数、或就某一项提问。随时可以说「跳过」「汇总」「生成文档」。";
         return $"开始填《{template.Name}》，共 {current.Count} 项：{string.Join("、", sections)}。\n" +
                "可以整句描述项目（如「华东理工的 10L 反应釜，316L 材质，法兰结构，电加热」），能确定的项自动填入；" +
                "也可以让我查历史做过的项目拿来做基准、推荐参数、或就某一项提问。随时可以说「跳过」「汇总」「生成文档」。";
     }
 
-    /// <summary>取值校验：选择类必须落在可选值内（同义规整）、日期规整为 yyyy-MM-dd、长度设上限。</summary>
-    private static (bool Ok, string? Value, string? Note) Validate(TemplateSlot def, string raw)
+    /// <summary>取值校验：单选必须落在可选值内（同义规整），可选可填的候选项外也收；日期规整为 yyyy-MM-dd、长度设上限。</summary>
+    internal static (bool Ok, string? Value, string? Note) Validate(TemplateSlot def, string raw)
     {
         var v = raw.Trim();
         if (v.Length == 0) return (false, null, $"「{def.Name}」没有给出内容");
         if (v.Length > 2000) v = v[..2000];
         var choices = ChoiceList(def);
+        if (choices is not null && def.DataType == SlotDataType.ChoiceOrText)
+        {
+            // 可选可填（Word 组合框）：说的是哪个候选项就规整成它，说了别的值也照收
+            return (true, MatchChoice(v, choices) ?? v, null);
+        }
         if (choices is not null)
         {
             var hit = MatchChoice(v, choices);
@@ -1099,7 +1205,7 @@ public class GenerationChatService(
 
     private static IReadOnlyList<string>? ChoiceList(TemplateSlot def)
     {
-        if (def.DataType != SlotDataType.SingleChoice || string.IsNullOrWhiteSpace(def.Choices)) return null;
+        if (def.DataType is not (SlotDataType.SingleChoice or SlotDataType.ChoiceOrText) || string.IsNullOrWhiteSpace(def.Choices)) return null;
         try
         {
             var parsed = JsonSerializer.Deserialize<List<string>>(def.Choices);
@@ -1161,8 +1267,12 @@ public class GenerationChatService(
         return new GenChatProgress(check.Total, check.Done, check.CanRender, output);
     }
 
-    private Task<Template> TemplateAsync(Guid templateId, CancellationToken ct)
-        => db.Templates.AsNoTracking().Include(t => t.Slots).FirstAsync(t => t.Id == templateId, ct);
+    /// <summary>会话用的模板：按设备展开的模板套上本会话的设备清单（每台设备一份参数）。</summary>
+    private async Task<Template> TemplateAsync(GenerationSession session, CancellationToken ct)
+    {
+        var template = await db.Templates.AsNoTracking().Include(t => t.Slots).FirstAsync(t => t.Id == session.TemplateId, ct);
+        return EquipmentBlocks.Apply(template, EquipmentBlocks.ParseItems(session.Equipment));
+    }
 
     private async Task<GenerationSession> MustFindAsync(Guid id, CancellationToken ct)
         => await db.GenerationSessions.FirstOrDefaultAsync(s => s.Id == id && s.CreatedById == me.UserId, ct)

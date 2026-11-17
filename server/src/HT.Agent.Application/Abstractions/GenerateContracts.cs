@@ -67,7 +67,27 @@ public interface IGenerationService
     /// 「生成文档」才是产出，预览只是让人边填边看（FR-5.13/5.17 的边界不能被预览绕过）。</summary>
     Task<DraftPreview> RenderDraftAsync(Guid sessionId, CancellationToken ct = default);
     Task<(Stream Content, string FileName)> OpenOutputAsync(Guid sessionId, CancellationToken ct = default);
+    /// <summary>设备清单（技术协议这类按设备展开的模板）：可选设备目录 + 本会话已选的设备。
+    /// 模板里没有可展开的块时目录为空。</summary>
+    Task<EquipmentView> GetEquipmentAsync(Guid sessionId, CancellationToken ct = default);
+    /// <summary>整份替换设备清单：给新设备编号、为第三章设备参数表配上第四章对应的部件行、
+    /// 同步槽位状态（新设备的位号/名称/数量直接落值，删掉的设备连同已填值一起移除）。</summary>
+    Task<EquipmentView> SetEquipmentAsync(Guid sessionId, IReadOnlyList<EquipmentItem> items, CancellationToken ct = default);
 }
+
+/// <summary>选定的一台（一类）设备。Block 是模板里的块（t3_1 设备参数表 / part12 部件清单行），
+/// 同一块可以选多次，每次是一份独立的参数。Id 由服务端分配、删了不复用——
+/// 已填的参数挂在「块#Id」名下，编号一变就对不上了。
+/// LinkedTo：第三章参数表配套出来的第四章部件行，指向那张表；这种行的参数跟着表走，不单独问。</summary>
+public record EquipmentItem(string? Id, string Block, string? TagNo, string? Name, int Qty = 1, string? LinkedTo = null);
+
+/// <summary>设备目录的一项。Kind：table=第三章设备参数表，part=第四章部件清单行。
+/// RefTable：部件行正文里写着「详见…表3-1」时指向那张表，配套行优先选它。</summary>
+public record EquipmentCatalogEntry(string Block, string Kind, string Title, string Name, string? TagPrefix,
+    string? RefTable, int SlotCount);
+
+/// <summary>Decided=用户定过清单（哪怕定的是空清单）；没定之前对话里会一直递设备卡。</summary>
+public record EquipmentView(IReadOnlyList<EquipmentCatalogEntry> Catalog, IReadOnlyList<EquipmentItem> Items, bool Decided);
 
 /// <summary>槽位运行时状态（整会话序列化存储，7.2）。来源优先级见 5.2.2。</summary>
 public record SlotState(
@@ -138,9 +158,11 @@ public interface IGenerationChatService
 
 /// <summary>一轮输入：Start=补开场白（会话还没有消息时）；Message=自由文本（经总指挥派工）；
 /// OptionFills=选项按钮直填（不过模型）；BaseProjectNo=选定基准（空串=明确不用）；
-/// AdoptTags=采纳建议按钮（空表=全部待确认建议）；Render=生成文档。</summary>
+/// AdoptTags=采纳建议按钮（空表=全部待确认建议）；Render=生成文档；
+/// Equipment=设备卡上确认的整份设备清单。</summary>
 public record GenChatTurnInput(string? Message = null, List<GenTagValue>? OptionFills = null,
-    string? BaseProjectNo = null, bool Render = false, bool Start = false, List<string>? AdoptTags = null);
+    string? BaseProjectNo = null, bool Render = false, bool Start = false, List<string>? AdoptTags = null,
+    List<EquipmentItem>? Equipment = null);
 
 public record GenTagValue(string Tag, string Value);
 

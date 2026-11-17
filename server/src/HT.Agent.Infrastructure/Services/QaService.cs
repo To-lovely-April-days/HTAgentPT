@@ -295,7 +295,7 @@ public class QaService(
         sb.AppendLine("case —— 设备出了故障要查处理办法：报警代码、异常现象、维修记录。");
         sb.AppendLine("ticket —— 问某张报修工单的进度或状态，不是问故障怎么修。");
         sb.AppendLine("translate —— 要把一段文字或一份文档翻译成中文/英文。");
-        sb.AppendLine("generate —— 要出一份文档：方案、投标书、报价、合同、任务单。");
+        sb.AppendLine("generate —— 要出一份文档：方案、投标书、报价、合同、技术协议、任务单。");
         sb.AppendLine("general —— 日常问候、能力介绍，以及不涉及本企业资料的通用知识问题。");
         sb.AppendLine();
         sb.AppendLine("注意区分：「这份文档的翻译流程是什么」是在问知识（knowledge），不是要翻译；");

@@ -22,7 +22,7 @@ import type {
 } from '../../lib/types';
 import { Prose } from '../../components/Prose';
 import { ErrorBox, Spinner } from '../../components/Common';
-import { AdviceCard, EvidenceCard, SummaryCard } from '../generate/ChatCards';
+import { AdviceCard, EquipmentCard, EvidenceCard, SummaryCard } from '../generate/ChatCards';
 import { AgentProgressCard, BaseCards, CasesCard, LedgerCard, mergeAgentSteps, NoResultCard, SourcesCard, TemplatePicker, TicketsCard, TranslatedCard, TranslationCard } from './ResultCards';
 import type { AgentStep } from './ResultCards';
 import { LivePreview } from './LivePreview';
@@ -357,7 +357,7 @@ function Welcome({ has, onPick }: { has: (p: string) => boolean; onPick: (q: str
     },
     {
       perm: Perm.Generate, title: '出一份文档',
-      desc: '挑个模板就在这条对话里逐项填完，能按工况给选型建议，填好直接下载。',
+      desc: '生产任务单、技术协议等，挑个模板就在这条对话里逐项填完，能按工况给选型建议，填好直接下载。',
       sample: '帮我出一份 C 类生产任务单',
     },
   ].filter((c) => (Array.isArray(c.perm) ? c.perm.some(has) : has(c.perm)));
@@ -365,6 +365,7 @@ function Welcome({ has, onPick }: { has: (p: string) => boolean; onPick: (q: str
   return (
     <div className="chat-empty">
       <div className="welcome-hd">
+        <img className="brand-logo welcome-logo" src="/htlab-logo.png" alt="HTLAB 企业智能协作平台" />
         <div className="welcome-t">说一句话就行</div>
         <div className="welcome-s">不用先选功能，直接说你要做什么。下面是这个账号能做的事，点例子就能试。</div>
       </div>
@@ -424,7 +425,10 @@ function AssistantMessage() {
           <TemplatePicker templates={m.templates} onPick={pickTemplate} busy={busy} />
         )}
 
-        {/* 方案生成这一轮的结果件：建议、汇总、选项、下载 */}
+        {/* 方案生成这一轮的结果件：设备清单、建议、汇总、选项、下载 */}
+        {m.gen?.equipment && (
+          <EquipmentCard data={m.gen.equipment} active={active} onTurn={genTurn} />
+        )}
         {m.gen?.advices && m.gen.advices.length > 0 && (
           <AdviceCard advices={m.gen.advices} active={active} onTurn={genTurn} />
         )}

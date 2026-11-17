@@ -11,9 +11,30 @@ namespace HT.Agent.Infrastructure.Persistence;
 /// 公司名、角色映射、词表取值全部是数据，这里只提供默认值。</summary>
 public static class Seeder
 {
+    /// <summary>上线后才加的固定取值：老库里没有就补上（技术协议模板的文档类别）。
+    /// 管理员停用过的不会被补回来——停用的行还在，只看有没有这一行。</summary>
+    private static readonly (string Key, string Value)[] AddedTerms = [(VocabKeys.DocCategory, "技术协议")];
+
+    private static async Task EnsureTermsAsync(AppDbContext db, CancellationToken ct)
+    {
+        var added = false;
+        foreach (var (key, value) in AddedTerms)
+        {
+            if (await db.VocabTerms.AnyAsync(v => v.VocabKey == key && v.Value == value, ct)) continue;
+            var order = await db.VocabTerms.Where(v => v.VocabKey == key).Select(v => (int?)v.SortOrder).MaxAsync(ct) ?? -1;
+            db.VocabTerms.Add(new VocabTerm { Id = Guid.NewGuid(), VocabKey = key, Value = value, SortOrder = order + 1 });
+            added = true;
+        }
+        if (added) await db.SaveChangesAsync(ct);
+    }
+
     public static async Task SeedAsync(AppDbContext db, IPasswordHasher hasher, IConfiguration config, CancellationToken ct = default)
     {
-        if (await db.Companies.AnyAsync(ct)) return; // 已初始化
+        if (await db.Companies.AnyAsync(ct))
+        {
+            await EnsureTermsAsync(db, ct); // 已初始化：只补后来新增的固定取值
+            return;
+        }
 
         var company = new Company
         {
@@ -112,7 +133,7 @@ public static class Seeder
             });
 
         // 受控词表（表 4-5）：文档类别八个固定取值；设备类型与客户为示例，管理员在词表界面维护
-        string[] categories = ["方案", "合同", "报价", "图纸", "交付报告", "故障记录", "手册", "资料"];
+        string[] categories = ["方案", "合同", "报价", "图纸", "交付报告", "故障记录", "手册", "资料", "技术协议"];
         for (var i = 0; i < categories.Length; i++)
             db.VocabTerms.Add(new VocabTerm
             {

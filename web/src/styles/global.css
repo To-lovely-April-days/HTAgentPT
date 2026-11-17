@@ -177,6 +177,9 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
    收到 3 列左右的宽度居中，卡片才有地方把话说清楚。 */
 .chat-empty { max-width: min(var(--chat-w), 1100px); margin: 0 auto; padding: 7vh 0 24px; }
 .welcome-hd { margin-bottom: 18px; }
+/* 标志图是白底：正片叠底把白底融进页面底色，浅色背景上不出白框 */
+.brand-logo { display: block; height: auto; mix-blend-mode: multiply; user-select: none; -webkit-user-drag: none; }
+.welcome-logo { width: 240px; max-width: 70%; margin-bottom: 16px; }
 .welcome-t { font-size: 19px; font-weight: 600; letter-spacing: .01em; margin-bottom: 5px; }
 .welcome-s { font-size: 12.5px; line-height: 1.75; color: var(--ink-3); }
 .welcome-grid { display: grid; gap: 10px;

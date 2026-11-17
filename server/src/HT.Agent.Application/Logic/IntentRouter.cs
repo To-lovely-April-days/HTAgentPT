@@ -22,7 +22,7 @@ public static class IntentRouter
         @"(翻译|译成|译为|英文版|中文版|译文|translate)", RegexOptions.Compiled);
 
     private static readonly Regex GeneratePattern = new(
-        @"(生成|起草|拟一份|写一份|出一份|帮我写).{0,16}(方案|投标|标书|报价|合同|任务单)|(方案|投标书|报价单|合同).{0,4}(生成|起草)",
+        @"(生成|起草|拟一份|写一份|出一份|做一份|帮我写).{0,16}(方案|投标|标书|报价|合同|协议|任务单)|(方案|投标书|报价单|合同|技术协议).{0,4}(生成|起草)",
         RegexOptions.Compiled);
 
     /// <summary>案例信号：报警代码格式（E12、ER-03、Err5）、故障维修词，

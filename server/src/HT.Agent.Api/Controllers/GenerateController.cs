@@ -57,6 +57,15 @@ public class GenerateController(
     public async Task<IActionResult> SlotChat(Guid id, string tag, [FromBody] SlotChatBody body, CancellationToken ct)
         => Ok(new { answer = await gen.SlotChatAsync(id, tag, body.Question, ct) });
 
+    /// <summary>设备清单：可选设备目录 + 已选设备（技术协议这类按设备展开的模板）。</summary>
+    [HttpGet("sessions/{id:guid}/equipment")]
+    public async Task<IActionResult> Equipment(Guid id, CancellationToken ct)
+        => Ok(await gen.GetEquipmentAsync(id, ct));
+
+    [HttpPut("sessions/{id:guid}/equipment")]
+    public async Task<IActionResult> SetEquipment(Guid id, [FromBody] List<EquipmentItem> items, CancellationToken ct)
+        => Ok(await gen.SetEquipmentAsync(id, items, ct));
+
     // ── 对话式填槽（A4 聊天形态）────────────────────────────────
 
     [HttpGet("sessions/{id:guid}/conversation")]

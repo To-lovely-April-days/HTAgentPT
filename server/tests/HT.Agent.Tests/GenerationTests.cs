@@ -30,7 +30,7 @@ public class TemplateExtractorTests
             // 无 Tag 控件 → 警告并跳过
             var noTag = new SdtRun(new SdtProperties(), new SdtContentRun(new Run(new Text("孤儿控件"))));
             body.AppendChild(new Paragraph(noTag));
-            // 重复 Tag → 警告
+            // 重复 Tag：同一字段多处出现（公司名称贯穿全文），合成一个槽位、回填时各处一起填，不再警告
             body.AppendChild(new Paragraph(MakeSdtRun("design_pressure", "重复出现")));
             main.Document = new W.Document(body);
         }
@@ -51,8 +51,8 @@ public class TemplateExtractorTests
     public void 抽取控件Tag_占位文字作话术_默认禁继承命中()
     {
         var r = TemplateSlotExtractor.Extract(new MemoryStream(TemplateDocx()));
-        Assert.Equal(3, r.Slots.Count); // 无 Tag 与重复各被跳过
-        Assert.Equal(2, r.Warnings.Count);
+        Assert.Equal(3, r.Slots.Count); // 无 Tag 被跳过，重复的并入第一处
+        Assert.Single(r.Warnings);      // 只有无 Tag 那一条
         var customer = r.Slots.Single(s => s.Tag == "customer_name");
         Assert.Equal("请填写客户全称", customer.Prompt);
         Assert.True(customer.ForbidInherit); // 占位文字含「客户」

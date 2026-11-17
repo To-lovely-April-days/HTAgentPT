@@ -238,7 +238,20 @@ export interface GenChatPayload {
   canRender?: boolean | null;
   rendered?: { fileName: string; filled: number; blank: number } | null;
   translated?: GenTranslated | null;
+  /** 设备卡：按设备展开的模板（技术协议），清单没定或刚改过时随消息下发。 */
+  equipment?: GenEquipmentCard | null;
 }
+
+/** 设备目录的一项：table=第三章设备参数表，part=第四章部件清单行。 */
+export interface GenEquipmentCatalogEntry {
+  block: string; kind: 'table' | 'part'; title: string; name: string;
+  tagPrefix: string | null; refTable: string | null; slotCount: number;
+}
+/** 清单上的一台（一类）设备。linkedTo 非空的是参数表自动配的第四章行，跟着表走。 */
+export interface GenEquipmentItem {
+  id: string | null; block: string; tagNo: string | null; name: string | null; qty: number; linkedTo: string | null;
+}
+export interface GenEquipmentCard { catalog: GenEquipmentCatalogEntry[]; items: GenEquipmentItem[]; decided: boolean }
 
 /** 这一轮译出的整篇译文（FR-6.3）：文件、回填报告、命中的已审定术语。 */
 export interface GenTranslated {

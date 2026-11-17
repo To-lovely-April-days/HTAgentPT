@@ -95,7 +95,10 @@ public enum SlotDataType
     MultiChoice,
     Date,
     LongText,
-    RepeatingRows
+    RepeatingRows,
+    /// <summary>可选可填：给出候选项，也接受候选项以外的值（Word 组合框「选择或填写」）。
+    /// 追加在末尾——库里按字符串存，不影响已有数据。</summary>
+    ChoiceOrText
 }
 
 /// <summary>账号类别。客户账号绑定客户编号，仅见本人名下项目（FR-7.4）。</summary>

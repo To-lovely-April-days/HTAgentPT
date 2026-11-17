@@ -39,6 +39,8 @@ public class GenerationService(
         if (!template.IsEnabled)
             throw new DomainRuleException("TEMPLATE_DISABLED", "模板未启用（槽位定义不完整的模板无法进入交互流程）");
 
+        // 按设备展开的模板：设备参数表、部件行要等设备清单定了才有槽位
+        EquipmentBlocks.Apply(template, null);
         var states = template.Slots.OrderBy(s => s.SortOrder)
             .Select(s => new SlotState(s.Tag, null, null, false, false, null, null)).ToList();
         var session = new GenerationSession
@@ -63,8 +65,7 @@ public class GenerationService(
     {
         var session = await FindAsync(sessionId, ct);
         if (session is null) return null;
-        var template = await db.Templates.AsNoTracking().Include(t => t.Slots)
-            .FirstAsync(t => t.Id == session.TemplateId, ct);
+        var template = await SessionTemplateAsync(session, ct);
         return await ViewAsync(session, template, ct);
     }
 
@@ -79,7 +80,8 @@ public class GenerationService(
         // 进度口径与完成校验一致（FR-5.13）：后续阶段槽位不进分母
         return sessions.Select(s =>
         {
-            var view = Completeness(templates[s.TemplateId], Parse(s.SlotValues));
+            var view = Completeness(EquipmentBlocks.Apply(templates[s.TemplateId], EquipmentBlocks.ParseItems(s.Equipment)),
+                Parse(s.SlotValues));
             return new SessionRow(s.Id, s.Template!.Name, s.BaseProjectNo, s.Status, view.Total, view.Done, s.UpdatedAt);
         }).ToList();
     }
@@ -111,8 +113,7 @@ public class GenerationService(
     private async Task<IReadOnlyList<BaseCandidate>> QueryCandidatesAsync(GenerationSession session,
         string? customer, bool customerStrict, string? device, string? keyword, int take, CancellationToken ct)
     {
-        var template = await db.Templates.AsNoTracking().Include(t => t.Slots)
-            .FirstAsync(t => t.Id == session.TemplateId, ct);
+        var template = await SessionTemplateAsync(session, ct);
 
         var q = db.Projects.AsNoTracking().Where(p => p.CompanyId == me.CompanyId);
         if (device is not null) q = q.Where(p => p.DeviceType == device);
@@ -171,8 +172,7 @@ public class GenerationService(
     public async Task<SessionView> SetBaseProjectAsync(Guid sessionId, string? projectNo, CancellationToken ct = default)
     {
         var session = await MustFindAsync(sessionId, ct);
-        var template = await db.Templates.AsNoTracking().Include(t => t.Slots)
-            .FirstAsync(t => t.Id == session.TemplateId, ct);
+        var template = await SessionTemplateAsync(session, ct);
         if (projectNo is not null &&
             !await db.Projects.AnyAsync(p => p.ProjectNo == projectNo && p.CompanyId == me.CompanyId, ct))
             throw new DomainRuleException("PROJECT_NOT_FOUND", $"项目 {projectNo} 不在台账中");
@@ -260,6 +260,27 @@ public class GenerationService(
                 .Where(x => x.Hit is not null)
                 .OrderByDescending(x => x.Hit!.Value.Score)
                 .FirstOrDefault();
+            if (byName is null && def.DataType != SlotDataType.LongText
+                && SpecTextExtractor.FromSlot(def.Name, def.Unit, def.Section) is { } target)
+            {
+                // 基准项目的技术协议：参数按设备写在正文里，位号对得上的那台优先
+                var spec = chunks
+                    .Select(c => new { c, Hit = SpecTextExtractor.Extract(c.Text, target) })
+                    .Where(x => x.Hit is not null)
+                    .OrderByDescending(x => x.Hit!.Score)
+                    .FirstOrDefault();
+                if (spec is not null)
+                {
+                    result.Add(s with
+                    {
+                        Value = spec.Hit!.Value,
+                        Source = SlotFillSource.Inherited,
+                        Origin = $"{projectNo} ·《{spec.c.DocTitle}》· {(spec.Hit.Equipment.Length > 0 ? spec.Hit.Equipment + " · " : "")}{spec.Hit.Label}",
+                        UpdatedAt = DateTimeOffset.UtcNow
+                    });
+                    continue;
+                }
+            }
             result.Add(byName is null ? s : s with
             {
                 Value = byName.Hit!.Value.Value,
@@ -320,8 +341,7 @@ public class GenerationService(
     public async Task<SlotSuggestion> SuggestAsync(Guid sessionId, string tag, string? hint = null, CancellationToken ct = default)
     {
         var session = await MustFindAsync(sessionId, ct);
-        var template = await db.Templates.AsNoTracking().Include(t => t.Slots)
-            .FirstAsync(t => t.Id == session.TemplateId, ct);
+        var template = await SessionTemplateAsync(session, ct);
         var def = template.Slots.FirstOrDefault(s => s.Tag == tag)
             ?? throw new DomainRuleException("SLOT_NOT_FOUND", $"槽位 {tag} 不存在");
         if (def.Stage == SlotStage.Later)
@@ -351,7 +371,10 @@ public class GenerationService(
 
         // 检索建议（FR-5.9）：附依据；无检索结果就明说（FR-5.10），绝不凭常识编
         var query = $"{def.Name} {def.Section} {hint ?? ""} {session.ProjectHint ?? ""} {template.DocType}".Trim();
-        var result = await retrieval.RetrieveAsync(new RetrievalRequest(query), ct);
+        // 先在同类文档里找（技术协议的参数先看历史技术协议），同类里没有够格的再放开到全部资料
+        var result = await retrieval.RetrieveAsync(new RetrievalRequest(query, DocCategory: template.DocType), ct);
+        if (!result.AboveThreshold || result.Chunks.Count == 0)
+            result = await retrieval.RetrieveAsync(new RetrievalRequest(query), ct);
         if (!result.AboveThreshold || result.Chunks.Count == 0)
         {
             return new SlotSuggestion(tag, null, [], false,
@@ -364,7 +387,12 @@ public class GenerationService(
             ? null
             : FormFieldExtractor.ExtractFirst(result.Chunks.Select(c => c.Text), def.Name, def.Unit,
                 template.Slots.Select(s => s.Name).ToList(), def.Section);
-        var value = byField ?? (def.DataType is SlotDataType.LongText
+        // 技术协议一类的参数正文是按设备写的「标签：值」，按设备与分组取（取不到再退回挑行）
+        var bySpec = def.DataType is SlotDataType.LongText || byField is not null ? null
+            : SpecTextExtractor.FromSlot(def.Name, def.Unit, def.Section) is { } target
+                ? SpecTextExtractor.ExtractBest(result.Chunks.Select(c => c.Text), target)?.Value
+                : null;
+        var value = byField ?? bySpec ?? (def.DataType is SlotDataType.LongText
             ? StripHeadingPrefix(top.Text)
             : BestLine(StripHeadingPrefix(top.Text), def.Name));
         var evidence = result.Chunks.Take(3)
@@ -420,8 +448,7 @@ public class GenerationService(
     public async Task<string> SlotChatAsync(Guid sessionId, string tag, string question, CancellationToken ct = default)
     {
         var session = await MustFindAsync(sessionId, ct);
-        var template = await db.Templates.AsNoTracking().Include(t => t.Slots)
-            .FirstAsync(t => t.Id == session.TemplateId, ct);
+        var template = await SessionTemplateAsync(session, ct);
         var def = template.Slots.FirstOrDefault(s => s.Tag == tag)
             ?? throw new DomainRuleException("SLOT_NOT_FOUND", $"槽位 {tag} 不存在");
 
@@ -446,8 +473,7 @@ public class GenerationService(
     public async Task<CompletenessView> CheckCompletenessAsync(Guid sessionId, CancellationToken ct = default)
     {
         var session = await MustFindAsync(sessionId, ct);
-        var template = await db.Templates.AsNoTracking().Include(t => t.Slots)
-            .FirstAsync(t => t.Id == session.TemplateId, ct);
+        var template = await SessionTemplateAsync(session, ct);
         return Completeness(template, Parse(session.SlotValues));
     }
 
@@ -474,8 +500,7 @@ public class GenerationService(
     public async Task<PreviewView> PreviewAsync(Guid sessionId, CancellationToken ct = default)
     {
         var session = await MustFindAsync(sessionId, ct);
-        var template = await db.Templates.AsNoTracking().Include(t => t.Slots)
-            .FirstAsync(t => t.Id == session.TemplateId, ct);
+        var template = await SessionTemplateAsync(session, ct);
         var states = Parse(session.SlotValues).ToDictionary(s => s.Tag);
 
         var sections = template.Slots.OrderBy(s => s.SortOrder)
@@ -527,25 +552,18 @@ public class GenerationService(
     public async Task<RenderResult> RenderAsync(Guid sessionId, CancellationToken ct = default)
     {
         var session = await MustFindAsync(sessionId, ct);
-        var template = await db.Templates.AsNoTracking().Include(t => t.Slots)
-            .FirstAsync(t => t.Id == session.TemplateId, ct);
+        var template = await SessionTemplateAsync(session, ct);
         var states = Parse(session.SlotValues);
 
+        if (EquipmentBlocks.OriginalSlots(template) is not null && session.Equipment is null)
+            throw new DomainRuleException("EQUIPMENT_UNDECIDED", "设备清单还没定：先确定装置里有哪些设备，再生成文档");
         var check = Completeness(template, states);
         if (!check.CanRender)
             throw new DomainRuleException("INCOMPLETE",
                 $"存在未完成的必填槽位（{check.Incomplete.Count} 项），不允许生成（FR-5.13）：" +
                 string.Join("、", check.Incomplete.Take(6).Select(i => i.Name)));
 
-        var byTag = states.ToDictionary(s => s.Tag);
-        var inputs = template.Slots.Select(def => new DocxSlotFiller.FillInput(
-            def.Tag,
-            def.Stage == SlotStage.Later ? null : byTag.GetValueOrDefault(def.Tag)?.Value,
-            def.DataType)).ToList();
-
-        DocxSlotFiller.FillResult filledDoc;
-        await using (var tpl = await storage.OpenAsync(template.FileKey, ct))
-            filledDoc = await DocxSlotFiller.FillAsync(tpl, inputs, ct);
+        var filledDoc = await FillDocAsync(session, template, states.ToDictionary(s => s.Tag), draft: false, ct);
 
         var outputName = $"{template.Name}-{DateTimeOffset.UtcNow:yyyyMMdd}-{session.Id.ToString()[..8]}.docx";
         using (var outMs = new MemoryStream(filledDoc.Output))
@@ -565,19 +583,11 @@ public class GenerationService(
     public async Task<DraftPreview> RenderDraftAsync(Guid sessionId, CancellationToken ct = default)
     {
         var session = await MustFindAsync(sessionId, ct);
-        var template = await db.Templates.AsNoTracking().Include(t => t.Slots)
-            .FirstAsync(t => t.Id == session.TemplateId, ct);
+        var template = await SessionTemplateAsync(session, ct);
         var byTag = Parse(session.SlotValues).ToDictionary(s => s.Tag);
         // 与正式渲染同一条填充路径，差别只在：不校验完成度、不落盘、不留记录。
         // 版式必须和最终产出一模一样，否则「预览」就没意义了。
-        var inputs = template.Slots.Select(def => new DocxSlotFiller.FillInput(
-            def.Tag,
-            def.Stage == SlotStage.Later ? null : byTag.GetValueOrDefault(def.Tag)?.Value,
-            def.DataType)).ToList();
-
-        DocxSlotFiller.FillResult filled;
-        await using (var tpl = await storage.OpenAsync(template.FileKey, ct))
-            filled = await DocxSlotFiller.FillAsync(tpl, inputs, ct);
+        var filled = await FillDocAsync(session, template, byTag, draft: true, ct);
 
         return new DraftPreview(filled.Output, $"{template.Name}（草稿）.docx", filled.Filled, filled.LeftBlank);
     }
@@ -590,6 +600,92 @@ public class GenerationService(
         var template = await db.Templates.AsNoTracking().FirstAsync(t => t.Id == session.TemplateId, ct);
         return (await storage.OpenAsync(session.OutputFileKey, ct),
             $"{template.Name}-{session.Id.ToString()[..8]}.docx");
+    }
+
+    /// <summary>回填 Word：按设备清单展开块（每台设备一份参数表/一行部件），
+    /// 配套行里跟着参数表走的项从表里取值，再按槽位回填。
+    /// 草稿在设备清单没定之前不展开——让人先看到模板本来的样子，而不是第三、四章空着。</summary>
+    private async Task<DocxSlotFiller.FillResult> FillDocAsync(GenerationSession session, Template template,
+        Dictionary<string, SlotState> byTag, bool draft, CancellationToken ct)
+    {
+        var inputs = template.Slots.Select(def => new DocxSlotFiller.FillInput(
+            def.Tag,
+            def.Stage == SlotStage.Later ? null : byTag.GetValueOrDefault(def.Tag)?.Value,
+            def.DataType)).ToList();
+        var bytes = await TemplateBytesAsync(template, ct);
+        var original = EquipmentBlocks.OriginalSlots(template);
+        var items = EquipmentBlocks.ParseItems(session.Equipment);
+        if (original is not null && (items is not null || !draft))
+        {
+            bytes = EquipmentDocExpander.Expand(bytes, items ?? []);
+            foreach (var link in EquipmentBlocks.DerivedLinks(original, items ?? []))
+                inputs.Add(new DocxSlotFiller.FillInput(link.RowTag, byTag.GetValueOrDefault(link.TableTag)?.Value, SlotDataType.Text));
+        }
+        return await DocxSlotFiller.FillAsync(new MemoryStream(bytes), inputs, ct);
+    }
+
+    private async Task<byte[]> TemplateBytesAsync(Template template, CancellationToken ct)
+    {
+        await using var tpl = await storage.OpenAsync(template.FileKey, ct);
+        using var ms = new MemoryStream();
+        await tpl.CopyToAsync(ms, ct);
+        return ms.ToArray();
+    }
+
+    // ── 设备清单（按设备展开的模板）───────────────────────────
+
+    public async Task<EquipmentView> GetEquipmentAsync(Guid sessionId, CancellationToken ct = default)
+    {
+        var session = await MustFindAsync(sessionId, ct);
+        var template = await db.Templates.AsNoTracking().Include(t => t.Slots).FirstAsync(t => t.Id == session.TemplateId, ct);
+        if (!EquipmentBlocks.HasBlocks(template.Slots)) return new EquipmentView([], [], true);
+        var items = EquipmentBlocks.ParseItems(session.Equipment);
+        return new EquipmentView(await CatalogAsync(template, ct), items ?? [], items is not null);
+    }
+
+    public async Task<EquipmentView> SetEquipmentAsync(Guid sessionId, IReadOnlyList<EquipmentItem> items, CancellationToken ct = default)
+    {
+        var session = await MustFindAsync(sessionId, ct);
+        var template = await db.Templates.AsNoTracking().Include(t => t.Slots).FirstAsync(t => t.Id == session.TemplateId, ct);
+        if (!EquipmentBlocks.HasBlocks(template.Slots))
+            throw new DomainRuleException("NO_EQUIPMENT_BLOCKS", "这份模板不按设备展开，没有设备清单");
+        var catalog = await CatalogAsync(template, ct);
+        var normalized = EquipmentBlocks.Normalize(items, EquipmentBlocks.ParseItems(session.Equipment), catalog);
+        session.Equipment = EquipmentBlocks.Serialize(normalized);
+
+        // 槽位状态跟着清单走：删掉的设备连同已填值移除，新设备补空状态，
+        // 位号/设备名称/数量就是清单上写的，直接落值（清单是用户亲手定的，算确认）
+        var expanded = EquipmentBlocks.Expand(template.Slots.ToList(), normalized);
+        var valid = expanded.Select(s => s.Tag).ToHashSet();
+        var states = Parse(session.SlotValues);
+        states.RemoveAll(s => EquipmentBlocks.Parse(s.Tag) is not null && !valid.Contains(s.Tag));
+        var have = states.Select(s => s.Tag).ToHashSet();
+        states.AddRange(expanded.Where(d => !have.Contains(d.Tag))
+            .Select(d => new SlotState(d.Tag, null, null, false, false, null, null)));
+        foreach (var (tag, value) in EquipmentBlocks.IdentityValues(expanded, normalized))
+        {
+            var idx = states.FindIndex(s => s.Tag == tag);
+            states[idx] = states[idx] with
+            {
+                Value = value, Source = SlotFillSource.Confirmed, Confirmed = true, UserTouched = true,
+                Origin = "设备清单", UpdatedAt = DateTimeOffset.UtcNow
+            };
+        }
+        session.SlotValues = JsonSerializer.Serialize(states, SlotJson);
+        session.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
+        await Log("gen.set_equipment", session, new { items = normalized.Count }, ct);
+        return new EquipmentView(catalog, normalized, true);
+    }
+
+    private async Task<List<EquipmentCatalogEntry>> CatalogAsync(Template template, CancellationToken ct)
+        => EquipmentBlocks.Catalog(template.Slots.ToList(), EquipmentDocExpander.RowTexts(await TemplateBytesAsync(template, ct)));
+
+    private async Task<Template> SessionTemplateAsync(GenerationSession session, CancellationToken ct)
+    {
+        var template = await db.Templates.AsNoTracking().Include(t => t.Slots)
+            .FirstAsync(t => t.Id == session.TemplateId, ct);
+        return EquipmentBlocks.Apply(template, EquipmentBlocks.ParseItems(session.Equipment));
     }
 
     // ── 内部 ─────────────────────────────────────────────

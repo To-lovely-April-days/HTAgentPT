@@ -68,6 +68,9 @@ public class GenerationSession
     public string? OutputFileKey { get; set; }
     /// <summary>对话式填槽的会话状态（jsonb）：已跳过的槽位、上一轮在问的槽位。</summary>
     public string? ChatState { get; set; }
+    /// <summary>设备清单（jsonb）：按设备展开的模板（技术协议）选了哪些设备参数表与部件行。
+    /// null=还没定；"[]"=定了，一台都不要。</summary>
+    public string? Equipment { get; set; }
 }
 
 /// <summary>对话式生成的消息记录：填单对话与生成记录同存同溯（FR-5.17 的对话形态）。

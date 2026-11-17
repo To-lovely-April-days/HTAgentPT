@@ -45,9 +45,10 @@ public class DocumentService(
                 "该文档由业务模块自动维护（故障案例等），请在对应模块中修改内容");
     }
 
-    /// <summary>文档类别为这些取值时项目编号必填并须在台账中存在（表 4-5）。</summary>
+    /// <summary>文档类别为这些取值时项目编号必填并须在台账中存在（表 4-5）。
+    /// 技术协议按订单签，和合同一样挂项目——挂上了，生成时选基准项目才能把它的参数继承过来。</summary>
     private static readonly string[] ProjectLinkedCategories =
-        ["方案", "合同", "报价", "图纸", "交付报告", "故障记录"];
+        ["方案", "合同", "报价", "图纸", "交付报告", "故障记录", "技术协议"];
 
     public async Task<UploadResult> UploadAsync(UploadDocumentRequest req, Stream content, CancellationToken ct = default)
     {

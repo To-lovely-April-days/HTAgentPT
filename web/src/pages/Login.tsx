@@ -71,13 +71,10 @@ function Frame({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
       <div style={{ width: 380 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-          <div style={{ width: 30, height: 30, borderRadius: 5, background: 'var(--accent)', color: '#fff',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}>HT</div>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 600 }}>霍桐实验仪器 · 企业智能体</div>
-            <div className="hint">内部系统，账号由管理员开通</div>
-          </div>
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <img className="brand-logo" src="/htlab-logo.png" alt="HTLAB 企业智能协作平台"
+            style={{ width: 300, margin: '0 auto 10px' }} />
+          <div className="hint">内部系统，账号由管理员开通</div>
         </div>
         <div className="card" style={{ padding: '22px 24px 24px' }}>{children}</div>
       </div>

@@ -488,7 +488,7 @@ function SlotRow({ sessionId, v, onChanged }: { sessionId: string; v: SlotView; 
   };
 
   const src = state.source;
-  const choices = def.choices ? def.choices.split(/[|,，、]/).map((c) => c.trim()).filter(Boolean) : null;
+  const choices = parseChoices(def.choices);
   const long = def.dataType === 'LongText' || def.dataType === 'RepeatingRows';
 
   return (
@@ -523,7 +523,17 @@ function SlotRow({ sessionId, v, onChanged }: { sessionId: string; v: SlotView; 
       )}
       {editing && (
         <div>
-          {choices ? (
+          {choices && def.dataType === 'ChoiceOrText' ? (
+            // 可选可填（Word 组合框）：候选项下拉提示，也能直接输入候选项以外的值
+            <>
+              <input value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus list={`choices-${def.tag}`}
+                placeholder="选择或填写"
+                style={{ width: '100%', maxWidth: 420, height: 28, padding: '0 9px', border: '1px solid var(--line-strong)', borderRadius: 4, fontSize: 12.5, fontFamily: 'var(--font)' }} />
+              <datalist id={`choices-${def.tag}`}>
+                {choices.map((c) => <option key={c} value={c} />)}
+              </datalist>
+            </>
+          ) : choices ? (
             <select value={draft} onChange={(e) => setDraft(e.target.value)}
               style={{ height: 28, minWidth: 220, padding: '0 9px', border: '1px solid var(--line-strong)', borderRadius: 4, fontSize: 12.5, fontFamily: 'var(--font)' }}>
               <option value="">请选择</option>
@@ -757,4 +767,19 @@ function PreviewModal({ sessionId, outputFileName, onClose, onRendered }: {
       </div>
     </div>
   );
+}
+
+/** 候选项：服务端按 JSON 数组存（选项里本身可能带逗号，如「釜体固定，釜盖电动升降」）；
+ *  管理员手工录入的老数据是分隔符串，退回按分隔符切。 */
+function parseChoices(raw: string | null | undefined): string[] | null {
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      const list = parsed.map((c) => String(c).trim()).filter(Boolean);
+      return list.length > 0 ? list : null;
+    }
+  } catch { /* 非 JSON：按分隔符 */ }
+  const list = raw.split(/[|,，、]/).map((c) => c.trim()).filter(Boolean);
+  return list.length > 0 ? list : null;
 }

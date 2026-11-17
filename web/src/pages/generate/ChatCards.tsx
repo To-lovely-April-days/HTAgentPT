@@ -2,7 +2,7 @@
 // 共同的口径是信息分层——先给能一眼扫完的概览，细节点开再看，
 // 而不是把几十条内容一次性铺满屏幕。
 import React, { useMemo, useState } from 'react';
-import type { GenAdvice, GenChatPayload, GenSuggestion } from '../../lib/types';
+import type { GenAdvice, GenChatPayload, GenEquipmentCard, GenEquipmentItem, GenSuggestion } from '../../lib/types';
 
 /** 一条建议一行：名称 + 现值→建议值 + 状态，点开才展开理由/风险/出处。
     默认收起是有意的——工程师先扫一眼哪几项要动，再决定读哪条的为什么，
@@ -152,6 +152,103 @@ export function SummaryCard({ summary }: { summary: NonNullable<GenChatPayload['
         </div>
       ))}
       {sections.length === 0 && <div className="sum-row"><span className="hint">没有未填的项。</span></div>}
+    </div>
+  );
+}
+
+/** 设备卡（技术协议这类按设备展开的模板）：定装置里有哪些设备。
+ *  第三章每台设备一张参数表、第四章每类部件一行，都按这张清单展开；
+ *  参数表配套的第四章行由系统自动配，这里只列出来给人看，不让单独改。 */
+export function EquipmentCard({ data, active, onTurn }: {
+  data: GenEquipmentCard; active: boolean; onTurn: (b: Record<string, unknown>) => Promise<void>;
+}) {
+  const [items, setItems] = useState<GenEquipmentItem[]>(data.items);
+  const [pick, setPick] = useState('');
+  const [busy, setBusy] = useState(false);
+  const byBlock = useMemo(() => new Map(data.catalog.map((c) => [c.block, c])), [data.catalog]);
+  const main = items.filter((i) => !i.linkedTo);
+  const linked = items.filter((i) => i.linkedTo);
+  const tables = data.catalog.filter((c) => c.kind === 'table');
+  const parts = data.catalog.filter((c) => c.kind === 'part');
+
+  const update = (idx: number, patch: Partial<GenEquipmentItem>) =>
+    setItems((list) => list.map((it) => (it === main[idx] ? { ...it, ...patch } : it)));
+  const remove = (idx: number) => {
+    const target = main[idx];
+    // 删参数表连带删它配套的第四章行
+    setItems((list) => list.filter((it) => it !== target && !(target.id && it.linkedTo === target.id)));
+  };
+  const add = () => {
+    const c = byBlock.get(pick);
+    if (!c) return;
+    setItems((list) => [...list, { id: null, block: c.block, tagNo: c.tagPrefix, name: c.name, qty: 1, linkedTo: null }]);
+    setPick('');
+  };
+  const submit = async (list: GenEquipmentItem[]) => {
+    setBusy(true);
+    try { await onTurn({ equipment: list }); } finally { setBusy(false); }
+  };
+  const fi: React.CSSProperties = { height: 24, padding: '0 6px', border: '1px solid var(--line-strong)', borderRadius: 4, fontSize: 12, fontFamily: 'var(--font)' };
+
+  return (
+    <div className="advc" style={{ borderColor: 'var(--line-strong)' }}>
+      <div className="advc-head">
+        <span className="advc-cap">设备清单</span>
+        <span className="pill pill-neutral">{main.length} 项</span>
+        {!data.decided && <span className="pill pill-int">待确定</span>}
+        <span className="advc-note">第三章参数表、第四章部件清单按此逐台展开</span>
+      </div>
+      <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {main.length === 0 && <div className="hint">还没有设备。从下面的目录里添加，或在对话里直接说。</div>}
+        {main.map((it, idx) => (
+          <div key={it.id ?? `new-${idx}`} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span className={`pill ${byBlock.get(it.block)?.kind === 'table' ? 'pill-int' : 'pill-neutral'}`}
+              style={{ minWidth: 92, justifyContent: 'center' }}>{byBlock.get(it.block)?.name ?? it.block}</span>
+            {active ? (
+              <>
+                <input style={{ ...fi, width: 96 }} placeholder="位号" value={it.tagNo ?? ''}
+                  onChange={(e) => update(idx, { tagNo: e.target.value || null })} />
+                <input style={{ ...fi, width: 150 }} placeholder="名称" value={it.name ?? ''}
+                  onChange={(e) => update(idx, { name: e.target.value || null })} />
+                <input style={{ ...fi, width: 52 }} type="number" min={1} value={it.qty}
+                  onChange={(e) => update(idx, { qty: Math.max(1, Number(e.target.value) || 1) })} />
+                <button className="gbtn" style={{ height: 24, fontSize: 11.5 }} onClick={() => remove(idx)}>删除</button>
+              </>
+            ) : (
+              <span style={{ fontSize: 12.5 }}>{[it.tagNo, it.name].filter(Boolean).join(' ')}{it.qty > 1 ? ` ×${it.qty}` : ''}</span>
+            )}
+          </div>
+        ))}
+        {linked.length > 0 && (
+          <div className="hint">
+            第四章已自动配：{linked.map((l) => `${byBlock.get(l.block)?.title ?? l.block}${l.tagNo ? `（${l.tagNo}）` : ''}`).join('、')}
+          </div>
+        )}
+        {active && (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 2 }}>
+            <select style={{ ...fi, minWidth: 220 }} value={pick} onChange={(e) => setPick(e.target.value)}>
+              <option value="">添加设备…</option>
+              <optgroup label="第三章 设备参数表">
+                {tables.map((c) => <option key={c.block} value={c.block}>{c.title}</option>)}
+              </optgroup>
+              <optgroup label="第四章 部件清单">
+                {parts.map((c) => <option key={c.block} value={c.block}>{c.title}</option>)}
+              </optgroup>
+            </select>
+            <button className="gbtn" style={{ height: 24, fontSize: 11.5 }} disabled={!pick} onClick={add}>添加</button>
+          </div>
+        )}
+      </div>
+      {active && (
+        <div className="advc-foot">
+          <button className="pbtn" style={{ height: 24, fontSize: 11.5 }} disabled={busy}
+            onClick={() => void submit(items)}>确认设备清单</button>
+          {!data.decided && main.length === 0 && (
+            <button className="gbtn" style={{ height: 24, fontSize: 11.5 }} disabled={busy}
+              onClick={() => void submit([])}>不选设备</button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -832,6 +832,10 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by_id");
 
+                    b.Property<string>("Equipment")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("equipment");
+
                     b.Property<string>("OutputFileKey")
                         .HasColumnType("text")
                         .HasColumnName("output_file_key");

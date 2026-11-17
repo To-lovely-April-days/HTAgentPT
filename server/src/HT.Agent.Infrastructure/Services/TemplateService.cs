@@ -21,17 +21,24 @@ public class TemplateService(
         if (!await vocab.IsValidAsync(VocabKeys.DocCategory, docType, ct))
             throw new DomainRuleException("TEMPLATE_DOCTYPE", $"文档类别「{docType}」不在受控词表中");
 
-        using var buffer = new MemoryStream();
-        await file.CopyToAsync(buffer, ct);
-        buffer.Position = 0;
+        using var raw = new MemoryStream();
+        await file.CopyToAsync(raw, ct);
+        raw.Position = 0;
         TemplateSlotExtractor.ExtractResult extracted;
-        try { extracted = TemplateSlotExtractor.Extract(buffer); }
+        TemplateNormalizer.Result normalized;
+        try
+        {
+            // 没设 Tag 的控件先按上下文补上 Tag 与标题，存下来的是补好的那份——回填、预览都用它
+            normalized = TemplateNormalizer.Normalize(raw);
+            extracted = TemplateSlotExtractor.Extract(new MemoryStream(normalized.Output));
+        }
         catch (Exception ex) when (ex is InvalidDataException or DocumentFormat.OpenXml.Packaging.OpenXmlPackageException or System.IO.FileFormatException)
         {
             throw new DomainRuleException("TEMPLATE_BAD_FILE", $"模板文件无法解析：{ex.Message}");
         }
-        buffer.Position = 0;
+        using var buffer = new MemoryStream(normalized.Output);
         var fileKey = await storage.SaveAsync(buffer, fileName, ct);
+        var warnings = normalized.Notes.Concat(extracted.Warnings).ToList();
 
         var template = new Template
         {
@@ -56,7 +63,7 @@ public class TemplateService(
                 DataType = s.DataType,
                 Unit = s.Unit,          // 模板里控件后面跟的单位文字（ml / MPa / ℃…）
                 Choices = s.Choices,
-                Required = true,
+                Required = s.Required, // 模板里已写好默认内容的控件不强制必填
                 Stage = SlotStage.Current,
                 ForbidInherit = s.ForbidInherit, // FR-5.7 默认清单命中的先勾上
                 Prompt = s.Prompt,     // 占位文字自动抽取为提问话术初值（FR-5.3）
@@ -65,8 +72,8 @@ public class TemplateService(
             });
         db.Templates.Add(template);
         await db.SaveChangesAsync(ct);
-        await Log("template.upload", template.Id, new { name, docType, slots = extracted.Slots.Count, warnings = extracted.Warnings.Count }, ct);
-        return new TemplateUploadResult(template.Id, extracted.Slots.Count, extracted.Warnings);
+        await Log("template.upload", template.Id, new { name, docType, slots = extracted.Slots.Count, autoTagged = normalized.Tagged, warnings = warnings.Count }, ct);
+        return new TemplateUploadResult(template.Id, extracted.Slots.Count, warnings);
     }
 
     public async Task<IReadOnlyList<TemplateRow>> ListAsync(bool includeDisabled, CancellationToken ct = default)

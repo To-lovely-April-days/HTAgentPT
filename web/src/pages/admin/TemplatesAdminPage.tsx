@@ -6,7 +6,7 @@ import React, { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { get, post, put, upload, ApiError } from '../../lib/api';
 
-import type { ClauseRow, SlotDef, TemplateRowT } from '../../lib/types';
+import type { ClauseRow, SlotDef, TemplateRowT, VocabRow } from '../../lib/types';
 import { ErrorBox, InfoBox, Spinner } from '../../components/Common';
 
 interface TemplateDetail { id: string; name: string; docType: string; isEnabled: boolean; slots: SlotDef[]; }
@@ -42,6 +42,9 @@ function TemplatesTab({ onEditSlots }: { onEditSlots: (id: string) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState('');
   const [docType, setDocType] = useState('方案');
+  // 文档类别取受控词表（服务端按词表校验）；词表还没取回时退回常用几项
+  const categories = useQuery({ queryKey: ['vocab', 'doc_category'], queryFn: () => get<VocabRow[]>('/api/vocab/doc_category'), staleTime: 60_000 });
+  const docTypes = categories.data?.filter((v) => v.isActive).map((v) => v.value) ?? ['方案', '报价', '合同', '技术协议'];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadResult, setUploadResult] = useState<{ slotsExtracted: number; warnings: string[] } | null>(null);
@@ -88,7 +91,7 @@ function TemplatesTab({ onEditSlots }: { onEditSlots: (id: string) => void }) {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14 }}>
           <input style={{ ...fi, width: 200 }} placeholder="模板名称（默认取文件名）" value={name} onChange={(e) => setName(e.target.value)} />
           <select style={fi} value={docType} onChange={(e) => setDocType(e.target.value)}>
-            {['方案', '投标', '报价', '合同'].map((t) => <option key={t}>{t}</option>)}
+            {docTypes.map((t) => <option key={t}>{t}</option>)}
           </select>
           <input ref={fileRef} type="file" accept=".docx" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void doUpload(f); e.target.value = ''; }} />
           <button className="pbtn" style={{ height: 28, padding: '0 13px' }} disabled={busy} onClick={() => fileRef.current?.click()}>
@@ -142,7 +145,7 @@ function TemplatesTab({ onEditSlots }: { onEditSlots: (id: string) => void }) {
 // ─── E13 ───────────────────────────────────────────────
 const DATA_TYPES: [string, string][] = [
   ['Text', '文本'], ['Number', '数值'], ['SingleChoice', '单选'], ['MultiChoice', '多选'],
-  ['Date', '日期'], ['LongText', '长段落'], ['RepeatingRows', '重复行'],
+  ['Date', '日期'], ['LongText', '长段落'], ['RepeatingRows', '重复行'], ['ChoiceOrText', '可选可填'],
 ];
 
 function SlotsTab({ templateId, onPick }: { templateId: string | null; onPick: (id: string) => void }) {

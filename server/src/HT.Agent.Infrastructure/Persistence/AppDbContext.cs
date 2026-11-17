@@ -208,6 +208,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
         {
             e.Property(x => x.SlotValues).HasColumnType("jsonb");
             e.Property(x => x.ChatState).HasColumnType("jsonb");
+            e.Property(x => x.Equipment).HasColumnType("jsonb");
         });
 
         b.Entity<GenChatMessage>(e =>
