@@ -10,6 +10,15 @@ public interface IChatModelClient
 
 public record ChatTurn(string Role, string Content);
 
+/// <summary>看图客户端：OpenAI 兼容的图片输入（image_url，data URL）。模型不收图时抛 VisionUnavailableException。</summary>
+public interface IVisionClient
+{
+    Task<string> DescribeAsync(byte[] image, string contentType, string instruction, CancellationToken ct = default);
+}
+
+/// <summary>看图走不通（模型不收图、接口不在）。调用方据此停掉这一批，不让解析失败。</summary>
+public class VisionUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
+
 /// <summary>向量化模型客户端（表 8-2：批量向量化，批大小可配置）。
 /// 向量与模型标签在同一次调用内返回：标签在调用开始时定格，避免配置切换瞬间
 /// 产生打错标签的向量——标签是 FR-2.2 向量可复用性判定的依据，错标比缺标更糟。</summary>

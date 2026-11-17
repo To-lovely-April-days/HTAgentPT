@@ -6,9 +6,11 @@
 // （问答走 SSE，方案生成走生成会话的回合端点），assistant-ui 负责消息流、
 // 自动滚动、输入框与运行态。领域结果卡按消息 id 从我们自己的表里取，
 // 不经它的 part 体系——那样两边都不别扭。
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   AssistantRuntimeProvider, ComposerPrimitive, MessagePrimitive,
   ThreadPrimitive, useAuiState, useExternalStoreRuntime,
@@ -17,9 +19,13 @@ import { ApiError, download, get, post, sse } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { Perm, unwrapLedgerTable } from '../../lib/types';
 import type {
-  CaseDetailData, CaseRow, GenChatPayload, GenChatTurnResult, LedgerTable, QaSessionRow,
-  QaTemplateRec, QaTimeline, SessionView, Source, TextTranslationResult, TicketRow,
+  CaseDetailData, CaseRow, ChatAttachment, GenChatPayload, GenChatTurnResult, KbRow, LedgerTable, QaSessionRow, VocabRow,
+  QaTemplateRec, QaTimeline, SessionRowT, SessionView, Source, TextTranslationResult, TicketRow,
 } from '../../lib/types';
+import { SideSlotCtx } from '../../Shell';
+import { BrandMark, Icon } from '../../components/Icons';
+import { ATTACH_ACCEPT, formatSize, useAttachments } from './useAttachments';
+import type { PendingFile } from './useAttachments';
 import { Prose } from '../../components/Prose';
 import { ErrorBox, Spinner } from '../../components/Common';
 import { AdviceCard, EquipmentCard, EvidenceCard, SummaryCard } from '../generate/ChatCards';
@@ -44,6 +50,7 @@ interface Msg {
   tickets?: { rows: TicketRow[]; status: string | null; note: string };
   templates?: QaTemplateRec[] | null;
   gen?: GenChatPayload;          // 方案生成的一轮
+  files?: string[];              // 用户这句话带的文件（只显示文件名）
   genSessionId?: string;
 }
 
@@ -72,6 +79,24 @@ export default function ChatPage() {
   const [focusSource, setFocusSource] = useState<number | null>(null);
   const [showPreview, setShowPreview] = useState(true);
   const [revision, setRevision] = useState(0);
+  // 首页输入框上的处理方式：自动判断，或指定查资料/查项目/出文档（走服务端的 forcedIntent）
+  const [mode, setMode] = useState<Mode>('auto');
+  // 资料范围：全部 / 某个知识库 / 某一类文档。对一条对话一直生效，随检索条件下发（服务端检索本来就支持）
+  const [scope, setScope] = useState<Scope>(ALL_SCOPE);
+  const canScope = has(Perm.QaInternal);
+  // 输入框里传文件：附件按内部资料处理，要内部问答权限；填文档时不收（那条路不读附件）
+  const canAttach = has(Perm.QaInternal);
+  const att = useAttachments();
+  // 库清单与词表只对内部员工开放，越权请求会进审计——没这个权限就别去要
+  const kbs = useQuery({ queryKey: ['kbs'], enabled: canScope, staleTime: 300_000, queryFn: () => get<KbRow[]>('/api/kbs') });
+  const cats = useQuery({ queryKey: ['vocab', 'doc_category'], enabled: canScope, staleTime: 300_000,
+    queryFn: () => get<VocabRow[]>('/api/vocab/doc_category') });
+  const scopeOptions = useMemo<ScopeOptions>(() => ({
+    kbs: (kbs.data ?? []).filter((k) => k.isActive).map((k) => ({ id: k.id, name: k.name })),
+    cats: (cats.data ?? []).filter((c) => c.isActive).map((c) => c.value),
+  }), [kbs.data, cats.data]);
+  const sideSlot = useContext(SideSlotCtx);
+  const location = useLocation();
   const seq = useRef(0);
   const nav = useNavigate();
   const qc = useQueryClient();
@@ -87,14 +112,15 @@ export default function ChatPage() {
       : m)));
 
   // ── 问答一轮（SSE）：意图由服务端判，结果就地长出来 ──────────
-  const askQa = useCallback(async (question: string, forcedIntent?: string) => {
+  const askQa = useCallback(async (question: string, forcedIntent?: string, attachmentIds?: string[]) => {
     const id = newId();
     push({ id, role: 'assistant', text: '', streaming: true });
     try {
       let answer = '';
       for await (const ev of sse('/api/chat/completions', {
         sessionId: qaSessionId, question, forcedIntent: forcedIntent ?? null,
-        filters: { query: question },
+        attachmentIds: attachmentIds && attachmentIds.length > 0 ? attachmentIds : null,
+        filters: { query: question, kbIds: scope.kbId ? [scope.kbId] : null, docCategory: scope.docCategory },
       })) {
         const p = ev.payload as Record<string, unknown>;
         switch (ev.kind) {
@@ -156,7 +182,7 @@ export default function ChatPage() {
     } catch (err) {
       patch(id, { streaming: false, error: err instanceof ApiError ? err.message : '连接中断，本轮未完成' });
     }
-  }, [qaSessionId]);
+  }, [qaSessionId, scope]);
 
   // ── 方案生成的一轮：会话已开时，这条对话就由它接着走 ──────────
   const runGenTurn = useCallback(async (sessionId: string, body: Record<string, unknown>) => {
@@ -177,13 +203,21 @@ export default function ChatPage() {
   const send = useCallback(async (text: string) => {
     if (!text.trim() || busy) return;
     setBusy(true);
-    push({ id: newId(), role: 'user', text });
+    const withFiles = canAttach && !genSessionId && att.files.some((f) => f.state !== 'error');
+    push({ id: newId(), role: 'user', text,
+      files: withFiles ? att.files.filter((f) => f.state !== 'error').map((f) => f.name) : undefined });
     try {
       if (genSessionId) await runGenTurn(genSessionId, { message: text });
-      else await askQa(text);
+      else {
+        // 文件还在解析就等它出结果再问——不然这一问拿不到文件内容
+        const { ids } = withFiles ? await att.take() : { ids: [] as string[] };
+        await askQa(text, mode === 'auto' ? undefined : mode, ids);
+      }
+      setMode('auto');
       void qc.invalidateQueries({ queryKey: ['qa-sessions'] });
+      void qc.invalidateQueries({ queryKey: ['chat-files'] });
     } finally { setBusy(false); }
-  }, [busy, genSessionId, askQa, runGenTurn, qc]);
+  }, [busy, genSessionId, askQa, runGenTurn, qc, mode, canAttach, att]);
 
   // 选中模板：就地建会话并开场，此后这条对话交给它
   const pickTemplate = useCallback(async (t: QaTemplateRec) => {
@@ -241,8 +275,19 @@ export default function ChatPage() {
 
   const newChat = useCallback(() => {
     if (busy) return;
-    setMsgs([]); setQaSessionId(null); setGenSessionId(null); setGenTitle(null); setFocusSource(null);
-  }, [busy]);
+    setMsgs([]); setQaSessionId(null); setGenSessionId(null); setGenTitle(null); setFocusSource(null); setMode('auto');
+    att.clear();
+  }, [busy, att]);
+
+  // 这条对话里传过的文件（随对话保存），显示在底部输入框上方
+  const sessionFiles = useQuery({
+    queryKey: ['chat-files', qaSessionId], enabled: canAttach && !!qaSessionId,
+    queryFn: () => get<ChatAttachment[]>(`/api/chat/attachments?sessionId=${qaSessionId}`),
+  });
+
+  // 侧栏的「新建对话」：外框经路由 state 递一个时间戳过来，这里收到就清空回首页
+  const fresh = (location.state as { fresh?: number } | null)?.fresh;
+  useEffect(() => { if (fresh) newChat(); }, [fresh]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const byId = useMemo(() => new Map(msgs.map((m) => [m.id, m])), [msgs]);
 
@@ -269,49 +314,61 @@ export default function ChatPage() {
     <AssistantRuntimeProvider runtime={runtime}>
       <MsgCtx.Provider value={ctx}>
         <div className="chat-shell">
-        <aside className="chat-side sc">
-          <button className="gbtn chat-new" disabled={busy} onClick={newChat}>＋ 新对话</button>
-          <div className="grp">最近</div>
-          {sessions.data?.length === 0 && <div className="hint" style={{ padding: '0 10px' }}>还没有对话记录。</div>}
-          {sessions.data?.map((x) => (
-            <button key={x.id} className={'item' + (x.id === qaSessionId ? ' on' : '')}
-              disabled={busy} title={x.title} onClick={() => void openSession(x.id)}>
-              <div style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.title}</div>
-              <div className="hint" style={{ fontSize: 10.5 }}>{x.updatedAt.slice(0, 10)}</div>
-            </button>
-          ))}
-        </aside>
+        {/* 最近的对话放进外框侧栏（导航下面），状态仍在这一页 */}
+        {sideSlot && createPortal(
+          <>
+            <div className="side-grp">最近</div>
+            {sessions.data?.length === 0 && <div className="hint" style={{ padding: '0 14px' }}>还没有对话记录。</div>}
+            {sessions.data?.map((x) => (
+              <button key={x.id} className={'side-hist' + (x.id === qaSessionId ? ' on' : '')}
+                disabled={busy} title={`${x.title}（${x.updatedAt.slice(0, 10)}）`} onClick={() => void openSession(x.id)}>
+                {x.title}
+              </button>
+            ))}
+          </>, sideSlot)}
 
         <div className="chat-page">
           {genSessionId && (
             <div className="chat-mode">
-              <span className="pill pill-accent">正在填《{genTitle}》</span>
-              <span className="hint">这条对话里说的都算这份文档的内容；问知识、要建议也照常。</span>
+              <span className="chat-mode-t">{genTitle}</span>
+              <span className="pill pill-brand" title="这条对话里说的都算这份文档的内容；问知识、要建议也照常">正在填写</span>
               <div style={{ flexGrow: 1 }} />
-              <button className="gbtn" style={{ height: 22, fontSize: 11, padding: '0 9px' }}
-                onClick={() => setShowPreview(!showPreview)}>{showPreview ? '收起预览' : '看预览'}</button>
-              <button className="gbtn" style={{ height: 22, fontSize: 11, padding: '0 9px' }}
-                onClick={() => nav(`/generate?session=${genSessionId}`)}>逐项核对</button>
-              <button className="gbtn" style={{ height: 22, fontSize: 11, padding: '0 9px' }}
-                onClick={() => { setGenSessionId(null); setGenTitle(null); }}>结束这份文档</button>
+              <button className="gbtn" onClick={() => setShowPreview(!showPreview)}>{showPreview ? '收起预览' : '看预览'}</button>
+              <button className="gbtn" onClick={() => nav(`/generate?session=${genSessionId}`)}>逐项核对</button>
+              <button className="gbtn" onClick={() => { setGenSessionId(null); setGenTitle(null); }}>结束这份文档</button>
             </div>
           )}
 
           <ThreadPrimitive.Root className="chat-root">
             <ThreadPrimitive.Viewport className="chat-view sc" autoScroll>
               <ThreadPrimitive.Empty>
-                <Welcome has={has} onPick={(q) => void send(q)} />
+                <Welcome has={has} name={profile?.displayName ?? ''} mode={mode} onMode={setMode}
+                  attach={canAttach ? { files: att.files, onAdd: att.add, onRemove: att.remove } : undefined}
+                  scopePicker={canScope ? <ScopePicker value={scope} options={scopeOptions} onChange={setScope} /> : null}
+                  onPick={(q) => void send(q)} onOpenDoc={(id) => nav(`/generate?session=${id}`)} />
               </ThreadPrimitive.Empty>
               <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
-              {busy && <div style={{ padding: '4px 0 10px' }}><Spinner text="处理中…" /></div>}
+              {busy && <div style={{ padding: '4px 0 10px 42px' }}><Spinner text="处理中…" /></div>}
             </ThreadPrimitive.Viewport>
 
-            <ComposerPrimitive.Root className="chat-composer">
-              <ComposerPrimitive.Input
-                className="chat-input" rows={1} autoFocus
-                placeholder={genSessionId ? '接着说这份文档的内容，或问我别的' : '直接说你要做什么——问参数、查历史项目、要英文版、看故障案例、出一份任务单'} />
-              <ComposerPrimitive.Send className="pbtn" style={{ height: 36, padding: '0 16px' }}>发送</ComposerPrimitive.Send>
-            </ComposerPrimitive.Root>
+            {msgs.length > 0 && (
+              <div className="chat-composer">
+                {!genSessionId && (sessionFiles.data?.length ?? 0) > 0 && (
+                  <div className="sess-files" aria-label="本对话的文件">
+                    <span className="hint">本对话的文件</span>
+                    {sessionFiles.data!.map((f) => (
+                      <span key={f.id} className="sess-file" title={f.status === 'Failed' ? f.error ?? '解析失败' : `${f.fileName} · ${formatSize(f.size)}`}>
+                        <Icon name="file" size={13} />{f.fileName}{f.status === 'Failed' && <b>（没读出来）</b>}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <Composer placeholder={genSessionId ? '接着说这份文档的内容，或问我别的' : '接着问，或说下一件要做的事'}
+                  attach={canAttach && !genSessionId ? { files: att.files, onAdd: att.add, onRemove: att.remove } : undefined}>
+                  {canScope && !genSessionId && <ScopePicker value={scope} options={scopeOptions} onChange={setScope} />}
+                </Composer>
+              </div>
+            )}
           </ThreadPrimitive.Root>
         </div>
 
@@ -325,66 +382,224 @@ export default function ChatPage() {
   );
 }
 
-/** 空态。原来是五个宽窄不一的按钮竖着堆在左上角，像一列待办，
-    而且只给例句、没说清系统到底能干什么——新人看不出还能查工单、能出文档。
-    改成等宽的能力卡：每张写清这件事是什么、能到什么程度，底下挂一句可以直接点的例子。 */
-function Welcome({ has, onPick }: { has: (p: string) => boolean; onPick: (q: string) => void }) {
-  const cards: { perm: string | string[]; title: string; desc: string; sample: string }[] = [
-    {
-      perm: [Perm.QaInternal, Perm.QaPublic], title: '查资料',
-      desc: '参数、规程、原理。答案逐句标来源，点角标能看到是哪份文档第几页。',
-      sample: 'CJF-5L 磁力耦合轴承的复装力矩是多少',
-    },
-    {
-      perm: Perm.ProjectSearch, title: '查历史项目',
-      desc: '某个客户做过哪些设备、哪年做的、什么型号。只命中一条就直接摊开项目档案。',
-      sample: '华东理工近三年做过哪些反应釜',
-    },
-    {
-      perm: Perm.CaseRead, title: '看故障案例',
-      desc: '按报警代码或现象找处理办法，给出现象、原因判断与处理步骤。',
-      sample: 'CJF-5L 显示 E12 报警怎么处理',
-    },
-    {
-      perm: Perm.TicketHandle, title: '看报修工单',
-      desc: '哪几单待处理、某一单办到哪了，带流转记录。',
-      sample: '待处理的工单有哪些',
-    },
-    {
-      perm: Perm.Translate, title: '要英文版',
-      desc: '整段文字或上一条回答，术语按已审定术语表统一，默认给中英对照。',
-      sample: '把这段翻译成英文：本设备采用磁力耦合密封，最高工作压力 10MPa',
-    },
-    {
-      perm: Perm.Generate, title: '出一份文档',
-      desc: '生产任务单、技术协议等，挑个模板就在这条对话里逐项填完，能按工况给选型建议，填好直接下载。',
-      sample: '帮我出一份 C 类生产任务单',
-    },
-  ].filter((c) => (Array.isArray(c.perm) ? c.perm.some(has) : has(c.perm)));
+type Mode = 'auto' | 'knowledge' | 'ledger' | 'generate';
+
+/** 资料范围：二选一——限定一个知识库，或限定一类文档；都空就是全部。 */
+interface Scope { kbId: string | null; docCategory: string | null }
+interface ScopeOptions { kbs: { id: string; name: string }[]; cats: string[] }
+const ALL_SCOPE: Scope = { kbId: null, docCategory: null };
+
+/** 资料范围下拉：原生 select（键盘、读屏都现成），外观做成输入框里的一枚小按钮。 */
+function ScopePicker({ value, options, onChange }: { value: Scope; options: ScopeOptions; onChange: (s: Scope) => void }) {
+  const current = value.kbId ? `kb:${value.kbId}` : value.docCategory ? `cat:${value.docCategory}` : 'all';
+  const narrowed = current !== 'all';
+  return (
+    <label className={'scope' + (narrowed ? ' on' : '')} title="只在选定的资料里找答案">
+      <span className="scope-cap">资料范围</span>
+      <select className="scope-sel" value={current} aria-label="资料范围"
+        onChange={(e) => {
+          const v = e.target.value;
+          onChange(v.startsWith('kb:') ? { kbId: v.slice(3), docCategory: null }
+            : v.startsWith('cat:') ? { kbId: null, docCategory: v.slice(4) } : ALL_SCOPE);
+        }}>
+        <option value="all">全部资料</option>
+        {options.kbs.length > 0 && (
+          <optgroup label="知识库">
+            {options.kbs.map((k) => <option key={k.id} value={`kb:${k.id}`}>{k.name}</option>)}
+          </optgroup>
+        )}
+        {options.cats.length > 0 && (
+          <optgroup label="文档类别">
+            {options.cats.map((c) => <option key={c} value={`cat:${c}`}>{c}</option>)}
+          </optgroup>
+        )}
+      </select>
+    </label>
+  );
+}
+
+const MODES: { key: Mode; label: string; perm: string[] }[] = [
+  { key: 'auto', label: '自动判断', perm: [] },
+  { key: 'knowledge', label: '查资料', perm: [Perm.QaInternal, Perm.QaPublic] },
+  { key: 'ledger', label: '查项目', perm: [Perm.ProjectSearch] },
+  { key: 'generate', label: '出文档', perm: [Perm.Generate] },
+];
+
+interface AttachProps { files: PendingFile[]; onAdd: (f: FileList | File[]) => void; onRemove: (key: string) => void }
+
+/** 输入框：首页是居中的大框（输入在上、处理方式与发送在下），对话中是底部的一行。
+    能传文件时左边有回形针，也可以把文件直接拖到框上；传上来的文件以小卡片排在输入上方。 */
+function Composer({ placeholder, big, attach, children }: {
+  placeholder: string; big?: boolean; attach?: AttachProps; children?: ReactNode;
+}) {
+  const pick = useRef<HTMLInputElement>(null);
+  const [drag, setDrag] = useState(false);
+  const send = (
+    <ComposerPrimitive.Send className="composer-send" aria-label="发送">
+      <Icon name="up" size={18} stroke={2.2} />
+    </ComposerPrimitive.Send>
+  );
+  const clip = attach && (
+    <>
+      <button type="button" className="composer-clip" aria-label="添加文件" title="添加文件（Word、Excel、PowerPoint、PDF，单个不超过 20MB，一次最多 5 个）"
+        onClick={() => pick.current?.click()}>
+        <Icon name="clip" size={18} />
+      </button>
+      <input ref={pick} type="file" multiple accept={ATTACH_ACCEPT} hidden
+        onChange={(e) => { if (e.target.files?.length) attach.onAdd(e.target.files); e.target.value = ''; }} />
+    </>
+  );
+  const input = (
+    <ComposerPrimitive.Input className="composer-input" rows={big ? 3 : 1} autoFocus
+      aria-label="输入你的问题或任务" placeholder={placeholder} />
+  );
+  return (
+    <ComposerPrimitive.Root className={'composer' + (drag ? ' drag' : '')}
+      onDragOver={attach ? (e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDrag(true); } } : undefined}
+      onDragLeave={attach ? () => setDrag(false) : undefined}
+      onDrop={attach ? (e) => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files.length) attach.onAdd(e.dataTransfer.files); } : undefined}>
+      {attach && attach.files.length > 0 && (
+        <div className="att-list">
+          {attach.files.map((f) => (
+            <div key={f.key} className={'att att-' + f.state} title={f.note ?? f.name}>
+              <Icon name="file" size={16} />
+              <span className="att-txt">
+                <span className="att-n">{f.name}</span>
+                <span className="att-s">
+                  {f.state === 'uploading' ? '上传中…' : f.state === 'parsing' ? (f.note ?? '解析中…')
+                    : f.state === 'error' ? (f.note ?? '失败') : `${formatSize(f.size)} · ${f.note ?? '已读取'}`}
+                </span>
+              </span>
+              <button type="button" className="att-x" aria-label={`移除 ${f.name}`} onClick={() => attach.onRemove(f.key)}>
+                <Icon name="x" size={13} stroke={2.2} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {big ? (
+        <>
+          {input}
+          <div className="composer-bar">{clip}{children}{send}</div>
+        </>
+      ) : (
+        <div className="composer-line">{clip}{input}{children}{send}</div>
+      )}
+      {drag && <div className="composer-drop">松开即可添加文件</div>}
+    </ComposerPrimitive.Root>
+  );
+}
+
+function greet(): string {
+  const h = new Date().getHours();
+  return h < 5 ? '夜深了' : h < 11 ? '早上好' : h < 13 ? '中午好' : h < 18 ? '下午好' : '晚上好';
+}
+
+function ago(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '';
+  const min = Math.round((Date.now() - t) / 60000);
+  if (min < 1) return '刚刚';
+  if (min < 60) return `${min} 分钟前`;
+  if (min < 24 * 60) return `${Math.round(min / 60)} 小时前`;
+  if (min < 48 * 60) return '昨天';
+  return iso.slice(5, 10).replace('-', '/');
+}
+
+/** 首页（对话还没开始时）：问候、居中的大输入框、按权限给的示例、接着上次没填完的文档。
+    不摆功能入口——说一句话就行，示例只是让人知道还能这样问。 */
+function Welcome({ has, name, mode, onMode, scopePicker, attach, onPick, onOpenDoc }: {
+  has: (p: string) => boolean; name: string; mode: Mode; onMode: (m: Mode) => void; scopePicker: ReactNode;
+  attach?: AttachProps;
+  onPick: (q: string) => void; onOpenDoc: (sessionId: string) => void;
+}) {
+  const samples: { perm: string[]; tag: string; text: string }[] = [
+    { perm: [Perm.QaInternal, Perm.QaPublic], tag: '查资料', text: 'CJF-5L 磁力耦合轴承的复装力矩是多少' },
+    { perm: [Perm.ProjectSearch], tag: '查项目', text: '华东理工近三年做过哪些反应釜' },
+    { perm: [Perm.CaseRead], tag: '看案例', text: 'CJF-5L 显示 E12 报警怎么处理' },
+    { perm: [Perm.TicketHandle], tag: '看工单', text: '待处理的工单有哪些' },
+    { perm: [Perm.Translate], tag: '要英文', text: '把这段翻译成英文：本设备采用磁力耦合密封，最高工作压力 10MPa' },
+    { perm: [Perm.Generate], tag: '出文档', text: '帮我出一份技术协议' },
+  ];
+  const shown = samples.filter((c) => c.perm.some(has));
+  const modes = MODES.filter((m) => m.perm.length === 0 || m.perm.some(has));
+  const docs = useQuery({
+    queryKey: ['gen-sessions'], enabled: has(Perm.Generate),
+    queryFn: () => get<SessionRowT[]>('/api/generate/sessions'),
+  });
+  const recent = (docs.data ?? []).slice(0, 3);
 
   return (
-    <div className="chat-empty">
-      <div className="welcome-hd">
-        <img className="brand-logo welcome-logo" src="/htlab-logo.png" alt="HTLAB 企业智能协作平台" />
-        <div className="welcome-t">说一句话就行</div>
-        <div className="welcome-s">不用先选功能，直接说你要做什么。下面是这个账号能做的事，点例子就能试。</div>
+    <div className="home">
+      <div>
+        <h1 className="home-hi">{greet()}{name ? `，${name}` : ''}</h1>
+        <p className="home-sub">查资料、翻历史项目、出技术协议——直接说要做什么，不用先选功能。</p>
       </div>
-      <div className="welcome-grid">
-        {cards.map((c) => (
-          <button key={c.title} type="button" className="welcome-card" onClick={() => onPick(c.sample)}>
-            <span className="welcome-card-t">{c.title}</span>
-            <span className="welcome-card-d">{c.desc}</span>
-            <span className="welcome-card-s">「{c.sample}」</span>
-          </button>
-        ))}
-      </div>
+
+      <Composer big attach={attach}
+        placeholder={attach ? '直接说要做什么，也可以把客户的需求文件拖进来问' : '例如：给华东理工出一份尼龙66合成装置的技术协议，两台带搅拌反应釜 R-101、R-102'}>
+        {modes.length > 1 && (
+          <div className="seg" role="group" aria-label="处理方式">
+            {modes.map((m) => (
+              <button key={m.key} type="button" className={'seg-b' + (mode === m.key ? ' on' : '')}
+                aria-pressed={mode === m.key} onClick={() => onMode(m.key)}>{m.label}</button>
+            ))}
+          </div>
+        )}
+        {scopePicker}
+      </Composer>
+
+      {shown.length > 0 && (
+        <div className="home-chips">
+          {shown.map((c) => (
+            <button key={c.tag} type="button" className="home-chip" onClick={() => onPick(c.text)}>
+              <b>{c.tag}</b>{c.text}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {recent.length > 0 && (
+        <section className="home-sec" aria-labelledby="home-docs">
+          <div className="home-sec-hd">
+            <h2 id="home-docs" className="home-sec-t">接着上次的工作</h2>
+          </div>
+          <div className="home-grid">
+            {recent.map((d) => {
+              const pct = d.total > 0 ? Math.round((d.done / d.total) * 100) : 0;
+              const finished = d.status === 'Completed';
+              return (
+                <button key={d.id} type="button" className="home-card" onClick={() => onOpenDoc(d.id)}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                    <span className={'pill ' + (finished ? 'pill-neutral' : 'pill-brand')}>{finished ? '已生成' : '填写中'}</span>
+                    <span className="hint" style={{ marginLeft: 'auto' }}>{ago(d.updatedAt)}</span>
+                  </span>
+                  <span className="home-card-t">{d.templateName}</span>
+                  <span className="home-card-m">{finished ? '已生成 · 待复核' : `已填 ${d.done} / ${d.total} 项`}</span>
+                  <span className="home-bar" style={{ width: '100%' }} aria-hidden="true"><i style={{ width: `${finished ? 100 : pct}%` }} /></span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <p className="home-foot">回答逐句标注来源 · 生成的文件带「待复核」标记，人工确认后再对外使用</p>
     </div>
   );
 }
 
 function UserMessage() {
+  const id = useAuiState((s) => s.message.id);
+  const { byId } = useContext(MsgCtx);
+  const files = byId.get(id)?.files;
   return (
     <MessagePrimitive.Root className="chat-user">
+      {files && files.length > 0 && (
+        <div className="chat-user-files">
+          {files.map((n) => <span key={n} className="sess-file"><Icon name="file" size={13} />{n}</span>)}
+        </div>
+      )}
       <div className="chat-user-bubble"><MessagePrimitive.Parts /></div>
     </MessagePrimitive.Root>
   );
@@ -401,12 +616,13 @@ function AssistantMessage() {
 
   return (
     <MessagePrimitive.Root className="chat-assistant">
-      <div className="card chat-bubble">
+      <BrandMark />
+      <div className="chat-bubble">
         {m.intent === 'general' && (
           <div className="hint" style={{ marginBottom: 7 }}>通用回答 · 未引用企业资料</div>
         )}
         {m.agentSteps && <AgentProgressCard steps={m.agentSteps} streaming={m.streaming} />}
-        {m.text && <Prose text={m.text} style={{ fontSize: 13.5 }}
+        {m.text && <Prose text={m.text}
           onCite={m.sources ? (n) => setFocusSource(n) : undefined} />}
         {m.streaming && !m.text && <Spinner text="思考中…" />}
         {m.error && <ErrorBox message={m.error} />}
@@ -438,30 +654,32 @@ function AssistantMessage() {
         {m.gen?.summary && <SummaryCard summary={m.gen.summary} />}
         {m.gen?.translated && <TranslatedCard data={m.gen.translated} />}
         {active && m.gen?.asks && m.gen.asks.filter((a) => a.choices?.length).length > 0 && (
-          <div style={{ marginTop: 9, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div className="ask-box">
             {m.gen.asks.filter((a) => a.choices?.length).map((a) => (
-              <div key={a.tag} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 11.5, color: 'var(--ink-2)', flexShrink: 0 }}>{a.name}：</span>
-                {a.choices!.map((c) => (
-                  <button key={c} className="gbtn" style={{ height: 24, fontSize: 11.5 }}
-                    onClick={() => void genTurn({ optionFills: [{ tag: a.tag, value: c }] })}>{c}</button>
-                ))}
+              <div key={a.tag} className="ask-row">
+                <div className="ask-name">{a.name}{a.dataType === 'ChoiceOrText' && <span className="hint">可选，也可直接输入</span>}</div>
+                <div className="ask-chips">
+                  {a.choices!.map((c) => (
+                    <button key={c} type="button" className="chip"
+                      onClick={() => void genTurn({ optionFills: [{ tag: a.tag, value: c }] })}>{c}</button>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
         )}
         {m.gen?.rendered && m.genSessionId && (
           <div style={{ marginTop: 9 }}>
-            <button className="pbtn" style={{ height: 26, fontSize: 12, padding: '0 12px' }}
+            <button className="pbtn"
               onClick={() => void download(`/api/generate/sessions/${m.genSessionId}/output`, m.gen!.rendered!.fileName)}>
               下载《{m.gen.rendered.fileName}》↓
             </button>
           </div>
         )}
         {active && genSessionId && m.gen && !m.gen.rendered && (
-          <div style={{ marginTop: 9, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div style={{ marginTop: 12, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {(['查历史项目', '推荐参数', '出英文版', '跳过', '汇总', '生成文档'] as const).map((label) => (
-              <button key={label} className="gbtn" style={{ height: 24, fontSize: 11.5 }}
+              <button key={label} className={label === '生成文档' ? 'pbtn' : 'gbtn'}
                 onClick={() => void genTurn({ message: label === '查历史项目' ? '查一下历史做过的项目'
                   : label === '出英文版' ? '给我一份英文版的文档' : label })}>{label}</button>
             ))}

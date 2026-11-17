@@ -244,6 +244,94 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                     b.ToTable("backup_run");
                 });
 
+            modelBuilder.Entity("HT.Agent.Domain.Entities.ChatAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("CharCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("char_count");
+
+                    b.Property<string>("Chunks")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("chunks");
+
+                    b.Property<string>("Classification")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("classification");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("text")
+                        .HasColumnName("error");
+
+                    b.Property<string>("FileKey")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("file_key");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("file_name");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<DateTimeOffset?>("ParsedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("parsed_at");
+
+                    b.Property<Guid?>("QaSessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("qa_session_id");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("UploaderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("uploader_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_chat_attachment");
+
+                    b.HasIndex("QaSessionId")
+                        .HasDatabaseName("ix_chat_attachment_qa_session_id");
+
+                    b.HasIndex("UploaderId", "QaSessionId")
+                        .HasDatabaseName("ix_chat_attachment_uploader_id_qa_session_id");
+
+                    b.ToTable("chat_attachment");
+                });
+
             modelBuilder.Entity("HT.Agent.Domain.Entities.Chunk", b =>
                 {
                     b.Property<long>("Id")

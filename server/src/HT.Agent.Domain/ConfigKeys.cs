@@ -49,6 +49,16 @@ public static class ConfigKeys
     /// <summary>Word（.docx）是否本地解析（默认 true）。Word 的结构在文件里是现成的，
     /// 本地解析更准也不出网；设为 false 则与其他格式一样交给所选解析引擎。</summary>
     public const string ParserOfficeLocal = "parser.office_local";
+    // ── 图片理解（知识库解析与对话附件共用）──────────────────
+    /// <summary>解析时让模型看图、把图写成文字入库（true/false，默认 false）。要求对话模型能看图
+    /// （vLLM 启动时不带 --language-model-only）；模型不收图时自动跳过，不影响解析。</summary>
+    public const string VisionEnabled = "vision.enabled";
+    /// <summary>看图用的接口地址，留空=同对话模型。</summary>
+    public const string VisionUrl = "vision.url";
+    /// <summary>看图用的模型名，留空=同对话模型。</summary>
+    public const string VisionModelName = "vision.name";
+    /// <summary>每份文档最多看几张图（默认 30，大图优先）。</summary>
+    public const string VisionMaxImages = "vision.max_images";
     // ── 检索链路参数（5.1 末段：均须可配置，不得硬编码）────
     public const string RecallTopK = "retrieval.recall_top_k";
     public const string RerankTopN = "retrieval.rerank_top_n";

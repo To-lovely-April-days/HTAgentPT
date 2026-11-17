@@ -82,9 +82,13 @@ public static class DependencyInjection
         services.AddScoped<IRetrievalService, RetrievalService>();
         services.AddScoped<IMultiAgentQaService, MultiAgentQaService>();
         services.AddScoped<IQaService, QaService>();
+        services.AddScoped<IChatAttachmentService, ChatAttachmentService>();
+        services.AddScoped<IVisionClient, OpenAiVisionClient>();
+        services.AddScoped<Vision.ImageDescriber>();
 
         services.AddScoped<BackupService>();
         services.AddHostedService<ParseWorker>();
+        services.AddHostedService<AttachmentParseWorker>();
         services.AddHostedService<BackupWorker>();
         return services;
     }

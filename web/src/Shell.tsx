@@ -1,94 +1,111 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { createContext, useEffect, useState } from 'react';
 import { useAuth } from './lib/auth';
 import { ClsBadge } from './components/Common';
+import { Icon } from './components/Icons';
 import { Perm } from './lib/types';
 
-interface NavItem { to: string; label: string; }
+interface NavItem { to: string; label: string; icon: string; }
 
-/** C2 框架：业务角色只有一个入口——对话（顶部不再摆功能标签，用户说什么就做什么）。
- * 管理后台与总部审核台仍是各自独立的管理界面，不进对话（表 9-1、表 3-1）。
- * 旧的功能页路由都还在，对话里的卡片需要细看时直接深链过去。 */
+/** 侧栏导航按角色与权限给：业务角色以对话为首页，其余入口是对话里卡片深链过去的那几页，
+ * 摆出来让人也能直接进；管理后台与总部审核台仍是各自独立的管理界面（表 9-1、表 3-1）。 */
 function navFor(roleCode: string, has: (p: string) => boolean): NavItem[] {
   switch (roleCode) {
     case 'admin':
-      return [{ to: '/admin', label: '管理后台' }];
+      return [{ to: '/admin', label: '管理后台', icon: 'settings' }];
     case 'hq_reviewer':
-      return [{ to: '/review', label: '审核台' }, { to: '/chat', label: '共享库问答' }];
-    default:
-      return has(Perm.QaInternal) || has(Perm.QaPublic) || has(Perm.CaseRead)
-        ? [{ to: '/chat', label: '对话' }]
-        : [];
+      return [{ to: '/review', label: '审核台', icon: 'shield' }, { to: '/chat', label: '共享库问答', icon: 'chat' }];
+    default: {
+      const items: NavItem[] = [];
+      if (has(Perm.QaInternal) || has(Perm.QaPublic) || has(Perm.CaseRead)) items.push({ to: '/chat', label: '首页', icon: 'home' });
+      if (has(Perm.ProjectSearch)) items.push({ to: '/projects', label: '历史项目', icon: 'folder' });
+      if (has(Perm.Generate)) items.push({ to: '/generate', label: '我的文档', icon: 'file' });
+      if (has(Perm.CaseRead)) items.push({ to: '/cases', label: '故障案例', icon: 'wrench' });
+      if (has(Perm.TicketHandle)) items.push({ to: '/tickets', label: '报修工单', icon: 'ticket' });
+      return items;
+    }
   }
 }
+
+/** 侧栏里留给当前页面的一块地方：对话页把「最近的对话」放进来（经 portal），
+ * 对话的状态仍归对话页自己管，外框只出位置。 */
+export const SideSlotCtx = createContext<HTMLElement | null>(null);
+
+const COLLAPSE_KEY = 'htlab.side.min';
 
 export default function Shell() {
   const { profile, logout } = useAuth();
   const nav = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  const [min, setMin] = useState(() => {
+    try { return localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(COLLAPSE_KEY, min ? '1' : '0'); } catch { /* 存不了就只在本页生效 */ }
+  }, [min]);
   if (!profile) return null;
   const items = navFor(profile.roleCode, (p) => profile.permissions.includes(p));
-  const isHq = profile.roleCode === 'hq_reviewer';
+  const canChat = items.some((i) => i.to === '/chat');
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <header style={{
-        height: 48, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 28,
-        padding: '0 16px', background: 'var(--panel)', borderBottom: '1px solid var(--line)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <div style={{
-            width: 24, height: 24, borderRadius: 4, color: '#fff', fontSize: 11, fontWeight: 600,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: isHq ? 'var(--ink-2)' : 'var(--accent)', letterSpacing: '.03em',
-          }}>{isHq ? '集团' : 'HT'}</div>
-          <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '.01em' }}>
-            {isHq ? '集团共享库 · 总部节点' : `${profile.companyName || '霍桐实验仪器'} · 企业智能体`}
-          </div>
+    <div className="shell">
+      <aside className={'side' + (min ? ' min' : '')} aria-label="侧栏">
+        <div className="side-top">
+          {!min && <img className="brand-logo side-logo" src="/htlab-logo.png" alt="HTLAB 企业智能协作平台" />}
+          <button className="side-icon side-collapse" aria-label={min ? '展开侧栏' : '收起侧栏'} title={min ? '展开侧栏' : '收起侧栏'}
+            onClick={() => setMin((v) => !v)}>
+            <Icon name="panel" size={18} />
+          </button>
         </div>
-        <nav style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+
+        {canChat && (
+          <button className="side-new" title="新建对话"
+            onClick={() => nav('/chat', { state: { fresh: Date.now() } })}>
+            <Icon name="plus" size={16} stroke={2.2} />
+            {!min && <span className="side-label">新建对话</span>}
+          </button>
+        )}
+
+        <nav className="side-nav" aria-label="主导航">
           {items.map((i) => (
-            <NavLink key={i.to} to={i.to} end={i.to === '/cases'}
-              className={({ isActive }) => 'nav-item' + (isActive ? ' on' : '')}>
-              {i.label}
+            <NavLink key={i.to} to={i.to} title={i.label}
+              className={({ isActive }) => 'side-link' + (isActive ? ' on' : '')}>
+              <Icon name={i.icon} />
+              {!min && <span className="side-label">{i.label}</span>}
             </NavLink>
           ))}
         </nav>
-        <div style={{ flexGrow: 1 }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>可访问密级</span>
-          {profile.classifications.map((c) => <ClsBadge key={c} cls={c} />)}
-        </div>
-        <div style={{ width: 1, height: 20, background: 'var(--line)' }} />
-        <div style={{ position: 'relative' }}>
-          <button onClick={() => setMenuOpen((v) => !v)} style={{
-            display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none',
-            cursor: 'pointer', fontFamily: 'var(--font)', padding: '3px 4px', borderRadius: 5,
-          }}>
-            <div style={{
-              width: 26, height: 26, borderRadius: '50%', background: '#e6ebf2', color: 'var(--ink-2)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 500,
-            }}>{profile.displayName.slice(0, 1)}</div>
-            <div style={{ lineHeight: 1.25, textAlign: 'left' }}>
-              <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink)' }}>{profile.displayName}</div>
-              <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{profile.roleName}</div>
+
+        <div className="side-slot" ref={setSlot} />
+
+        <div className="side-me">
+          <button className="side-me-btn" aria-haspopup="menu" aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((v) => !v)}>
+            <div className="side-ava" aria-hidden="true">{profile.displayName.slice(0, 1)}</div>
+            <div className="side-me-txt" style={{ minWidth: 0 }}>
+              <div className="side-me-n">{profile.displayName}</div>
+              <div className="side-me-r">{profile.roleName}{profile.companyName ? ` · ${profile.companyName}` : ''}</div>
             </div>
           </button>
           {menuOpen && (
-            <div className="card" style={{
-              position: 'absolute', right: 0, top: 38, width: 168, padding: 6, zIndex: 20,
-              boxShadow: '0 4px 16px rgba(28,37,48,.08)',
-            }} onMouseLeave={() => setMenuOpen(false)}>
-              <button className="item" style={{ margin: 0, width: '100%' }}
+            <div className="side-menu" role="menu" onMouseLeave={() => setMenuOpen(false)}>
+              <div className="side-cls">
+                可访问密级 {profile.classifications.map((c) => <ClsBadge key={c} cls={c} />)}
+              </div>
+              <button className="item" role="menuitem"
                 onClick={() => { setMenuOpen(false); nav('/profile'); }}>个人中心</button>
-              <button className="item" style={{ margin: 0, width: '100%' }}
+              <button className="item" role="menuitem"
                 onClick={() => { void logout().then(() => nav('/login')); }}>退出登录</button>
             </div>
           )}
         </div>
-      </header>
-      <main style={{ flexGrow: 1, minHeight: 0, display: 'flex' }}>
-        <Outlet />
+      </aside>
+
+      <main className="shell-main">
+        <SideSlotCtx.Provider value={slot}>
+          <Outlet />
+        </SideSlotCtx.Provider>
       </main>
     </div>
   );

@@ -97,6 +97,7 @@ public class ParseWorker(
         var embedder = scope.ServiceProvider.GetRequiredService<IEmbeddingClient>();
         var config = scope.ServiceProvider.GetRequiredService<IRuntimeConfig>();
         var audit = scope.ServiceProvider.GetRequiredService<IAuditWriter>();
+        var describer = scope.ServiceProvider.GetRequiredService<Vision.ImageDescriber>();
 
         var job = await db.ParseJobs.Include(j => j.Doc).ThenInclude(d => d!.Kb)
             .FirstAsync(j => j.Id == jobId, ct);
@@ -132,6 +133,15 @@ public class ParseWorker(
                 await config.GetIntAsync(ConfigKeys.ChunkOverlap, 80, ct),
                 await config.GetIntAsync(ConfigKeys.ChunkMinLength, 200, ct));
             var drafts = Chunker.Chunk(strategy, parsed.Blocks, opt);
+            // 图片理解（开关打开时）：文档里的图（PID、图纸、照片）由模型写成文字，作为分块一起入库，
+            // 和正文一样能检索、能引用；开头标明是模型看图写的
+            var imageNotes = await describer.DescribeAsync(parsed.Images, doc.FileName, ct);
+            if (imageNotes.Count > 0)
+            {
+                var next = drafts.Count == 0 ? 0 : drafts.Max(d => d.Seq) + 1;
+                drafts = drafts.Concat(imageNotes.Select((n, i) =>
+                    new ChunkDraft(next + i, Application.Logic.ImageNotes.SectionName, n.Page, null, Application.Logic.ImageNotes.ChunkText(n)))).ToList();
+            }
             if (drafts.Count == 0)
                 throw new ParseContentException("切分后没有产生任何分块（文档内容可能为空）");
 

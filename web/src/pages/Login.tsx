@@ -48,18 +48,18 @@ export default function Login() {
         </div>
       )}
       <form onSubmit={submit}>
-        <div className="sect">账号</div>
-        <input className="inp" name="username" style={{ height: 36, fontSize: 14, marginBottom: 12 }}
+        <div className="sect" style={{ fontSize: 13, color: "var(--ink-2)", marginBottom: 6 }}>账号</div>
+        <input className="inp" name="username" style={{ height: 42, fontSize: 15, marginBottom: 14, borderRadius: 10 }}
           value={username} onChange={(e) => setUsername(e.target.value)} autoFocus autoComplete="username" />
-        <div className="sect">口令</div>
-        <input className="inp" name="password" type="password" style={{ height: 36, fontSize: 14, marginBottom: 6 }}
+        <div className="sect" style={{ fontSize: 13, color: "var(--ink-2)", marginBottom: 6 }}>口令</div>
+        <input className="inp" name="password" type="password" style={{ height: 42, fontSize: 15, marginBottom: 8, borderRadius: 10 }}
           value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
         <div className="hint" style={{ marginBottom: 14 }}>
           忘记口令请联系系统管理员重置——本系统不提供自助改密。
         </div>
         {error && <div style={{ marginBottom: 12 }}><ErrorBox message={error.message} /></div>}
         <button className="pbtn" type="submit" disabled={busy || !username || !password}
-          style={{ width: '100%', height: 36, fontSize: 14 }}>
+          style={{ width: '100%', height: 42, fontSize: 15, borderRadius: 10 }}>
           {busy ? '登录中…' : '登录'}
         </button>
       </form>
@@ -69,14 +69,14 @@ export default function Login() {
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
-      <div style={{ width: 380 }}>
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+    <div style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--side)', padding: '24px 16px', boxSizing: 'border-box' }}>
+      <div style={{ width: '100%', maxWidth: 400 }}>
+        <div style={{ textAlign: 'center', marginBottom: 26 }}>
           <img className="brand-logo" src="/htlab-logo.png" alt="HTLAB 企业智能协作平台"
-            style={{ width: 300, margin: '0 auto 10px' }} />
-          <div className="hint">内部系统，账号由管理员开通</div>
+            style={{ width: 280, maxWidth: '80%', margin: '0 auto 12px' }} />
+          <div style={{ fontSize: 13, color: 'var(--ink-3)' }}>内部系统，账号由管理员开通</div>
         </div>
-        <div className="card" style={{ padding: '22px 24px 24px' }}>{children}</div>
+        <div className="card" style={{ padding: '28px 28px 30px', borderRadius: 18, boxShadow: '0 10px 40px rgba(20,20,20,.07)' }}>{children}</div>
       </div>
     </div>
   );

@@ -48,6 +48,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
     public DbSet<GenChatMessage> GenChatMessages => Set<GenChatMessage>();
     public DbSet<QaSession> QaSessions => Set<QaSession>();
     public DbSet<QaMessage> QaMessages => Set<QaMessage>();
+    public DbSet<ChatAttachment> ChatAttachments => Set<ChatAttachment>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -209,6 +210,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
             e.Property(x => x.SlotValues).HasColumnType("jsonb");
             e.Property(x => x.ChatState).HasColumnType("jsonb");
             e.Property(x => x.Equipment).HasColumnType("jsonb");
+        });
+
+        b.Entity<ChatAttachment>(e =>
+        {
+            e.Property(x => x.Chunks).HasColumnType("jsonb");
+            e.HasIndex(x => x.QaSessionId);
+            e.HasIndex(x => new { x.UploaderId, x.QaSessionId });
         });
 
         b.Entity<GenChatMessage>(e =>

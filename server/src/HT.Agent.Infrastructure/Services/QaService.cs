@@ -22,6 +22,7 @@ public class QaService(
     ITranslationService translation,
     IFaultCaseService cases,
     ICustomerService customers,
+    IChatAttachmentService attachments,
     IAuditWriter audit,
     ICurrentUser me) : IQaService
 {
@@ -33,6 +34,11 @@ public class QaService(
         // 意图路由（FR-4.1）：台账查询转 M3 结构化返回，生成与翻译转对应模块，
         // 其余进检索流程。判定结果对用户可见（intent 事件），可传 forcedIntent 手动纠正。
         var intent = await RouteIntentAsync(req, ct);
+        // 这句话带了文件：绑到对话上（后面的提问都能用）。用户没指定处理方式时按「就这份文件问」走知识问答——
+        // 「这份要求里设计压力是多少」被判成查台账，文件就白传了。出文档、翻译照常走各自的路。
+        var bound = req.AttachmentIds is { Count: > 0 } ? await attachments.BindAsync(session.Id, req.AttachmentIds, ct) : 0;
+        if (bound > 0 && req.ForcedIntent is null && intent is not (IntentRouter.Generate or IntentRouter.Translate))
+            intent = IntentRouter.Knowledge;
         // 知识问答与通用对话交给通用多 Agent 协调器；项目台账进入专用的
         // 查询规划、台账工具、资料研究、条件核验和回答整理协作链。案例、
         // 工单、生成、翻译等其它结构化能力仍沿用各自的专员服务和权限检查。

@@ -310,13 +310,24 @@ public class OfficeParser : IDocumentParserClient
             if (Items.Count >= MaxImages) return;
             var key = part.Uri.ToString();
             if (!_seen.Add(key)) return;
-            if (!Renderable.Contains(part.ContentType, StringComparer.OrdinalIgnoreCase)) return;
+            var contentType = part.ContentType;
+            // EMF/WMF：Visio、CAD 粘进 Word 的 PID 图、装配图多是这种矢量格式。
+            // 服务器装了转换工具（Inkscape 或 LibreOffice）就转成 PNG 留下，没装照旧跳过
+            var vector = VectorImageConverter.IsVector(contentType);
+            if (!vector && !Renderable.Contains(contentType, StringComparer.OrdinalIgnoreCase)) return;
             try
             {
                 using var s = part.GetStream();
                 using var buf = new MemoryStream();
                 s.CopyTo(buf);
                 var bytes = buf.ToArray();
+                if (vector)
+                {
+                    var png = VectorImageConverter.ToPng(bytes, contentType);
+                    if (png is null) return;
+                    bytes = png;
+                    contentType = "image/png";
+                }
                 // 按像素尺寸筛掉图标：线条图、纯色示意图压缩后可能只有几百字节，
                 // 单看体积会把正经插图当图标误杀；读不出尺寸的才退回体积判断
                 var size = TryReadSize(bytes);
@@ -325,7 +336,7 @@ public class OfficeParser : IDocumentParserClient
                     if (wh.W < MinPixels || wh.H < MinPixels) return;
                 }
                 else if (bytes.Length < MinBytesUnknown) return;
-                var ext = part.ContentType.ToLowerInvariant() switch
+                var ext = contentType.ToLowerInvariant() switch
                 {
                     "image/png" => ".png",
                     "image/jpeg" => ".jpg",
@@ -336,7 +347,7 @@ public class OfficeParser : IDocumentParserClient
                     _ => ".bin"
                 };
                 var text = Clean(caption ?? "");
-                Items.Add(new ParsedImage(bytes, $"image-{Items.Count + 1:D3}{ext}", part.ContentType,
+                Items.Add(new ParsedImage(bytes, $"image-{Items.Count + 1:D3}{ext}", contentType,
                     text.Length == 0 ? null : Truncate(text, 120), null, null));
             }
             catch (Exception ex) when (ex is IOException or InvalidOperationException)

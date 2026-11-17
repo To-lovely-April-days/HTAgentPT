@@ -40,6 +40,17 @@ const GROUPS: { title: string; keys: [string, string][] }[] = [
     ],
   },
   {
+    // 解析时让模型看图（PID、图纸、照片写成文字入库）。要求对话模型能看图：
+    // vLLM 启动时去掉 --language-model-only；模型不收图时自动跳过，不影响解析
+    title: '图片理解',
+    keys: [
+      ['vision.enabled', '解析时看图（true/false，默认 false）'],
+      ['vision.max_images', '每份文档最多看几张图（默认 30）'],
+      ['vision.url', '看图接口地址（留空=同对话模型）'],
+      ['vision.name', '看图模型名（留空=同对话模型）'],
+    ],
+  },
+  {
     title: '上传与会话',
     keys: [
       ['upload.max_file_mb', '单文件上限 MB'], ['auth.jwt_lifetime_minutes', '登录有效期（分钟）'],

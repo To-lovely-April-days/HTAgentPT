@@ -122,3 +122,32 @@ public class QaMessage
     public string? FeedbackReason { get; set; }
     public DateTimeOffset At { get; set; }
 }
+
+/// <summary>对话里上传的文件（附件）：只在这条对话里当资料用，不进知识库。
+/// 密级固定按「内部」处理；跟着对话一直保存。上传时还没有对话（首页第一句话带着文件），
+/// 先挂在上传人名下，第一句话发出时绑到那条对话上。
+/// 解析结果按分块存（Chunks，jsonb）：问答时按和问题的相关度挑几块交给模型，并作为可引用的依据。</summary>
+public class ChatAttachment
+{
+    public Guid Id { get; set; }
+    public Guid UploaderId { get; set; }
+    public Guid CompanyId { get; set; }
+    /// <summary>绑定的对话；null=已上传、还没随问题发出。</summary>
+    public Guid? QaSessionId { get; set; }
+    public required string FileName { get; set; }
+    public string ContentType { get; set; } = "application/octet-stream";
+    public long Size { get; set; }
+    public required string FileKey { get; set; }
+    public Classification Classification { get; set; } = Classification.Internal;
+    public ParseStatus Status { get; set; } = ParseStatus.Queued;
+    public string? Error { get; set; }
+    /// <summary>[{seq, section, page, text}]（jsonb）。</summary>
+    public string? Chunks { get; set; }
+    public int CharCount { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    /// <summary>开始解析的时间：解析中停太久（进程崩了）就重新排队。</summary>
+    public DateTimeOffset? StartedAt { get; set; }
+    /// <summary>解析引擎不可用时下次重试的时间（10.3：等待而不是失败）。</summary>
+    public DateTimeOffset? NextAttemptAt { get; set; }
+    public DateTimeOffset? ParsedAt { get; set; }
+}

@@ -337,6 +337,9 @@ public sealed class MultiAgentQaService(
         // 资料研究员共享同一份检索结果。多轮短指代会把上一轮问题带入候选查询，
         // 已审定术语也会注入同义词；这样多 Agent 协作不会牺牲原问答链路的召回能力。
         var result = await RetrieveWithCandidatesAsync(request, history, ct);
+        // 这条对话里上传过的文件：挑和问题最相关的几块排在最前面，和知识库命中一起作为可引用的依据
+        var attached = await AttachmentPiecesAsync(session.Id, request.Question, ct);
+        result = MergeAttachments(result, attached);
         var evidence = BuildEvidence(result);
         var evidenceForAgents = result.AboveThreshold
             ? evidence
@@ -360,7 +363,7 @@ public sealed class MultiAgentQaService(
             UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
             TargetType: "qa_session", TargetId: session.Id.ToString(),
             Detail: new { runId, question = request.Question, intent = initialIntent,
-                agents = Specialists.Select(a => a.Id).ToArray(), evidence = result.Chunks.Count }), ct);
+                agents = Specialists.Select(a => a.Id).ToArray(), evidence = result.Chunks.Count, attachments = attached.Count }), ct);
 
         foreach (var specialist in Specialists)
         {
@@ -482,6 +485,30 @@ public sealed class MultiAgentQaService(
         }
     }
 
+    /// <summary>对话附件里和问题最相关的几块（只取已解析好的）。</summary>
+    private async Task<List<AttachmentRanker.Piece>> AttachmentPiecesAsync(Guid sessionId, string question, CancellationToken ct)
+    {
+        var files = await db.ChatAttachments.AsNoTracking()
+            .Where(a => a.QaSessionId == sessionId && a.Status == ParseStatus.Parsed)
+            .OrderBy(a => a.CreatedAt)
+            .Select(a => new { a.Id, a.FileName, a.Chunks }).ToListAsync(ct);
+        if (files.Count == 0) return [];
+        var pieces = files.SelectMany(f => Workers.AttachmentParseWorker.Pieces(f.Id, f.FileName, f.Chunks)).ToList();
+        return AttachmentRanker.Pick(pieces, question);
+    }
+
+    /// <summary>附件块排在最前（用户当场给的，就是这句话要问的东西），知识库命中够格的跟在后面。
+    /// 有附件就算有可信资料——附件是用户自己给的依据；知识库没过阈值的候选照旧不拿来当事实。
+    /// 附件块的 ChunkId 记负数、DocId 记附件编号：来源卡照常显示出处，但不会被当成知识库文档去取原件或配图。</summary>
+    internal static RetrievalResult MergeAttachments(RetrievalResult kb, IReadOnlyList<AttachmentRanker.Piece> picked)
+    {
+        if (picked.Count == 0) return kb;
+        var att = picked.Select((p, i) => new RetrievedChunk(-(i + 1), p.SourceId, $"{p.FileName}（本对话上传）",
+            p.Section, p.Page, p.Text, 1, 1, Classification.Internal)).ToList();
+        IEnumerable<RetrievedChunk> rest = kb.AboveThreshold ? kb.Chunks : [];
+        return kb with { AboveThreshold = true, Chunks = att.Concat(rest).ToList(), TopScore = Math.Max(kb.TopScore, 1) };
+    }
+
     private async Task<RetrievalResult> RetrieveWithCandidatesAsync(
         QaRequest request, List<QaMessage> history, CancellationToken ct)
     {
@@ -555,6 +582,8 @@ public sealed class MultiAgentQaService(
         sb.AppendLine("涉及企业客户、项目、报价、合同、型号参数或内部规章时，只能使用达到可信阈值的共享资料；" +
             "没有依据就明确说明目前无法从企业资料确认，并告诉用户需要提供/上传什么资料，不得猜测。");
         sb.AppendLine("使用共享资料时，在相关论断末尾标注 [1]、[2] 等编号；不要为没有编号的意见补造引用。");
+        sb.AppendLine("标着「图片描述（模型生成）」的资料是模型看图写的，位号和连接关系可能有误：" +
+            "用到时说明出自图片描述、请以原图为准，不要把它说成确定的事实。");
         sb.AppendLine();
         sb.AppendLine($"用户问题：{question}");
         sb.AppendLine($"初步模式：{initialIntent}；可信资料命中：{result.AboveThreshold}");

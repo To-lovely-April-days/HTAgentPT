@@ -399,3 +399,10 @@ export const Perm = {
   TemplateManage: 'template.manage', UserManage: 'user.manage',
   SystemConfig: 'system.config', AuditRead: 'audit.read',
 } as const;
+
+/** 对话附件：输入框里传的文件，只在这条对话里当资料用（不进知识库，密级按内部）。 */
+export interface ChatAttachment {
+  id: string; fileName: string; size: number;
+  status: 'Queued' | 'Parsing' | 'Parsed' | 'Failed' | 'Waiting' | 'NotParsed' | 'Reparsing';
+  error: string | null; charCount: number; qaSessionId: string | null; createdAt: string;
+}
