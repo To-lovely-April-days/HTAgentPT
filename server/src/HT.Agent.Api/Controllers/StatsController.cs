@@ -1,4 +1,5 @@
 using HT.Agent.Api.Security;
+using HT.Agent.Application.Logic;
 using HT.Agent.Domain;
 using HT.Agent.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
@@ -18,7 +19,7 @@ public class StatsController(AppDbContext db) : ControllerBase
     /// <summary>动作键 → 模块名（界面文案不出现技术名称，模块名与表 9-1 对齐）。</summary>
     private static readonly (string Prefix, string Module)[] ModuleMap =
     [
-        ("qa.ask", "检索问答"), ("retrieve.query", "检索问答"),
+        ("qa.ask", "检索问答"), ("qa.multi_agent.start", "检索问答"), ("retrieve.query", "检索问答"),
         ("project.search", "项目查询"), ("project.get", "项目查询"),
         ("gen.", "方案生成"), ("clause.assemble", "报价合同"),
         ("translate.", "翻译"), ("case.", "故障案例"), ("ticket.", "报修工单")
@@ -56,6 +57,29 @@ public class StatsController(AppDbContext db) : ControllerBase
             };
         }).ToList();
         return Ok(byWeek);
+    }
+
+    /// <summary>按天汇总（统计页）：days 天内每天各功能的调用、与上一个同长周期的对比、按人员；
+    /// year=true 再带一年的活跃热力图。tz 为调用方时区相对 UTC 的分钟数（中国 480），日期按它切。</summary>
+    [HttpGet("daily")]
+    public async Task<IActionResult> Daily([FromQuery] int days = 30, [FromQuery] int tz = 480,
+        [FromQuery] bool year = false, CancellationToken ct = default)
+    {
+        days = Math.Clamp(days, 1, 365);
+        var offset = TimeSpan.FromMinutes(Math.Clamp(tz, -720, 840));
+        var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.ToOffset(offset).DateTime);
+        var span = Math.Max(days * 2, year ? 365 : 0);
+        // 多读一天，给时区留余量；精确的日期切分在 UsageDaily 里按调用方时区做
+        var from = DateTimeOffset.UtcNow.AddDays(-(span + 1));
+        var events = await db.AuditLogs.AsNoTracking()
+            .Where(a => a.At >= from && a.Result == AuditResult.Success)
+            .Select(a => new UsageDaily.Event(a.At, a.Action, a.UserId, a.Detail))
+            .ToListAsync(ct);
+        var people = await db.Users.AsNoTracking()
+            .Select(u => new UsageDaily.Person(u.Id, u.DisplayName, u.Role != null ? u.Role.Name : ""))
+            .ToDictionaryAsync(p => p.UserId, ct);
+        var totalUsers = await db.Users.CountAsync(u => u.IsActive, ct);
+        return Ok(UsageDaily.Build(events, today, days, offset, people, totalUsers, year ? events : null));
     }
 
     /// <summary>无结果问题清单（E18 的语料缺口表）：这个比例要读成缺口线索，不是错误率。</summary>

@@ -18,7 +18,7 @@ export default function KbsPage() {
   });
   return (
     <>
-      <div style={{ flexShrink: 0, display: 'flex', gap: 2, padding: '0 18px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
+      <div style={{ flexShrink: 0, display: 'flex', gap: 2, padding: '0 40px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
         <span style={tabStyle(tab === 'kbs')} onClick={() => setTab('kbs')}>知识库</span>
         <span style={tabStyle(tab === 'sync')} onClick={() => setTab('sync')}>共享库同步</span>
         <span style={tabStyle(tab === 'publish')} onClick={() => setTab('publish')}>公开库发布</span>
@@ -67,10 +67,10 @@ function KbListTab() {
   };
 
   return (
-    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '18px 22px' }}>
-      <div style={{ maxWidth: 1080, margin: '0 auto' }}>
+    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '24px 40px 40px' }}>
+      <div className="admin-wrap">
         {kbs.isLoading && <Spinner text="载入…" />}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12, marginBottom: 16 }}>
           {(kbs.data ?? []).map((k) => (
             <div key={k.id} className="card" style={{ padding: '14px 16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -145,8 +145,8 @@ function SyncTab() {
   };
 
   return (
-    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '18px 22px' }}>
-      <div style={{ maxWidth: 860, margin: '0 auto' }}>
+    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '24px 40px 40px' }}>
+      <div className="admin-wrap">
         <div className="hint" style={{ lineHeight: 1.75, marginBottom: 14 }}>
           从总部拉取集团共享库并合入本地。同步包附带总部所用向量化模型的版本标识：
           与本机一致时直接复用向量省去重算；不一致时新增与更新的文档要在本地重算向量，
@@ -227,8 +227,8 @@ function PublishTab() {
   };
 
   return (
-    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '18px 22px' }}>
-      <div style={{ maxWidth: 980, margin: '0 auto' }}>
+    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '24px 40px 40px' }}>
+      <div className="admin-wrap">
         <div className="hint" style={{ lineHeight: 1.75, marginBottom: 12 }}>
           发布是复制不是引用：在公开库创建独立副本并单独解析，原文档不变——<strong style={{ fontWeight: 600 }}>之后修改原文档不会自动同步到已发布的副本</strong>，需重新发布。
           副本确认前不对外可见，这一步是去掉内部分机、供应商联系人、流程号的地方。

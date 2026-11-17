@@ -122,7 +122,7 @@ export default function CorpusPage() {
 
   return (
     <>
-      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 2, padding: '0 18px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 2, padding: '0 40px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
         <span style={tabStyle(tab === 'docs')} onClick={() => setTab('docs')}>文档列表</span>
         <span style={tabStyle(tab === 'queue')} onClick={() => setTab('queue')}>
           解析队列{activeJobs > 0 && <span className="m" style={{ color: 'var(--cls-int-fg)' }}>{activeJobs}</span>}
@@ -131,7 +131,7 @@ export default function CorpusPage() {
 
       {tab === 'docs' && (
         <>
-          <div style={{ height: 48, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '0 18px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
+          <div style={{ height: 48, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '0 40px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
             <select style={fi} value={kbId} onChange={(e) => { setKbId(e.target.value); setSelected(new Set()); }}>
               <option value="">知识库：全部</option>
               {(kbs.data ?? []).map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
@@ -152,13 +152,13 @@ export default function CorpusPage() {
             <button className="pbtn" style={{ height: 28, padding: '0 13px' }} onClick={() => setUploading(true)}>上传文档</button>
           </div>
 
-          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 18px', background: 'var(--bg-soft)', borderBottom: '1px solid var(--line)' }}>
+          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 40px', background: 'var(--bg-soft)', borderBottom: '1px solid var(--line)' }}>
             <span style={{ fontSize: 11.5, color: 'var(--ink-2)', lineHeight: 1.6 }}>
               上传后不会自动解析。挑好要解析的文档再提交——解析占算力，与在线问答共用同一批资源。
             </span>
           </div>
 
-          {actError && <div style={{ padding: '10px 18px' }}><ErrorBox message={actError} /></div>}
+          {actError && <div style={{ padding: '10px 40px' }}><ErrorBox message={actError} /></div>}
 
           <div className="sc" style={{ flexGrow: 1, minHeight: 0, background: 'var(--panel)' }}>
             {docs.isLoading && <div style={{ padding: 30 }}><Spinner text="正在载入…" /></div>}
@@ -226,7 +226,7 @@ export default function CorpusPage() {
             )}
           </div>
 
-          <div style={{ height: 44, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '0 18px', background: 'var(--panel)', borderTop: '1px solid var(--line)' }}>
+          <div style={{ height: 44, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '0 40px', background: 'var(--panel)', borderTop: '1px solid var(--line)' }}>
             <span className="hint">
               共 <span className="m">{stats.total}</span> 份　·　已解析 <span className="m">{stats.parsed}</span>
               　·　待解析 <span className="m">{stats.waiting}</span>
@@ -238,7 +238,7 @@ export default function CorpusPage() {
 
       {tab === 'queue' && (
         <>
-          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 18px', background: 'var(--bg-soft)', borderBottom: '1px solid var(--line)' }}>
+          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 40px', background: 'var(--bg-soft)', borderBottom: '1px solid var(--line)' }}>
             <span style={{ fontSize: 11.5, color: 'var(--ink-2)', lineHeight: 1.6 }}>
               「等待中」是解析引擎暂不可用，任务进度保留、服务恢复后自动继续，什么都不用做；「失败」才需要按原因处理。两者不是一回事。
             </span>

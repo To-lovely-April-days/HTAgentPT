@@ -22,7 +22,7 @@ export default function MetaPage() {
   });
   return (
     <>
-      <div style={{ flexShrink: 0, display: 'flex', gap: 2, padding: '0 18px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
+      <div style={{ flexShrink: 0, display: 'flex', gap: 2, padding: '0 40px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
         <span style={tabStyle(tab === 'vocab')} onClick={() => setTab('vocab')}>受控词表</span>
         <span style={tabStyle(tab === 'terms')} onClick={() => setTab('terms')}>术语表</span>
         <span style={tabStyle(tab === 'ledger')} onClick={() => setTab('ledger')}>项目台账</span>
@@ -68,8 +68,8 @@ function VocabTab() {
   };
 
   return (
-    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '18px 22px' }}>
-      <div style={{ maxWidth: 860, margin: '0 auto' }}>
+    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '24px 40px 40px' }}>
+      <div className="admin-wrap">
         <div className="hint" style={{ lineHeight: 1.7, marginBottom: 12 }}>
           受控字段在上传登记时只能选不能写（入库三道闸第 3 条）——不设这道闸，半年后同一种设备五六种写法，筛选与元数据对齐全失效。词表外取值不参与筛选。
         </div>
@@ -126,8 +126,8 @@ function TermsTab() {
   const STATUS_LABEL: Record<string, string> = { Approved: '已审定', Pending: '待确认', Rejected: '已驳回' };
 
   return (
-    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '18px 22px' }}>
-      <div style={{ maxWidth: 980, margin: '0 auto' }}>
+    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '24px 40px 40px' }}>
+      <div className="admin-wrap">
         <div className="hint" style={{ lineHeight: 1.7, marginBottom: 12 }}>
           改一条术语会同时影响两处：翻译以强制对照注入保证全文译名一致（FR-6.1）；问答把命中的同义表述注入查询改写扩充召回（FR-4.2）。删同义表述前想想检索那头。
         </div>
@@ -180,8 +180,8 @@ function LedgerTab() {
   const refresh = () => void qc.invalidateQueries({ queryKey: ['admin-projects'] });
 
   return (
-    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '18px 22px' }}>
-      <div style={{ maxWidth: 1080, margin: '0 auto' }}>
+    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '24px 40px 40px' }}>
+      <div className="admin-wrap">
         <div className="hint" style={{ lineHeight: 1.7, marginBottom: 12 }}>
           台账与文档经项目编号关联（FR-3.3）；上传时项目编号必须在台账已登记。批量修正用于历史资料归集阶段的集中整理（FR-3.6）——早期导入的自由文本设备类型不在受控词表内，既筛不出也对不齐，是归集阶段的主要工作量。
         </div>

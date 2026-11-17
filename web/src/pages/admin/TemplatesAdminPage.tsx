@@ -21,7 +21,7 @@ export default function TemplatesAdminPage() {
   });
   return (
     <>
-      <div style={{ flexShrink: 0, display: 'flex', gap: 2, padding: '0 18px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
+      <div style={{ flexShrink: 0, display: 'flex', gap: 2, padding: '0 40px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
         <span style={tabStyle(tab === 'templates')} onClick={() => setTab('templates')}>模板</span>
         <span style={tabStyle(tab === 'slots')} onClick={() => setTab('slots')}>槽位定义</span>
         <span style={tabStyle(tab === 'clauses')} onClick={() => setTab('clauses')}>条款库</span>
@@ -79,8 +79,8 @@ function TemplatesTab({ onEditSlots }: { onEditSlots: (id: string) => void }) {
   };
 
   return (
-    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '18px 22px' }}>
-      <div style={{ maxWidth: 980, margin: '0 auto' }}>
+    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '24px 40px 40px' }}>
+      <div className="admin-wrap">
         <div style={{ padding: '11px 13px', borderRadius: 5, background: 'var(--cls-int-bg)', border: '1px solid var(--cls-int-line)', marginBottom: 14 }}>
           <span style={{ fontSize: 11.5, lineHeight: 1.7, color: 'var(--cls-int-fg)' }}>
             只有被内容控件标定的位置才会被抽为槽位。模板里用下划线、方括号或黄色底纹表示的可变项抽不出来——那些位置生成时会原样输出。整理模板时先把它们改成内容控件，这是模板整理阶段的主要工作量。
@@ -286,8 +286,8 @@ function ClausesTab() {
   const STATUS_LABEL: Record<string, string> = { Active: '已审定', PendingReview: '待审定', Draft: '草稿', Retired: '已替代（保留）' };
 
   return (
-    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '18px 22px' }}>
-      <div style={{ maxWidth: 980, margin: '0 auto' }}>
+    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '24px 40px 40px' }}>
+      <div className="admin-wrap">
         <div className="hint" style={{ lineHeight: 1.7, marginBottom: 12 }}>
           条款一经审定即锁定正文，不能就地编辑——改动走「拟修改」生成待审新版本，通过后新版生效、旧版停用但保留（旧合同要能查到当时原文）。待审定条款不进入报价拼装的可选范围。
         </div>

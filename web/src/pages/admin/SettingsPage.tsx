@@ -69,7 +69,7 @@ export default function SettingsPage() {
   });
   return (
     <>
-      <div style={{ flexShrink: 0, display: 'flex', gap: 2, padding: '0 18px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
+      <div style={{ flexShrink: 0, display: 'flex', gap: 2, padding: '0 40px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
         <span style={tabStyle(tab === 'params')} onClick={() => setTab('params')}>模型与运行参数</span>
         <span style={tabStyle(tab === 'backup')} onClick={() => setTab('backup')}>备份与远程接入</span>
       </div>
@@ -353,8 +353,8 @@ function ParamsTab() {
   const fi: React.CSSProperties = { height: 28, width: 130, padding: '0 9px', border: '1px solid var(--line-strong)', borderRadius: 4, fontSize: 12.5, fontFamily: 'var(--font)' };
 
   return (
-    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '18px 22px' }}>
-      <div style={{ maxWidth: 860, margin: '0 auto' }}>
+    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '24px 40px 40px' }}>
+      <div className="admin-wrap">
         <ChatModelPicker cfg={cfg.data ?? {}} />
 
         <ServicePicker
@@ -471,8 +471,8 @@ function BackupTab() {
   const fmt = (n: number | null) => n == null ? '—' : n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
 
   return (
-    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '18px 22px' }}>
-      <div style={{ maxWidth: 980, margin: '0 auto' }}>
+    <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '24px 40px 40px' }}>
+      <div className="admin-wrap">
         {error && <div style={{ marginBottom: 12 }}><ErrorBox message={error} /></div>}
         {status.isLoading && <Spinner text="载入备份状态…" />}
         {status.data && (

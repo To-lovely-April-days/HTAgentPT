@@ -147,7 +147,7 @@ export default function DocPreviewPage() {
 
   return (
     <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '10px 18px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '10px 40px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
         <Link to="/admin/corpus" style={{ fontSize: 12.5, color: 'var(--accent)', textDecoration: 'none' }}>← 语料管理</Link>
         <span style={{ fontSize: 13.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
         <span className="hint" style={{ marginLeft: 'auto', flexShrink: 0 }}>
