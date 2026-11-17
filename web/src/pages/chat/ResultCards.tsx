@@ -542,8 +542,8 @@ export function BaseCards({ items, active, onPick }: {
 }
 
 /** 一份文件的版式预览：不进语料库也能看，比如刚译出来的那一版。 */
-export function DocPreviewModal({ src, fileName, onClose }: {
-  src: string; fileName: string; onClose: () => void;
+export function DocPreviewModal({ src, fileName, onClose, page, find, note }: {
+  src: string; fileName: string; onClose: () => void; page?: number | null; find?: string | null; note?: string;
 }) {
   useEffect(() => {
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -555,13 +555,14 @@ export function DocPreviewModal({ src, fileName, onClose }: {
       <div className="modal-box pv" onClick={(e) => e.stopPropagation()}>
         <div className="pv-hd">
           <span style={{ fontSize: 13, fontWeight: 600 }}>{fileName}</span>
+          {note && <span className="hint">{note}</span>}
           <div style={{ flexGrow: 1 }} />
           <button className="pbtn" style={{ height: 26, fontSize: 12, padding: '0 12px' }}
             onClick={() => void download(src, fileName)}>下载 ↓</button>
           <button className="gbtn" style={{ height: 26, fontSize: 12 }} onClick={onClose}>关闭</button>
         </div>
         <div className="pv-body">
-          <div className="pv-main"><FileView src={src} fileName={fileName} /></div>
+          <div className="pv-main"><FileView src={src} fileName={fileName} page={page} find={find} /></div>
         </div>
       </div>
     </div>

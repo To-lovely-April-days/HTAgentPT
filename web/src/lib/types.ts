@@ -421,3 +421,24 @@ export interface ChatAttachment {
   status: 'Queued' | 'Parsing' | 'Parsed' | 'Failed' | 'Waiting' | 'NotParsed' | 'Reparsing';
   error: string | null; charCount: number; qaSessionId: string | null; createdAt: string;
 }
+
+/** 通用助手：这一轮里模型做了哪一步（搜资料、打开原文、查项目、计算……）。 */
+export interface AssistantStep {
+  id: string; tool: string; label: string; detail: string; result?: string | null;
+  status: 'running' | 'done' | 'error'; seconds?: number;
+}
+
+/** 通用助手的一份依据：资料切块、台账记录或附件片段。n 与回答里的 [n] 对应。 */
+export interface EvidenceCard {
+  n: number; kind: 'doc' | 'ledger' | 'attachment'; title: string;
+  docId: string | null; chunkId: number | null; section: string | null; pageNo: number | null;
+  docCategory: string | null; fileName: string | null; projectNo: string | null; classification: string | null;
+  text: string; highlights: { start: number; length: number }[];
+}
+
+/** 回答后的核对：引用了几处、带单位的数字核实了几个、哪些没对上。 */
+export interface VerifyReport {
+  cited: number; checked: number; verified: number;
+  issues: { value: string; refs: number[]; sentence: string }[];
+  missingRefs: number[];
+}

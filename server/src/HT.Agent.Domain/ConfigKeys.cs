@@ -67,6 +67,22 @@ public static class ConfigKeys
     public const string ContextTokens = "retrieval.context_tokens";
     public const string MaxRetrievalPerTurn = "retrieval.max_per_turn";
     public const string HistoryTurns = "retrieval.history_turns";
+
+    // ── 通用助手 ──────────────────────────────────────
+    /// <summary>问答方式：assistant=通用助手（模型自己决定查什么，默认）；classic=原来的分类+固定流程（回退用）。</summary>
+    public const string QaEngine = "assistant.engine";
+    /// <summary>一个问题最多查几轮（每轮模型可同时调用多个工具）。</summary>
+    public const string AssistantMaxRounds = "assistant.max_rounds";
+    /// <summary>查资料、决定下一步时是否让模型先思考（更准，慢几秒）：true/false。</summary>
+    public const string AssistantThinking = "assistant.thinking";
+    /// <summary>每一轮模型最多输出多少 token（含思考）。</summary>
+    public const string AssistantMaxTokens = "assistant.max_tokens";
+    /// <summary>放进模型的对话+资料总字数上限；超出时最早的资料换成摘要。按上下文 32K 估。</summary>
+    public const string AssistantContextChars = "assistant.context_chars";
+    /// <summary>每次搜索最多返回几段资料给模型。</summary>
+    public const string AssistantSearchTopK = "assistant.search_top_k";
+    /// <summary>公司介绍（一两句话，告诉助手我们是做什么的）。是数据不是规则，管理员可随时改。</summary>
+    public const string AssistantProfile = "assistant.company_profile";
     /// <summary>关键词与向量两路权重（FR-4.3），0 纯关键词，1 纯向量。</summary>
     public const string HybridAlpha = "retrieval.hybrid_alpha";
     /// <summary>近似索引候选倍数（7.2：候选数须高于最终保留数的倍数并可配置）。</summary>

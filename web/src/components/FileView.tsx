@@ -58,8 +58,36 @@ async function pptOutline(blob: Blob): Promise<{ title: string; lines: string[] 
   return out;
 }
 
-/** 要看的东西在哪：语料给 docId，别处（比如刚译出来的那一版）直接给取文件的地址。 */
-export function FileView({ docId, src, fileName }: { docId?: string; src?: string; fileName: string }) {
+/** Word 原件里找到引用的那段话：标黄并滚到眼前。找不到就不动（版式还原和解析出来的文字不总是一字不差）。 */
+function markInDocx(root: HTMLElement, find: string) {
+  const norm = (t: string) => t.replace(/\s+/g, '');
+  const target = norm(find).slice(0, 24);
+  if (target.length < 4) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  // 先把全文按文本节点拼起来，记住每个节点在拼接串里的位置，跨节点也能找到
+  const nodes: { node: Text; start: number }[] = [];
+  let all = '';
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const t = norm(n.textContent ?? '');
+    if (!t) continue;
+    nodes.push({ node: n as Text, start: all.length });
+    all += t;
+  }
+  const at = all.indexOf(target);
+  if (at < 0) return;
+  const hit = nodes.filter((x) => x.start + norm(x.node.textContent ?? '').length > at && x.start < at + target.length);
+  hit.forEach((x) => {
+    const mark = document.createElement('mark');
+    mark.className = 'fv-hit';
+    x.node.parentNode?.insertBefore(mark, x.node);
+    mark.appendChild(x.node);
+  });
+  hit[0]?.node.parentElement?.scrollIntoView({ block: 'center' });
+}
+
+/** 要看的东西在哪：语料给 docId，别处（比如刚译出来的那一版）直接给取文件的地址。
+    page / find：从参考资料点进来时，PDF 跳到那一页，Word 找到那段话标黄。 */
+export function FileView({ docId, src, fileName, page, find }: { docId?: string; src?: string; fileName: string; page?: number | null; find?: string | null }) {
   const url = src ?? `/api/files/${docId}`;
   const box = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<'loading' | 'docx' | 'pdf' | 'xlsx' | 'pptx' | 'other' | 'fail'>('loading');
@@ -93,6 +121,7 @@ export function FileView({ docId, src, fileName }: { docId?: string; src?: strin
             try {
               if (box.current) await renderDocxInto(blob, box.current);
               if (alive) setState('docx');
+              if (alive && find && box.current) requestAnimationFrame(() => box.current && markInDocx(box.current, find));
             } catch { if (alive) setState('other'); }
             return;
           }
@@ -123,13 +152,13 @@ export function FileView({ docId, src, fileName }: { docId?: string; src?: strin
       }
     })();
     return () => { alive = false; if (objUrl) URL.revokeObjectURL(objUrl); };
-  }, [url]);
+  }, [url, find]);
 
   return (
     <div className="fv">
       {state === 'loading' && <div style={{ padding: 14 }}><Spinner text="打开原件…" /></div>}
       {state === 'fail' && <div style={{ padding: 14 }}><ErrorBox message={error ?? '原件打不开'} /></div>}
-      {state === 'pdf' && pdfUrl && <iframe className="fv-pdf" src={pdfUrl} title={fileName} />}
+      {state === 'pdf' && pdfUrl && <iframe className="fv-pdf" src={page ? `${pdfUrl}#page=${page}` : pdfUrl} title={fileName} />}
 
       {state === 'xlsx' && sheets.length > 0 && (
         <div className="fv-xl">

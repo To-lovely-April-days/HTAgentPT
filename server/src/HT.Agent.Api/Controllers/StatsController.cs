@@ -88,7 +88,7 @@ public class StatsController(AppDbContext db) : ControllerBase
     {
         var from = DateTimeOffset.UtcNow.AddDays(-Math.Clamp(days, 1, 90));
         var rows = await db.QaMessages.AsNoTracking()
-            .Where(m => m.At >= from && m.Answer == null && m.NoResultHints != null)
+            .Where(m => m.At >= from && m.NoResultHints != null) // 原问答：没答（Answer 为空）；通用助手：查了资料却一条没用上
             .OrderByDescending(m => m.At).Take(500)
             .Select(m => new { m.Question, m.RewrittenQuery, m.At, m.NoResultHints })
             .ToListAsync(ct);

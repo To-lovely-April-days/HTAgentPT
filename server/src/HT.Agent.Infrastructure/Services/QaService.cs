@@ -24,12 +24,36 @@ public class QaService(
     ICustomerService customers,
     IChatAttachmentService attachments,
     IAuditWriter audit,
-    ICurrentUser me) : IQaService
+    ICurrentUser me,
+    IAssistantService assistant,
+    Microsoft.Extensions.Configuration.IConfiguration appConfig) : IQaService
 {
     public async IAsyncEnumerable<QaEvent> AskStreamAsync(
         QaRequest req, [EnumeratorCancellation] CancellationToken ct = default)
     {
         var session = await GetOrCreateSessionAsync(req, ct);
+
+        // 通用助手（默认）：不分类、不走固定流程，模型自己决定查什么。界面上指定了「出文档」「翻译」这类
+        // 专门功能时仍走原来的路；模型端没开工具调用时自动退回原问答，并在回答前说明一句。
+        if (await UseAssistantAsync(req, ct))
+        {
+            if (req.AttachmentIds is { Count: > 0 }) await attachments.BindAsync(session.Id, req.AttachmentIds, ct);
+            var fallback = false;
+            await using (var e = assistant.RunAsync(req, session, ct).GetAsyncEnumerator(ct))
+            {
+                while (true)
+                {
+                    bool more;
+                    try { more = await e.MoveNextAsync(); }
+                    catch (ToolCallingUnavailableException) { fallback = true; break; }
+                    if (!more) break;
+                    yield return e.Current;
+                }
+            }
+            if (!fallback) yield break;
+            yield return new QaEvent("notice", new { message = "模型服务还没开启「自己查资料」的能力，这次按原来的方式回答。" });
+            req = req with { AttachmentIds = null };
+        }
 
         // 意图路由（FR-4.1）：台账查询转 M3 结构化返回，生成与翻译转对应模块，
         // 其余进检索流程。判定结果对用户可见（intent 事件），可传 forcedIntent 手动纠正。
@@ -166,6 +190,17 @@ public class QaService(
                 await db.SaveChangesAsync(CancellationToken.None);
             }
         }
+    }
+
+    private async Task<bool> UseAssistantAsync(QaRequest req, CancellationToken ct)
+    {
+        var engine = (await config.GetStringAsync(ConfigKeys.QaEngine, "assistant", ct)).Trim();
+        if (!engine.Equals("assistant", StringComparison.OrdinalIgnoreCase)) return false;
+        // 演示模式（stub）没有真模型，工具调用无从谈起
+        var stubDefault = bool.TryParse(appConfig["Models:UseStubs"], out var useStubs) && useStubs ? "stub" : "openai";
+        var provider = (await config.GetStringAsync(ConfigKeys.ChatProvider, stubDefault, ct)).Trim();
+        if (provider.Equals("stub", StringComparison.OrdinalIgnoreCase)) return false;
+        return req.ForcedIntent is null or IntentRouter.Knowledge or IntentRouter.Ledger or IntentRouter.General;
     }
 
     /// <summary>命中分块所在页的图片（FR-4.9 来源出图）：一次查询取回全部相关文档的图，

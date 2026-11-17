@@ -37,7 +37,7 @@ public class ProjectService(AppDbContext db, IVocabService vocab, IAuditWriter a
         if (!string.IsNullOrWhiteSpace(req.CustomerName)) q = q.Where(p => p.CustomerName.Contains(req.CustomerName));
         if (req.YearFrom is not null) q = q.Where(p => p.Year >= req.YearFrom);
         if (req.YearTo is not null) q = q.Where(p => p.Year <= req.YearTo);
-        if (!string.IsNullOrWhiteSpace(req.DeviceType)) q = q.Where(p => p.DeviceType == req.DeviceType);
+        if (!string.IsNullOrWhiteSpace(req.DeviceType)) q = q.Where(p => p.DeviceType.Contains(req.DeviceType)); // 「反应釜」能查到「高压反应釜」
         if (req.DeliveryStatus is not null) q = q.Where(p => p.DeliveryStatus == req.DeliveryStatus);
         // LocationHint 仍支持已有的文本候选查询；当 ProjectNos 同时存在时，
         // 资料检索已经完成语义定位，不能再用“华东”字符串二次过滤掉真实项目。

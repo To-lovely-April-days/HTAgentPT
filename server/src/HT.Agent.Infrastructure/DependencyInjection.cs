@@ -30,6 +30,8 @@ public static class DependencyInjection
 
         services.AddMemoryCache();
         services.AddHttpClient("model");
+        // 通用助手：一轮里可能先思考再输出长回答，给足时间
+        services.AddHttpClient("assistant", c => c.Timeout = TimeSpan.FromMinutes(5));
         services.AddHttpClient("parser");
         services.AddHttpClient("sync");
 
@@ -83,6 +85,8 @@ public static class DependencyInjection
         services.AddScoped<IRetrievalService, RetrievalService>();
         services.AddScoped<IMultiAgentQaService, MultiAgentQaService>();
         services.AddScoped<IQaService, QaService>();
+        services.AddScoped<IAssistantService, AssistantService>();
+        services.AddSingleton<IToolChatClient, OpenAiToolChatClient>();
         services.AddScoped<IChatAttachmentService, ChatAttachmentService>();
         services.AddScoped<IVisionClient, OpenAiVisionClient>();
         services.AddScoped<Vision.ImageDescriber>();

@@ -56,7 +56,13 @@ public interface IDocumentService
     /// <summary>删除文档：原件、分块、图片、元数据、解析任务一并清除，入审计。
     /// 共享库内容（本地只读，走同步撤回）与业务模块自动维护的条目拒绝；解析进行中拒绝。</summary>
     Task DeleteDocumentAsync(Guid docId, CancellationToken ct = default);
+    /// <summary>助手「打开原文」：按调用者权限读一份已解析文档的连续几块（围绕某块、某页，或从头）。
+    /// 与下载原件同一套校验——检索挡住的东西，换个口子也拿不到。</summary>
+    Task<DocReadResult> ReadForAnswerAsync(Guid docId, int? pageNo, long? aroundChunkId, int maxChunks, CancellationToken ct = default);
 }
+
+public record DocReadResult(Guid DocId, string Title, string FileName, string? DocCategory, int? Year,
+    Classification Classification, IReadOnlyList<ChunkRow> Chunks, int TotalChunks);
 
 public record DocImageRow(long Id, string? Caption, int? PageNo, string? Bbox, int Seq);
 

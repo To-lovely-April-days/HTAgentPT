@@ -21,7 +21,9 @@ import { Perm, unwrapLedgerTable } from '../../lib/types';
 import type {
   CaseDetailData, CaseRow, ChatAttachment, GenChatPayload, GenChatTurnResult, KbRow, LedgerTable, QaSessionRow, VocabRow,
   QaTemplateRec, QaTimeline, SessionRowT, SessionView, Source, TextTranslationResult, TicketRow,
+  AssistantStep, EvidenceCard as EvidenceRef, VerifyReport,
 } from '../../lib/types';
+import { RefPanel, StepsCard, VerifyBar } from './AssistantParts';
 import { SideSlotCtx } from '../../Shell';
 import { BrandMark, Icon } from '../../components/Icons';
 import { ATTACH_ACCEPT, formatSize, useAttachments } from './useAttachments';
@@ -52,6 +54,12 @@ interface Msg {
   gen?: GenChatPayload;          // 方案生成的一轮
   files?: string[];              // 用户这句话带的文件（只显示文件名）
   genSessionId?: string;
+  // 通用助手这一轮：过程、依据（用到的 / 没用上的）、核对结果、用时、提示
+  steps?: AssistantStep[];
+  evidence?: { used: EvidenceRef[]; other: EvidenceRef[] };
+  verify?: VerifyReport;
+  seconds?: number | null;
+  notice?: string;
 }
 
 const MsgCtx = createContext<{
@@ -63,9 +71,12 @@ const MsgCtx = createContext<{
   genTurn: (body: Record<string, unknown>) => Promise<void>;
   correctIntent: (q: string) => void;
   genSessionId: string | null;
+  refs: { msgId: string; focus: number | null } | null;
+  showRefs: (msgId: string, focus?: number | null) => void;
 }>({
   byId: new Map(), busy: false, focusSource: null, setFocusSource: () => {},
   pickTemplate: () => {}, genTurn: async () => {}, correctIntent: () => {}, genSessionId: null,
+  refs: null, showRefs: () => {},
 });
 
 export default function ChatPage() {
@@ -77,6 +88,9 @@ export default function ChatPage() {
   const [genSessionId, setGenSessionId] = useState<string | null>(null);
   const [genTitle, setGenTitle] = useState<string | null>(null);
   const [focusSource, setFocusSource] = useState<number | null>(null);
+  // 右侧参考资料：看的是哪条回答、聚焦第几条依据。null 为收起
+  const [refs, setRefs] = useState<{ msgId: string; focus: number | null } | null>(null);
+  const showRefs = useCallback((msgId: string, focus: number | null = null) => setRefs({ msgId, focus }), []);
   const [showPreview, setShowPreview] = useState(true);
   const [revision, setRevision] = useState(0);
   // 首页输入框上的处理方式：自动判断，或指定查资料/查项目/出文档（走服务端的 forcedIntent）
@@ -114,6 +128,7 @@ export default function ChatPage() {
   // ── 问答一轮（SSE）：意图由服务端判，结果就地长出来 ──────────
   const askQa = useCallback(async (question: string, forcedIntent?: string, attachmentIds?: string[]) => {
     const id = newId();
+    const started = Date.now();
     push({ id, role: 'assistant', text: '', streaming: true });
     try {
       let answer = '';
@@ -135,6 +150,33 @@ export default function ChatPage() {
           case 'delta':
             answer += p.text as string;
             patch(id, { text: answer });
+            break;
+          case 'replace':
+            // 模型说了一句「我先查一下」又去查了：那句不算答案，清掉
+            answer = (p.text as string) ?? '';
+            patch(id, { text: answer });
+            break;
+          case 'step':
+            setMsgs((x) => x.map((m) => {
+              if (m.id !== id) return m;
+              const step = ev.payload as AssistantStep;
+              const list = m.steps ?? [];
+              const at = list.findIndex((s2) => s2.id === step.id);
+              return { ...m, steps: at < 0 ? [...list, step] : list.map((s2, i) => (i === at ? { ...s2, ...step } : s2)) };
+            }));
+            break;
+          case 'evidence':
+            patch(id, { evidence: ev.payload as Msg['evidence'] });
+            if (((ev.payload as Msg['evidence'])?.used.length ?? 0) > 0) setRefs({ msgId: id, focus: null });
+            break;
+          case 'verify':
+            patch(id, { verify: ev.payload as VerifyReport });
+            break;
+          case 'notice':
+            patch(id, { notice: p.message as string });
+            break;
+          case 'done':
+            patch(id, { seconds: (Date.now() - started) / 1000 });
             break;
           case 'text':
             patch(id, { text: (p.message as string) ?? '' });
@@ -268,6 +310,7 @@ export default function ChatPage() {
       setGenTitle(tl.resume?.templateName ?? null);
       setRevision((n) => n + 1);
       setFocusSource(null);
+      setRefs(null);
     } catch (err) {
       push({ id: newId(), role: 'assistant', text: '', error: err instanceof ApiError ? err.message : '这条对话打不开' });
     } finally { setBusy(false); }
@@ -275,7 +318,7 @@ export default function ChatPage() {
 
   const newChat = useCallback(() => {
     if (busy) return;
-    setMsgs([]); setQaSessionId(null); setGenSessionId(null); setGenTitle(null); setFocusSource(null); setMode('auto');
+    setMsgs([]); setQaSessionId(null); setGenSessionId(null); setGenTitle(null); setFocusSource(null); setMode('auto'); setRefs(null);
     att.clear();
   }, [busy, att]);
 
@@ -307,8 +350,9 @@ export default function ChatPage() {
   });
 
   const ctx = useMemo(() => ({
-    byId, busy, focusSource, setFocusSource, pickTemplate, genTurn, correctIntent, genSessionId,
-  }), [byId, busy, focusSource, pickTemplate, genTurn, correctIntent, genSessionId]);
+    byId, busy, focusSource, setFocusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs,
+  }), [byId, busy, focusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs]);
+  const refMsg = refs ? byId.get(refs.msgId) : undefined;
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -342,7 +386,7 @@ export default function ChatPage() {
           <ThreadPrimitive.Root className="chat-root">
             <ThreadPrimitive.Viewport className="chat-view sc" autoScroll>
               <ThreadPrimitive.Empty>
-                <Welcome has={has} name={profile?.displayName ?? ''} mode={mode} onMode={setMode}
+                <Welcome has={has} name={profile?.displayName ?? ''}
                   attach={canAttach ? { files: att.files, onAdd: att.add, onRemove: att.remove } : undefined}
                   scopePicker={canScope ? <ScopePicker value={scope} options={scopeOptions} onChange={setScope} /> : null}
                   onPick={(q) => void send(q)} onOpenDoc={(id) => nav(`/generate?session=${id}`)} />
@@ -375,6 +419,10 @@ export default function ChatPage() {
         {genSessionId && showPreview && (
           <LivePreview sessionId={genSessionId} title={genTitle} revision={revision}
             onClose={() => setShowPreview(false)} />
+        )}
+        {!(genSessionId && showPreview) && refs && refMsg?.evidence && (
+          <RefPanel key={refs.msgId} used={refMsg.evidence.used} other={refMsg.evidence.other} focus={refs.focus}
+            onFocus={(n) => setRefs({ msgId: refs.msgId, focus: n })} onClose={() => setRefs(null)} />
         )}
         </div>
       </MsgCtx.Provider>
@@ -418,12 +466,6 @@ function ScopePicker({ value, options, onChange }: { value: Scope; options: Scop
   );
 }
 
-const MODES: { key: Mode; label: string; perm: string[] }[] = [
-  { key: 'auto', label: '自动判断', perm: [] },
-  { key: 'knowledge', label: '查资料', perm: [Perm.QaInternal, Perm.QaPublic] },
-  { key: 'ledger', label: '查项目', perm: [Perm.ProjectSearch] },
-  { key: 'generate', label: '出文档', perm: [Perm.Generate] },
-];
 
 interface AttachProps { files: PendingFile[]; onAdd: (f: FileList | File[]) => void; onRemove: (key: string) => void }
 
@@ -508,21 +550,19 @@ function ago(iso: string): string {
 
 /** 首页（对话还没开始时）：问候、居中的大输入框、按权限给的示例、接着上次没填完的文档。
     不摆功能入口——说一句话就行，示例只是让人知道还能这样问。 */
-function Welcome({ has, name, mode, onMode, scopePicker, attach, onPick, onOpenDoc }: {
-  has: (p: string) => boolean; name: string; mode: Mode; onMode: (m: Mode) => void; scopePicker: ReactNode;
+function Welcome({ has, name, scopePicker, attach, onPick, onOpenDoc }: {
+  has: (p: string) => boolean; name: string; scopePicker: ReactNode;
   attach?: AttachProps;
   onPick: (q: string) => void; onOpenDoc: (sessionId: string) => void;
 }) {
+  // 只是让人知道能这样问——什么都可以问，不用先选功能
   const samples: { perm: string[]; tag: string; text: string }[] = [
-    { perm: [Perm.QaInternal, Perm.QaPublic], tag: '查资料', text: 'CJF-5L 磁力耦合轴承的复装力矩是多少' },
-    { perm: [Perm.ProjectSearch], tag: '查项目', text: '华东理工近三年做过哪些反应釜' },
-    { perm: [Perm.CaseRead], tag: '看案例', text: 'CJF-5L 显示 E12 报警怎么处理' },
-    { perm: [Perm.TicketHandle], tag: '看工单', text: '待处理的工单有哪些' },
-    { perm: [Perm.Translate], tag: '要英文', text: '把这段翻译成英文：本设备采用磁力耦合密封，最高工作压力 10MPa' },
-    { perm: [Perm.Generate], tag: '出文档', text: '帮我出一份技术协议' },
+    { perm: [Perm.QaInternal], tag: '客户只说产物', text: '客户想做尼龙66小试，单釜 5L，我们做过类似的吗？推荐什么配置？' },
+    { perm: [Perm.QaInternal], tag: '客户给了工况', text: '50℃、3 mbar、流量 20 L/h 的工况，冷凝和真空系统一般怎么配？' },
+    { perm: [Perm.ProjectSearch], tag: '翻历史项目', text: '近三年做过哪些高压釜项目，设计压力都是多少？' },
+    { perm: [Perm.QaInternal, Perm.QaPublic], tag: '查参数', text: 'CJF-5L 磁力耦合轴承的复装力矩是多少' },
   ];
   const shown = samples.filter((c) => c.perm.some(has));
-  const modes = MODES.filter((m) => m.perm.length === 0 || m.perm.some(has));
   const docs = useQuery({
     queryKey: ['gen-sessions'], enabled: has(Perm.Generate),
     queryFn: () => get<SessionRowT[]>('/api/generate/sessions'),
@@ -533,19 +573,11 @@ function Welcome({ has, name, mode, onMode, scopePicker, attach, onPick, onOpenD
     <div className="home">
       <div>
         <h1 className="home-hi">{greet()}{name ? `，${name}` : ''}</h1>
-        <p className="home-sub">查资料、翻历史项目、出技术协议——直接说要做什么，不用先选功能。</p>
+        <p className="home-sub">客户问的任何问题都可以直接问：做没做过、怎么选型、参数多少、大概什么价。回答会标出用了哪些资料。</p>
       </div>
 
       <Composer big attach={attach}
-        placeholder={attach ? '直接说要做什么，也可以把客户的需求文件拖进来问' : '例如：给华东理工出一份尼龙66合成装置的技术协议，两台带搅拌反应釜 R-101、R-102'}>
-        {modes.length > 1 && (
-          <div className="seg" role="group" aria-label="处理方式">
-            {modes.map((m) => (
-              <button key={m.key} type="button" className={'seg-b' + (mode === m.key ? ' on' : '')}
-                aria-pressed={mode === m.key} onClick={() => onMode(m.key)}>{m.label}</button>
-            ))}
-          </div>
-        )}
+        placeholder={attach ? '直接问，也可以把客户的需求文件拖进来问' : '直接问，比如：客户要做尼龙66小试，我们做过类似的吗？'}>
         {scopePicker}
       </Composer>
 
@@ -608,7 +640,7 @@ function UserMessage() {
 /** 助手一条：正文按标记语法排版，后面挂这一轮长出来的结果件。 */
 function AssistantMessage() {
   const id = useAuiState((s) => s.message.id);
-  const { byId, busy, focusSource, setFocusSource, pickTemplate, genTurn, correctIntent, genSessionId } = useContext(MsgCtx);
+  const { byId, busy, focusSource, setFocusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs } = useContext(MsgCtx);
   const m = byId.get(id);
   if (!m) return null;
   const isLast = [...byId.keys()].pop() === id;
@@ -621,10 +653,20 @@ function AssistantMessage() {
         {m.intent === 'general' && (
           <div className="hint" style={{ marginBottom: 7 }}>通用回答 · 未引用企业资料</div>
         )}
+        {m.notice && <div className="hint" style={{ marginBottom: 7 }}>{m.notice}</div>}
         {m.agentSteps && <AgentProgressCard steps={m.agentSteps} streaming={m.streaming} />}
+        {m.steps && <StepsCard steps={m.steps} streaming={m.streaming} seconds={m.seconds} />}
         {m.text && <Prose text={m.text}
-          onCite={m.sources ? (n) => setFocusSource(n) : undefined} />}
-        {m.streaming && !m.text && <Spinner text="思考中…" />}
+          flags={m.verify?.issues.map((i) => i.value)}
+          focus={refs?.msgId === id ? refs.focus : null}
+          onCite={m.evidence ? (n) => showRefs(id, n) : m.sources ? (n) => setFocusSource(n) : undefined} />}
+        {m.streaming && !m.text && !(m.steps && m.steps.length > 0) && <Spinner text="思考中…" />}
+        {m.verify && !m.streaming && <VerifyBar report={m.verify} onCite={(n) => showRefs(id, n)} />}
+        {m.evidence && m.evidence.used.length > 0 && !m.streaming && refs?.msgId !== id && (
+          <button type="button" className="as-refs-btn" onClick={() => showRefs(id)}>
+            参考资料 {new Set(m.evidence.used.map((c) => c.docId ?? c.kind + (c.fileName ?? ''))).size} 份 · {m.evidence.used.length} 段原文 ›
+          </button>
+        )}
         {m.error && <ErrorBox message={m.error} />}
 
         {m.noResult && <NoResultCard message={m.noResult.message} docs={m.noResult.docs} />}
@@ -715,6 +757,10 @@ function restore(raw: string | null | undefined): Partial<Msg> {
           ...steps,
           ...(table && typeof table === 'object' ? { table: table as LedgerTable } : {}),
         };
+      }
+      case 'assistant': {
+        const a = parsed as unknown as { steps?: AssistantStep[]; evidence?: Msg['evidence']; verify?: VerifyReport; seconds?: number };
+        return { steps: a.steps ?? [], evidence: a.evidence, verify: a.verify, seconds: a.seconds ?? null };
       }
       case 'translation': return { ...steps, translation: data as unknown as Msg['translation'], text: '' };
       case 'cases': return {

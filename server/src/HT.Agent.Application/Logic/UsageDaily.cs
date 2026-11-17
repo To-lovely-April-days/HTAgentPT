@@ -34,6 +34,7 @@ public static class UsageDaily
     /// <summary>这条审计算哪个功能；不算调用的（登录、管理操作、问答收尾记录等）返回 null。</summary>
     public static string? ModuleOf(Event e)
     {
+        if (e.Action == "qa.assistant.start") return "检索问答";
         if (e.Action == "qa.multi_agent.start")
             return e.Detail is not null && IntentLedger.IsMatch(e.Detail) ? "项目查询" : "检索问答";
         foreach (var (prefix, module) in Map)
@@ -45,7 +46,8 @@ public static class UsageDaily
     public static bool? AnsweredOf(Event e)
     {
         if (e.Detail is null) return null;
-        var isKnowledgeResult = e.Action == "qa.ask"
+        // 通用助手：只有查过资料的提问才带 answered（寒暄、纯通用知识不计入命中率）
+        var isKnowledgeResult = e.Action is "qa.ask" or "qa.assistant.complete"
             || (e.Action == "qa.multi_agent.complete" && IntentKnowledge.IsMatch(e.Detail));
         if (!isKnowledgeResult) return null;
         var m = Answered.Match(e.Detail);

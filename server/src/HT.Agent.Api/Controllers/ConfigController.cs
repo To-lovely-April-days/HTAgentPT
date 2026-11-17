@@ -45,7 +45,8 @@ public class ConfigController(IRuntimeConfig config, ICurrentUser me, IAuditWrit
         ConfigKeys.HistoryTurns, ConfigKeys.HybridAlpha, ConfigKeys.AnnCandidateFactor,
         ConfigKeys.ChunkTargetLength, ConfigKeys.ChunkOverlap, ConfigKeys.ChunkMinLength,
         ConfigKeys.UploadMaxFileMb, ConfigKeys.UploadMaxBatch, ConfigKeys.JwtLifetimeMinutes,
-        ConfigKeys.AuditRetentionMonths, ConfigKeys.TranslateBatchChars
+        ConfigKeys.AuditRetentionMonths, ConfigKeys.TranslateBatchChars,
+        ConfigKeys.AssistantMaxRounds, ConfigKeys.AssistantMaxTokens, ConfigKeys.AssistantContextChars, ConfigKeys.AssistantSearchTopK
     };
 
     [HttpPut]

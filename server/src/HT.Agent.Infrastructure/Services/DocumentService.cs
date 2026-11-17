@@ -250,6 +250,36 @@ public class DocumentService(
             .Select(c => new ChunkRow(c.Id, c.Seq, c.SectionPath, c.PageNo, c.Bbox, c.Text, c.EmbeddingModel, c.IsActive))
             .ToListAsync(ct);
 
+    public async Task<DocReadResult> ReadForAnswerAsync(Guid docId, int? pageNo, long? aroundChunkId, int maxChunks, CancellationToken ct = default)
+    {
+        await EnsureDocAccessAsync(docId, "doc.read_denied", ct);
+        var doc = await db.Documents.AsNoTracking().Include(d => d.Metadata).FirstAsync(d => d.Id == docId, ct);
+        if (doc.ParseStatus != ParseStatus.Parsed || doc.Review != ReviewStatus.Approved)
+            throw new DomainRuleException("DOC_NOT_READY", "这份文档还没解析入库，读不了原文");
+        maxChunks = Math.Clamp(maxChunks, 1, 12);
+        var all = db.Chunks.AsNoTracking().Where(c => c.DocId == docId && c.IsActive);
+        var total = await all.CountAsync(ct);
+        IQueryable<Chunk> pick;
+        if (aroundChunkId is not null && await all.AnyAsync(c => c.Id == aroundChunkId, ct))
+        {
+            var seq = await all.Where(c => c.Id == aroundChunkId).Select(c => c.Seq).FirstAsync(ct);
+            var before = maxChunks / 3;
+            pick = all.Where(c => c.Seq >= seq - before).OrderBy(c => c.Seq);
+        }
+        else if (pageNo is not null)
+        {
+            // 这一页没有分块（图页、空白页）就从它后面最近的一页起
+            var start = await all.Where(c => c.PageNo != null && c.PageNo >= pageNo).OrderBy(c => c.Seq).Select(c => (int?)c.Seq).FirstOrDefaultAsync(ct);
+            pick = start is null ? all.OrderBy(c => c.Seq) : all.Where(c => c.Seq >= start).OrderBy(c => c.Seq);
+        }
+        else pick = all.OrderBy(c => c.Seq);
+        var chunks = await pick.Take(maxChunks)
+            .Select(c => new ChunkRow(c.Id, c.Seq, c.SectionPath, c.PageNo, c.Bbox, c.Text, c.EmbeddingModel, c.IsActive))
+            .ToListAsync(ct);
+        return new DocReadResult(doc.Id, doc.Title, doc.FileName, doc.Metadata?.DocCategory, doc.Metadata?.Year,
+            doc.Classification, chunks, total);
+    }
+
     public async Task EditChunkAsync(long chunkId, string newText, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(newText))
