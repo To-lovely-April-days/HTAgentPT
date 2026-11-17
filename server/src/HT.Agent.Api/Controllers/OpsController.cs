@@ -16,8 +16,51 @@ namespace HT.Agent.Api.Controllers;
 [Authorize]
 [RequirePermission(PermissionKeys.SystemConfig)]
 public class OpsController(AppDbContext db, BackupService backup, IRuntimeConfig config,
-    IAuditWriter audit, ICurrentUser me, IEmbeddingClient embedder) : ControllerBase
+    IAuditWriter audit, ICurrentUser me, IEmbeddingClient embedder,
+    IHttpClientFactory httpFactory, IConfiguration appConfig) : ControllerBase
 {
+    /// <summary>对话模型在不在（后台首页状态条）：按当前配置探一次 /models，3 秒为限。
+    /// 演示应答模式直说是演示；接口不通就报不在线和原因——首页上一眼看得出「模型挂了」，不用等用户来说答不上。</summary>
+    [HttpGet("model-status")]
+    public async Task<IActionResult> ModelStatus(CancellationToken ct)
+    {
+        var fallback = bool.TryParse(appConfig["Models:UseStubs"], out var stubs) && stubs ? "stub" : "openai";
+        var provider = (await config.GetStringAsync(ConfigKeys.ChatProvider, fallback, ct)).Trim();
+        var name = await config.GetStringAsync(ConfigKeys.ChatModelName, "", ct);
+        var vision = bool.TryParse((await config.GetStringAsync(ConfigKeys.VisionEnabled, "false", ct)).Trim(), out var v) && v;
+        var maxTokens = await config.GetIntAsync(ConfigKeys.ChatMaxTokens, 1024, ct);
+        if (provider.Equals("stub", StringComparison.OrdinalIgnoreCase))
+            return Ok(new { mode = "stub", online = true, name = "内置演示应答", maxModelLen = (int?)null, vision, maxTokens, error = (string?)null });
+
+        var url = (await config.GetStringAsync(ConfigKeys.ChatModelUrl, "http://127.0.0.1:8000/v1", ct)).TrimEnd('/');
+        var apiKey = (await config.GetStringAsync(ConfigKeys.ChatApiKey, "", ct)).Trim();
+        int? maxLen = null;
+        string? error = null;
+        var online = false;
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(3));
+            using var req = new HttpRequestMessage(HttpMethod.Get, $"{url}/models");
+            if (apiKey.Length > 0) req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+            using var resp = await httpFactory.CreateClient("model").SendAsync(req, cts.Token);
+            online = resp.IsSuccessStatusCode;
+            if (!online) error = $"HTTP {(int)resp.StatusCode}";
+            else
+            {
+                using var doc = await System.Text.Json.JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(cts.Token), cancellationToken: cts.Token);
+                if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    foreach (var m in data.EnumerateArray())
+                        if (m.TryGetProperty("max_model_len", out var len) && len.TryGetInt32(out var n)) { maxLen = n; break; }
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException or System.Text.Json.JsonException)
+        {
+            error = ex is HttpRequestException ? "连不上模型服务" : ex is System.Text.Json.JsonException ? "返回格式不认识" : "3 秒内没有响应";
+        }
+        return Ok(new { mode = provider, online, name, maxModelLen = maxLen, vision, maxTokens, error });
+    }
+
     /// <summary>最近一次各类备份的时间、结果与大小（FR-9.4），失败突出由前端按 ok=false 渲染。</summary>
     [HttpGet("backup/status")]
     public async Task<IActionResult> BackupStatus(CancellationToken ct)
