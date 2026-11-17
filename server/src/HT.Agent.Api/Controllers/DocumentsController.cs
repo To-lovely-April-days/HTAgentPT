@@ -63,8 +63,26 @@ public class DocumentsController(
 
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] Guid? kbId, [FromQuery] ParseStatus? status,
-        [FromQuery] string? search, CancellationToken ct)
-        => Ok(await docs.ListAsync(kbId, status, search, ct));
+        [FromQuery] string? search, [FromQuery] ReviewStatus? review, CancellationToken ct)
+        => Ok(await docs.ListAsync(kbId, status, search, ct, review));
+
+    /// <summary>待审核数（后台首页待办、页签角标）。</summary>
+    [HttpGet("review/count")]
+    public async Task<IActionResult> PendingCount(CancellationToken ct)
+        => Ok(new { pending = await db.Documents.CountAsync(d => d.Review == ReviewStatus.Pending, ct) });
+
+    public record ApproveBody(List<Guid> DocIds);
+    public record RejectBody(List<Guid> DocIds, string Reason);
+
+    /// <summary>审核通过：通过即排队解析。</summary>
+    [HttpPost("review/approve")]
+    public async Task<IActionResult> Approve([FromBody] ApproveBody body, [FromServices] ICorpusReviewService review, CancellationToken ct)
+        => Ok(new { approved = await review.ApproveAsync(body.DocIds, ct) });
+
+    /// <summary>驳回：原因必填，上传人在「文件管理」里看得到。</summary>
+    [HttpPost("review/reject")]
+    public async Task<IActionResult> Reject([FromBody] RejectBody body, [FromServices] ICorpusReviewService review, CancellationToken ct)
+        => Ok(new { rejected = await review.RejectAsync(body.DocIds, body.Reason, ct) });
 
     public record ParseBody(List<Guid> DocIds);
 
@@ -183,5 +201,45 @@ public class FilesController(IDocumentService docs) : ControllerBase
     {
         var (content, contentType) = await docs.OpenImageAsync(docId, imageId, ct);
         return File(content, contentType);
+    }
+}
+
+/// <summary>员工自己的文件（「文件管理」页）：上传、看自己传过的、撤回没通过的。
+/// 只认当前登录账号——列表、撤回都按上传人过滤，别人的文件看不到也动不了。</summary>
+[ApiController]
+[Route("api/my-files")]
+[Authorize]
+[RequirePermission(PermissionKeys.CorpusUpload)]
+public class MyFilesController(ICorpusReviewService review) : ControllerBase
+{
+    [HttpGet]
+    public async Task<IActionResult> List(CancellationToken ct) => Ok(await review.ListMineAsync(ct));
+
+    /// <summary>上传：知识库和密级由系统定（内部资料库、内部），员工只填元数据；上传后待审核。</summary>
+    [HttpPost]
+    public async Task<IActionResult> Upload(
+        [FromForm] IFormFile file,
+        [FromForm] string customerName,
+        [FromForm] int year,
+        [FromForm] string deviceType,
+        [FromForm] string docCategory,
+        [FromForm] string? projectNo,
+        [FromForm] string? title,
+        CancellationToken ct)
+    {
+        await using var stream = file.OpenReadStream();
+        var result = await review.UploadMineAsync(new UploadDocumentRequest(
+            Guid.Empty, file.FileName, file.ContentType ?? "application/octet-stream", file.Length,
+            Classification.Internal, null,
+            customerName, year, deviceType, docCategory, projectNo,
+            OwnerId: null, DocVersion: null, EffectiveDate: null, Title: title), stream, ct);
+        return Ok(result);
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Withdraw(Guid id, CancellationToken ct)
+    {
+        await review.WithdrawAsync(id, ct);
+        return NoContent();
     }
 }

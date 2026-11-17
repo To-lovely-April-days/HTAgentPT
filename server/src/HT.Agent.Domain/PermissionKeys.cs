@@ -28,6 +28,8 @@ public static class PermissionKeys
     public const string CustomerSelf = "customer.self";
     /// <summary>语料管理：上传、解析、分块检视与编辑。</summary>
     public const string CorpusManage = "corpus.manage";
+    /// <summary>往语料库上传文件（员工上传，管理员审核后才解析）。除外部客户外的内部角色都有。</summary>
+    public const string CorpusUpload = "corpus.upload";
     /// <summary>知识库管理：建库、同步、发布、撤回。</summary>
     public const string KbManage = "kb.manage";
     /// <summary>元数据与词表、台账、术语维护。</summary>

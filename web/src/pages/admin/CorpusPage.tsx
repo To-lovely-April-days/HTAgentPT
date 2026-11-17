@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 // E1 语料管理（文档列表）+ E3 解析任务队列。
 // FR-1.2 上传后不自动解析（解析占算力，与在线问答共用资源）；
 // FR-1.7 失败必须给出具体原因；10.3 「等待」与「失败」是两回事，分开呈现。
@@ -9,6 +9,7 @@ import { CLS_PILL, CLS_LABEL, PARSE_LABEL } from '../../lib/types';
 import type { DocRow, KbRow, ParseJobRow, ParseStatus } from '../../lib/types';
 import { ErrorBox, Spinner } from '../../components/Common';
 import UploadModal from './UploadModal';
+import CorpusReviewTab from './CorpusReviewTab';
 
 const STATUS_PILL: Record<ParseStatus, React.CSSProperties> = {
   Parsed: { background: '#e6f2ec', color: '#1c6b45', border: '1px solid #c2ded1' },
@@ -27,12 +28,19 @@ const JOB_PILL: Record<string, React.CSSProperties> = {
   Waiting: { background: 'var(--cls-int-bg)', color: 'var(--cls-int-fg)', border: '1px solid var(--cls-int-line)' },
   Succeeded: STATUS_PILL.Parsed, Failed: STATUS_PILL.Failed, Cancelled: STATUS_PILL.Queued,
 };
+const REVIEW_PILL = {
+  Pending: { background: '#fbf0d9', color: '#8a5a00', border: '1px solid #f0dcae' },
+  Rejected: { background: 'var(--cls-conf-bg)', color: 'var(--cls-conf-fg)', border: '1px solid var(--cls-conf-line)' },
+} satisfies Record<string, React.CSSProperties>;
 const KIND_LABEL: Record<string, string> = { Parse: '解析', Reparse: '重新解析', EmbedOnly: '重算向量', EmbedDoc: '整篇重算向量' };
 
 export default function CorpusPage() {
   const qc = useQueryClient();
   const nav = useNavigate();
-  const [tab, setTab] = useState<'docs' | 'queue'>('docs');
+  const [params, setParams] = useSearchParams();
+  const tab = (['docs', 'queue', 'review'].includes(params.get('tab') ?? '') ? params.get('tab') : 'docs') as 'docs' | 'queue' | 'review';
+  const setTab = (t: 'docs' | 'queue' | 'review') => setParams(t === 'docs' ? {} : { tab: t }, { replace: true });
+  const reviewCount = useQuery({ queryKey: ['docs-review-count'], queryFn: () => get<{ pending: number }>('/api/documents/review/count'), refetchInterval: 30_000 });
   const [kbId, setKbId] = useState('');
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
@@ -61,7 +69,7 @@ export default function CorpusPage() {
   const stats = useMemo(() => ({
     total: rows.length,
     parsed: rows.filter((r) => r.parseStatus === 'Parsed').length,
-    waiting: rows.filter((r) => r.parseStatus === 'NotParsed').length,
+    waiting: rows.filter((r) => r.parseStatus === 'NotParsed' && r.review === 'Approved').length,
     failed: rows.filter((r) => r.parseStatus === 'Failed').length,
   }), [rows]);
   const activeJobs = (queue.data ?? []).filter((j) => j.status === 'Queued' || j.status === 'Running' || j.status === 'Waiting').length;
@@ -70,6 +78,7 @@ export default function CorpusPage() {
     void qc.invalidateQueries({ queryKey: ['docs'] });
     void qc.invalidateQueries({ queryKey: ['parse-queue'] });
     void qc.invalidateQueries({ queryKey: ['kbs'] });
+    void qc.invalidateQueries({ queryKey: ['docs-review-count'] });
   };
 
   const toggle = (id: string) => setSelected((s) => {
@@ -123,6 +132,9 @@ export default function CorpusPage() {
   return (
     <>
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 2, padding: '0 40px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
+        <span style={tabStyle(tab === 'review')} onClick={() => setTab('review')}>
+          待审核{(reviewCount.data?.pending ?? 0) > 0 && <span className="m" style={{ color: '#fff', background: 'var(--brand)', borderRadius: 9, padding: '0 6px', fontSize: 11, lineHeight: '16px' }}>{reviewCount.data!.pending}</span>}
+        </span>
         <span style={tabStyle(tab === 'docs')} onClick={() => setTab('docs')}>文档列表</span>
         <span style={tabStyle(tab === 'queue')} onClick={() => setTab('queue')}>
           解析队列{activeJobs > 0 && <span className="m" style={{ color: 'var(--cls-int-fg)' }}>{activeJobs}</span>}
@@ -166,8 +178,8 @@ export default function CorpusPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
-                    {['', '文档', '类别', '密级', '大小', '上传', '解析状态', '操作'].map((h, i) => (
-                      <th key={i} style={{ ...th, width: [42, undefined, 100, 84, 90, 110, 230, 130][i] }}>{h}</th>
+                    {['', '文档', '上传人', '类别', '密级', '大小', '上传', '解析状态', '操作'].map((h, i) => (
+                      <th key={i} style={{ ...th, width: [42, undefined, 110, 100, 84, 90, 110, 230, 130][i] }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -187,13 +199,22 @@ export default function CorpusPage() {
                             {r.kbName}{r.customerName ? ` · ${r.customerName}` : ''}{r.projectNo ? ` · ${r.projectNo}` : ''}
                           </div>
                         </td>
+                        <td style={{ ...td, color: 'var(--ink-2)' }}>
+                          <div>{r.uploaderName ?? '—'}</div>
+                          {r.uploaderRole && <div style={{ fontSize: 10.5, color: 'var(--ink-3)', marginTop: 2 }}>{r.uploaderRole}</div>}
+                        </td>
                         <td style={{ ...td, color: 'var(--ink-2)' }}>{r.docCategory ?? '—'}</td>
                         <td style={td}><span className={CLS_PILL[r.classification]}>{CLS_LABEL[r.classification]}</span></td>
                         <td className="m" style={{ ...td, color: 'var(--ink-3)', fontSize: 11.5 }}>{fmtSize(r.fileSize)}</td>
                         <td className="m" style={{ ...td, color: 'var(--ink-3)', fontSize: 11.5 }}>{r.uploadedAt.slice(5, 16).replace('T', ' ')}</td>
                         <td style={td}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'normal' }}>
-                            <span className="pill" style={STATUS_PILL[r.parseStatus]}>{PARSE_LABEL[r.parseStatus]}</span>
+                            {r.review === 'Approved'
+                              ? <span className="pill" style={STATUS_PILL[r.parseStatus]}>{PARSE_LABEL[r.parseStatus]}</span>
+                              : <span className="pill" style={r.review === 'Pending' ? REVIEW_PILL.Pending : REVIEW_PILL.Rejected}>{r.review === 'Pending' ? '待审核' : '已驳回'}</span>}
+                            {r.review === 'Rejected' && r.reviewNote && (
+                              <span style={{ fontSize: 11, lineHeight: 1.5, color: 'var(--ink-3)' }}>{r.reviewNote}</span>
+                            )}
                             {(r.parseStatus === 'Failed' || r.parseStatus === 'Waiting') && r.parseError && (
                               <span style={{ fontSize: 11, lineHeight: 1.5, color: 'var(--cls-conf-fg)' }}>{r.parseError}</span>
                             )}
@@ -201,7 +222,10 @@ export default function CorpusPage() {
                         </td>
                         <td style={td}>
                           <div style={{ display: 'flex', gap: 6 }}>
-                            {(r.parseStatus === 'NotParsed' || r.parseStatus === 'Failed') && (
+                            {r.review === 'Pending' && (
+                              <button className="gbtn" style={{ height: 24, fontSize: 11.5 }} onClick={() => setTab('review')}>去审核</button>
+                            )}
+                            {r.review === 'Approved' && (r.parseStatus === 'NotParsed' || r.parseStatus === 'Failed') && (
                               <button className="gbtn" style={{ height: 24, fontSize: 11.5 }} onClick={() => void submitParse([r.id])}>提交解析</button>
                             )}
                             {r.parseStatus === 'Parsed' && (
@@ -219,7 +243,7 @@ export default function CorpusPage() {
                     );
                   })}
                   {rows.length === 0 && (
-                    <tr><td colSpan={8} style={{ ...td, color: 'var(--ink-3)', padding: '20px 12px' }}>没有匹配的文档。</td></tr>
+                    <tr><td colSpan={9} style={{ ...td, color: 'var(--ink-3)', padding: '20px 12px' }}>没有匹配的文档。</td></tr>
                   )}
                 </tbody>
               </table>
@@ -235,6 +259,8 @@ export default function CorpusPage() {
           </div>
         </>
       )}
+
+      {tab === 'review' && <CorpusReviewTab onChanged={refresh} />}
 
       {tab === 'queue' && (
         <>

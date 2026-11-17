@@ -28,6 +28,7 @@ import UsersPage from './pages/admin/UsersPage'
 import SettingsPage from './pages/admin/SettingsPage'
 import StatsPage from './pages/admin/StatsPage'
 import ReviewPage from './pages/review/ReviewPage'
+import FilesPage from './pages/files/FilesPage'
 import ProfilePage from './pages/profile/ProfilePage'
 
 const queryClient = new QueryClient({
@@ -82,6 +83,7 @@ function App() {
         <Route path="cases/:caseId/edit" element={<CaseEntryPage />} />
         <Route path="tickets" element={<TicketsPage />} />
         <Route path="review" element={<ReviewPage />} />
+        <Route path="files" element={<FilesPage />} />
         <Route path="admin" element={<AdminLayout />}>
           <Route index element={<AdminHome />} />
           <Route path="corpus" element={<CorpusPage />} />

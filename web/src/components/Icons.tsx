@@ -18,6 +18,7 @@ const PATHS: Record<string, ReactElement> = {
   user: <><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" /></>,
   clip: <path d="M21 11.5l-8.5 8.5a5 5 0 0 1-7-7L14 4.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4L15.5 7.5" />,
   x: <path d="M6 6l12 12M18 6L6 18" />,
+  upload: <path d="M12 16V4M6 10l6-6 6 6M4 20h16" />,
 };
 
 export function Icon({ name, size = 17, stroke = 1.8 }: { name: keyof typeof PATHS | string; size?: number; stroke?: number }) {

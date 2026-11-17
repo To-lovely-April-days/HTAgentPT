@@ -55,7 +55,7 @@ public static class Seeder
             [
                 PermissionKeys.QaInternal, PermissionKeys.QaPublic, PermissionKeys.ProjectSearch,
                 PermissionKeys.Generate, PermissionKeys.GenerateContract, PermissionKeys.Translate,
-                PermissionKeys.CaseRead
+                PermissionKeys.CaseRead, PermissionKeys.CorpusUpload
             ]
         };
         var aftersales = new Role
@@ -66,7 +66,7 @@ public static class Seeder
             [
                 PermissionKeys.QaInternal, PermissionKeys.QaPublic, PermissionKeys.ProjectSearch,
                 PermissionKeys.Translate, PermissionKeys.CaseRead, PermissionKeys.CaseWrite,
-                PermissionKeys.TicketHandle
+                PermissionKeys.TicketHandle, PermissionKeys.CorpusUpload
             ]
         };
         var customer = new Role
@@ -84,7 +84,7 @@ public static class Seeder
             [
                 PermissionKeys.CorpusManage, PermissionKeys.KbManage, PermissionKeys.MetaManage,
                 PermissionKeys.TemplateManage, PermissionKeys.UserManage, PermissionKeys.SystemConfig,
-                PermissionKeys.AuditRead
+                PermissionKeys.AuditRead, PermissionKeys.CorpusUpload
             ],
             Note = "问答默认关闭；确需开通须单独授权并记录（3.2/3.4）"
         };
@@ -93,7 +93,7 @@ public static class Seeder
         {
             Id = Guid.NewGuid(), Code = RoleCodes.HqReviewer, Name = "总部审核人", IsSystem = true,
             Classifications = [Classification.Internal, Classification.Public],
-            Permissions = [PermissionKeys.QaInternal, PermissionKeys.QaPublic, PermissionKeys.CaseReview]
+            Permissions = [PermissionKeys.QaInternal, PermissionKeys.QaPublic, PermissionKeys.CaseReview, PermissionKeys.CorpusUpload]
         };
         db.Roles.AddRange(presales, aftersales, customer, admin, reviewer);
 

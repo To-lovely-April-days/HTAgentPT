@@ -42,6 +42,12 @@ public class Document
     public bool IsWithdrawn { get; set; }
     public Guid UploadedById { get; set; }
     public DateTimeOffset UploadedAt { get; set; }
+    /// <summary>上传审核：未通过（待审核/已驳回）的文件不能解析，也就进不了检索。</summary>
+    public ReviewStatus Review { get; set; } = ReviewStatus.Approved;
+    /// <summary>驳回原因（上传人在「文件管理」里能看到）。</summary>
+    public string? ReviewNote { get; set; }
+    public Guid? ReviewedById { get; set; }
+    public DateTimeOffset? ReviewedAt { get; set; }
     public DateTimeOffset? ParsedAt { get; set; }
     public DocMetadata? Metadata { get; set; }
 }

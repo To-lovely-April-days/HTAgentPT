@@ -178,3 +178,12 @@ public enum BackupKind
     LocalFull,
     RemoteFull
 }
+
+/// <summary>上传审核（员工上传须管理员审核通过才能解析入库；管理员自己上传直接通过）。
+/// 老数据全部视为已通过。</summary>
+public enum ReviewStatus
+{
+    Approved,
+    Pending,
+    Rejected
+}

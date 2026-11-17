@@ -110,6 +110,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
         {
             // 过滤条件走索引而非全表扫描（7.2）
             e.HasIndex(x => new { x.KbId, x.Classification, x.ParseStatus });
+            e.HasIndex(x => new { x.Review, x.UploadedAt });
+            e.HasIndex(x => x.UploadedById);
             e.HasOne(x => x.Metadata).WithOne(m => m.Document!)
                 .HasForeignKey<DocMetadata>(m => m.DocumentId).OnDelete(DeleteBehavior.Cascade);
         });

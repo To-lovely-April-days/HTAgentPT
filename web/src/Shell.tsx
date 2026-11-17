@@ -15,7 +15,8 @@ function navFor(roleCode: string, has: (p: string) => boolean): NavItem[] {
     case 'admin':
       return [{ to: '/admin', label: '管理后台', icon: 'settings' }];
     case 'hq_reviewer':
-      return [{ to: '/review', label: '审核台', icon: 'shield' }, { to: '/chat', label: '共享库问答', icon: 'chat' }];
+      return [{ to: '/review', label: '审核台', icon: 'shield' }, { to: '/chat', label: '共享库问答', icon: 'chat' },
+        ...(has(Perm.CorpusUpload) ? [{ to: '/files', label: '文件管理', icon: 'upload' }] : [])];
     default: {
       const items: NavItem[] = [];
       if (has(Perm.QaInternal) || has(Perm.QaPublic) || has(Perm.CaseRead)) items.push({ to: '/chat', label: '首页', icon: 'home' });
@@ -23,6 +24,7 @@ function navFor(roleCode: string, has: (p: string) => boolean): NavItem[] {
       if (has(Perm.Generate)) items.push({ to: '/generate', label: '我的文档', icon: 'file' });
       if (has(Perm.CaseRead)) items.push({ to: '/cases', label: '故障案例', icon: 'wrench' });
       if (has(Perm.TicketHandle)) items.push({ to: '/tickets', label: '报修工单', icon: 'ticket' });
+      if (has(Perm.CorpusUpload)) items.push({ to: '/files', label: '文件管理', icon: 'upload' });
       return items;
     }
   }

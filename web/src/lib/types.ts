@@ -124,6 +124,19 @@ export interface DocRow {
   classification: Classification; parseStatus: ParseStatus; parseError: string | null;
   fileSize: number; uploadedAt: string; docCategory: string | null;
   customerName: string | null; projectNo: string | null;
+  uploadedById: string; review: ReviewStatus; reviewNote: string | null;
+  uploaderName: string | null; uploaderRole: string | null; reviewHint: string | null;
+}
+
+/** 上传审核：员工上传先待审核，管理员通过后才解析。 */
+export type ReviewStatus = 'Approved' | 'Pending' | 'Rejected';
+
+/** 「文件管理」里自己上传的文件。 */
+export interface MyFileRow {
+  id: string; title: string; fileName: string; fileSize: number; uploadedAt: string;
+  docCategory: string | null; customerName: string | null; projectNo: string | null; kbName: string;
+  review: ReviewStatus; reviewNote: string | null; reviewedAt: string | null;
+  parseStatus: ParseStatus; parseError: string | null; chunkCount: number;
 }
 
 export interface ParseJobRow {
@@ -397,7 +410,7 @@ export const Perm = {
   Generate: 'generate.doc', GenerateContract: 'generate.contract', Translate: 'translate',
   CaseRead: 'case.read', CaseWrite: 'case.write', CaseReview: 'case.review',
   TicketHandle: 'ticket.handle', CustomerSelf: 'customer.self',
-  CorpusManage: 'corpus.manage', KbManage: 'kb.manage', MetaManage: 'meta.manage',
+  CorpusManage: 'corpus.manage', CorpusUpload: 'corpus.upload', KbManage: 'kb.manage', MetaManage: 'meta.manage',
   TemplateManage: 'template.manage', UserManage: 'user.manage',
   SystemConfig: 'system.config', AuditRead: 'audit.read',
 } as const;

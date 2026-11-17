@@ -717,6 +717,23 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("parsed_at");
 
+                    b.Property<string>("Review")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("review");
+
+                    b.Property<string>("ReviewNote")
+                        .HasColumnType("text")
+                        .HasColumnName("review_note");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_id");
+
                     b.Property<string>("Sha256")
                         .HasColumnType("text")
                         .HasColumnName("sha256");
@@ -736,6 +753,12 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_document");
+
+                    b.HasIndex("UploadedById")
+                        .HasDatabaseName("ix_document_uploaded_by_id");
+
+                    b.HasIndex("Review", "UploadedAt")
+                        .HasDatabaseName("ix_document_review_uploaded_at");
 
                     b.HasIndex("KbId", "Classification", "ParseStatus")
                         .HasDatabaseName("ix_document_kb_id_classification_parse_status");

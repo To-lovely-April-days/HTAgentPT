@@ -9,15 +9,23 @@ import { KB_TIER_LABEL, PROJECT_LINKED_CATEGORIES, STRATEGY_LABEL } from '../../
 import type { KbRow, ProjectRow, VocabRow } from '../../lib/types';
 import { ErrorBox } from '../../components/Common';
 
-export default function UploadModal({ kbs, onClose, onUploaded }: {
-  kbs: KbRow[];
+/** staff：员工在「文件管理」里上传——不选知识库和密级（系统定：内部资料库、内部），可一次传多份
+ * （共用同一组元数据），也不能顺手登记台账；传完待管理员审核。admin：后台语料管理，原样。 */
+export default function UploadModal({ kbs = [], onClose, onUploaded, mode = 'admin', initialFiles }: {
+  kbs?: KbRow[];
   onClose: () => void;
   onUploaded: () => void;
+  mode?: 'admin' | 'staff';
+  /** 拖进页面的文件：打开时直接带上。 */
+  initialFiles?: File[];
 }) {
-  const [file, setFile] = useState<File | null>(null);
+  const staff = mode === 'staff';
+  const [files, setFiles] = useState<File[]>(() => (initialFiles ?? []).slice(0, staff ? 20 : 1));
+  const file = files[0] ?? null;
+  const [progress, setProgress] = useState('');
   const [kbId, setKbId] = useState('');
   const [classification, setClassification] = useState('');
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState(() => initialFiles?.[0]?.name.replace(/\.[^.]+$/, '') ?? '');
   const [customerName, setCustomerName] = useState('');
   const [year, setYear] = useState(String(new Date().getFullYear()));
   const [deviceType, setDeviceType] = useState('');
@@ -46,15 +54,44 @@ export default function UploadModal({ kbs, onClose, onUploaded }: {
   const projectRequired = PROJECT_LINKED_CATEGORIES.includes(docCategory);
   const typedNo = projectNo.trim();
   const matched = (projects.data ?? []).find((p) => p.projectNo === typedNo);
-  const isNewProject = typedNo.length > 0 && !matched && !projects.isLoading;
-  const ready = !!file && !!kbId && !!classification && !!customerName && year.length === 4
-    && !!deviceType && !!docCategory && (!projectRequired || typedNo.length > 0);
+  const isNewProject = typedNo.length > 0 && !matched && !projects.isLoading && !projects.isError;
+  const ready = !!file && (staff || (!!kbId && !!classification)) && !!customerName && year.length === 4
+    && !!deviceType && !!docCategory && (!projectRequired || typedNo.length > 0)
+    && !(staff && isNewProject);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ready || !file) return;
     setBusy(true);
     setError(null);
+    if (staff) {
+      // 一份一份传，哪份失败就停在哪份，前面成功的已经在审核队列里了
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        setProgress(files.length > 1 ? `${i + 1} / ${files.length}` : '');
+        const form = new FormData();
+        form.append('file', f);
+        form.append('customerName', customerName);
+        form.append('year', year);
+        form.append('deviceType', deviceType);
+        form.append('docCategory', docCategory);
+        if (typedNo) form.append('projectNo', typedNo);
+        if (files.length === 1 && title.trim()) form.append('title', title.trim());
+        try {
+          await upload('/api/my-files', form);
+        } catch (err) {
+          setError(`「${f.name}」没传上：${err instanceof ApiError ? err.message : '上传失败，请稍后重试'}${i > 0 ? `（前面 ${i} 份已提交审核）` : ''}`);
+          setFiles(files.slice(i));
+          setBusy(false);
+          setProgress('');
+          return;
+        }
+      }
+      setBusy(false);
+      setProgress('');
+      onUploaded();
+      return;
+    }
     try {
       const form = new FormData();
       form.append('file', file);
@@ -91,8 +128,12 @@ export default function UploadModal({ kbs, onClose, onUploaded }: {
       <div style={{ width: 640, maxHeight: '88vh', display: 'flex', flexDirection: 'column', background: 'var(--panel)', borderRadius: 8, overflow: 'hidden', boxShadow: '0 18px 50px rgba(16,24,40,.22)' }}
         onClick={(e) => e.stopPropagation()}>
         <div style={{ flexShrink: 0, padding: '16px 20px 13px', borderBottom: '1px solid var(--line)' }}>
-          <div style={{ fontSize: 15, fontWeight: 600 }}>上传文档并登记元数据</div>
-          <div className="hint" style={{ marginTop: 3 }}>必填元数据未填齐不允许提交；受控字段只能选不能写。上传后不会自动解析。</div>
+          <div style={{ fontSize: 15, fontWeight: 600 }}>{staff ? '上传文件' : '上传文档并登记元数据'}</div>
+          <div className="hint" style={{ marginTop: 3 }}>
+            {staff
+              ? '进内部资料库、按「内部」密级。提交后由管理员审核，通过后自动解析，同事就能问到了。'
+              : '必填元数据未填齐不允许提交；受控字段只能选不能写。上传后不会自动解析。'}
+          </div>
         </div>
 
         <form onSubmit={submit} className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '16px 20px 8px' }}>
@@ -100,14 +141,21 @@ export default function UploadModal({ kbs, onClose, onUploaded }: {
             style={{ border: '1.5px dashed var(--line-strong)', borderRadius: 6, padding: file ? '12px 14px' : '22px 14px', textAlign: 'center', cursor: 'pointer', background: 'var(--bg-soft)', marginBottom: 16 }}
             onClick={() => fileRef.current?.click()}
           >
-            <input ref={fileRef} type="file" hidden accept=".pdf,.docx,.docm,.dotx,.xlsx,.xlsm,.pptx,.pptm,.txt,.md"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) { setFile(f); if (!title) setTitle(f.name.replace(/\.[^.]+$/, '')); } }} />
-            {file
+            <input ref={fileRef} type="file" hidden multiple={staff} accept=".pdf,.docx,.docm,.dotx,.xlsx,.xlsm,.pptx,.pptm,.txt,.md"
+              onChange={(e) => {
+                const picked = Array.from(e.target.files ?? []).slice(0, staff ? 20 : 1);
+                if (picked.length) { setFiles(picked); if (!title || files.length) setTitle(picked[0].name.replace(/\.[^.]+$/, '')); }
+                e.target.value = '';
+              }} />
+            {files.length > 1
+              ? <div style={{ fontSize: 12.5, fontWeight: 500 }}>已选 {files.length} 份　<span className="hint">共 {(files.reduce((n, f) => n + f.size, 0) / 1048576).toFixed(1)} MB · 用同一组资料信息 · 点击更换</span>
+                  <div className="hint" style={{ marginTop: 4, fontWeight: 400 }}>{files.slice(0, 4).map((f) => f.name).join('、')}{files.length > 4 ? ' 等' : ''}</div></div>
+              : file
               ? <div style={{ fontSize: 12.5, fontWeight: 500 }}>{file.name}　<span className="hint">{(file.size / 1048576).toFixed(1)} MB · 点击更换</span></div>
-              : <div style={{ fontSize: 12.5, color: 'var(--ink-2)' }}>点击选择文件（PDF / DOCX / XLSX / PPTX / TXT）</div>}
+              : <div style={{ fontSize: 12.5, color: 'var(--ink-2)' }}>点击选择文件（PDF / DOCX / XLSX / PPTX / TXT）{staff ? '，一次最多 20 份' : ''}</div>}
           </div>
 
-          <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+          {!staff && <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
             <div style={{ flex: '1 1 0' }}>
               <div style={fl}>目标知识库{req}</div>
               <select style={fi} value={kbId} onChange={(e) => setKbId(e.target.value)}>
@@ -134,12 +182,14 @@ export default function UploadModal({ kbs, onClose, onUploaded }: {
                 {Object.entries(STRATEGY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
-          </div>
+          </div>}
 
-          <div style={{ marginBottom: 14 }}>
-            <div style={fl}>文档标题</div>
-            <input style={fi} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="默认取文件名" />
-          </div>
+          {files.length <= 1 && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={fl}>文档标题</div>
+              <input style={fi} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="默认取文件名" />
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
             <div style={{ flex: '1 1 0' }}>
@@ -194,7 +244,13 @@ export default function UploadModal({ kbs, onClose, onUploaded }: {
           )}
 
           {/* 编号不在台账：就地登记，省掉来回切页面。客户/年份/设备类型直接用上面填的 */}
-          {isNewProject && (
+          {isNewProject && staff && (
+            <div className="hint" style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 5, background: 'var(--cls-int-bg)', border: '1px solid var(--cls-int-line)', lineHeight: 1.65 }}>
+              <span className="m">{typedNo}</span> 不在台账里。请从下拉里选已有的编号；是新项目的话，先请管理员在台账登记，再来上传。
+            </div>
+          )}
+
+          {isNewProject && !staff && (
             <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 5, background: 'var(--cls-int-bg)', border: '1px solid var(--cls-int-line)' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, cursor: 'pointer' }}>
                 <input type="checkbox" checked={registerProject} onChange={(e) => setRegisterProject(e.target.checked)} />
@@ -231,11 +287,11 @@ export default function UploadModal({ kbs, onClose, onUploaded }: {
         </form>
 
         <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '13px 20px', borderTop: '1px solid var(--line)', background: 'var(--bg-soft)' }}>
-          <span className="hint">{ready ? '登记完整，可以提交' : '必填项未填齐时不允许提交'}</span>
+          <span className="hint">{busy && progress ? `正在上传 ${progress}…` : ready ? (staff ? '填好了，提交后等管理员审核' : '登记完整，可以提交') : '必填项未填齐时不允许提交'}</span>
           <div style={{ flexGrow: 1 }} />
           <button type="button" className="gbtn" onClick={onClose}>取消</button>
           <button type="button" className="pbtn" style={{ height: 28, padding: '0 13px' }} disabled={!ready || busy} onClick={(e) => void submit(e as unknown as React.FormEvent)}>
-            {busy ? '上传中…' : '上传并登记'}
+            {busy ? '上传中…' : staff ? (files.length > 1 ? `提交 ${files.length} 份审核` : '提交审核') : '上传并登记'}
           </button>
         </div>
       </div>

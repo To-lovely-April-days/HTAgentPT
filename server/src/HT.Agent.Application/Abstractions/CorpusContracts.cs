@@ -32,7 +32,8 @@ public interface IDocumentService
     /// <summary>上传：必须选择知识库与密级，未选不允许提交（FR-1.1）；元数据必填校验（FR-3.1）；
     /// 受控字段查词表（FR-3.2）。上传后不自动解析（FR-1.2）。</summary>
     Task<UploadResult> UploadAsync(UploadDocumentRequest req, Stream content, CancellationToken ct = default);
-    Task<IReadOnlyList<DocRow>> ListAsync(Guid? kbId, ParseStatus? status, string? search, CancellationToken ct = default);
+    Task<IReadOnlyList<DocRow>> ListAsync(Guid? kbId, ParseStatus? status, string? search, CancellationToken ct = default,
+        ReviewStatus? review = null);
     /// <summary>批量提交解析，进入队列（FR-1.2）。</summary>
     Task<int> QueueParseAsync(IReadOnlyList<Guid> docIds, CancellationToken ct = default);
     /// <summary>更换切分策略后重新解析：原分块作废重建，期间不参与检索（FR-1.6）。</summary>
@@ -73,13 +74,42 @@ public record UploadDocumentRequest(
     // 表 4-5 元数据
     string CustomerName, int Year, string DeviceType, string DocCategory,
     string? ProjectNo, Guid? OwnerId, string? DocVersion, DateOnly? EffectiveDate,
-    string? Title);
+    string? Title, ReviewStatus Review = ReviewStatus.Approved);
 
 public record UploadResult(Guid DocId, string FileKey);
 
 public record DocRow(Guid Id, string Title, string FileName, Guid KbId, string KbName,
     Classification Classification, ParseStatus ParseStatus, string? ParseError,
-    long FileSize, DateTimeOffset UploadedAt, string? DocCategory, string? CustomerName, string? ProjectNo);
+    long FileSize, DateTimeOffset UploadedAt, string? DocCategory, string? CustomerName, string? ProjectNo,
+    Guid UploadedById, ReviewStatus Review, string? ReviewNote)
+{
+    /// <summary>上传人显示名与角色（列表上看是谁传的）。</summary>
+    public string? UploaderName { get; init; }
+    public string? UploaderRole { get; init; }
+    /// <summary>审核提示：只用审核前就能算出来的（内容重复、库里有同名文件）。</summary>
+    public string? ReviewHint { get; init; }
+}
+
+/// <summary>员工自己上传的文件（「文件管理」页）。</summary>
+public record MyFileRow(Guid Id, string Title, string FileName, long FileSize, DateTimeOffset UploadedAt,
+    string? DocCategory, string? CustomerName, string? ProjectNo, string KbName,
+    ReviewStatus Review, string? ReviewNote, DateTimeOffset? ReviewedAt,
+    ParseStatus ParseStatus, string? ParseError, int ChunkCount);
+
+/// <summary>上传审核（员工上传 → 管理员通过/驳回 → 通过即排队解析）。</summary>
+public interface ICorpusReviewService
+{
+    /// <summary>员工上传：自动进本公司的内部资料库、内部密级，状态待审核。</summary>
+    Task<UploadResult> UploadMineAsync(UploadDocumentRequest req, Stream content, CancellationToken ct = default);
+    /// <summary>只列当前账号自己上传的文件——别人的看不到。</summary>
+    Task<IReadOnlyList<MyFileRow>> ListMineAsync(CancellationToken ct = default);
+    /// <summary>撤回自己还没通过（待审核/已驳回）的文件：原件一并删除。</summary>
+    Task WithdrawAsync(Guid docId, CancellationToken ct = default);
+    /// <summary>通过并排队解析；返回通过的份数。</summary>
+    Task<int> ApproveAsync(IReadOnlyList<Guid> docIds, CancellationToken ct = default);
+    /// <summary>驳回，原因必填（上传人可见）；返回驳回的份数。</summary>
+    Task<int> RejectAsync(IReadOnlyList<Guid> docIds, string reason, CancellationToken ct = default);
+}
 
 public record ChunkRow(long Id, int Seq, string? SectionPath, int? PageNo, string? Bbox, string Text,
     string? EmbeddingModel, bool IsActive);

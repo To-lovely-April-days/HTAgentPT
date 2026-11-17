@@ -105,6 +105,7 @@ public class DocumentService(
             ParseStatus = ParseStatus.NotParsed, // 上传后不自动解析（FR-1.2）
             UploadedById = me.UserId,
             UploadedAt = DateTimeOffset.UtcNow,
+            Review = req.Review,
             Metadata = new DocMetadata
             {
                 CustomerName = req.CustomerName.Trim(),
@@ -122,23 +123,64 @@ public class DocumentService(
         await audit.WriteAsync(new AuditEntry("doc.upload", AuditResult.Success,
             UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
             TargetType: "document", TargetId: doc.Id.ToString(),
-            Detail: new { req.FileName, kb = kb.Name, req.Classification, req.DocCategory }), ct);
+            Detail: new { req.FileName, kb = kb.Name, req.Classification, req.DocCategory, review = req.Review.ToString() }), ct);
         return new UploadResult(doc.Id, fileKey);
     }
 
-    public async Task<IReadOnlyList<DocRow>> ListAsync(Guid? kbId, ParseStatus? status, string? search, CancellationToken ct = default)
+    public async Task<IReadOnlyList<DocRow>> ListAsync(Guid? kbId, ParseStatus? status, string? search, CancellationToken ct = default,
+        ReviewStatus? review = null)
     {
         var q = db.Documents.AsNoTracking().Include(d => d.Kb).Include(d => d.Metadata).AsQueryable();
         if (kbId is not null) q = q.Where(d => d.KbId == kbId);
         if (status is not null) q = q.Where(d => d.ParseStatus == status);
+        if (review is not null) q = q.Where(d => d.Review == review);
         if (!string.IsNullOrWhiteSpace(search)) q = q.Where(d => d.Title.Contains(search) || d.FileName.Contains(search));
-        return await q.OrderByDescending(d => d.UploadedAt).Take(500)
-            .Select(d => new DocRow(d.Id, d.Title, d.FileName, d.KbId, d.Kb!.Name,
-                d.Classification, d.ParseStatus, d.ParseError, d.FileSize, d.UploadedAt,
-                d.Metadata == null ? null : d.Metadata.DocCategory,
-                d.Metadata == null ? null : d.Metadata.CustomerName,
-                d.Metadata == null ? null : d.Metadata.ProjectNo))
+        var rows = await q.OrderByDescending(d => d.UploadedAt).Take(500)
+            .Select(d => new
+            {
+                Row = new DocRow(d.Id, d.Title, d.FileName, d.KbId, d.Kb!.Name,
+                    d.Classification, d.ParseStatus, d.ParseError, d.FileSize, d.UploadedAt,
+                    d.Metadata == null ? null : d.Metadata.DocCategory,
+                    d.Metadata == null ? null : d.Metadata.CustomerName,
+                    d.Metadata == null ? null : d.Metadata.ProjectNo,
+                    d.UploadedById, d.Review, d.ReviewNote),
+                d.Sha256
+            })
             .ToListAsync(ct);
+
+        // 上传人：显示名 + 角色
+        var userIds = rows.Select(r => r.Row.UploadedById).Distinct().ToList();
+        var users = await db.Users.AsNoTracking().Where(u => userIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.DisplayName, Role = u.Role != null ? u.Role.Name : null })
+            .ToDictionaryAsync(u => u.Id, ct);
+
+        // 待审核的提示：内容和已有文件完全一样（指纹相同），或库里已有同名文件（多半是旧版本）
+        var pending = rows.Where(r => r.Row.Review == ReviewStatus.Pending).ToList();
+        var dupShas = new HashSet<string>();
+        var dupTitles = new HashSet<string>();
+        if (pending.Count > 0)
+        {
+            var ids = pending.Select(p => p.Row.Id).ToList();
+            var shas = pending.Where(p => p.Sha256 != null).Select(p => p.Sha256!).Distinct().ToList();
+            var titles = pending.Select(p => p.Row.Title).Distinct().ToList();
+            dupShas = (await db.Documents.AsNoTracking()
+                .Where(d => !ids.Contains(d.Id) && d.Sha256 != null && shas.Contains(d.Sha256))
+                .Select(d => d.Sha256!).Distinct().ToListAsync(ct)).ToHashSet();
+            dupTitles = (await db.Documents.AsNoTracking()
+                .Where(d => !ids.Contains(d.Id) && titles.Contains(d.Title))
+                .Select(d => d.Title).Distinct().ToListAsync(ct)).ToHashSet();
+        }
+
+        return rows.Select(r =>
+        {
+            var u = users.GetValueOrDefault(r.Row.UploadedById);
+            string? hint = null;
+            if (r.Row.Review == ReviewStatus.Pending)
+                hint = r.Sha256 != null && dupShas.Contains(r.Sha256) ? "内容与库里已有文件完全相同"
+                    : dupTitles.Contains(r.Row.Title) ? "库里有同名文件（可能是旧版本）"
+                    : null;
+            return r.Row with { UploaderName = u?.DisplayName ?? "已删除账号", UploaderRole = u?.Role, ReviewHint = hint };
+        }).ToList();
     }
 
     public async Task<int> QueueParseAsync(IReadOnlyList<Guid> docIds, CancellationToken ct = default)
@@ -151,6 +193,8 @@ public class DocumentService(
             await EnsureKbWritableAsync(kbId, ct);
         foreach (var doc in docs.Where(d => d.FileKey.StartsWith("virtual:", StringComparison.Ordinal)))
             throw new DomainRuleException("VIRTUAL_DOC_MANAGED", $"「{doc.Title}」由业务模块自动维护，不参与解析");
+        foreach (var doc in docs.Where(d => d.Review != ReviewStatus.Approved))
+            throw new DomainRuleException("DOC_NOT_APPROVED", $"「{doc.Title}」还没审核通过，不能解析——先在「待审核」里通过");
         var queued = 0;
         foreach (var doc in docs)
         {
@@ -180,6 +224,8 @@ public class DocumentService(
             ?? throw new DomainRuleException("DOC_NOT_FOUND", "文档不存在");
         await EnsureNotVirtualAsync(docId, ct);
         await EnsureKbWritableAsync(doc.KbId, ct);
+        if (doc.Review != ReviewStatus.Approved)
+            throw new DomainRuleException("DOC_NOT_APPROVED", $"「{doc.Title}」还没审核通过，不能解析");
         if (newStrategy is not null) doc.ChunkStrategyOverride = newStrategy;
         doc.ParseStatus = ParseStatus.Queued;
         doc.ParseError = null;
@@ -486,6 +532,10 @@ public class DocumentService(
     {
         if (doc.IsWithdrawn)
             return "withdrawn"; // 撤回即停止对外可见（FR-2.4/2.6）
+        // 还没审核通过的上传：只有上传人自己和语料管理员能打开
+        if (doc.Review != ReviewStatus.Approved && doc.UploadedById != me.UserId
+            && !me.Permissions.Contains(PermissionKeys.CorpusManage))
+            return "not_reviewed";
         if (!me.Classifications.Contains(doc.Classification))
             return "classification_out_of_scope";
         var kb = doc.Kb!;

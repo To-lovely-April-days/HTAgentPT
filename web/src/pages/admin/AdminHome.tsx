@@ -34,14 +34,14 @@ const MODULES: { name: string; keys: string[]; color: string }[] = [
 
 /** 审计动作 → 首页「最近操作」里的说法；只挑管理员关心的，问答这类高频动作不进这个列表。 */
 const AUDIT_KIND: [string, string][] = [
-  ['doc.upload', '上传'], ['doc.delete', '删除'], ['doc.reparse', '重新解析'], ['doc.queue_parse', '提交解析'],
+  ['doc.upload', '上传'], ['doc.approve', '审核'], ['doc.reject', '审核'], ['doc.withdraw', '撤回'], ['doc.delete', '删除'], ['doc.reparse', '重新解析'], ['doc.queue_parse', '提交解析'],
   ['template.', '模板'], ['user.', '用户'], ['config.update', '设置'], ['kb.', '知识库'],
   ['gen.render', '生成'], ['backup.', '备份'], ['term.', '术语'], ['clause.', '条款'],
 ];
 
 /** 动作 → 一句话里的动词（「新建账号 wang」「启用模板 技术协议」）。 */
 const AUDIT_VERB: Record<string, string> = {
-  'doc.upload': '上传', 'doc.delete': '删除文档', 'doc.reparse': '重新解析', 'doc.queue_parse': '提交解析',
+  'doc.upload': '上传', 'doc.approve': '审核通过', 'doc.reject': '驳回', 'doc.withdraw': '撤回上传', 'doc.delete': '删除文档', 'doc.reparse': '重新解析', 'doc.queue_parse': '提交解析',
   'template.upload': '上传模板', 'template.enable': '启用模板', 'template.disable': '停用模板', 'template.copy': '复制模板',
   'template.slot_update': '修改槽位', 'user.create': '新建账号', 'user.deactivate': '停用账号', 'user.reactivate': '启用账号',
   'user.reset_password': '重置口令', 'user.assign_role': '调整角色', 'config.update': '修改设置', 'kb.create': '新建知识库',
@@ -132,7 +132,9 @@ export function AdminHome() {
   const docRows = docs.data ?? [];
   const inQueue = docRows.filter((d) => ['Queued', 'Parsing', 'Reparsing'].includes(d.parseStatus)).length;
   const waiting = docRows.filter((d) => d.parseStatus === 'Waiting').length;
-  const notParsed = docRows.filter((d) => d.parseStatus === 'NotParsed').length;
+  // 待审核的也是「未解析」，但那是等审核，不算待解析
+  const notParsed = docRows.filter((d) => d.parseStatus === 'NotParsed' && d.review === 'Approved').length;
+  const pendingReview = docRows.filter((d) => d.review === 'Pending').length;
   const failed = docRows.filter((d) => d.parseStatus === 'Failed').length;
   const cats = new Map<string, number>();
   for (const d of docRows) cats.set(d.docCategory || '未分类', (cats.get(d.docCategory || '未分类') ?? 0) + 1);
@@ -210,6 +212,7 @@ export function AdminHome() {
   ].filter(Boolean) as { label: string; value: string; unit: string; delta: string; up: boolean | null; series: number[] }[];
 
   const todo: { label: string; hint: string; n: number | undefined; to: string; action: string }[] = [
+    { label: '待审核上传', hint: '同事上传的文件，通过后自动解析', n: canCorpus ? pendingReview : undefined, to: '/admin/corpus?tab=review', action: '去审核' },
     { label: '待解析文档', hint: '上传后还没提交解析', n: canCorpus ? notParsed : undefined, to: '/admin/corpus', action: '去解析' },
     { label: '解析失败待处理', hint: '看失败原因，换引擎或重传', n: canCorpus ? failed : undefined, to: '/admin/corpus', action: '查看原因' },
     { label: '待确认术语', hint: '翻译里新出现的术语', n: terms.data?.length, to: '/admin/meta', action: '术语表' },
