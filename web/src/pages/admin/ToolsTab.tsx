@@ -29,6 +29,7 @@ const GROUPS: { title: string; note: string; tools: ToolDef[] }[] = [
     { key: 'view_image', name: '看图 · 识别文字', ic: '图', tone: 'calc', desc: '看上传的图纸、照片、截图；把扫描件和手写单的文字读出来（用看图模型）' },
     { key: 'translate_file', name: '整份翻译', ic: '译', tone: 'calc', desc: '上传的 Word 整份翻译，保留版式、套用已审定术语；需要「翻译」权限' },
     { key: 'show_table', name: '按场景排版表格', ic: '表', tone: 'calc', tag: '免费', desc: '比价、涨跌、历史项目、方案对比、参数清单各用各的表格样式，可导出 Excel' },
+    { key: 'show_block', name: '回答里的组件', ic: '件', tone: 'calc', tag: '免费', desc: '关键数字、提示框、图表、步骤、清单、数据表、偏离表、操作窗口、甘特图等 21 种，助手按内容选用' },
     { key: 'export_pdf', name: '导出 PDF / PPT', ic: '出', tone: 'calc', tag: '免费', desc: '回答导出 PDF（服务器上 LibreOffice 转换）和 PPT（浏览器里生成）', fixed: true },
   ] },
   { title: '外部数据', note: '会访问外网；发出去的内容先过滤', tools: [

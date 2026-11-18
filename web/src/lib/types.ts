@@ -485,6 +485,7 @@ export type ToolArtifact =
   | { kind: 'estimate'; title: string; subtitle: string; priced: number; count: number; oldest: string | null; stale: boolean;
       total: { taxLow: number; taxHigh: number; netLow: number; netHigh: number };
       groups: { name: string; subLow: number; subHigh: number; lines: EstimateLine[] }[] }
+  | { kind: 'block'; block: string; title: string; note: string; data: unknown }
   | { kind: 'table'; style: 'matrix' | 'trend' | 'projects' | 'compare' | 'spec' | 'plain'; title: string; note: string;
       columns: { label: string; type: string }[]; rows: string[][]; highlight: number | null };
 

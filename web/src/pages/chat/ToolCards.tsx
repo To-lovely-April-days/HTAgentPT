@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ApiError, download, postDownload } from '../../lib/api';
 import type { AskSpec, EvidenceCard, ToolArtifact } from '../../lib/types';
 import { EstimateCard, TableCard } from './DataCards';
+import { BlockCard } from './blocks/BlockCard';
 
 // ── 请你确认 ─────────────────────────────────────────
 export function AskCard({ ask, active, onAnswer }: { ask: AskSpec; active: boolean; onAnswer: (text: string) => void }) {
@@ -267,6 +268,7 @@ export function ArtifactCards({ items, onSend }: { items: ToolArtifact[]; onSend
           case 'file': return <FileCard key={i} a={a} />;
           case 'estimate': return <EstimateCard key={i} a={a} />;
           case 'table': return <TableCard key={i} a={a} />;
+          case 'block': return <BlockCard key={i} a={a} />;
           default: return null;
         }
       })}

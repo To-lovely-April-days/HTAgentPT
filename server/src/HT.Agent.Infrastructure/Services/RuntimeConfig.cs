@@ -70,6 +70,7 @@ public class RuntimeConfig(IServiceScopeFactory scopeFactory, IMemoryCache cache
         [ConfigKeys.ToolInquiryForm] = "on",
         [ConfigKeys.ToolPrices] = "on",
         [ConfigKeys.ToolShowTable] = "on",
+        [ConfigKeys.ToolShowBlock] = "on",
         [ConfigKeys.PriceStaleMonths] = "12",
         [ConfigKeys.PriceTaxRate] = "1.13",
         [ConfigKeys.AssistantProfile] = "公司主营反应釜、高压釜等实验与中试设备，以及化工产线成套设备，客户以高校、科研院所和化工企业为主。",

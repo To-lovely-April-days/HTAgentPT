@@ -350,6 +350,15 @@ public sealed class AssistantService(
                   compare 方案对比（一行一个指标，一列一个方案，highlight 填推荐方案的列号，格子开头写 ✓ ! ✕）；spec 一台设备的参数清单（每行：分组、名称、数值、来源编号）；plain 其他。
                   每列标类型（金额 money、数量 number、涨跌 delta、状态 status、项目号 project、来源编号 ref…）。两三行的小表可以直接写 Markdown 表格。
                 """);
+        if (enabled.Contains("show_block"))
+            sb.AppendLine("""
+                - 内容适合用组件表达时用 show_block，和文字、表格混排；用哪个、用几个你看内容决定，普通问题只写文字就行。组件里的数值写来源编号 ref。
+                  常用的：metrics 关键数字；callout 结论 / 提示 / 注意 / 危险（安全相关的危险提示放在回答最前面）；chart 图表；steps 操作或排查步骤；
+                  timeline 时间线；checklist 检查清单；options 方案对比卡；formula 计算过程；flow 流程图；quote 逐字引用原文；
+                  datasheet 设备数据表；deviation 技术偏离表；window 操作窗口；fault_tree 故障诊断树；risk_matrix 风险矩阵；bom BOM 结构；
+                  properties 物性数据；clause 规范条款；match 选型匹配；followups 跟进事项；gantt 交付计划。
+                  quote、clause 的原文要逐字照抄查到的依据，系统会核对；formula 的 result.expr 系统会重算核对。
+                """);
         if (enabled.Contains("search_standards"))
             sb.AppendLine("""
             - 问到标准、规范、条款（如 GB 150、HG、ASME）时优先用 search_standards，回答写清标准号、版本和条款号。
@@ -538,6 +547,39 @@ public sealed class AssistantService(
                     ["highlight"] = new Dictionary<string, object> { ["type"] = "integer", ["description"] = "compare：推荐方案所在的列号（从 0 起）" },
                     ["note"] = Str("表格下方的一句说明，如数据来源"),
                 }, "kind", "title", "columns", "rows")));
+        if (enabled.Contains("show_block"))
+            list.Add(new ToolSpec("show_block",
+                """
+                在回答里显示一个组件（排好版、可导出）。kind 选组件类型，data 按下面的格式给（ref 是依据编号，可省略）：
+                metrics {items:[{label,value,unit,note,ref}]}
+                callout {tone:结论|提示|注意|危险, title, text}
+                chart {type:bar|line|pie, categories:[…], series:[{name, values:[数字], type:bar|line, axis:left|right}], y_label, y2_label, source}
+                steps {items:[{title, detail, expect, ref}]}
+                timeline {items:[{date, title, status:done|now|todo|late, note}]}
+                checklist {items:[{text, note}]}
+                options {items:[{name, price, pros, cons, recommended:true|false}]}
+                formula {formula, vars:[{symbol,name,value,ref}], result:{expr:"1.25*16*1.0", value:"20.0 MPa"}}
+                flow {nodes:[{id,label,sub,highlight}], edges:[{from,to,label,dashed}]}
+                quote {items:[{text, ref, source}]}
+                datasheet {header:[{label,value}], sections:[{title, col_a, col_b, rows:[{name,a,b,unit,ref}]}]}
+                deviation {items:[{clause, requirement, response, type:无偏离|正偏离|负偏离, note}]}
+                window {items:[{name, unit, max, normal:[低,高], alarm:[低,高], design, ask, verdict}], conclusion}
+                fault_tree {symptom, causes:[{cause, likelihood:高|中|低, check, fix, cases}]}
+                risk_matrix {items:[{id, title, likelihood:1-5, severity:1-5, measure}]}
+                bom {items:[{level:0|1|2…, name, qty, material, drawing}]}
+                properties {substance, cas, condition, phase, items:[{name,value,unit}], source, note}
+                clause {standard, status:现行|废止|即将实施, title, clause, text, ref, applies, notes, related}
+                match {model, basis, items:[{need, required, offered, ok:yes|no|partial}]}
+                followups {items:[{task, owner, due, status:待办|进行中|已完成|客户方}]}
+                gantt {tasks:[{name, start:"2026-11-02", end:"2026-11-20", status:done|doing|plan|late, milestone:true|false}], today, conclusion}
+                """,
+                Obj(new()
+                {
+                    ["kind"] = new Dictionary<string, object> { ["type"] = "string", ["enum"] = BlockKinds },
+                    ["title"] = Str("组件标题（可省略）"),
+                    ["data"] = new Dictionary<string, object> { ["type"] = "object", ["description"] = "按 kind 对应的格式" },
+                    ["note"] = Str("组件下方一句说明，如数据来源（可省略）"),
+                }, "kind", "data")));
         if (enabled.Contains("run_python"))
             list.Add(new ToolSpec("run_python",
                 "在隔离环境里运行 Python 代码做计算：工程计算、物性（CoolProp）、数据统计、作图（matplotlib，图会显示给用户）。可用 numpy、scipy、pandas。不能上网、不能读写公司文件。用 print 输出结果。",
@@ -624,7 +666,7 @@ public sealed class AssistantService(
     {
         if (call.Name is "ask_user" or "run_python" or "chemical_info" or "web_search" or "fetch_url" or "compare_documents"
             or "search_literature" or "view_image" or "ocr_image" or "translate_file" or "inquiry_form" or "remember" or "forget"
-            or "search_prices" or "cost_estimate" or "show_table"
+            or "search_prices" or "cost_estimate" or "show_table" or "show_block"
             && !enabled.Contains(call.Name switch { "ocr_image" => "view_image", "forget" => "remember", "cost_estimate" => "search_prices", _ => call.Name }))
             return new ToolOutcome("这个工具现在没有开启。", "未开启", AssistantLoop.ToolLabel(call.Name), "", "未开启");
         JsonObject a;
@@ -882,6 +924,51 @@ public sealed class AssistantService(
                     + (stale ? "\n用到的价格表里有可能过时的（最早 " + oldest?.ToString("yyyy-MM") + "），提醒用户找采购确认。" : "")
                     + "\n回答里不用把表再写一遍，说结论、主要构成和没算进去的项；写明只含材料成本，不含人工、加工和利润。";
                 return new ToolOutcome(summary, $"（材料成本估算：含税 {Money(tl, th)} 元，{priced}/{idx} 项）", label, title, $"{priced}/{idx} 项有价格");
+            }
+            case "show_block":
+            {
+                var kind = S("kind") ?? "";
+                if (!BlockKinds.Contains(kind)) return new ToolOutcome($"没有「{kind}」这种组件。", "类型不对", label, kind, "类型不对");
+                if (a["data"] is not JsonObject data) return new ToolOutcome("data 要是一个对象，按 kind 对应的格式给。", "格式不对", label, kind, "格式不对");
+                var raw = data.ToJsonString();
+                if (raw.Length > 40_000) return new ToolOutcome("组件内容太长，拆成几个或精简一下。", "太长", label, kind, "太长");
+                var checks = new List<string>();
+                // 逐字引用：核对原文是否真在引用的依据里
+                if (kind is "quote" or "clause")
+                {
+                    var quoteItems = kind == "quote" ? (data["items"] as JsonArray ?? []).OfType<JsonObject>().ToList() : [data];
+                    foreach (var q in quoteItems)
+                    {
+                        var text = q["text"]?.ToString() ?? "";
+                        int? rn = q["ref"] is JsonValue rv && rv.TryGetValue<int>(out var r) ? r : int.TryParse(q["ref"]?.ToString()?.Trim('[', ']'), out var r2) ? r2 : null;
+                        bool? ok = rn is { } k && run.Evidence.TryGetValue(k, out var ev) && text.Length > 0 ? QuoteMatch(text, ev.Text) : null;
+                        q["verified"] = ok is null ? null : JsonValue.Create(ok.Value);
+                        if (ok == false) checks.Add($"「{Clip(text, 30)}」在 [{rn}] 里没找到原文");
+                    }
+                }
+                // 计算过程：系统重算一遍
+                if (kind == "formula" && data["result"] is JsonObject res && res["expr"]?.ToString() is { Length: > 0 } expr)
+                {
+                    try
+                    {
+                        var v = UnitCalc.Evaluate(expr.Replace('×', '*').Replace('÷', '/').Replace('·', '*'));
+                        run.Computed.Add(v);
+                        var stated = CitationCheck.Numbers(res["value"]?.ToString() ?? "").FirstOrDefault();
+                        var ok = stated == 0 || Math.Abs(v - stated) <= Math.Max(1e-9, Math.Abs(v) * 0.005);
+                        res["checked"] = ok;
+                        res["computed"] = UnitCalc.Format(v);
+                        if (!ok) checks.Add($"计算结果写的是 {res["value"]}，按式子算是 {UnitCalc.Format(v)}");
+                    }
+                    catch (Exception ex) when (ex is FormatException or InvalidOperationException or ArgumentException or OverflowException or DivideByZeroException)
+                    {
+                        res["checked"] = null;
+                    }
+                }
+                var card = new { kind = "block", block = kind, title = Clip(S("title") ?? "", 60), note = Clip(S("note") ?? "", 160), data = JsonNode.Parse(data.ToJsonString()) };
+                run.Artifacts.Add(card);
+                await emit(new QaEvent("artifact", card));
+                var msg = $"组件已显示给用户。" + (checks.Count > 0 ? $"系统核对发现：{string.Join("；", checks)}。请改正后重新显示，或在回答里说明。" : "回答里不用再把这部分内容写一遍。");
+                return new ToolOutcome(msg, $"（已显示组件：{kind} {S("title")}）", label, $"{kind} {S("title")}".Trim(), checks.Count > 0 ? "核对有问题" : "已显示");
             }
             case "show_table":
             {
@@ -1225,7 +1312,7 @@ public sealed class AssistantService(
     }
 
     private static readonly string[] OptionalTools = ["ask_user", "run_python", "chemical_info", "web_search", "fetch_url", "compare_documents",
-        "search_literature", "view_image", "translate_file", "inquiry_form", "search_prices", "show_table"];
+        "search_literature", "view_image", "translate_file", "inquiry_form", "search_prices", "show_table", "show_block"];
 
     /// <summary>这次能用哪些可选工具：系统设置里开着的、角色在允许名单里的。外部客户只给「请用户确认」。</summary>
     private async Task<IReadOnlySet<string>> EnabledToolsAsync(CancellationToken ct)
@@ -1236,7 +1323,7 @@ public sealed class AssistantService(
         {
             var on = (await config.GetStringAsync($"assistant.tool.{t}", "on", ct)).Trim();
             if (!on.Equals("on", StringComparison.OrdinalIgnoreCase) && !on.Equals("true", StringComparison.OrdinalIgnoreCase)) continue;
-            if (isCustomer && t is not ("ask_user" or "inquiry_form" or "show_table")) continue;
+            if (isCustomer && t is not ("ask_user" or "inquiry_form" or "show_table" or "show_block")) continue;
             var roles = (await config.GetStringAsync($"assistant.tool.{t}.roles", "", ct)).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (roles.Length > 0 && !roles.Contains(me.RoleCode, StringComparer.OrdinalIgnoreCase)) continue;
             set.Add(t);
@@ -1339,6 +1426,21 @@ public sealed class AssistantService(
         var pieces = Workers.AttachmentParseWorker.Pieces(att.Id, att.FileName, att.Chunks);
         return ($"{att.FileName}（本对话上传）", "attachment", null, att.FileName,
             pieces.Select(p => (p.Text, (string?)(p.Page is null ? p.Section : $"第 {p.Page} 页"))).ToList());
+    }
+
+    private static readonly string[] BlockKinds =
+    [
+        "metrics", "callout", "chart", "steps", "timeline", "checklist", "options", "formula", "flow", "quote",
+        "datasheet", "deviation", "window", "fault_tree", "risk_matrix", "bom", "properties", "clause", "match", "followups", "gantt",
+    ];
+
+    /// <summary>逐字引用的核对：去掉空白和常见标点差异后，引文要整段出现在依据原文里。</summary>
+    public static bool QuoteMatch(string quote, string source)
+    {
+        static string n(string s) => System.Text.RegularExpressions.Regex.Replace((s ?? "").Normalize(System.Text.NormalizationForm.FormKC),
+            @"[\s「」『』""'“”‘’…\.。，,、；;：:（）()\[\]【】]+", "").ToLowerInvariant();
+        var q = n(quote);
+        return q.Length > 0 && n(source).Contains(q);
     }
 
     private static string Money(decimal? low, decimal? high)

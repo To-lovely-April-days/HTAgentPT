@@ -130,6 +130,9 @@ public static class ConfigKeys
     /// <summary>按场景排版的表格。</summary>
     public const string ToolShowTable = "assistant.tool.show_table";
     public const string ToolShowTableRoles = "assistant.tool.show_table.roles";
+    /// <summary>回答里的组件（关键数字、提示框、图表、步骤、数据表、偏离表、甘特图等）。</summary>
+    public const string ToolShowBlock = "assistant.tool.show_block";
+    public const string ToolShowBlockRoles = "assistant.tool.show_block.roles";
     /// <summary>价格表多少个月没更新就标「可能过时」。</summary>
     public const string PriceStaleMonths = "price.stale_months";
     /// <summary>只有未税价时推算含税价用的税率系数（如 1.13）。</summary>
