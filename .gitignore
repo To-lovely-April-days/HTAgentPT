@@ -2,3 +2,7 @@
 # 采购价格表：只通过系统页面上传，不进代码仓库（仓库是公开的）
 doc/*.xlsx
 doc/*.xls
+
+# 准确率测试的题目和结果（含客户信息）
+deploy/eval/questions.jsonl
+deploy/eval/runs/

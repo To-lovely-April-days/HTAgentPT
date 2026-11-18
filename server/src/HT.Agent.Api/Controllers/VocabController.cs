@@ -37,6 +37,16 @@ public class VocabController(IVocabService vocab, ICurrentUser me, IAuditWriter 
     public async Task<IActionResult> Add(string key, [FromBody] AddBody body, CancellationToken ct)
         => Ok(new { id = await vocab.AddAsync(key, body.Value, body.Aliases, ct) });
 
+    public record AliasBody(string? Aliases);
+
+    [HttpPut("items/{id:guid}")]
+    [RequirePermission(PermissionKeys.MetaManage)]
+    public async Task<IActionResult> UpdateAliases(Guid id, [FromBody] AliasBody body, CancellationToken ct)
+    {
+        await vocab.UpdateAliasesAsync(id, body.Aliases, ct);
+        return NoContent();
+    }
+
     [HttpDelete("items/{id:guid}")]
     [RequirePermission(PermissionKeys.MetaManage)]
     public async Task<IActionResult> Disable(Guid id, CancellationToken ct)

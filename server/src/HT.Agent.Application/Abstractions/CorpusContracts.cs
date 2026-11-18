@@ -21,6 +21,7 @@ public interface IVocabService
     Task<IReadOnlyList<VocabRow>> ListAsync(string vocabKey, CancellationToken ct = default);
     Task<Guid> AddAsync(string vocabKey, string value, string? aliases, CancellationToken ct = default);
     Task DisableAsync(Guid id, CancellationToken ct = default);
+    Task UpdateAliasesAsync(Guid id, string? aliases, CancellationToken ct = default);
     Task<bool> IsValidAsync(string vocabKey, string value, CancellationToken ct = default);
 }
 

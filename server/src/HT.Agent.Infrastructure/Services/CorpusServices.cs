@@ -39,6 +39,17 @@ public class VocabService(AppDbContext db, IAuditWriter audit, ICurrentUser me) 
             TargetType: "vocab_term", TargetId: id.ToString(), Detail: new { term.VocabKey, term.Value }), ct);
     }
 
+    public async Task UpdateAliasesAsync(Guid id, string? aliases, CancellationToken ct = default)
+    {
+        var term = await db.VocabTerms.FirstOrDefaultAsync(v => v.Id == id, ct)
+                   ?? throw new DomainRuleException("VOCAB_NOT_FOUND", "这个取值不存在");
+        var cleaned = string.Join("、", HT.Agent.Application.Logic.QuestionHints.SplitAliases(aliases));
+        term.Aliases = cleaned.Length == 0 ? null : cleaned[..Math.Min(cleaned.Length, 500)];
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(new AuditEntry("vocab.aliases", AuditResult.Success, UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+            TargetType: "vocab_term", TargetId: id.ToString(), Detail: new { term.VocabKey, term.Value, aliases = term.Aliases }), ct);
+    }
+
     public Task<bool> IsValidAsync(string vocabKey, string value, CancellationToken ct = default)
         => db.VocabTerms.AnyAsync(v => v.VocabKey == vocabKey && v.Value == value && v.IsActive, ct);
 }

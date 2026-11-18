@@ -128,6 +128,7 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         "cost_estimate" => "材料成本估算",
         "show_table" => "生成表格",
         "show_block" => "显示组件",
+        "note_correction" => "记下纠正",
         _ => name
     };
 

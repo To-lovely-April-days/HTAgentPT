@@ -10,7 +10,7 @@ import { ErrorBox, InfoBox, Spinner } from '../../components/Common';
 
 const VOCAB_KEYS: [string, string][] = [
   ['device_type', '设备类型'], ['doc_category', '文档类别'],
-  ['customer_name', '客户名称'], ['term_domain', '术语领域'],
+  ['customer_name', '客户名称'], ['term_domain', '术语领域'], ['common_term', '常用说法'],
 ];
 
 export default function MetaPage() {
@@ -57,6 +57,18 @@ function VocabTab() {
       setError(err instanceof ApiError ? err.message : '新增失败');
     }
   };
+  const [editing, setEditing] = useState<{ id: string; aliases: string } | null>(null);
+  const saveAliases = async () => {
+    if (!editing) return;
+    setError(null);
+    try {
+      await put(`/api/vocab/items/${editing.id}`, { aliases: editing.aliases.trim() || null });
+      setEditing(null);
+      void qc.invalidateQueries({ queryKey: ['vocab', key] });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '保存失败');
+    }
+  };
   const remove = async (id: string) => {
     setError(null);
     try {
@@ -71,6 +83,7 @@ function VocabTab() {
     <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '24px 40px 40px' }}>
       <div className="admin-wrap">
         <div className="hint" style={{ lineHeight: 1.7, marginBottom: 12 }}>
+          别名会帮助助手听懂问题：客户简称、内部叫法、英文写法都可以填，比如客户「华东理工大学」填「华理、ECUST」，常用说法「哈氏合金 C276」填「哈氏、HC276」。<br />
           受控字段在上传登记时只能选不能写（入库三道闸第 3 条）——不设这道闸，半年后同一种设备五六种写法，筛选与元数据对齐全失效。词表外取值不参与筛选。
         </div>
         <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
@@ -83,7 +96,19 @@ function VocabTab() {
         {(rows.data ?? []).map((v) => (
           <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid var(--line-soft)' }}>
             <span style={{ fontSize: 12.5, fontWeight: 500, width: 180 }}>{v.value}</span>
-            <span className="hint" style={{ flexGrow: 1 }}>{v.aliases ? `别名：${v.aliases}` : ''}</span>
+            {editing?.id === v.id ? (
+              <form style={{ display: 'flex', gap: 6, flexGrow: 1 }} onSubmit={(e) => { e.preventDefault(); void saveAliases(); }}>
+                <input style={{ ...fi, flexGrow: 1 }} autoFocus aria-label={`${v.value} 的别名`} placeholder="简称、内部叫法、英文写法，多个用、分隔"
+                  value={editing.aliases} onChange={(e) => setEditing({ id: v.id, aliases: e.target.value })} />
+                <button type="submit" className="pbtn" style={{ height: 24, fontSize: 11.5 }}>保存</button>
+                <button type="button" className="gbtn" style={{ height: 24, fontSize: 11.5 }} onClick={() => setEditing(null)}>取消</button>
+              </form>
+            ) : (
+              <>
+                <span className="hint" style={{ flexGrow: 1 }}>{v.aliases ? `别名：${v.aliases}` : ''}</span>
+                <button className="gbtn" style={{ height: 24, fontSize: 11.5 }} onClick={() => setEditing({ id: v.id, aliases: v.aliases ?? '' })}>改别名</button>
+              </>
+            )}
             <button className="gbtn" style={{ height: 24, fontSize: 11.5 }} onClick={() => void remove(v.id)}>删除</button>
           </div>
         ))}
