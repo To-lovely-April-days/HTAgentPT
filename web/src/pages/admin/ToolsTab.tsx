@@ -51,7 +51,7 @@ export default function ToolsTab() {
 
   const c = cfg.data ?? {};
   const keyOf = (t: ToolDef) => t.cfgKey ?? `assistant.tool.${t.key}`;
-  const isOn = (t: ToolDef) => ['on', 'true'].includes((c[keyOf(t)] ?? (t.key === 'web_search' ? 'off' : 'on')).toLowerCase());
+  const isOn = (t: ToolDef) => ['on', 'true'].includes((c[keyOf(t)] ?? 'on').toLowerCase());
   const rolesOf = (k: string) => (c[`assistant.tool.${k}.roles`] ?? '').split(',').map((x) => x.trim()).filter(Boolean);
   const save = async (values: Record<string, string>) => {
     setError(null);

@@ -1040,7 +1040,7 @@ public sealed class AssistantService(
         var isCustomer = me.RoleCode == RoleCodes.Customer || me.Permissions.Contains(PermissionKeys.CustomerSelf) && !me.Permissions.Contains(PermissionKeys.QaInternal);
         foreach (var t in OptionalTools)
         {
-            var on = (await config.GetStringAsync($"assistant.tool.{t}", t == "web_search" ? "off" : "on", ct)).Trim();
+            var on = (await config.GetStringAsync($"assistant.tool.{t}", "on", ct)).Trim();
             if (!on.Equals("on", StringComparison.OrdinalIgnoreCase) && !on.Equals("true", StringComparison.OrdinalIgnoreCase)) continue;
             if (isCustomer && t is not ("ask_user" or "inquiry_form")) continue;
             var roles = (await config.GetStringAsync($"assistant.tool.{t}.roles", "", ct)).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

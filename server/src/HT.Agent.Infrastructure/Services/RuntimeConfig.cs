@@ -51,7 +51,7 @@ public class RuntimeConfig(IServiceScopeFactory scopeFactory, IMemoryCache cache
         [ConfigKeys.ToolAskUser] = "on",
         [ConfigKeys.ToolPython] = "on",
         [ConfigKeys.ToolChemical] = "on",
-        [ConfigKeys.ToolWebSearch] = "off",   // 先部署 SearXNG 再打开
+        [ConfigKeys.ToolWebSearch] = "on",    // 没部署 SearXNG 时调用会提示「这次没搜到」，不影响其它工具
         [ConfigKeys.ToolFetchUrl] = "on",
         [ConfigKeys.ToolCompare] = "on",
         [ConfigKeys.SandboxUrl] = "http://sandbox:8000",
