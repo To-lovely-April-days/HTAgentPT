@@ -358,6 +358,10 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("classification");
 
+                    b.Property<string>("Context")
+                        .HasColumnType("text")
+                        .HasColumnName("context");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");

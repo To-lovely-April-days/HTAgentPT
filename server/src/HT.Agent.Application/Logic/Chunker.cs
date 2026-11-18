@@ -6,46 +6,97 @@ using HT.Agent.Domain;
 
 namespace HT.Agent.Application.Logic;
 
-/// <summary>切分策略实现（表 4-2）。输入解析引擎的结构块，输出待入库分块。
-/// 所有策略统一保留相邻块重叠区域（表 4-2 末段），避免答案恰好落在切分边界被截断。</summary>
+/// <summary>切分（表 4-2）：输入解析引擎的结构块，输出待入库分块。
+/// 做法是业界常用的组合：按文档结构切（标题、条款、表格各按各的单位），结构内再按整句递归切；
+/// 切点和重叠都落在整句、整行上，不在句子中间截断；表格一行不拆开、每块都带表头；太碎的块并到相邻块。
+/// 文件名、客户、项目、章节这些「身份」不写进分块正文，由入库时拼在检索和向量用的文字前面（见 ChunkContext）。</summary>
 public static class Chunker
 {
-    public static IReadOnlyList<ChunkDraft> Chunk(
-        ChunkStrategy strategy, IReadOnlyList<ParsedBlock> blocks, ChunkingOptions opt)
+    public static IReadOnlyList<ChunkDraft> Chunk(ChunkStrategy strategy, IReadOnlyList<ParsedBlock> blocks, ChunkingOptions opt)
         => strategy switch
         {
-            ChunkStrategy.ByHeading => ByHeading(blocks, opt),
-            ChunkStrategy.ByClause => ByClause(blocks, opt),
-            ChunkStrategy.ByRow => ByRow(blocks),
-            ChunkStrategy.BySemantic => ByWindow(blocks, opt, headingPrefix: false),
-            _ => General(blocks, opt)
+            ChunkStrategy.ByRow => ByRow(blocks, opt),
+            ChunkStrategy.ByClause => Structured(blocks, opt, clauses: true),
+            ChunkStrategy.BySemantic => Structured(blocks.Where(b => b.Kind != "heading").ToList(), opt, clauses: false),
+            _ => Structured(blocks, opt, clauses: false),
         };
 
-    // ── 按章节层级：手册、规程、方案、投标书 ──────────────────────────
-    // 以标题层级为边界，同一小节尽量不拆分；小节过长时按段落二次切分并保留标题作为前缀。
-    private static List<ChunkDraft> ByHeading(IReadOnlyList<ParsedBlock> blocks, ChunkingOptions opt)
+    /// <summary>按文档的样子自动选切法：表格为主（Excel、参数表）按行；条款编号多而标题少（合同、协议）按条款；其余按章节结构。</summary>
+    public static ChunkStrategy Pick(IReadOnlyList<ParsedBlock> blocks)
     {
-        var chunks = new List<ChunkDraft>();
+        var rows = blocks.Count(b => b.Kind == "table_row");
+        var paras = blocks.Where(b => b.Kind == "paragraph").ToList();
+        var headings = blocks.Count(b => b.Kind == "heading");
+        if (rows > 0 && rows >= 3 * Math.Max(1, paras.Count)) return ChunkStrategy.ByRow;
+        var clauseLines = paras.Count(p => IsClauseStart(p.Text));
+        if (headings < 3 && clauseLines >= 8 && clauseLines * 10 >= paras.Count * 3) return ChunkStrategy.ByClause;
+        return headings >= 3 ? ChunkStrategy.ByHeading : ChunkStrategy.General;
+    }
+
+    // ── 条款号识别 ───────────────────────────────────
+    private static readonly Regex ClauseNo = new(
+        @"^\s*(第\s*[一二三四五六七八九十百零\d]+\s*[条章节款]|[一二三四五六七八九十]+\s*[、.．]|[（(]\s*[一二三四五六七八九十\d]+\s*[)）]|\d+(?:\.\d+){0,3}(?:[、.．]|\s+))",
+        RegexOptions.Compiled);
+    private static readonly Regex UnitAfter = new(
+        @"^\s*(倍|%|‰|℃|°|mpa|kpa|pa\b|bar|psi|mm|cm|m\b|m²|m³|kg|g\b|t\b|l\b|ml|kw|w\b|rpm|v\b|a\b|hz|个|台|套|件|天|小时|分钟|h\b|min|s\b|年|月|日|元|万)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>这一行是不是一条新条款的开头。「3.2 设计参数」「第五条」「（一）」算；「1.25 倍」「16.0 MPa」「2024.5.6」不算。</summary>
+    public static bool IsClauseStart(string line)
+    {
+        var m = ClauseNo.Match(line ?? "");
+        if (!m.Success) return false;
+        var rest = line![(m.Index + m.Length)..];
+        if (rest.Trim().Length < 2 || UnitAfter.IsMatch(rest)) return false;
+        var first = rest.TrimStart()[0];
+        return first > 0x2E80 || char.IsLetter(first) || first is '“' or '"' or '《' or '【';
+    }
+
+    // ── 整句 ─────────────────────────────────────────
+    private static readonly Regex SentenceEnd = new(@"(?<=[。！？；;!?])|(?<=\n)", RegexOptions.Compiled);
+
+    /// <summary>切成整句；句子还太长就在逗号处切；再长才硬切（这种情况极少）。</summary>
+    public static List<string> Sentences(string text, int max)
+    {
+        var list = new List<string>();
+        foreach (var raw in SentenceEnd.Split(text ?? ""))
+        {
+            var s = raw.Trim();
+            if (s.Length == 0) continue;
+            if (s.Length <= max) { list.Add(s); continue; }
+            var buf = new StringBuilder();
+            foreach (var part in Regex.Split(s, @"(?<=[，,、])"))
+            {
+                if (buf.Length > 0 && buf.Length + part.Length > max) { list.Add(buf.ToString()); buf.Clear(); }
+                if (part.Length > max)
+                {
+                    for (var i = 0; i < part.Length; i += max) list.Add(part.Substring(i, Math.Min(max, part.Length - i)));
+                    continue;
+                }
+                buf.Append(part);
+            }
+            if (buf.Length > 0) list.Add(buf.ToString());
+        }
+        return list;
+    }
+
+    // ── 结构化切分（章节 / 通用 / 条款）─────────────────────
+    private sealed record Unit(string Text, int? PageNo, string? Bbox);
+    private sealed record Piece(string Text, int? PageNo, string? Bbox, bool Table);
+
+    private static List<ChunkDraft> Structured(IReadOnlyList<ParsedBlock> blocks, ChunkingOptions opt, bool clauses)
+    {
+        var drafts = new List<ChunkDraft>();
         var headings = new List<(int Level, string Text)>();
         var section = new List<ParsedBlock>();
 
         void Flush()
         {
             if (section.Count == 0) return;
-            var path = HeadingPath(headings);
-            var text = string.Join("\n", TextsWithTableHeaders(section)).Trim();
-            if (text.Length == 0) { section.Clear(); return; }
-            var first = section[0];
-            if (text.Length <= opt.TargetLength * 3 / 2)
-            {
-                chunks.Add(new ChunkDraft(chunks.Count, path, first.PageNo, first.Bbox, Prefixed(path, text)));
-            }
-            else
-            {
-                // 小节过长：按段落二次切分，每块都带标题前缀
-                foreach (var piece in SplitParagraphs(section, opt))
-                    chunks.Add(new ChunkDraft(chunks.Count, path, piece.PageNo, piece.Bbox, Prefixed(path, piece.Text)));
-            }
+            var path = headings.Count == 0 ? null : string.Join(" > ", headings.Select(h => h.Text));
+            var pieces = SectionPieces(section, opt, clauses);
+            foreach (var p in clauses ? pieces : MergeTiny(pieces, opt))
+                drafts.Add(new ChunkDraft(drafts.Count, path, p.PageNo, p.Bbox, p.Text));
             section.Clear();
         }
 
@@ -58,226 +109,203 @@ public static class Chunker
                 headings.RemoveAll(h => h.Level >= level);
                 headings.Add((level, b.Text.Trim()));
             }
-            else
-            {
-                section.Add(b);
-            }
+            else if (b.Text.Trim().Length > 0) section.Add(b);
         }
         Flush();
-        return chunks;
+        return drafts;
     }
 
-    // ── 按条款：合同、报价单。每条独立成块，便于拼装时按条引用 ────────────
-    private static readonly Regex ClauseStart = new(
-        @"^\s*(第\s*[一二三四五六七八九十百零\d]+\s*条|\d+(\.\d+)+|\d+\s*[、.．]|[（(]\s*\d+\s*[)）])",
-        RegexOptions.Compiled);
-
-    private static List<ChunkDraft> ByClause(IReadOnlyList<ParsedBlock> blocks, ChunkingOptions opt)
+    /// <summary>一个小节：连续的表格行成一张表、按行打包；正文按条款或整句打包。</summary>
+    private static List<Piece> SectionPieces(List<ParsedBlock> section, ChunkingOptions opt, bool clauses)
     {
-        var chunks = new List<ChunkDraft>();
-        var current = new StringBuilder();
-        int? pageNo = null; string? bbox = null; string? path = null;
-        var headings = new List<(int, string)>();
-
-        string clauseTail = string.Empty;
-
-        void Flush()
+        var pieces = new List<Piece>();
+        var prose = new List<Unit>();
+        var i = 0;
+        while (i < section.Count)
         {
-            var text = current.ToString().Trim();
-            if (text.Length > 0)
+            var b = section[i];
+            if (b.Kind == "table_row")
             {
-                var withOverlap = clauseTail.Length > 0 ? clauseTail + "\n" + text : text;
-                chunks.Add(new ChunkDraft(chunks.Count, path, pageNo, bbox, withOverlap));
-                clauseTail = text.Length > opt.Overlap ? text[^opt.Overlap..] : text;
-            }
-            current.Clear(); pageNo = null; bbox = null;
-        }
-
-        foreach (var b in blocks)
-        {
-            if (b.Kind == "heading")
-            {
-                Flush();
-                var level = b.Level ?? 1;
-                headings.RemoveAll(h => h.Item1 >= level);
-                headings.Add((level, b.Text.Trim()));
-                path = HeadingPath(headings);
+                pieces.AddRange(PackProse(prose, opt, clauses));
+                prose.Clear();
+                var rows = new List<ParsedBlock>();
+                while (i < section.Count && section[i].Kind == "table_row" && section[i].TableHeader == b.TableHeader) rows.Add(section[i++]);
+                pieces.AddRange(PackTable(rows, b.TableHeader, opt));
                 continue;
             }
-            var lines = b.Text.Split('\n');
-            foreach (var line in lines)
-            {
-                if (ClauseStart.IsMatch(line) && current.Length > 0) Flush();
-                if (current.Length == 0) { pageNo = b.PageNo; bbox = b.Bbox; }
-                current.AppendLine(line.TrimEnd());
-            }
+            prose.Add(new Unit(b.Text.Trim(), b.PageNo, b.Bbox));
+            i++;
         }
-        Flush();
-        return chunks;
+        pieces.AddRange(PackProse(prose, opt, clauses));
+        return pieces;
     }
 
-    // ── 按行：参数表、物料清单。表头作为每块前缀，避免脱离表头后无法理解 ─────
-    // 刻意偏离表 4-2 末段：行间不做重叠。一行是一条完整记录，行间重叠会把同一条
-    // 记录复制进相邻块、在检索结果里出现两份数据；跨行截断的风险由表头前缀化解。
-    private static List<ChunkDraft> ByRow(IReadOnlyList<ParsedBlock> blocks)
+    /// <summary>正文。条款模式：按行找条款号，一条一块（超长的条款内部再按整句切）；
+    /// 普通模式：整节不长就整节一块，长了按整句攒到目标长度，相邻块用上一块末尾的整句做重叠。</summary>
+    private static List<Piece> PackProse(List<Unit> units, ChunkingOptions opt, bool clauses)
+    {
+        if (units.Count == 0) return [];
+        if (clauses)
+        {
+            var lines = units.SelectMany(u => u.Text.Split('\n').Select(l => new Unit(l.Trim(), u.PageNo, u.Bbox))).Where(u => u.Text.Length > 0).ToList();
+            var groups = new List<List<Unit>>();
+            foreach (var l in lines)
+                if (groups.Count == 0 || IsClauseStart(l.Text)) groups.Add([l]); else groups[^1].Add(l);
+            var pieces = new List<Piece>();
+            foreach (var g in groups)
+            {
+                var text = string.Join("\n", g.Select(u => u.Text));
+                if (text.Length <= opt.TargetLength * 3 / 2) pieces.Add(new Piece(text, g[0].PageNo, g[0].Bbox, false));
+                else pieces.AddRange(PackWithOverlap(g.SelectMany(u => SentencesOf(u)).ToList(), opt));
+            }
+            return pieces;
+        }
+        var whole = string.Join("\n", units.Select(u => u.Text));
+        if (whole.Length <= opt.TargetLength * 3 / 2) return [new Piece(whole, units[0].PageNo, units[0].Bbox, false)];
+        return PackWithOverlap(units.SelectMany(u => SentencesOf(u)).ToList(), opt);
+    }
+
+    /// <summary>一段切成整句；段落最后一句后面带换行，拼回去时段落还在。</summary>
+    private static IEnumerable<Unit> SentencesOf(Unit u)
+    {
+        var ss = Sentences(u.Text, 400);
+        for (var i = 0; i < ss.Count; i++) yield return new Unit(i == ss.Count - 1 ? ss[i] + "\n" : ss[i], u.PageNo, u.Bbox);
+    }
+
+    private static List<Piece> PackWithOverlap(List<Unit> sentences, ChunkingOptions opt)
+    {
+        var result = new List<Piece>();
+        var buf = new List<Unit>();
+        var fresh = 0; // 本块新内容的长度（不含重叠）
+        foreach (var s in sentences)
+        {
+            var len = buf.Sum(x => x.Text.Length);
+            if (fresh > 0 && len + s.Text.Length > opt.TargetLength)
+            {
+                result.Add(new Piece(string.Concat(buf.Select(x => x.Text)).Trim(), buf[0].PageNo, buf[0].Bbox, false));
+                // 重叠：上一块末尾的整句，总长不超过重叠长度
+                var tail = new List<Unit>();
+                var sum = 0;
+                for (var k = buf.Count - 1; k >= 0 && sum + buf[k].Text.Length <= opt.Overlap; k--) { tail.Insert(0, buf[k]); sum += buf[k].Text.Length; }
+                buf = tail;
+                fresh = 0;
+            }
+            buf.Add(s);
+            fresh += s.Text.Length;
+        }
+        if (fresh > 0) result.Add(new Piece(string.Concat(buf.Select(x => x.Text)).Trim(), buf[0].PageNo, buf[0].Bbox, false));
+        return result;
+    }
+
+    /// <summary>表格：每块以表头开头，一行不拆开；单行超长时按整句切，续块带上表头和这一行的「序号 / 位号 / 名称」。</summary>
+    private static List<Piece> PackTable(List<ParsedBlock> rows, string? header, ChunkingOptions opt)
+    {
+        var result = new List<Piece>();
+        var head = string.IsNullOrWhiteSpace(header) ? "" : header!.Trim() + "\n";
+        var buf = new StringBuilder();
+        int? page = null; string? bbox = null;
+        void Emit()
+        {
+            if (buf.Length == 0) return;
+            result.Add(new Piece((head + buf).Trim(), page, bbox, true));
+            buf.Clear(); page = null; bbox = null;
+        }
+        foreach (var r in rows)
+        {
+            var t = r.Text.Trim();
+            if (head.Length + t.Length > opt.TargetLength * 3 / 2)
+            {
+                Emit();
+                var key = RowKey(t);
+                var first = true;
+                foreach (var part in PackSentences(t, opt.TargetLength - head.Length - key.Length))
+                {
+                    result.Add(new Piece((head + (first ? "" : key + "（续）") + part).Trim(), r.PageNo, r.Bbox, true));
+                    first = false;
+                }
+                continue;
+            }
+            if (buf.Length > 0 && head.Length + buf.Length + t.Length > opt.TargetLength) Emit();
+            if (buf.Length == 0) { page = r.PageNo; bbox = r.Bbox; }
+            buf.AppendLine(t);
+        }
+        Emit();
+        return result;
+    }
+
+    /// <summary>一行表格的「身份」：前几个短格子（序号、位号、名称）。</summary>
+    private static string RowKey(string row)
+    {
+        var cells = row.Trim().Trim('|').Split('|').Select(c => c.Trim()).ToList();
+        var key = cells.Take(4).Where(c => c.Length is > 0 and <= 20).Take(3).ToList();
+        return key.Count == 0 ? "" : "| " + string.Join(" | ", key) + " | ";
+    }
+
+    private static IEnumerable<string> PackSentences(string text, int max)
+    {
+        max = Math.Max(200, max);
+        var buf = new StringBuilder();
+        foreach (var s in Sentences(text, max))
+        {
+            if (buf.Length > 0 && buf.Length + s.Length > max) { yield return buf.ToString(); buf.Clear(); }
+            buf.Append(s);
+        }
+        if (buf.Length > 0) yield return buf.ToString();
+    }
+
+    /// <summary>太碎的块（不到最小长度的一半）并到后一块；是最后一块就并到前一块。表格块不和正文混并。</summary>
+    private static List<Piece> MergeTiny(List<Piece> pieces, ChunkingOptions opt)
+    {
+        var min = Math.Max(40, opt.MinLength / 2);
+        var list = new List<Piece>(pieces);
+        for (var i = 0; i < list.Count; i++)
+        {
+            if (list[i].Text.Length >= min || list.Count == 1) continue;
+            if (i + 1 < list.Count && list[i + 1].Table == list[i].Table && list[i].Text.Length + list[i + 1].Text.Length <= opt.TargetLength * 2)
+            {
+                list[i + 1] = list[i + 1] with { Text = list[i].Text + "\n" + list[i + 1].Text, PageNo = list[i].PageNo ?? list[i + 1].PageNo, Bbox = list[i].Bbox ?? list[i + 1].Bbox };
+                list.RemoveAt(i--);
+            }
+            else if (i > 0 && list[i - 1].Table == list[i].Table && list[i - 1].Text.Length + list[i].Text.Length <= opt.TargetLength * 2)
+            {
+                list[i - 1] = list[i - 1] with { Text = list[i - 1].Text + "\n" + list[i].Text };
+                list.RemoveAt(i--);
+            }
+        }
+        return list;
+    }
+
+    // ── 按行：参数表、物料清单、价格表（Excel 为主）─────────────
+    // 一行一条完整记录，每块带表头；行间不重叠（同一条记录复制进相邻块会在检索结果里出现两份）。
+    private static List<ChunkDraft> ByRow(IReadOnlyList<ParsedBlock> blocks, ChunkingOptions opt)
     {
         var chunks = new List<ChunkDraft>();
+        string? sheet = null;
         foreach (var b in blocks)
         {
-            if (b.Kind is not ("table_row" or "paragraph" or "table")) continue;
+            if (b.Kind == "heading") { sheet = b.Text.Trim(); continue; }
             var text = b.Text.Trim();
             if (text.Length == 0) continue;
-            if (b.Kind == "table_row" && !string.IsNullOrWhiteSpace(b.TableHeader))
-                text = b.TableHeader!.Trim() + "\n" + text;
-            chunks.Add(new ChunkDraft(chunks.Count, null, b.PageNo, b.Bbox, text));
+            if (b.Kind == "table_row")
+            {
+                var head = string.IsNullOrWhiteSpace(b.TableHeader) ? "" : b.TableHeader!.Trim() + "\n";
+                if (head.Length + text.Length <= opt.TargetLength * 3 / 2)
+                    chunks.Add(new ChunkDraft(chunks.Count, sheet, b.PageNo, b.Bbox, head + text));
+                else
+                {
+                    var key = RowKey(text);
+                    var first = true;
+                    foreach (var part in PackSentences(text, opt.TargetLength - head.Length - key.Length))
+                    {
+                        chunks.Add(new ChunkDraft(chunks.Count, sheet, b.PageNo, b.Bbox, head + (first ? "" : key + "（续）") + part));
+                        first = false;
+                    }
+                }
+            }
+            else
+                foreach (var part in PackSentences(text, opt.TargetLength))
+                    chunks.Add(new ChunkDraft(chunks.Count, sheet, b.PageNo, b.Bbox, part));
         }
         return chunks;
-    }
-
-    // ── 语义段落：固定窗口配合重叠 ─────────────────────────────────
-    private static List<ChunkDraft> ByWindow(IReadOnlyList<ParsedBlock> blocks, ChunkingOptions opt, bool headingPrefix)
-    {
-        var text = string.Join("\n", TextsWithTableHeaders(blocks.Where(b => b.Kind != "heading"))).Trim();
-        var chunks = new List<ChunkDraft>();
-        if (text.Length == 0) return chunks;
-        var firstPage = blocks.FirstOrDefault(b => b.PageNo != null)?.PageNo;
-        var step = Math.Max(1, opt.TargetLength - opt.Overlap);
-        for (var pos = 0; pos < text.Length; pos += step)
-        {
-            var len = Math.Min(opt.TargetLength, text.Length - pos);
-            var atEnd = pos + len >= text.Length;
-            var piece = text.Substring(pos, len).Trim();
-            // 只有文末的短尾巴可以丢（其内容已落在上一块的重叠区内）；中部窗口即便修剪后偏短也必须保留
-            if (atEnd && piece.Length < opt.MinLength && piece.Length <= opt.Overlap && chunks.Count > 0) break;
-            if (piece.Length > 0)
-                chunks.Add(new ChunkDraft(chunks.Count, null, firstPage, null, piece));
-            if (atEnd) break;
-        }
-        return chunks;
-    }
-
-    // ── 通用：语义段落优先累积，超长时按固定窗口切分 ─────────────────────
-    private static List<ChunkDraft> General(IReadOnlyList<ParsedBlock> blocks, ChunkingOptions opt)
-    {
-        var chunks = new List<ChunkDraft>();
-        var headings = new List<(int, string)>();
-        var buf = new StringBuilder();
-        int? pageNo = null; string? bbox = null; string? path = null;
-        string? lastTableHeader = null;
-        string tail = string.Empty; // 上一块尾部，作为重叠前缀
-
-        void Flush()
-        {
-            var text = buf.ToString().Trim();
-            if (text.Length >= 1)
-            {
-                var withOverlap = tail.Length > 0 ? tail + "\n" + text : text;
-                chunks.Add(new ChunkDraft(chunks.Count, path, pageNo, bbox, withOverlap));
-                tail = text.Length > opt.Overlap ? text[^opt.Overlap..] : text;
-            }
-            buf.Clear(); pageNo = null; bbox = null;
-        }
-
-        foreach (var b in blocks)
-        {
-            if (b.Kind == "heading")
-            {
-                Flush();
-                var level = b.Level ?? 1;
-                headings.RemoveAll(h => h.Item1 >= level);
-                headings.Add((level, b.Text.Trim()));
-                path = HeadingPath(headings);
-                tail = string.Empty; // 跨章节不重叠
-                continue;
-            }
-            var t = WithTableHeader(b, ref lastTableHeader);
-            if (t.Length == 0) continue;
-            if (t.Length > opt.TargetLength * 2)
-            {
-                Flush();
-                foreach (var piece in Window(t, opt))
-                    chunks.Add(new ChunkDraft(chunks.Count, path, b.PageNo, b.Bbox, piece));
-                tail = string.Empty;
-                continue;
-            }
-            if (buf.Length > 0 && buf.Length + t.Length > opt.TargetLength) Flush();
-            if (buf.Length == 0) { pageNo = b.PageNo; bbox = b.Bbox; }
-            buf.AppendLine(t);
-        }
-        Flush();
-        return chunks;
-    }
-
-    private static IEnumerable<string> Window(string text, ChunkingOptions opt)
-    {
-        var step = Math.Max(1, opt.TargetLength - opt.Overlap);
-        for (var pos = 0; pos < text.Length; pos += step)
-        {
-            var len = Math.Min(opt.TargetLength, text.Length - pos);
-            yield return text.Substring(pos, len);
-            if (pos + len >= text.Length) yield break;
-        }
-    }
-
-    private static IEnumerable<(string Text, int? PageNo, string? Bbox)> SplitParagraphs(
-        List<ParsedBlock> section, ChunkingOptions opt)
-    {
-        var buf = new StringBuilder();
-        int? pageNo = null; string? bbox = null;
-        string? lastHeader = null;
-        string tail = string.Empty; // 二次切分同样保留相邻重叠（表 4-2 末段）
-        foreach (var b in section)
-        {
-            var t = WithTableHeader(b, ref lastHeader);
-            if (t.Length == 0) continue;
-            if (buf.Length > 0 && buf.Length + t.Length > opt.TargetLength)
-            {
-                var text = buf.ToString().Trim();
-                yield return (tail.Length > 0 ? tail + "\n" + text : text, pageNo, bbox);
-                tail = text.Length > opt.Overlap ? text[^opt.Overlap..] : text;
-                buf.Clear(); pageNo = null; bbox = null;
-            }
-            if (buf.Length == 0) { pageNo = b.PageNo; bbox = b.Bbox; }
-            buf.AppendLine(t);
-        }
-        if (buf.Length > 0)
-        {
-            var text = buf.ToString().Trim();
-            yield return (tail.Length > 0 ? tail + "\n" + text : text, pageNo, bbox);
-        }
-    }
-
-    private static string HeadingPath(IReadOnlyList<(int Level, string Text)> headings) =>
-        string.Join(" > ", headings.Select(h => h.Text));
-
-    private static string Prefixed(string? path, string text) =>
-        string.IsNullOrEmpty(path) ? text : $"【{path}】\n{text}";
-
-    // 表格行不脱离表头（表 4-2 的意图对所有策略成立，不只 ByRow）：
-    // 表头变化时把表头行注入一次，行内容紧随其后。
-    private static IEnumerable<string> TextsWithTableHeaders(IEnumerable<ParsedBlock> blocks)
-    {
-        string? lastHeader = null;
-        foreach (var b in blocks)
-        {
-            var t = WithTableHeader(b, ref lastHeader);
-            if (t.Length > 0) yield return t;
-        }
-    }
-
-    private static string WithTableHeader(ParsedBlock b, ref string? lastHeader)
-    {
-        var t = b.Text.Trim();
-        if (b.Kind == "table_row" && !string.IsNullOrWhiteSpace(b.TableHeader))
-        {
-            if (b.TableHeader != lastHeader)
-            {
-                lastHeader = b.TableHeader;
-                return b.TableHeader.Trim() + "\n" + t;
-            }
-            return t;
-        }
-        if (b.Kind != "table_row") lastHeader = null;
-        return t;
     }
 }

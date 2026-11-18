@@ -71,7 +71,7 @@ public class AttachmentParseWorker(IServiceScopeFactory scopeFactory, ILogger<At
             ParsedDocument parsed;
             await using (var file = await storage.OpenAsync(a.FileKey, ct))
                 parsed = await parser.ParseAsync(file, a.FileName, a.ContentType, ct);
-            var drafts = Chunker.Chunk(ChunkStrategy.ByHeading, parsed.Blocks, new ChunkingOptions());
+            var drafts = Chunker.Chunk(Chunker.Pick(parsed.Blocks), parsed.Blocks, new ChunkingOptions());
             var stored = drafts.Select(d => new StoredChunk(d.Seq, d.SectionPath, d.PageNo, d.Text)).ToList();
             // 图片理解（开关打开时）：客户发来的 PID、图纸、照片写成文字，和正文一起供问答挑选
             var describer = scope.ServiceProvider.GetRequiredService<Vision.ImageDescriber>();

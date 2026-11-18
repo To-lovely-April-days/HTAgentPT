@@ -721,6 +721,8 @@ public sealed class AssistantService(
                     return new ToolOutcome($"没有搜到和「{query}」相关的资料。{(r.Notice is null ? "" : $"（{r.Notice}）")}可以换个说法或去掉筛选条件再试。",
                         "没有搜到", label, detail, "没有相关资料");
                 var meta = await DocMetaAsync(chunks.Select(c => c.DocId), ct);
+                // 小块检索、整节理解：命中的那一块给模型时，附上同一小节里前后的几块
+                var around = await SectionAroundAsync(chunks.Take(4).ToList(), ct);
                 var sb = new StringBuilder();
                 var compact = new StringBuilder();
                 if (!r.AboveThreshold) sb.AppendLine("注意：这些片段和问题的相关度偏低，不一定能回答问题，用之前要看清楚内容是否对得上。");
@@ -731,7 +733,10 @@ public sealed class AssistantService(
                     var e = run.Add($"c{c.ChunkId}", n => new EvidenceItem(n, "doc", c.DocTitle, c.Text, c.DocId, c.ChunkId, c.SectionPath, c.PageNo,
                         m?.Category, m?.FileName, c.ProjectNo, c.Classification.ToString(), Math.Round(c.RerankScore, 3), run.RefOf(c.DocId)));
                     var head = Head(e, m?.Year);
-                    sb.AppendLine(head).AppendLine(Clip(c.Text, 1400)).AppendLine();
+                    sb.AppendLine(head).AppendLine(Clip(c.Text, 1400));
+                    if (around.TryGetValue(c.ChunkId, out var ctx))
+                        sb.AppendLine($"（同一小节的前后文，帮助理解；要引用这里的内容先用 read_document 打开原文）\n{ctx}");
+                    sb.AppendLine();
                     compact.AppendLine($"{head}：{Clip(c.Text, 120)}");
                 }
                 return new ToolOutcome(sb.ToString(), "（较早的搜索结果，已压缩）\n" + compact, label, query,
@@ -1503,6 +1508,31 @@ public sealed class AssistantService(
     }
 
     /// <summary>已审定术语的中英对照并进搜索词，扩大召回（和原问答同一做法）。</summary>
+    /// <summary>命中块所在小节里前后各两块的原文（同一文档、同一章节路径），合起来不超过 900 字。</summary>
+    private async Task<Dictionary<long, string>> SectionAroundAsync(List<RetrievedChunk> hits, CancellationToken ct)
+    {
+        var result = new Dictionary<long, string>();
+        if (hits.Count == 0) return result;
+        var ids = hits.Select(h => h.ChunkId).ToList();
+        var seqs = await db.Chunks.AsNoTracking().Where(c => ids.Contains(c.Id))
+            .Select(c => new { c.Id, c.DocId, c.Seq, c.SectionPath }).ToListAsync(ct);
+        foreach (var h in seqs)
+        {
+            var near = await db.Chunks.AsNoTracking()
+                .Where(c => c.DocId == h.DocId && c.IsActive && c.Id != h.Id && c.SectionPath == h.SectionPath && c.Seq >= h.Seq - 2 && c.Seq <= h.Seq + 2)
+                .OrderBy(c => c.Seq).Select(c => new { c.Seq, c.Text }).ToListAsync(ct);
+            if (near.Count == 0) continue;
+            var sb = new StringBuilder();
+            foreach (var n in near.OrderBy(n => Math.Abs(n.Seq - h.Seq)).ThenBy(n => n.Seq))
+            {
+                if (sb.Length > 900) break;
+                sb.AppendLine((n.Seq < h.Seq ? "【前文】" : "【后文】") + Clip(n.Text, 450));
+            }
+            result[h.Id] = sb.ToString().TrimEnd();
+        }
+        return result;
+    }
+
     private IReadOnlyList<TermEntry>? _termEntries;
 
     /// <summary>公司词表里的说法（客户名单、设备类型、常用说法），带别名。一次请求只读一次。</summary>

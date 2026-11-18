@@ -39,6 +39,8 @@ public interface IDocumentService
     Task<int> QueueParseAsync(IReadOnlyList<Guid> docIds, CancellationToken ct = default);
     /// <summary>更换切分策略后重新解析：原分块作废重建，期间不参与检索（FR-1.6）。</summary>
     Task ReparseAsync(Guid docId, ChunkStrategy? newStrategy, CancellationToken ct = default);
+    /// <summary>本公司已入库的文档全部重新解析（切片规则升级后用）。返回排进队列的份数。</summary>
+    Task<int> ReparseAllAsync(CancellationToken ct = default);
     Task<IReadOnlyList<ChunkRow>> GetChunksAsync(Guid docId, CancellationToken ct = default);
     /// <summary>编辑单块：仅重算该块向量，不触发整份重解析（FR-1.5）。</summary>
     Task EditChunkAsync(long chunkId, string newText, CancellationToken ct = default);

@@ -127,7 +127,9 @@ public class ParseWorker(
             await using (var file = await storage.OpenAsync(doc.FileKey, ct))
                 parsed = await parser.ParseAsync(file, doc.FileName, doc.ContentType, ct);
 
-            var strategy = doc.ChunkStrategyOverride ?? doc.Kb!.DefaultChunkStrategy;
+            // 切法：文档单独指定了就用指定的；库的默认是「通用」时按文档的样子自动选（Excel 按行、合同按条款、有标题按章节）
+            var kbDefault = doc.Kb!.DefaultChunkStrategy;
+            var strategy = doc.ChunkStrategyOverride ?? (kbDefault == ChunkStrategy.General ? Chunker.Pick(parsed.Blocks) : kbDefault);
             var opt = new ChunkingOptions(
                 await config.GetIntAsync(ConfigKeys.ChunkTargetLength, 800, ct),
                 await config.GetIntAsync(ConfigKeys.ChunkOverlap, 80, ct),
@@ -145,11 +147,17 @@ public class ParseWorker(
             if (drafts.Count == 0)
                 throw new ParseContentException("切分后没有产生任何分块（文档内容可能为空）");
 
+            // 每块的「身份」：文件、客户、项目、设备、章节 + 一句这段讲什么（模型写，失败就不写）
+            var meta = await db.DocMetadatas.AsNoTracking().FirstOrDefaultAsync(m => m.DocumentId == doc.Id, ct);
+            var summaries = await ChunkSummaries.WriteAsync(scope.ServiceProvider, config, doc.Title, drafts, logger, ct);
+            var contexts = drafts.Select((d, i) => ChunkContext.Header(doc.Title, meta?.CustomerName, meta?.ProjectNo, meta?.DeviceType,
+                meta?.DocCategory, d.SectionPath, summaries[i])).ToList();
+
             IReadOnlyList<float[]> vectors;
             string modelTag;
             try
             {
-                var batch = await embedder.EmbedAsync(drafts.Select(d => d.Text).ToList(), ct);
+                var batch = await embedder.EmbedAsync(drafts.Select((d, i) => ChunkContext.ForIndex(contexts[i], d.Text)).ToList(), ct);
                 vectors = batch.Vectors;
                 modelTag = batch.ModelTag;
             }
@@ -175,7 +183,8 @@ public class ParseWorker(
                     PageNo = d.PageNo,
                     Bbox = d.Bbox,
                     Text = d.Text,
-                    SearchText = ChineseTokenizer.Tokenize(d.Text),
+                    Context = contexts[i],
+                    SearchText = ChineseTokenizer.Tokenize(ChunkContext.ForIndex(contexts[i], d.Text)),
                     Embedding = new Vector(vectors[i]),
                     EmbeddingModel = modelTag,
                     ParseVersion = newVersion,
@@ -264,7 +273,7 @@ public class ParseWorker(
         }
         try
         {
-            var batch = await embedder.EmbedAsync(chunks.Select(c => c.Text).ToList(), ct);
+            var batch = await embedder.EmbedAsync(chunks.Select(c => ChunkContext.ForIndex(c.Context, c.Text)).ToList(), ct);
             for (var i = 0; i < chunks.Count; i++)
             {
                 chunks[i].Embedding = new Vector(batch.Vectors[i]);
@@ -294,7 +303,7 @@ public class ParseWorker(
         }
         try
         {
-            var batch = await embedder.EmbedAsync([chunk.Text], ct);
+            var batch = await embedder.EmbedAsync([ChunkContext.ForIndex(chunk.Context, chunk.Text)], ct);
             chunk.Embedding = new Vector(batch.Vectors[0]);
             chunk.EmbeddingModel = batch.ModelTag;
             job.Status = JobStatus.Succeeded;

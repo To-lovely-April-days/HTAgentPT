@@ -77,28 +77,76 @@ public class OfficeParser : IDocumentParserClient
         var main = doc.MainDocumentPart ?? throw new ParseContentException("Word 文件缺少主文档部件");
         var body = main.Document?.Body ?? throw new ParseContentException("Word 文件没有正文内容");
         var styles = HeadingStyles(main);
+        var numbering = new WordNumbering(main);
 
-        foreach (var element in body.ChildElements)
+        // 内容控件（模板里常见）里面的段落和表格也要读，不能只看正文第一层
+        void Walk(IEnumerable<OpenXmlElement> elements)
         {
-            ct.ThrowIfCancellationRequested();
-            switch (element)
+            foreach (var element in elements)
             {
-                case Paragraph p:
-                    AddParagraph(blocks, p, styles);
-                    CollectWordImages(images, main, p, blocks);
-                    break;
-                case W.Table t:
-                    AddTable(blocks, t, main, images);
-                    break;
+                ct.ThrowIfCancellationRequested();
+                switch (element)
+                {
+                    case Paragraph p:
+                        AddParagraph(blocks, p, styles, numbering);
+                        CollectWordImages(images, main, p, blocks);
+                        break;
+                    case W.Table t:
+                        AddTable(blocks, t, main, images, numbering);
+                        break;
+                    case SdtBlock sdt when sdt.SdtContentBlock is { } content:
+                        Walk(content.ChildElements);
+                        break;
+                }
             }
         }
+        Walk(body.ChildElements);
     }
 
-    private static void AddParagraph(List<ParsedBlock> blocks, Paragraph p, Dictionary<string, int> styles)
+    /// <summary>段落文字，前面补上自动编号（「3.2」「一、」）。</summary>
+    /// <summary>段落里真正显示的文字：只取正文字符，不要域代码（目录、页码引用的 TOC / PAGEREF 指令）和修订删除的字。</summary>
+    private static string VisibleText(Paragraph p)
+        => Clean(string.Concat(p.Descendants().Select(e => e switch
+        {
+            Text t => t.Text,
+            TabChar or Break or CarriageReturn => " ",
+            _ => "",
+        })));
+
+    /// <summary>目录里的条目（指向 _Toc 书签、带页码）：和正文标题重复，只是噪声。</summary>
+    private static bool IsTocEntry(Paragraph p)
+        => p.Descendants<FieldCode>().Any(f => f.Text.Contains("_Toc") || f.Text.TrimStart().StartsWith("TOC", StringComparison.OrdinalIgnoreCase))
+           || (p.ParagraphProperties?.ParagraphStyleId?.Val?.Value ?? "").StartsWith("TOC", StringComparison.OrdinalIgnoreCase);
+
+    private static string ParagraphText(Paragraph p, WordNumbering numbering, bool inCell = false)
     {
-        var text = Clean(p.InnerText);
+        var label = numbering.Next(p);
+        var text = VisibleText(p);
+        if (label is null) return text;
+        // 表格里只有编号的格子（序号列）编号本身就是内容；正文里只有编号的空段落不要
+        if (text.Length == 0) return inCell ? label : "";
+        return label[^1] is '、' or '.' or '．' or '）' or ')' or '：' ? label + text : label + " " + text;
+    }
+
+    /// <summary>封面上没填的表单项（「甲方签字：」「签订日期：」）、重复的水印字样（「注意保密注意保密」），对检索只是噪声。</summary>
+    public static bool IsNoise(string text)
+    {
+        var t = text.Trim();
+        if (t.Length == 0) return true;
+        if (t.Length <= 10 && (t.EndsWith('：') || t.EndsWith(':'))) return true;
+        if (System.Text.RegularExpressions.Regex.IsMatch(t, @"^目\s*录$")) return true;
+        var body = System.Text.RegularExpressions.Regex.Replace(t, @"^\d{6,}", "");
+        var m = System.Text.RegularExpressions.Regex.Match(body, @"^(.{2,8}?)\1+$");
+        return m.Success;
+    }
+
+    private static void AddParagraph(List<ParsedBlock> blocks, Paragraph p, Dictionary<string, int> styles, WordNumbering numbering)
+    {
+        if (IsTocEntry(p)) { numbering.Next(p); return; }
+        var text = ParagraphText(p, numbering);
         if (text.Length == 0) return;
         var level = HeadingLevel(p, styles);
+        if (level is null && IsNoise(text)) return;
         blocks.Add(level is null
             ? new ParsedBlock("paragraph", text, null, null, null, null)
             : new ParsedBlock("heading", text, level, null, null, null));
@@ -145,11 +193,33 @@ public class OfficeParser : IDocumentParserClient
     /// 表头只在首行确实像表头时才认：多列、都不为空、都是不含数字的短标签——编号、日期、金额
     /// 都带数字，据此把任务单那种「标签|值|标签|值」的表单行认出来；表单首行不是表头，
     /// 硬当表头会给每行都挂上错误前缀，还会把首行数据吞掉。拿不准就不认表头。</summary>
-    private static void AddTable(List<ParsedBlock> blocks, W.Table table, MainDocumentPart main, ImageBag images)
+    private static void AddTable(List<ParsedBlock> blocks, W.Table table, MainDocumentPart main, ImageBag images, WordNumbering numbering)
     {
         var rows = table.Elements<W.TableRow>().ToList();
         if (rows.Count == 0) return;
-        var cellRows = rows.Select(r => r.Elements<W.TableCell>().Select(c => Clean(c.InnerText)).ToList()).ToList();
+        // 按网格展开：横向合并的格占几列就占几列（后面几列留空，列和表头对得上）；
+        // 纵向合并的格，下面几行补上合并区第一行的值（否则「分组」「名称」一列只有第一行有字）
+        var cellRows = new List<List<string>>();
+        var above = new Dictionary<int, string>();
+        foreach (var r in rows)
+        {
+            var cells = new List<string>();
+            foreach (var c in r.Elements<W.TableCell>())
+            {
+                var span = c.TableCellProperties?.GridSpan?.Val?.Value ?? 1;
+                var vm = c.TableCellProperties?.VerticalMerge;
+                var col = cells.Count;
+                string text;
+                if (vm is not null && (vm.Val is null || vm.Val.InnerText == "continue"))
+                    text = above.TryGetValue(col, out var up) ? up : "";
+                else
+                    text = string.Join(" ", c.Descendants<Paragraph>().Select(p => ParagraphText(p, numbering, inCell: true)).Where(x => x.Length > 0));
+                above[col] = text;
+                cells.Add(text);
+                for (var k = 1; k < span; k++) { above[col + k] = ""; cells.Add(""); }
+            }
+            cellRows.Add(cells);
+        }
         var header = HeaderOf(cellRows);
 
         for (var i = 0; i < cellRows.Count; i++)
@@ -405,7 +475,9 @@ public class OfficeParser : IDocumentParserClient
     {
         if (rows.Count <= 1) return null;
         var first = rows[0];
-        return first.Count >= 2 && first.All(c => c.Length is > 0 and <= 8 && !c.Any(char.IsDigit))
+        var filled = first.Where(c => c.Length > 0).ToList();
+        // 合并单元格展开后表头里会有空格子：有字的格子至少两个、占一半以上，并且都像列名
+        return filled.Count >= 2 && filled.Count * 2 >= first.Count && filled.All(c => c.Length <= 12 && !c.Any(char.IsDigit))
             ? Join(first) : null;
     }
 

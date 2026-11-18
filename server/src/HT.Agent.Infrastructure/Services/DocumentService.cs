@@ -268,6 +268,26 @@ public class DocumentService(
             TargetType: "document", TargetId: docId.ToString(), Detail: new { newStrategy }), ct);
     }
 
+    public async Task<int> ReparseAllAsync(CancellationToken ct = default)
+    {
+        // 共享库归总部、虚拟容器归业务模块、没审核通过的不解析、正在排队或解析的不重复排
+        var docs = await db.Documents
+            .Where(d => d.Kb!.CompanyId == me.CompanyId && d.Kb.Tier != KnowledgeBaseTier.Shared && d.Review == ReviewStatus.Approved
+                        && !d.FileKey.StartsWith("virtual:") && (d.ParseStatus == ParseStatus.Parsed || d.ParseStatus == ParseStatus.Failed))
+            .ToListAsync(ct);
+        var now = DateTimeOffset.UtcNow;
+        foreach (var doc in docs)
+        {
+            doc.ParseStatus = ParseStatus.Queued;
+            doc.ParseError = null;
+            db.ParseJobs.Add(new ParseJob { Id = Guid.NewGuid(), DocId = doc.Id, Kind = ParseJobKind.Reparse, QueuedBy = me.UserId, QueuedAt = now });
+        }
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(new AuditEntry("doc.reparse_all", AuditResult.Success, UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+            Detail: new { count = docs.Count }), ct);
+        return docs.Count;
+    }
+
     public async Task<IReadOnlyList<ChunkRow>> GetChunksAsync(Guid docId, CancellationToken ct = default)
         => await db.Chunks.AsNoTracking()
             .Where(c => c.DocId == docId && c.IsActive)
@@ -314,7 +334,7 @@ public class DocumentService(
         await EnsureNotVirtualAsync(chunk.DocId, ct);
         await EnsureKbWritableAsync(chunk.KbId, ct);
         chunk.Text = newText;
-        chunk.SearchText = ChineseTokenizer.Tokenize(newText);
+        chunk.SearchText = ChineseTokenizer.Tokenize(ChunkContext.ForIndex(chunk.Context, newText));
         chunk.Embedding = null; // 仅重算该块向量，不触发整份重解析（FR-1.5）
         chunk.EmbeddingModel = null;
         db.ParseJobs.Add(new ParseJob
@@ -372,7 +392,7 @@ public class DocumentService(
         var head = chunks[0];
         var removed = chunks.Count - 1;
         head.Text = string.Join("\n", chunks.Select(c => c.Text));
-        head.SearchText = ChineseTokenizer.Tokenize(head.Text);
+        head.SearchText = ChineseTokenizer.Tokenize(ChunkContext.ForIndex(head.Context, head.Text));
         head.Embedding = null;
         head.EmbeddingModel = null;
         db.Chunks.RemoveRange(chunks.Skip(1));
@@ -412,7 +432,7 @@ public class DocumentService(
             .ExecuteUpdateAsync(s => s.SetProperty(c => c.Seq, c => c.Seq + parts.Count - 1), ct);
 
         chunk.Text = parts[0];
-        chunk.SearchText = ChineseTokenizer.Tokenize(parts[0]);
+        chunk.SearchText = ChineseTokenizer.Tokenize(ChunkContext.ForIndex(chunk.Context, parts[0]));
         chunk.Embedding = null;
         chunk.EmbeddingModel = null;
         var newChunks = new List<Chunk>();
@@ -422,7 +442,7 @@ public class DocumentService(
             {
                 DocId = chunk.DocId, KbId = chunk.KbId, Classification = chunk.Classification,
                 Seq = chunk.Seq + i, SectionPath = chunk.SectionPath, PageNo = chunk.PageNo,
-                Text = parts[i], SearchText = ChineseTokenizer.Tokenize(parts[i]),
+                Text = parts[i], Context = chunk.Context, SearchText = ChineseTokenizer.Tokenize(ChunkContext.ForIndex(chunk.Context, parts[i])),
                 ParseVersion = chunk.ParseVersion, CreatedAt = DateTimeOffset.UtcNow
             });
         }

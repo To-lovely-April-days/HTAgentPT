@@ -108,6 +108,18 @@ export default function CorpusPage() {
     }
   };
 
+  const reparseAll = async () => {
+    if (!window.confirm('把已入库的文档全部重新解析一遍？\n切片规则升级后需要做一次。解析期间这些文档暂时查不到；手动拆分、合并、改过的分块会被新切法覆盖。文档多的话要跑一段时间，建议下班后做。')) return;
+    setActError(null);
+    try {
+      const r = await post<{ queued: number }>('/api/documents/reparse-all');
+      window.alert(`已排进解析队列：${r.queued} 份。可以在「解析任务」里看进度。`);
+      refresh();
+    } catch (err) {
+      setActError(err instanceof ApiError ? err.message : '重新解析失败');
+    }
+  };
+
   const removeDocs = async (ids: string[], label: string) => {
     if (!window.confirm(`删除 ${ids.length} 份文档（${label}）？\n原件、分块、图片与解析记录将一并删除，不可恢复。`)) return;
     setActError(null);
@@ -161,6 +173,7 @@ export default function CorpusPage() {
                 const sel = rows.filter((r) => selected.has(r.id));
                 void removeDocs([...selected], sel.slice(0, 3).map((r) => r.title).join('、') + (sel.length > 3 ? ' 等' : ''));
               }}>删除</button>
+            <button className="gbtn" style={{ height: 28, padding: '0 12px' }} onClick={() => void reparseAll()}>全部重新解析</button>
             <button className="pbtn" style={{ height: 28, padding: '0 13px' }} onClick={() => setUploading(true)}>上传文档</button>
           </div>
 

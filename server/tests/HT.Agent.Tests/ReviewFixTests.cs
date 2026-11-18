@@ -39,29 +39,31 @@ public class ReviewFixTests
     [Fact]
     public void 章节内二次切分保留重叠()
     {
+        // 重叠按整句取：第二块以第一块的最后一整句开头，不从句子中间截断
         var paras = Enumerable.Range(0, 6).Select(i =>
-            new ParsedBlock("paragraph", $"第{i}段" + new string((char)('a' + i), 120), null, 1, null, null));
+            new ParsedBlock("paragraph", $"第{i}段第一句话说明设备参数。第{i}段第二句话说明维护要求。第{i}段第三句收尾。", null, 1, null, null));
         var blocks = new List<ParsedBlock> { new("heading", "长章节", 1, 1, null, null) };
         blocks.AddRange(paras);
-        var opt = new ChunkingOptions(TargetLength: 150, Overlap: 30, MinLength: 40);
+        var opt = new ChunkingOptions(TargetLength: 120, Overlap: 30, MinLength: 40);
         var chunks = Chunker.Chunk(ChunkStrategy.ByHeading, blocks, opt);
         Assert.True(chunks.Count >= 2);
-        // 第二块（去掉标题前缀行）应以第一块的尾部内容开头
-        var first = chunks[0].Text;
-        var secondBody = chunks[1].Text.Split('\n', 2)[1];
-        Assert.Contains(first[^10..], secondBody[..50]);
+        // 第二块开头那句话，就是第一块末尾的整句
+        var firstSentence = chunks[1].Text.Split('。')[0] + "。";
+        Assert.EndsWith(firstSentence, chunks[0].Text[..(chunks[0].Text.IndexOf(firstSentence) + firstSentence.Length)]);
+        Assert.True(chunks[0].Text.Length - chunks[0].Text.IndexOf(firstSentence) <= 40);
+        Assert.All(chunks, c => Assert.DoesNotMatch("^[，,；;、）)]", c.Text));
     }
 
     [Fact]
-    public void 按条款切分保留上一条尾部作语境()
+    public void 按条款切分每条独立不夹带上一条()
     {
         var text = "第一条 " + new string('壹', 100) + "\n第二条 " + new string('贰', 100);
         var blocks = new List<ParsedBlock> { new("paragraph", text, null, 1, null, null) };
         var opt = new ChunkingOptions(TargetLength: 200, Overlap: 20, MinLength: 40);
         var chunks = Chunker.Chunk(ChunkStrategy.ByClause, blocks, opt);
         Assert.Equal(2, chunks.Count);
-        Assert.Contains("壹壹", chunks[1].Text[..30]); // 上一条尾部前缀
-        Assert.Contains("第二条", chunks[1].Text);
+        Assert.StartsWith("第二条", chunks[1].Text);
+        Assert.DoesNotContain("壹", chunks[1].Text);
     }
 
     // ── #30 项目编号规则来自配置 ──

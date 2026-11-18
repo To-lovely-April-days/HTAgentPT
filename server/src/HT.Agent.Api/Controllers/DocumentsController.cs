@@ -98,6 +98,10 @@ public class DocumentsController(
 
     public record ReparseBody(ChunkStrategy? NewStrategy);
 
+    /// <summary>全部重新解析（切片规则升级后用一次）。</summary>
+    [HttpPost("reparse-all")]
+    public async Task<IActionResult> ReparseAll(CancellationToken ct) => Ok(new { queued = await docs.ReparseAllAsync(ct) });
+
     [HttpPost("{id:guid}/reparse")]
     public async Task<IActionResult> Reparse(Guid id, [FromBody] ReparseBody body, CancellationToken ct)
     {

@@ -143,6 +143,8 @@ public static class ConfigKeys
     public const string AnnCandidateFactor = "retrieval.ann_candidate_factor";
     // ── 切分参数（FR-1.4、表 4-2）──────────────────────
     public const string ChunkTargetLength = "chunking.target_length";
+    /// <summary>入库时让模型给每个分块写一句「这段讲的是什么」（on/off）。只在解析时跑一次，不影响回答速度。</summary>
+    public const string ChunkContextSummary = "chunking.context_summary";
     public const string ChunkOverlap = "chunking.overlap";
     public const string ChunkMinLength = "chunking.min_length";
     // ── 上传限制（FR-1.1：单文件上限与总量上限可配置）────

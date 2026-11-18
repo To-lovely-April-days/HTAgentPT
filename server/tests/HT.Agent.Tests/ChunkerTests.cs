@@ -23,7 +23,9 @@ public class ChunkerTests
         };
         var chunks = Chunker.Chunk(ChunkStrategy.ByHeading, blocks, Opt);
         Assert.Equal(2, chunks.Count);
-        Assert.StartsWith("【操作手册 > 安全须知】", chunks[0].Text);
+        // 章节路径不再写进正文，存在 SectionPath，入库时拼进检索和向量用的文字
+        Assert.Equal("操作手册 > 安全须知", chunks[0].SectionPath);
+        Assert.StartsWith("操作前须泄压。", chunks[0].Text);
         Assert.Contains("操作前须泄压。", chunks[0].Text);
         Assert.Contains("严禁超温运行。", chunks[0].Text);
         Assert.Equal("操作手册 > 维护保养", chunks[1].SectionPath);

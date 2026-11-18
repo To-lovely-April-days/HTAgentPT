@@ -99,6 +99,8 @@ public class Chunk
     public int? PageNo { get; set; }
     public string? Bbox { get; set; }
     public required string Text { get; set; }
+    /// <summary>分块的「身份」：文件名、客户、项目、设备、章节，加一句这段讲什么。拼在检索和向量用的文字前面，界面显示不用。</summary>
+    public string? Context { get; set; }
     /// <summary>应用侧分词结果（中文二元切分，型号/报警代码整串保留），供 simple 全文索引使用（7.2）。</summary>
     public required string SearchText { get; set; }
     public Vector? Embedding { get; set; }
