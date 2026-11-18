@@ -413,6 +413,7 @@ export const Perm = {
   CorpusManage: 'corpus.manage', CorpusUpload: 'corpus.upload', KbManage: 'kb.manage', MetaManage: 'meta.manage',
   TemplateManage: 'template.manage', UserManage: 'user.manage',
   SystemConfig: 'system.config', AuditRead: 'audit.read',
+  PriceView: 'price.view', PriceManage: 'price.manage',
 } as const;
 
 /** 对话附件：输入框里传的文件，只在这条对话里当资料用（不进知识库，密级按内部）。 */
@@ -430,7 +431,7 @@ export interface AssistantStep {
 
 /** 通用助手的一份依据：资料切块、台账记录或附件片段。n 与回答里的 [n] 对应。 */
 export interface EvidenceCard {
-  n: number; kind: 'doc' | 'ledger' | 'attachment' | 'web'; title: string; url?: string | null;
+  n: number; kind: 'doc' | 'ledger' | 'attachment' | 'web' | 'price'; title: string; url?: string | null; priceId?: number | null;
   docId: string | null; chunkId: number | null; section: string | null; pageNo: number | null;
   docCategory: string | null; fileName: string | null; projectNo: string | null; classification: string | null;
   text: string; highlights: { start: number; length: number }[];
@@ -480,7 +481,43 @@ export type ToolArtifact =
       items: { n: number; kind: string; title: string; meta: string; abstract: string; url: string }[] }
   | { kind: 'image'; file: string; question: string; answer: string; thumb: string | null }
   | { kind: 'ocr'; file: string; text: string; note: string }
-  | { kind: 'file'; title: string; url: string; detail: string };
+  | { kind: 'file'; title: string; url: string; detail: string }
+  | { kind: 'estimate'; title: string; subtitle: string; priced: number; count: number; oldest: string | null; stale: boolean;
+      total: { taxLow: number; taxHigh: number; netLow: number; netHigh: number };
+      groups: { name: string; subLow: number; subHigh: number; lines: EstimateLine[] }[] }
+  | { kind: 'table'; style: 'matrix' | 'trend' | 'projects' | 'compare' | 'spec' | 'plain'; title: string; note: string;
+      columns: { label: string; type: string }[]; rows: string[][]; highlight: number | null };
+
+export interface EstimateLine {
+  i: number; name: string; spec: string; qty: number | null; qtyUnit: string; status: 'ok' | 'missing' | 'unit' | 'noqty'; why: string | null;
+  ref: number | null; priceLow: number | null; priceHigh: number | null; priceUnit: string | null; supplier: string | null;
+  subLow: number | null; subHigh: number | null; note: string;
+}
+
+/** 价格库。 */
+export interface PriceIssue { kind: string; label: string; count: number; rows: number[]; message: string }
+export interface PriceTableRow {
+  id: string; name: string; description: string | null; itemCount: number; versionDate: string | null; ageMonths: number; stale: boolean;
+  uploadedBy: string | null; uploadedAt: string | null; versions: number; issues: PriceIssue[];
+}
+export interface PriceOverview { tables: PriceTableRow[]; totalItems: number; queries30d: number; staleMonths: number; materials: string[]; suppliers: string[] }
+export interface PriceHit {
+  id: number; tableId: string; tableName: string; versionDate: string; stale: boolean; rowNo: number; group: string | null; name: string;
+  spec: string | null; material: string | null; supplier: string | null; model: string | null; code: string | null; unit: string | null;
+  priceUnit: string | null; taxLow: number | null; taxHigh: number | null; netLow: number | null; netHigh: number | null; taxDerived: boolean;
+  leadTime: string | null; note: string | null; changePct: number | null; versions: number;
+}
+export interface ColumnMap { col: number; header: string; field: string; supplier: string | null }
+export interface ParsedPrice {
+  rowNo: number; group: string | null; name: string; spec: string | null; supplier: string | null; model: string | null;
+  unit: string | null; priceUnit: string | null; taxLow: number | null; taxHigh: number | null; taxDerived: boolean;
+}
+export interface PriceDiff { up: number; down: number; added: number; removed: number; same: number;
+  top: { name: string; spec: string | null; supplier: string | null; old: number | null; new: number | null; pct: number }[] }
+export interface PricePreview {
+  sheets: string[]; sheet: string; includedSheets: string[]; headerRowNo: number; map: ColumnMap[]; sample: ParsedPrice[]; itemCount: number;
+  issues: PriceIssue[]; diff: PriceDiff | null; suggestedDate: string; tableId: string | null; tableName: string;
+}
 
 /** 个人中心 › 我的记忆。 */
 export interface MemoryRow { id: string; kind: string; text: string; source: 'chat' | 'manual'; createdAt: string; updatedAt: string }

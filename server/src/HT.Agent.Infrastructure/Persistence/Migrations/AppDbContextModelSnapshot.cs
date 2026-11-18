@@ -1229,6 +1229,234 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                     b.ToTable("parse_job");
                 });
 
+            modelBuilder.Entity("HT.Agent.Domain.Entities.PriceItem", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Code")
+                        .HasColumnType("text")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Frequency")
+                        .HasColumnType("text")
+                        .HasColumnName("frequency");
+
+                    b.Property<string>("Group")
+                        .HasColumnType("text")
+                        .HasColumnName("group");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("key");
+
+                    b.Property<string>("LeadTime")
+                        .HasColumnType("text")
+                        .HasColumnName("lead_time");
+
+                    b.Property<string>("Material")
+                        .HasColumnType("text")
+                        .HasColumnName("material");
+
+                    b.Property<string>("Model")
+                        .HasColumnType("text")
+                        .HasColumnName("model");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<decimal?>("NetHigh")
+                        .HasPrecision(14, 4)
+                        .HasColumnType("numeric(14,4)")
+                        .HasColumnName("net_high");
+
+                    b.Property<decimal?>("NetLow")
+                        .HasPrecision(14, 4)
+                        .HasColumnType("numeric(14,4)")
+                        .HasColumnName("net_low");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("text")
+                        .HasColumnName("note");
+
+                    b.Property<string>("PriceUnit")
+                        .HasColumnType("text")
+                        .HasColumnName("price_unit");
+
+                    b.Property<int>("RowNo")
+                        .HasColumnType("integer")
+                        .HasColumnName("row_no");
+
+                    b.Property<string>("SearchText")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("search_text");
+
+                    b.Property<string>("Spec")
+                        .HasColumnType("text")
+                        .HasColumnName("spec");
+
+                    b.Property<string>("Supplier")
+                        .HasColumnType("text")
+                        .HasColumnName("supplier");
+
+                    b.Property<Guid>("TableId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("table_id");
+
+                    b.Property<bool>("TaxDerived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("tax_derived");
+
+                    b.Property<decimal?>("TaxHigh")
+                        .HasPrecision(14, 4)
+                        .HasColumnType("numeric(14,4)")
+                        .HasColumnName("tax_high");
+
+                    b.Property<decimal?>("TaxLow")
+                        .HasPrecision(14, 4)
+                        .HasColumnType("numeric(14,4)")
+                        .HasColumnName("tax_low");
+
+                    b.Property<string>("Unit")
+                        .HasColumnType("text")
+                        .HasColumnName("unit");
+
+                    b.Property<Guid>("VersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("version_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_price_item");
+
+                    b.HasIndex("VersionId")
+                        .HasDatabaseName("ix_price_item_version_id");
+
+                    b.HasIndex("TableId", "Key")
+                        .HasDatabaseName("ix_price_item_table_id_key");
+
+                    b.ToTable("price_item");
+                });
+
+            modelBuilder.Entity("HT.Agent.Domain.Entities.PriceTable", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ColumnMap")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("column_map");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CurrentVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("current_version_id");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<string>("SheetName")
+                        .HasColumnType("text")
+                        .HasColumnName("sheet_name");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_price_table");
+
+                    b.HasIndex("CompanyId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_price_table_company_id_name");
+
+                    b.ToTable("price_table");
+                });
+
+            modelBuilder.Entity("HT.Agent.Domain.Entities.PriceVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Diff")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("diff");
+
+                    b.Property<string>("FileKey")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("file_key");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("file_name");
+
+                    b.Property<string>("Issues")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("issues");
+
+                    b.Property<int>("ItemCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("item_count");
+
+                    b.Property<Guid>("TableId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("table_id");
+
+                    b.Property<DateTimeOffset>("UploadedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("uploaded_at");
+
+                    b.Property<Guid>("UploadedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("uploaded_by_id");
+
+                    b.Property<string>("UploadedByName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("uploaded_by_name");
+
+                    b.Property<DateOnly>("VersionDate")
+                        .HasColumnType("date")
+                        .HasColumnName("version_date");
+
+                    b.HasKey("Id")
+                        .HasName("pk_price_version");
+
+                    b.HasIndex("TableId")
+                        .HasDatabaseName("ix_price_version_table_id");
+
+                    b.ToTable("price_version");
+                });
+
             modelBuilder.Entity("HT.Agent.Domain.Entities.Project", b =>
                 {
                     b.Property<string>("ProjectNo")

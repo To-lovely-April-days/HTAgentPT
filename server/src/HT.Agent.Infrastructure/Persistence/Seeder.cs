@@ -15,6 +15,27 @@ public static class Seeder
     /// 管理员停用过的不会被补回来——停用的行还在，只看有没有这一行。</summary>
     private static readonly (string Key, string Value)[] AddedTerms = [(VocabKeys.DocCategory, "技术协议"), (VocabKeys.DocCategory, "标准规范")];
 
+    /// <summary>采购角色（价格库上线时加的）。已经有了就什么都不做——管理员之后改过的权限不会被改回来。</summary>
+    private static async Task EnsurePurchasingAsync(AppDbContext db, CancellationToken ct)
+    {
+        if (await db.Roles.AnyAsync(r => r.Code == RoleCodes.Purchasing, ct)) return;
+        db.Roles.Add(new Role
+        {
+            Id = Guid.NewGuid(), Code = RoleCodes.Purchasing, Name = "采购", IsSystem = true,
+            Classifications = [Classification.Internal, Classification.Public],
+            Permissions = [PermissionKeys.QaInternal, PermissionKeys.QaPublic, PermissionKeys.CorpusUpload, PermissionKeys.PriceView, PermissionKeys.PriceManage],
+        });
+        var admin = await db.Roles.FirstOrDefaultAsync(r => r.Code == RoleCodes.Admin, ct);
+        if (admin is not null)
+        {
+            var perms = admin.Permissions.ToList();
+            foreach (var p in new[] { PermissionKeys.PriceView, PermissionKeys.PriceManage })
+                if (!perms.Contains(p)) perms.Add(p);
+            admin.Permissions = perms;
+        }
+        await db.SaveChangesAsync(ct);
+    }
+
     private static async Task EnsureTermsAsync(AppDbContext db, CancellationToken ct)
     {
         var added = false;
@@ -33,6 +54,7 @@ public static class Seeder
         if (await db.Companies.AnyAsync(ct))
         {
             await EnsureTermsAsync(db, ct); // 已初始化：只补后来新增的固定取值
+            await EnsurePurchasingAsync(db, ct);
             return;
         }
 
@@ -96,6 +118,8 @@ public static class Seeder
             Permissions = [PermissionKeys.QaInternal, PermissionKeys.QaPublic, PermissionKeys.CaseReview, PermissionKeys.CorpusUpload]
         };
         db.Roles.AddRange(presales, aftersales, customer, admin, reviewer);
+        await db.SaveChangesAsync(ct);
+        await EnsurePurchasingAsync(db, ct);
 
         var adminPassword = config["Seed:AdminPassword"] ?? "Admin@12345";
         db.Users.Add(new AppUser

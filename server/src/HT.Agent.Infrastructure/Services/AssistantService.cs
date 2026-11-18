@@ -40,7 +40,8 @@ public sealed class AssistantService(
     IVisionClient vision,
     Vision.ImageDescriber visionSwitch,
     IFileStorage storage,
-    ITranslationService translation) : IAssistantService
+    ITranslationService translation,
+    IPriceService prices) : IAssistantService
 {
     /// <summary>同时在跑的模型请求上限（vLLM 开了 8 路并发；留余量给别的功能）。</summary>
     private static readonly SemaphoreSlim Slots = new(6, 6);
@@ -132,6 +133,7 @@ public sealed class AssistantService(
         var mems = memState?.Items ?? [];
         if (memState is not null) ((HashSet<string>)enabled).Add("remember");
         if (canDocs) ((HashSet<string>)enabled).Add("search_standards");
+        if (!prices.CanView) ((HashSet<string>)enabled).Remove("search_prices");
         if (attachmentFiles.Count == 0) { ((HashSet<string>)enabled).Remove("view_image"); ((HashSet<string>)enabled).Remove("translate_file"); }
         else if (enabled.Contains("view_image") && !await visionSwitch.EnabledAsync(ct)) ((HashSet<string>)enabled).Remove("view_image");
         if (!has(PermissionKeys.Translate)) ((HashSet<string>)enabled).Remove("translate_file");
@@ -335,6 +337,19 @@ public sealed class AssistantService(
             sb.AppendLine("""
                 - 客户询价或需求信息不全、需要回头找客户确认时，用 inquiry_form 生成缺项单：列出已知项和缺的项，缺哪些由你根据需求判断，每项写一句为什么要问。
                 """);
+        if (enabled.Contains("search_prices"))
+            sb.AppendLine("""
+                - 问到材料、零件的价格，或设备的材料成本时，用 search_prices 查公司价格库（采购进价，属于内部机密，不要建议发给客户）。
+                - 要估一台设备的材料成本：先用 search_prices 把要用的材料、零件逐项查到，再用 cost_estimate 列出各项和用量、引用价格编号。合计由系统按价格库算，你不要自己算总价，也不要编价格。
+                  用量要用价格的计价单位给（价格是 元/kg 就给 kg，元/米 就给米）。查不到价格的项也列上、不填编号。
+                - 估算只含材料成本，回答里写明「不含人工、加工和利润」；价格表标了「可能过时」的要提醒用户找采购确认。
+                """);
+        if (enabled.Contains("show_table"))
+            sb.AppendLine("""
+                - 需要用表格对比或罗列时用 show_table，按内容选 kind：matrix 多家供应商比价（一行一个物料，一列一家）；trend 价格和涨跌；projects 历史项目；
+                  compare 方案对比（一行一个指标，一列一个方案，highlight 填推荐方案的列号，格子开头写 ✓ ! ✕）；spec 一台设备的参数清单（每行：分组、名称、数值、来源编号）；plain 其他。
+                  每列标类型（金额 money、数量 number、涨跌 delta、状态 status、项目号 project、来源编号 ref…）。两三行的小表可以直接写 Markdown 表格。
+                """);
         if (enabled.Contains("search_standards"))
             sb.AppendLine("""
             - 问到标准、规范、条款（如 GB 150、HG、ASME）时优先用 search_standards，回答写清标准号、版本和条款号。
@@ -460,6 +475,69 @@ public sealed class AssistantService(
                     ["file"] = Str("附件文件名（.docx）"),
                     ["direction"] = new Dictionary<string, object> { ["type"] = "string", ["enum"] = new[] { "en2zh", "zh2en" }, ["description"] = "en2zh 英译中，zh2en 中译英" },
                 }, "file", "direction")));
+        if (enabled.Contains("search_prices"))
+        {
+            list.Add(new ToolSpec("search_prices",
+                "在公司价格库（采购进价）里查价格：原材料（管、棒、板、封头、焊材）、标准件（接头、阀门）、仪表等。返回含税 / 未税单价、计价单位、供应商、型号、货期和价格表版本，带编号；cost_estimate 要引用这些编号。",
+                Obj(new()
+                {
+                    ["query"] = Str("材质 + 品名 + 规格，如「C276 板」「316L 管 φ25」「1/4 卡套直通」"),
+                    ["supplier"] = Str("只看某家供应商（可不填）"),
+                }, "query")));
+            list.Add(new ToolSpec("cost_estimate",
+                "材料成本估算：列出一台设备要用的材料和零件、各自用量，并引用 search_prices 查到的价格编号。系统按价格库计算小计和合计，显示成估算表。只算材料，不含人工、加工和利润。",
+                Obj(new()
+                {
+                    ["title"] = Str("如「材料成本估算 · 50L 加氢釜」"),
+                    ["subtitle"] = Str("主要条件，如「C276 · 16 MPa / 250℃」"),
+                    ["groups"] = new Dictionary<string, object>
+                    {
+                        ["type"] = "array",
+                        ["items"] = Obj(new()
+                        {
+                            ["name"] = Str("大类，如 主体材料、阀门与管件、仪表与配件"),
+                            ["lines"] = new Dictionary<string, object>
+                            {
+                                ["type"] = "array",
+                                ["items"] = Obj(new()
+                                {
+                                    ["name"] = Str("材料或零件，如「C276 板（筒体）」"),
+                                    ["spec"] = Str("规格"),
+                                    ["qty"] = new Dictionary<string, object> { ["type"] = "number", ["description"] = "用量，按价格的计价单位" },
+                                    ["qty_unit"] = Str("用量单位，如 kg、米、个"),
+                                    ["price_ref"] = new Dictionary<string, object> { ["type"] = "integer", ["description"] = "search_prices 结果里的编号；查不到价格就不填" },
+                                    ["note"] = Str("用量怎么估的，一句话"),
+                                }, "name", "qty", "qty_unit"),
+                            },
+                        }, "name", "lines"),
+                    },
+                }, "title", "groups")));
+        }
+        if (enabled.Contains("show_table"))
+            list.Add(new ToolSpec("show_table",
+                "按场景排版显示一张表格（比价、涨跌、历史项目、方案对比、参数清单等）。用户看到的是排好版、能导出 Excel 的表。",
+                Obj(new()
+                {
+                    ["kind"] = new Dictionary<string, object> { ["type"] = "string", ["enum"] = new[] { "matrix", "trend", "projects", "compare", "spec", "plain" } },
+                    ["title"] = Str("表格标题"),
+                    ["columns"] = new Dictionary<string, object>
+                    {
+                        ["type"] = "array",
+                        ["items"] = Obj(new()
+                        {
+                            ["label"] = Str("列名"),
+                            ["type"] = new Dictionary<string, object> { ["type"] = "string",
+                                ["enum"] = new[] { "text", "number", "money", "percent", "delta", "status", "project", "ref", "series", "mark" } },
+                        }, "label"),
+                    },
+                    ["rows"] = new Dictionary<string, object>
+                    {
+                        ["type"] = "array", ["description"] = "每行一个字符串数组，和 columns 一一对应；series 列写逗号分隔的数字",
+                        ["items"] = new Dictionary<string, object> { ["type"] = "array", ["items"] = new Dictionary<string, object> { ["type"] = "string" } },
+                    },
+                    ["highlight"] = new Dictionary<string, object> { ["type"] = "integer", ["description"] = "compare：推荐方案所在的列号（从 0 起）" },
+                    ["note"] = Str("表格下方的一句说明，如数据来源"),
+                }, "kind", "title", "columns", "rows")));
         if (enabled.Contains("run_python"))
             list.Add(new ToolSpec("run_python",
                 "在隔离环境里运行 Python 代码做计算：工程计算、物性（CoolProp）、数据统计、作图（matplotlib，图会显示给用户）。可用 numpy、scipy、pandas。不能上网、不能读写公司文件。用 print 输出结果。",
@@ -546,7 +624,8 @@ public sealed class AssistantService(
     {
         if (call.Name is "ask_user" or "run_python" or "chemical_info" or "web_search" or "fetch_url" or "compare_documents"
             or "search_literature" or "view_image" or "ocr_image" or "translate_file" or "inquiry_form" or "remember" or "forget"
-            && !enabled.Contains(call.Name is "ocr_image" ? "view_image" : call.Name is "forget" ? "remember" : call.Name))
+            or "search_prices" or "cost_estimate" or "show_table"
+            && !enabled.Contains(call.Name switch { "ocr_image" => "view_image", "forget" => "remember", "cost_estimate" => "search_prices", _ => call.Name }))
             return new ToolOutcome("这个工具现在没有开启。", "未开启", AssistantLoop.ToolLabel(call.Name), "", "未开启");
         JsonObject a;
         try { a = JsonNode.Parse(string.IsNullOrWhiteSpace(call.ArgumentsJson) ? "{}" : call.ArgumentsJson) as JsonObject ?? new JsonObject(); }
@@ -704,6 +783,121 @@ public sealed class AssistantService(
                 run.Computed.Add(value); run.Computed.Add(v); run.Computed.Add(Math.Round(v, 4)); run.Computed.Add(Math.Round(v, 2));
                 var text = $"{UnitCalc.Format(value)} {from} = {UnitCalc.Format(v)} {to}";
                 return new ToolOutcome(text, text, label, $"{UnitCalc.Format(value)} {from} → {to}", $"= {UnitCalc.Format(v)} {to}");
+            }
+            case "search_prices":
+            {
+                var query = S("query") ?? req.Question;
+                var hits = await prices.SearchAsync(query, null, null, S("supplier"), 12, ct);
+                if (hits.Count == 0)
+                    return new ToolOutcome($"价格库里没有查到「{query}」。可以换个说法（材质 + 品名，如「316L 管」），或者告诉用户价格库里没有这一项、需要找采购询价。",
+                        "没查到", label, query, "没查到");
+                var sb = new StringBuilder();
+                var compact = new StringBuilder();
+                foreach (var h in hits)
+                {
+                    var price = h.TaxLow is null ? "没有价格"
+                        : $"含税 {Money(h.TaxLow, h.TaxHigh)} 元" + (h.NetLow is null ? "" : $"，未税 {Money(h.NetLow, h.NetHigh)} 元") + (h.TaxDerived ? "（含税价是按未税推算的）" : "");
+                    var text = string.Join("；", new[]
+                    {
+                        $"名称：{h.Name}", h.Spec is null ? null : $"规格：{h.Spec}", h.Supplier is null ? null : $"供应商：{h.Supplier}",
+                        h.Model is null ? null : $"型号：{h.Model}", $"{price}（计价单位 {h.PriceUnit ?? "未注明"}）",
+                        h.LeadTime is null ? null : $"货期：{h.LeadTime}", h.Note is null ? null : $"备注：{h.Note}",
+                        $"来源：{h.TableName} 第 {h.RowNo} 行 · 版本 {h.VersionDate:yyyy-MM-dd}{(h.Stale ? " · 可能过时" : "")}",
+                    }.Where(x => x is not null));
+                    var e = run.Add($"price:{h.Id}", n => new EvidenceItem(n, "price", $"{h.TableName} · {h.Name}{(h.Spec is null ? "" : " " + h.Spec)}", text,
+                        Section: h.Supplier, Classification: "Confidential", PriceId: h.Id));
+                    sb.AppendLine($"[{e.N}] {text}");
+                    compact.AppendLine($"[{e.N}] {h.Name} {h.Spec} {h.Supplier} {price}");
+                }
+                return new ToolOutcome(sb.ToString(), "（较早查到的价格）\n" + compact, label, query, $"{hits.Count} 条");
+            }
+            case "cost_estimate":
+            {
+                var title = Clip(S("title") ?? "材料成本估算", 60);
+                var raw = new List<(string Group, JsonObject Line)>();
+                if (a["groups"] is JsonArray ga)
+                    foreach (var g in ga.OfType<JsonObject>())
+                        if (g["lines"] is JsonArray la)
+                            foreach (var l in la.OfType<JsonObject>())
+                                raw.Add((Clip(g["name"]?.ToString() ?? "其他", 20), l));
+                if (raw.Count == 0) return new ToolOutcome("估算表是空的，至少要列一项。", "空的", label, title, "空的");
+                // 编号 → 价格库里的那一条（重新从库里取，不用模型说的数字）
+                var refIds = new Dictionary<int, long>();
+                foreach (var (_, l) in raw)
+                    if (l["price_ref"] is JsonValue rv && rv.TryGetValue<int>(out var rn) && run.Evidence.TryGetValue(rn, out var ev) && ev.PriceId is { } pid)
+                        refIds[rn] = pid;
+                var priceRows = (await prices.GetAsync(refIds.Values.Distinct().ToList(), ct)).ToDictionary(h => h.Id);
+                decimal tl = 0, th = 0, nl = 0, nh = 0;
+                int priced = 0, idx = 0;
+                DateOnly? oldest = null;
+                var stale = false;
+                var problems = new List<string>();
+                var groups = new List<object>();
+                foreach (var grp in raw.GroupBy(x => x.Group))
+                {
+                    decimal gl = 0, gh = 0;
+                    var lines = new List<object>();
+                    foreach (var (_, l) in grp)
+                    {
+                        idx++;
+                        var name = Clip(l["name"]?.ToString() ?? "", 60);
+                        var spec = Clip(l["spec"]?.ToString() ?? "", 60);
+                        decimal? qty = l["qty"] is JsonValue qv && qv.TryGetValue<decimal>(out var qd) ? qd
+                            : decimal.TryParse(l["qty"]?.ToString(), out var qs) ? qs : null;
+                        var qtyUnit = Clip(l["qty_unit"]?.ToString() ?? "", 10);
+                        int? rn = l["price_ref"] is JsonValue rv2 && rv2.TryGetValue<int>(out var r2) ? r2 : null;
+                        PriceHit? hit = rn is { } k && refIds.TryGetValue(k, out var pid2) && priceRows.TryGetValue(pid2, out var h2) ? h2 : null;
+                        var r = CostMath.Line(new CostLineInput(name, spec, qty, qtyUnit, hit?.TaxLow, hit?.TaxHigh, hit?.PriceUnit));
+                        var rnet = CostMath.Line(new CostLineInput(name, spec, qty, qtyUnit, hit?.NetLow, hit?.NetHigh, hit?.PriceUnit));
+                        if (rn is not null && hit is null) r = r with { Why = $"编号 [{rn}] 不是这次查到的价格" };
+                        if (r.Status == "ok")
+                        {
+                            priced++;
+                            gl += r.SubLow!.Value; gh += r.SubHigh!.Value;
+                            nl += rnet.SubLow ?? 0; nh += rnet.SubHigh ?? 0;
+                            if (oldest is null || hit!.VersionDate < oldest) oldest = hit!.VersionDate;
+                            stale |= hit!.Stale;
+                        }
+                        else problems.Add($"{name}：{r.Why}");
+                        lines.Add(new
+                        {
+                            i = idx, name, spec, qty, qtyUnit, status = r.Status, why = r.Why, @ref = hit is null ? null : rn,
+                            priceLow = hit?.TaxLow, priceHigh = hit?.TaxHigh, priceUnit = hit?.PriceUnit, supplier = hit?.Supplier,
+                            subLow = r.SubLow, subHigh = r.SubHigh, note = Clip(l["note"]?.ToString() ?? "", 80),
+                        });
+                    }
+                    tl += gl; th += gh;
+                    groups.Add(new { name = grp.Key, subLow = gl, subHigh = gh, lines });
+                }
+                var card = new
+                {
+                    kind = "estimate", title, subtitle = Clip(S("subtitle") ?? "", 60), groups,
+                    total = new { taxLow = tl, taxHigh = th, netLow = Math.Round(nl, 2), netHigh = Math.Round(nh, 2) },
+                    priced, count = idx, oldest = oldest?.ToString("yyyy-MM-dd"), stale,
+                };
+                run.Artifacts.Add(card);
+                await emit(new QaEvent("artifact", card));
+                var summary = $"估算表已显示给用户：材料合计含税 {Money(tl, th)} 元（未税 {Money(Math.Round(nl, 2), Math.Round(nh, 2))} 元），{idx} 项里算了 {priced} 项。"
+                    + (problems.Count > 0 ? $"\n没算进去的：{string.Join("；", problems)}。单位对不上的请改用计价单位重新调用 cost_estimate；没有价格的在回答里说明需要询价。" : "")
+                    + (stale ? "\n用到的价格表里有可能过时的（最早 " + oldest?.ToString("yyyy-MM") + "），提醒用户找采购确认。" : "")
+                    + "\n回答里不用把表再写一遍，说结论、主要构成和没算进去的项；写明只含材料成本，不含人工、加工和利润。";
+                return new ToolOutcome(summary, $"（材料成本估算：含税 {Money(tl, th)} 元，{priced}/{idx} 项）", label, title, $"{priced}/{idx} 项有价格");
+            }
+            case "show_table":
+            {
+                var title = Clip(S("title") ?? "", 60);
+                var kind = S("kind") is "matrix" or "trend" or "projects" or "compare" or "spec" or "plain" ? S("kind")! : "plain";
+                var cols = (a["columns"] as JsonArray ?? []).OfType<JsonObject>().Take(12)
+                    .Select(c => new { label = Clip(c["label"]?.ToString() ?? "", 30), type = c["type"]?.ToString() ?? "text" }).ToList();
+                var rows = (a["rows"] as JsonArray ?? []).OfType<JsonArray>().Take(80)
+                    .Select(r => r.Take(cols.Count).Select(x => Clip(x?.ToString() ?? "", 200)).ToList()).ToList();
+                if (cols.Count == 0 || rows.Count == 0) return new ToolOutcome("表格至少要有一列、一行。", "空的", label, title, "空的");
+                int? highlight = a["highlight"] is JsonValue hv && hv.TryGetValue<int>(out var hi) && hi >= 0 && hi < cols.Count ? hi : null;
+                var card = new { kind = "table", style = kind, title, columns = cols, rows, highlight, note = Clip(S("note") ?? "", 120) };
+                run.Artifacts.Add(card);
+                await emit(new QaEvent("artifact", card));
+                return new ToolOutcome($"表格「{title}」已显示给用户（{rows.Count} 行）。回答里不要再把这张表写一遍，说结论和要注意的地方就行。",
+                    $"（已显示表格：{title}）", label, title, $"{rows.Count} 行");
             }
             case "remember":
             {
@@ -1025,13 +1219,13 @@ public sealed class AssistantService(
         return new
         {
             n = e.N, kind = e.Kind, title = e.Title, docId = e.DocId, chunkId = e.ChunkId, section = e.Section, pageNo = e.PageNo,
-            docCategory = e.DocCategory, fileName = e.FileName, projectNo = e.ProjectNo, classification = e.Classification, url = e.Url,
+            docCategory = e.DocCategory, fileName = e.FileName, projectNo = e.ProjectNo, classification = e.Classification, url = e.Url, priceId = e.PriceId,
             text, highlights = hl.Select(h => new { start = h.Start, length = h.Length }).ToList()
         };
     }
 
     private static readonly string[] OptionalTools = ["ask_user", "run_python", "chemical_info", "web_search", "fetch_url", "compare_documents",
-        "search_literature", "view_image", "translate_file", "inquiry_form"];
+        "search_literature", "view_image", "translate_file", "inquiry_form", "search_prices", "show_table"];
 
     /// <summary>这次能用哪些可选工具：系统设置里开着的、角色在允许名单里的。外部客户只给「请用户确认」。</summary>
     private async Task<IReadOnlySet<string>> EnabledToolsAsync(CancellationToken ct)
@@ -1042,7 +1236,7 @@ public sealed class AssistantService(
         {
             var on = (await config.GetStringAsync($"assistant.tool.{t}", "on", ct)).Trim();
             if (!on.Equals("on", StringComparison.OrdinalIgnoreCase) && !on.Equals("true", StringComparison.OrdinalIgnoreCase)) continue;
-            if (isCustomer && t is not ("ask_user" or "inquiry_form")) continue;
+            if (isCustomer && t is not ("ask_user" or "inquiry_form" or "show_table")) continue;
             var roles = (await config.GetStringAsync($"assistant.tool.{t}.roles", "", ct)).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (roles.Length > 0 && !roles.Contains(me.RoleCode, StringComparer.OrdinalIgnoreCase)) continue;
             set.Add(t);
@@ -1145,6 +1339,13 @@ public sealed class AssistantService(
         var pieces = Workers.AttachmentParseWorker.Pieces(att.Id, att.FileName, att.Chunks);
         return ($"{att.FileName}（本对话上传）", "attachment", null, att.FileName,
             pieces.Select(p => (p.Text, (string?)(p.Page is null ? p.Section : $"第 {p.Page} 页"))).ToList());
+    }
+
+    private static string Money(decimal? low, decimal? high)
+    {
+        if (low is null) return "—";
+        static string f(decimal v) => v.ToString(v >= 100 ? "#,0" : "#,0.##", System.Globalization.CultureInfo.InvariantCulture);
+        return high is null || high == low ? f(low.Value) : $"{f(low.Value)}–{f(high.Value)}";
     }
 
     private sealed record AttachmentFile(Guid Id, string FileName, string ContentType, string FileKey, string? Chunks);

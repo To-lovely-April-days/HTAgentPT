@@ -33,6 +33,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
     public DbSet<DocumentKb> DocumentKbs => Set<DocumentKb>();
     public DbSet<CustomerRequest> CustomerRequests => Set<CustomerRequest>();
     public DbSet<UserMemory> UserMemories => Set<UserMemory>();
+    public DbSet<PriceTable> PriceTables => Set<PriceTable>();
+    public DbSet<PriceVersion> PriceVersions => Set<PriceVersion>();
+    public DbSet<PriceItem> PriceItems => Set<PriceItem>();
     public DbSet<DocMetadata> DocMetadatas => Set<DocMetadata>();
     public DbSet<VocabTerm> VocabTerms => Set<VocabTerm>();
     public DbSet<Chunk> Chunks => Set<Chunk>();
@@ -138,6 +141,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
         });
 
         b.Entity<UserMemory>(e => e.HasIndex(x => new { x.UserId, x.CreatedAt }));
+        b.Entity<PriceTable>(e => e.HasIndex(x => new { x.CompanyId, x.Name }).IsUnique());
+        b.Entity<PriceVersion>(e => e.HasIndex(x => x.TableId));
+        b.Entity<PriceItem>(e =>
+        {
+            e.HasIndex(x => x.VersionId);
+            e.HasIndex(x => new { x.TableId, x.Key });
+            e.Property(x => x.TaxLow).HasPrecision(14, 4);
+            e.Property(x => x.TaxHigh).HasPrecision(14, 4);
+            e.Property(x => x.NetLow).HasPrecision(14, 4);
+            e.Property(x => x.NetHigh).HasPrecision(14, 4);
+        });
 
         b.Entity<DocMetadata>(e =>
         {

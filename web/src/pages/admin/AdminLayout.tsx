@@ -10,6 +10,7 @@ export const ADMIN_NAV: { label: string; items: { to: string; name: string; icon
     items: [
       { to: '/admin/corpus', name: '语料管理', icon: 'file' },
       { to: '/admin/kbs', name: '知识库管理', icon: 'folder' },
+      { to: '/admin/prices', name: '价格库', icon: 'ticket' },
       { to: '/admin/meta', name: '元数据与词表', icon: 'ticket' },
     ],
   },

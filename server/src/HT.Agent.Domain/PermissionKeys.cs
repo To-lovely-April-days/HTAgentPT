@@ -42,6 +42,10 @@ public static class PermissionKeys
     public const string SystemConfig = "system.config";
     /// <summary>审计查询与使用统计。</summary>
     public const string AuditRead = "audit.read";
+    /// <summary>查看采购价格：价格库、助手查价格和材料成本估算。</summary>
+    public const string PriceView = "price.view";
+    /// <summary>管理价格库：上传价格表、上传新版本、删除。</summary>
+    public const string PriceManage = "price.manage";
 }
 
 /// <summary>内置角色代码（表 3-1）。角色可增可配（FR-7.2），这五个是种子。</summary>
@@ -53,4 +57,6 @@ public static class RoleCodes
     public const string Admin = "admin";
     /// <summary>总部审核人：账号只存在于总部节点部署（3.4 第一条，歧义 3 的既定处理）。</summary>
     public const string HqReviewer = "hq_reviewer";
+    /// <summary>采购：维护价格库。</summary>
+    public const string Purchasing = "purchasing";
 }

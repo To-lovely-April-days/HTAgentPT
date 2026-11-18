@@ -124,6 +124,16 @@ public static class ConfigKeys
     public const string ToolTranslateFileRoles = "assistant.tool.translate_file.roles";
     public const string ToolInquiryForm = "assistant.tool.inquiry_form";
     public const string ToolInquiryFormRoles = "assistant.tool.inquiry_form.roles";
+    /// <summary>查价格 + 材料成本估算（还要求「查看采购价格」权限）。</summary>
+    public const string ToolPrices = "assistant.tool.search_prices";
+    public const string ToolPricesRoles = "assistant.tool.search_prices.roles";
+    /// <summary>按场景排版的表格。</summary>
+    public const string ToolShowTable = "assistant.tool.show_table";
+    public const string ToolShowTableRoles = "assistant.tool.show_table.roles";
+    /// <summary>价格表多少个月没更新就标「可能过时」。</summary>
+    public const string PriceStaleMonths = "price.stale_months";
+    /// <summary>只有未税价时推算含税价用的税率系数（如 1.13）。</summary>
+    public const string PriceTaxRate = "price.tax_rate";
     /// <summary>关键词与向量两路权重（FR-4.3），0 纯关键词，1 纯向量。</summary>
     public const string HybridAlpha = "retrieval.hybrid_alpha";
     /// <summary>近似索引候选倍数（7.2：候选数须高于最终保留数的倍数并可配置）。</summary>

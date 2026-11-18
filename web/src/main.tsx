@@ -27,6 +27,7 @@ import TemplatesAdminPage from './pages/admin/TemplatesAdminPage'
 import UsersPage from './pages/admin/UsersPage'
 import SettingsPage from './pages/admin/SettingsPage'
 import StatsPage from './pages/admin/StatsPage'
+import PricesPage from './pages/prices/PricesPage'
 import ReviewPage from './pages/review/ReviewPage'
 import FilesPage from './pages/files/FilesPage'
 import ApprovalsPage from './pages/approvals/ApprovalsPage'
@@ -86,11 +87,13 @@ function App() {
         <Route path="review" element={<ReviewPage />} />
         <Route path="files" element={<FilesPage />} />
         <Route path="approvals" element={<ApprovalsPage />} />
+        <Route path="prices" element={<PricesPage />} />
         <Route path="admin" element={<AdminLayout />}>
           <Route index element={<AdminHome />} />
           <Route path="corpus" element={<CorpusPage />} />
           <Route path="corpus/:docId/preview" element={<DocPreviewPage />} />
           <Route path="kbs" element={<KbsPage />} />
+          <Route path="prices" element={<PricesPage />} />
           <Route path="meta" element={<MetaPage />} />
           <Route path="templates" element={<TemplatesAdminPage />} />
           <Route path="users" element={<UsersPage />} />

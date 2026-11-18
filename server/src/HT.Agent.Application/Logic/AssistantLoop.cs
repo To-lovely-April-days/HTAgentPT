@@ -116,6 +116,17 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         "web_search" => "联网搜索",
         "fetch_url" => "打开网页",
         "compare_documents" => "文件对比",
+        "remember" => "记住",
+        "forget" => "删记忆",
+        "inquiry_form" => "询价缺项单",
+        "search_standards" => "查标准规范",
+        "search_literature" => "文献检索",
+        "view_image" => "看图",
+        "ocr_image" => "识别文字",
+        "translate_file" => "整份翻译",
+        "search_prices" => "查价格",
+        "cost_estimate" => "材料成本估算",
+        "show_table" => "生成表格",
         _ => name
     };
 

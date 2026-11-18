@@ -28,6 +28,10 @@ export const PERM_GROUPS: PermGroup[] = [
     { key: 'case.review', label: '审定案例' },
     { key: 'ticket.handle', label: '处理报修工单' },
   ] },
+  { title: '采购价格', items: [
+    { key: 'price.view', label: '查看采购价格', desc: '价格库；助手查价格、估材料成本' },
+    { key: 'price.manage', label: '管理价格库', desc: '上传价格表、上传新版本' },
+  ] },
   { title: '系统', items: [
     { key: 'user.manage', label: '用户与权限', desc: '账号、角色、组织架构', admin: true },
     { key: 'system.config', label: '系统设置', desc: '模型、检索、备份', admin: true },

@@ -28,6 +28,7 @@ function navFor(roleCode: string, has: (p: string) => boolean): NavItem[] {
       if (has(Perm.CaseRead)) items.push({ to: '/cases', label: '故障案例', icon: 'wrench' });
       if (has(Perm.TicketHandle)) items.push({ to: '/tickets', label: '报修工单', icon: 'ticket' });
       if (has(Perm.CorpusUpload)) items.push({ to: '/files', label: '文件管理', icon: 'upload' });
+      if (has(Perm.PriceView) || has(Perm.PriceManage)) items.push({ to: '/prices', label: '价格库', icon: 'ticket' });
       return items;
     }
   }

@@ -20,6 +20,7 @@ const GROUPS: { title: string; note: string; tools: ToolDef[] }[] = [
     { key: 'search_standards', name: '查标准规范', ic: '标', tone: 'in', desc: '只在「标准规范」类资料里搜，回答写清标准号和条款；上传规范时类别选「标准规范」', fixed: true },
     { key: 'ask_user', name: '请用户确认', ic: '选', tone: 'in', desc: '有歧义或查到多个候选时，给选项让人点' },
     { key: 'inquiry_form', name: '询价缺项单', ic: '单', tone: 'in', desc: '需求不全时列出已知项和缺的项，可当场填、导出发给客户' },
+    { key: 'search_prices', name: '查价格 · 材料成本估算', ic: '价', tone: 'in', desc: '在价格库里查采购价，按用量估材料成本（不含人工和利润）；还要有「查看采购价格」权限' },
     { key: 'memory', name: '长期记忆', ic: '记', tone: 'in', desc: '记住每个人交代的偏好、工作范围、在跟的客户；内容只有本人能看、能删', cfgKey: 'assistant.memory', noRoles: true },
   ] },
   { title: '计算与文件', note: '在服务器上运行，不出公司', tools: [
@@ -27,6 +28,7 @@ const GROUPS: { title: string; note: string; tools: ToolDef[] }[] = [
     { key: 'compare_documents', name: '文件对比', ic: '比', tone: 'calc', tag: '免费', desc: '两份文件逐条对照：需求书对方案，找没满足的' },
     { key: 'view_image', name: '看图 · 识别文字', ic: '图', tone: 'calc', desc: '看上传的图纸、照片、截图；把扫描件和手写单的文字读出来（用看图模型）' },
     { key: 'translate_file', name: '整份翻译', ic: '译', tone: 'calc', desc: '上传的 Word 整份翻译，保留版式、套用已审定术语；需要「翻译」权限' },
+    { key: 'show_table', name: '按场景排版表格', ic: '表', tone: 'calc', tag: '免费', desc: '比价、涨跌、历史项目、方案对比、参数清单各用各的表格样式，可导出 Excel' },
     { key: 'export_pdf', name: '导出 PDF / PPT', ic: '出', tone: 'calc', tag: '免费', desc: '回答导出 PDF（服务器上 LibreOffice 转换）和 PPT（浏览器里生成）', fixed: true },
   ] },
   { title: '外部数据', note: '会访问外网；发出去的内容先过滤', tools: [

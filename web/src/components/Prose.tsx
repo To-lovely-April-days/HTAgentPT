@@ -7,7 +7,8 @@
 // 再由下面的 a 组件渲染成可点的角标——不拼字符串 HTML。
 // flags：没在原文里核实到的数字（如「18–26 万元」），同一个插件把它们包成 flag: 节点，渲染成黄底虚线。
 import { useMemo } from 'react';
-import type { ComponentProps } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
+import { Children, isValidElement } from 'react';
 import Markdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { visit } from 'unist-util-visit';
@@ -59,6 +60,19 @@ function remarkMarks(flags: string[]) {
   };
 }
 
+/** 单元格里的纯文字（含角标里的数字）。 */
+function textOf(n: ReactNode): string {
+  let s = '';
+  Children.forEach(n, (c) => {
+    if (typeof c === 'string' || typeof c === 'number') s += String(c);
+    else if (isValidElement<{ children?: ReactNode; href?: string }>(c))
+      s += c.props.href?.startsWith('cite:') ? `[${textOf(c.props.children)}]` : textOf(c.props.children);
+  });
+  return s;
+}
+/** 像数字的格子（金额、区间、百分比、带单位的数）右对齐。 */
+const NUMERIC = /^[\s¥$€≈约~<>≤≥+−-]*[\d.,]+(\s*[-–~至]\s*[\d.,]+)?\s*(%|‰|万|亿|元|万元|kg|g|t|m|mm|cm|L|ml|MPa|kPa|Pa|bar|psi|℃|°C|K|kW|W|rpm|h|min|s|天|个|台|套|件)?(\s*\[[\d,，、\s]+\])*\s*$/i;
+
 /** 模型输出的一段文字 → 排好版的块。onCite 给了，来源角标就是可点的；focus 是当前高亮的那个编号。 */
 export function Prose({ text, onCite, style, flags, focus }: {
   text: string; onCite?: (n: number) => void; style?: React.CSSProperties; flags?: string[]; focus?: number | null;
@@ -86,7 +100,11 @@ export function Prose({ text, onCite, style, flags, focus }: {
                   onClick={() => onCite(cite)}>{children}</button>
               : <span className="pcite">{children}</span>;
           },
-          table: (p: ComponentProps<'table'>) => <table className="ptable" {...p} />,
+          table: (p: ComponentProps<'table'>) => <div className="ptable-wrap"><table className="ptable" {...p} /></div>,
+          td: ({ children, ...p }: ComponentProps<'td'>) => {
+            const num = NUMERIC.test(textOf(children).trim());
+            return <td {...p} className={num ? 'num' : undefined}>{children}</td>;
+          },
           h1: (p: ComponentProps<'div'>) => <div className="ph ph1" {...p} />,
           h2: (p: ComponentProps<'div'>) => <div className="ph ph2" {...p} />,
           h3: (p: ComponentProps<'div'>) => <div className="ph ph3" {...p} />,
