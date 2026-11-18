@@ -68,8 +68,13 @@ public class PriceService(AppDbContext db, IFileStorage storage, IRuntimeConfig 
         }
         var curIds = tables.Where(t => t.CurrentVersionId != null).Select(t => t.CurrentVersionId!.Value).ToList();
         var cur30 = DateTimeOffset.UtcNow.AddDays(-30);
-        var queries = await db.AuditLogs.AsNoTracking().CountAsync(a => a.At >= cur30 && a.CompanyId == me.CompanyId && a.Action == "qa.tool"
-            && a.Detail != null && (a.Detail.Contains("search_prices") || a.Detail.Contains("cost_estimate")), ct);
+        // detail 是 jsonb：按其中的 tool 字段数，不能对整列做字符串匹配
+        var companyId = me.CompanyId;
+        var queries = await db.Database.SqlQuery<int>($"""
+            SELECT count(*)::int AS "Value" FROM audit_log
+            WHERE at >= {cur30} AND company_id = {companyId} AND action = 'qa.tool'
+              AND detail->>'tool' IN ('search_prices', 'cost_estimate')
+            """).SingleAsync(ct);
         var materials = await db.PriceItems.AsNoTracking().Where(i => curIds.Contains(i.VersionId) && i.Material != null)
             .Select(i => i.Material!).Distinct().OrderBy(x => x).Take(60).ToListAsync(ct);
         var suppliers = await db.PriceItems.AsNoTracking().Where(i => curIds.Contains(i.VersionId) && i.Supplier != null)
