@@ -13,7 +13,7 @@ public static class Seeder
 {
     /// <summary>上线后才加的固定取值：老库里没有就补上（技术协议模板的文档类别）。
     /// 管理员停用过的不会被补回来——停用的行还在，只看有没有这一行。</summary>
-    private static readonly (string Key, string Value)[] AddedTerms = [(VocabKeys.DocCategory, "技术协议")];
+    private static readonly (string Key, string Value)[] AddedTerms = [(VocabKeys.DocCategory, "技术协议"), (VocabKeys.DocCategory, "标准规范")];
 
     private static async Task EnsureTermsAsync(AppDbContext db, CancellationToken ct)
     {
@@ -161,5 +161,6 @@ public static class Seeder
         }
 
         await db.SaveChangesAsync(ct);
+        await EnsureTermsAsync(db, ct);
     }
 }

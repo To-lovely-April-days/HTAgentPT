@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { get, download, ApiError } from '../../lib/api';
+import { MemorySection } from './MemorySection';
 import { ClsBadge, Spinner } from '../../components/Common';
 import type { Classification } from '../../lib/types';
 
@@ -78,6 +79,8 @@ export default function ProfilePage() {
             </div>
           ))}
         </div>
+
+        <MemorySection />
 
         <div className="card" style={{ padding: '14px 16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>

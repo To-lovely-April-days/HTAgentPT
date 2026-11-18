@@ -47,7 +47,7 @@ public class ConfigController(IRuntimeConfig config, ICurrentUser me, IAuditWrit
         ConfigKeys.UploadMaxFileMb, ConfigKeys.UploadMaxBatch, ConfigKeys.JwtLifetimeMinutes,
         ConfigKeys.AuditRetentionMonths, ConfigKeys.TranslateBatchChars,
         ConfigKeys.AssistantMaxRounds, ConfigKeys.AssistantMaxTokens, ConfigKeys.AssistantContextChars, ConfigKeys.AssistantSearchTopK,
-        ConfigKeys.SandboxTimeout
+        ConfigKeys.SandboxTimeout, ConfigKeys.MemoryMax
     };
 
     [HttpPut]

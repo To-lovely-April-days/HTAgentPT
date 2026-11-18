@@ -472,4 +472,16 @@ export interface AskSpec { question: string; options: { label: string; detail: s
 export type ToolArtifact =
   | { kind: 'calc'; code: string; stdout: string; error: string | null; images: string[]; seconds: number }
   | { kind: 'chem'; n: number; title: string; cid: number; cas: string | null; formula: string | null; weight: string | null;
-      props: Record<string, string[]>; hazards: string[]; pictograms: string[]; hazchem: boolean | null; url: string };
+      props: Record<string, string[]>; hazards: string[]; pictograms: string[]; hazchem: boolean | null; url: string }
+  | { kind: 'memory'; saved: string[]; removed: string[] }
+  | { kind: 'form'; title: string; known: number; missing: number;
+      groups: { name: string; items: { field: string; value: string; status: 'known' | 'must' | 'should'; why: string }[] }[] }
+  | { kind: 'lit'; query: string; patents: number; papers: number; notes: string[];
+      items: { n: number; kind: string; title: string; meta: string; abstract: string; url: string }[] }
+  | { kind: 'image'; file: string; question: string; answer: string; thumb: string | null }
+  | { kind: 'ocr'; file: string; text: string; note: string }
+  | { kind: 'file'; title: string; url: string; detail: string };
+
+/** 个人中心 › 我的记忆。 */
+export interface MemoryRow { id: string; kind: string; text: string; source: 'chat' | 'manual'; createdAt: string; updatedAt: string }
+export interface MemoryState { globalOn: boolean; enabled: boolean; max: number; items: MemoryRow[] }

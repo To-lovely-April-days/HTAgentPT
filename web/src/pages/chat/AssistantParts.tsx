@@ -107,9 +107,18 @@ export function RefPanel({ used, other, focus, onFocus, onClose }: {
   const [peek, setPeek] = useState<{ docId: string; title: string; page: number | null; find: string | null; note: string } | null>(null);
   const [showOther, setShowOther] = useState(false);
   const refs = useRef(new Map<number, HTMLDivElement>());
-  // 公司资料在前；网上查到的单独一组，标明需自行核实
-  const groups = groupCards(used.filter((c) => c.kind !== 'web'));
+  // 公司资料在前，标准规范单独一组；网上查到的（含专利论文）再单独一组，标明需自行核实
+  const isStd = (c: EvidenceCard) => c.kind === 'doc' && c.docCategory === '标准规范';
+  const groups = groupCards(used.filter((c) => c.kind !== 'web' && !isStd(c)));
+  const stdGroups = groupCards(used.filter(isStd));
   const webGroups = groupCards(used.filter((c) => c.kind === 'web'));
+  const sections = [
+    { list: groups, label: '公司资料' }, { list: stdGroups, label: '标准规范' }, { list: webGroups, label: '网上查到的 · 需自行核实' },
+  ].filter((x) => x.list.length > 0);
+  const flat = sections.flatMap((sec, si) => sec.list.map((g, i) => ({
+    g,
+    heading: i === 0 && (sections.length > 1 || si > 0) ? sec.label : null,
+  })));
   const otherGroups = groupCards(other);
 
   useEffect(() => {
@@ -130,16 +139,14 @@ export function RefPanel({ used, other, focus, onFocus, onClose }: {
     <aside className="refs" aria-label="参考资料">
       <div className="refs-hd">
         <b>参考资料</b>
-        <span className="as-muted">{[groups.length ? `${groups.length} 份` : '', webGroups.length ? `网页 ${webGroups.length} 个` : '', `${used.length} 段原文`].filter(Boolean).join(' · ')}</span>
+        <span className="as-muted">{[groups.length + stdGroups.length ? `${groups.length + stdGroups.length} 份` : '', webGroups.length ? `网页 ${webGroups.length} 个` : '', `${used.length} 段原文`].filter(Boolean).join(' · ')}</span>
         <button type="button" className="refs-x" aria-label="收起参考资料" onClick={onClose}>✕</button>
       </div>
       <div className="refs-body sc">
         {used.length === 0 && <div className="as-muted" style={{ padding: '6px 2px' }}>这次回答没有引用公司资料。</div>}
-        {[...groups.map((g) => ({ g, web: false })), ...webGroups.map((g) => ({ g, web: true }))].map(({ g, web }, gi, arr) => {
+        {flat.map(({ g, heading: h }) => {
           const [bg, fg] = EXT_COLOR[g.ext] ?? ['#f1f1ef', '#4a4a4a'];
-          const heading = web && (gi === 0 || !arr[gi - 1].web)
-            ? <div className="refs-sec">网上查到的 · 需自行核实</div>
-            : !web && gi === 0 && webGroups.length > 0 ? <div className="refs-sec">公司资料</div> : null;
+          const heading = h ? <div className="refs-sec">{h}</div> : null;
           return (
             <Fragment key={g.key}>{heading}<section className="refs-file">
               <div className="refs-file-hd">

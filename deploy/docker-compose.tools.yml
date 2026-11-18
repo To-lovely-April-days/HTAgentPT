@@ -4,8 +4,9 @@
 #
 #   sandbox  代码解释器：Python + CoolProp。不接外网、只读文件系统、去掉全部特权、限 CPU/内存/进程数
 #   searxng  联网搜索：自建 SearXNG，聚合必应/百度/搜狗/360。只给后端用，不对外开端口
+#   office   导出 PDF：LibreOffice 把 Word 转成 PDF。只给后端用，不对外开端口
 #
-# 不起这两个容器也没关系：系统设置里对应工具会显示「连不上」，助手照常用其它工具回答。
+# 不起这几个容器也没关系：系统设置里对应工具会显示「连不上」，助手照常用其它工具回答。
 services:
   sandbox:
     build:
@@ -32,6 +33,20 @@ services:
       SEARXNG_BASE_URL: http://searxng:8080/
     volumes:
       - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    restart: unless-stopped
+
+  office:
+    build:
+      context: ./office
+      args:
+        PY_IMAGE: ${PY_IMAGE:-docker.m.daocloud.io/library/python:3.12-slim}
+    image: htagent-office
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    mem_limit: 2g
+    cpus: 1.5
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     restart: unless-stopped
 
   # 后端同时接两张网：默认网（数据库、搜索、外网）+ sandbox 专用的内部网

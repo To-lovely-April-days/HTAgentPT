@@ -1,6 +1,6 @@
 // 助手工具生成的卡片：请你确认（选项）、计算结果（代码/输出/图）、化学品数据，以及回答下面的导出条。
 import { useState } from 'react';
-import { ApiError, postDownload } from '../../lib/api';
+import { ApiError, download, postDownload } from '../../lib/api';
 import type { AskSpec, EvidenceCard, ToolArtifact } from '../../lib/types';
 
 // ── 请你确认 ─────────────────────────────────────────
@@ -82,10 +82,191 @@ function ChemCard({ a }: { a: Extract<ToolArtifact, { kind: 'chem' }> }) {
   );
 }
 
-export function ArtifactCards({ items }: { items: ToolArtifact[] }) {
+// ── 已记住 / 已删掉（长期记忆）───────────────────────
+function MemoryPill({ a }: { a: Extract<ToolArtifact, { kind: 'memory' }> }) {
+  return (
+    <div className="mem-pill">
+      {a.saved.map((t) => <span key={'s' + t}><b>已记住</b>{t}</span>)}
+      {a.removed.map((t) => <span key={'r' + t} className="rm"><b>已删掉</b>{t}</span>)}
+      <a href="/profile#memory">管理我的记忆</a>
+    </div>
+  );
+}
+
+// ── 询价缺项单 ───────────────────────────────────────
+const STATUS: Record<string, [string, string]> = { known: ['已知', 'known'], must: ['必须问', 'must'], should: ['建议问', 'should'] };
+
+function formMarkdown(a: Extract<ToolArtifact, { kind: 'form' }>, vals: Record<string, string>) {
+  const lines = [`# ${a.title}`, ''];
+  for (const g of a.groups) {
+    lines.push(`## ${g.name}`, '', '| 项目 | 内容 | 状态 | 为什么要问 |', '| --- | --- | --- | --- |');
+    for (const it of g.items) {
+      const k = `${g.name}/${it.field}`;
+      lines.push(`| ${it.field} | ${(vals[k] ?? (it.status === 'known' ? it.value : '')).replace(/\|/g, '/')} | ${STATUS[it.status][0]} | ${it.why.replace(/\|/g, '/')} |`);
+    }
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+function FormCard({ a, onSend }: { a: Extract<ToolArtifact, { kind: 'form' }>; onSend?: (text: string) => void }) {
+  const [vals, setVals] = useState<Record<string, string>>({});
+  const [msg, setMsg] = useState<string | null>(null);
+  const filled = Object.values(vals).filter((v) => v.trim()).length;
+  const send = () => {
+    const parts: string[] = [];
+    for (const g of a.groups) for (const it of g.items) {
+      const v = vals[`${g.name}/${it.field}`]?.trim();
+      if (v) parts.push(`${it.field}：${v}`);
+    }
+    if (parts.length && onSend) onSend(`缺项单补充的信息——${parts.join('；')}。请按这些接着选型。`);
+  };
+  const word = async () => {
+    setMsg(null);
+    try { await postDownload('/api/export/docx', { title: a.title, markdown: formMarkdown(a, vals), sources: [] }, `${a.title}.docx`); }
+    catch (err) { setMsg(err instanceof ApiError ? err.message : '导出失败'); }
+  };
+  const excel = async () => {
+    const XLSX = await import('xlsx');
+    const rows = [['分组', '项目', '内容', '状态', '为什么要问']];
+    for (const g of a.groups) for (const it of g.items)
+      rows.push([g.name, it.field, vals[`${g.name}/${it.field}`] ?? (it.status === 'known' ? it.value : ''), STATUS[it.status][0], it.why]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), '缺项单');
+    XLSX.writeFile(wb, `${a.title}.xlsx`);
+  };
+  return (
+    <section className="tool-card">
+      <div className="tool-card-hd">
+        <span className="tool-ic form" aria-hidden="true">单</span>
+        <b>{a.title}</b>
+        <span className="hint">已知 {a.known} 项 · 待确认 {a.missing} 项</span>
+      </div>
+      {a.groups.map((g) => (
+        <div key={g.name} className="form-group">
+          <div className="form-group-hd">{g.name}</div>
+          {g.items.map((it) => {
+            const k = `${g.name}/${it.field}`;
+            return (
+              <div key={k} className="form-row">
+                <span className={'form-st ' + STATUS[it.status][1]}>{STATUS[it.status][0]}</span>
+                <label className="form-f" htmlFor={'f-' + k}>{it.field}</label>
+                {it.status === 'known'
+                  ? <span className="form-v">{it.value}</span>
+                  : <input id={'f-' + k} className="inp form-inp" placeholder={it.value || '客户回复后填在这里'} value={vals[k] ?? ''}
+                      onChange={(e) => setVals({ ...vals, [k]: e.target.value })} />}
+                {it.why && <span className="form-why">{it.why}</span>}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+      <div className="export-bar" style={{ padding: '0 16px 12px' }}>
+        {onSend && <button type="button" className="primary" disabled={filled === 0} onClick={send}>按已填的接着选型{filled ? `（${filled} 项）` : ''}</button>}
+        <button type="button" onClick={() => void word()}>导出 Word 发给客户</button>
+        <button type="button" onClick={() => void excel()}>导出 Excel</button>
+        {msg && <span className="hint">{msg}</span>}
+      </div>
+    </section>
+  );
+}
+
+// ── 专利 / 论文 ──────────────────────────────────────
+function LitCard({ a }: { a: Extract<ToolArtifact, { kind: 'lit' }> }) {
+  const [open, setOpen] = useState<number | null>(null);
+  return (
+    <section className="tool-card">
+      <div className="tool-card-hd">
+        <span className="tool-ic lit" aria-hidden="true">献</span>
+        <b>文献检索</b>
+        <span className="hint">「{a.query}」 · 专利 {a.patents} · 论文 {a.papers}</span>
+      </div>
+      {a.notes.length > 0 && <div className="hint" style={{ padding: '8px 16px 0' }}>{a.notes.join('；')}</div>}
+      <div className="lit-list">
+        {a.items.map((it) => (
+          <div key={it.n} className="lit-row">
+            <span className="refs-n">{it.n}</span>
+            <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span><span className={'lit-kind' + (it.kind === '专利' ? ' pat' : '')}>{it.kind}</span>
+                <a href={it.url} target="_blank" rel="noopener noreferrer" className="lit-t">{it.title}</a></span>
+              <span className="hint">{it.meta}</span>
+              {it.abstract && (open === it.n
+                ? <span className="lit-abs">{it.abstract}</span>
+                : <button type="button" className="tool-link" style={{ marginLeft: 0, alignSelf: 'flex-start' }} onClick={() => setOpen(it.n)}>看摘要 ▾</button>)}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="hint" style={{ padding: '0 16px 10px' }}>来自 OpenAlex 和欧洲专利局公开数据，引用前请打开原文核实。</div>
+    </section>
+  );
+}
+
+// ── 看图 / 识别文字 ──────────────────────────────────
+function ImageCard({ a }: { a: Extract<ToolArtifact, { kind: 'image' }> }) {
+  return (
+    <section className="tool-card">
+      <div className="tool-card-hd">
+        <span className="tool-ic img" aria-hidden="true">图</span>
+        <b>{a.file}</b>
+        <span className="hint">看图：{a.question}</span>
+      </div>
+      <div className="img-body">
+        {a.thumb && <img src={a.thumb} alt={a.file} className="img-thumb" />}
+        <div className="tool-out" style={{ fontFamily: 'inherit' }}>{a.answer}</div>
+      </div>
+      <div className="hint" style={{ padding: '0 16px 10px' }}>模型看图得出，位号和数字请对照原图。</div>
+    </section>
+  );
+}
+
+function OcrCard({ a }: { a: Extract<ToolArtifact, { kind: 'ocr' }> }) {
+  const [msg, setMsg] = useState<string | null>(null);
+  const copy = async () => { try { await navigator.clipboard.writeText(a.text); setMsg('已复制'); } catch { setMsg('复制失败'); } };
+  return (
+    <section className="tool-card">
+      <div className="tool-card-hd">
+        <span className="tool-ic img" aria-hidden="true">字</span>
+        <b>识别出的文字 · {a.file}</b>
+        <button type="button" className="tool-link" onClick={() => void copy()}>{msg ?? '复制全部'}</button>
+      </div>
+      <pre className="tool-out" style={{ padding: '12px 16px', fontFamily: 'inherit' }}>{a.text}</pre>
+      <div className="hint" style={{ padding: '0 16px 10px' }}>{a.note}</div>
+    </section>
+  );
+}
+
+// ── 生成的文件（整份翻译）───────────────────────────
+function FileCard({ a }: { a: Extract<ToolArtifact, { kind: 'file' }> }) {
+  const [msg, setMsg] = useState<string | null>(null);
+  return (
+    <section className="tool-card file-card">
+      <span className="refs-ext" style={{ background: '#e8eef8', color: '#2a4a85' }} aria-hidden="true">DOCX</span>
+      <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <b>{a.title}</b><span className="hint">{msg ?? a.detail}</span>
+      </span>
+      <button type="button" className="pbtn" style={{ marginLeft: 'auto' }}
+        onClick={() => void download(a.url, a.title).catch((e) => setMsg(e instanceof ApiError ? e.message : '下载失败'))}>下载</button>
+    </section>
+  );
+}
+
+export function ArtifactCards({ items, onSend }: { items: ToolArtifact[]; onSend?: (text: string) => void }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: '4px 0 12px' }}>
-      {items.map((a, i) => (a.kind === 'calc' ? <CalcCard key={i} a={a} /> : <ChemCard key={i} a={a} />))}
+      {items.map((a, i) => {
+        switch (a.kind) {
+          case 'calc': return <CalcCard key={i} a={a} />;
+          case 'chem': return <ChemCard key={i} a={a} />;
+          case 'memory': return <MemoryPill key={i} a={a} />;
+          case 'form': return <FormCard key={i} a={a} onSend={onSend} />;
+          case 'lit': return <LitCard key={i} a={a} />;
+          case 'image': return <ImageCard key={i} a={a} />;
+          case 'ocr': return <OcrCard key={i} a={a} />;
+          case 'file': return <FileCard key={i} a={a} />;
+          default: return null;
+        }
+      })}
     </div>
   );
 }
@@ -124,9 +305,20 @@ export function ExportBar({ text, title, sources }: { text: string; title: strin
     XLSX.writeFile(wb, `${title}.xlsx`);
   };
   const copy = async () => { try { await navigator.clipboard.writeText(text); setMsg('已复制'); } catch { setMsg('复制失败，请手动选中复制'); } };
+  const pdf = async () => {
+    setMsg('正在生成 PDF…');
+    try { await postDownload('/api/export/pdf', { title, markdown: text, sources: srcLines }, `${title}.pdf`); setMsg(null); }
+    catch (err) { setMsg(err instanceof ApiError ? err.message : '导出失败'); }
+  };
+  const ppt = async () => {
+    const { buildPpt } = await import('./pptExport');
+    await buildPpt(title, text, srcLines);
+  };
   return (
     <div className="export-bar">
       <button type="button" onClick={() => void word()}>导出 Word</button>
+      <button type="button" onClick={() => void pdf()}>PDF</button>
+      <button type="button" onClick={() => void ppt()}>PPT</button>
       {tables.length > 0 && <button type="button" onClick={() => void excel()}>导出 Excel（{tables.length} 个表）</button>}
       <button type="button" onClick={() => void copy()}>复制</button>
       {msg && <span className="hint">{msg}</span>}

@@ -68,6 +68,7 @@ public static class DependencyInjection
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<ICorpusReviewService, CorpusReviewService>();
         services.AddScoped<IOrgService, OrgService>();
+        services.AddScoped<IMemoryService, MemoryService>();
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<IFaultCaseService, FaultCaseService>();
         services.AddScoped<ITranslationService, TranslationService>();
@@ -96,6 +97,7 @@ public static class DependencyInjection
         services.AddSingleton<PubChemClient>();
         services.AddSingleton<SearxClient>();
         services.AddSingleton<WebFetcher>();
+        services.AddSingleton<LiteratureClient>();
         services.AddScoped<IChatAttachmentService, ChatAttachmentService>();
         services.AddScoped<IVisionClient, OpenAiVisionClient>();
         services.AddScoped<Vision.ImageDescriber>();

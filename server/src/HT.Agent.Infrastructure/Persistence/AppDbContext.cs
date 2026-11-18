@@ -32,6 +32,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<DocumentKb> DocumentKbs => Set<DocumentKb>();
     public DbSet<CustomerRequest> CustomerRequests => Set<CustomerRequest>();
+    public DbSet<UserMemory> UserMemories => Set<UserMemory>();
     public DbSet<DocMetadata> DocMetadatas => Set<DocMetadata>();
     public DbSet<VocabTerm> VocabTerms => Set<VocabTerm>();
     public DbSet<Chunk> Chunks => Set<Chunk>();
@@ -135,6 +136,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
             e.HasIndex(x => new { x.CompanyId, x.Status });
             e.HasIndex(x => x.RequestedById);
         });
+
+        b.Entity<UserMemory>(e => e.HasIndex(x => new { x.UserId, x.CreatedAt }));
 
         b.Entity<DocMetadata>(e =>
         {

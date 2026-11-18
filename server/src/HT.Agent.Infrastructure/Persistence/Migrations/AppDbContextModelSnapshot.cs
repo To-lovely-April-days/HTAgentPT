@@ -86,6 +86,10 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_login_at");
 
+                    b.Property<bool>("MemoryOff")
+                        .HasColumnType("boolean")
+                        .HasColumnName("memory_off");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("text")
@@ -1837,6 +1841,49 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_translation_task_user_id_created_at");
 
                     b.ToTable("translation_task");
+                });
+
+            modelBuilder.Entity("HT.Agent.Domain.Entities.UserMemory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("source");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_user_memory");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .HasDatabaseName("ix_user_memory_user_id_created_at");
+
+                    b.ToTable("user_memory");
                 });
 
             modelBuilder.Entity("HT.Agent.Domain.Entities.UserTerminal", b =>

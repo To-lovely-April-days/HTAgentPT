@@ -667,7 +667,7 @@ function AssistantMessage() {
         {m.notice && <div className="hint" style={{ marginBottom: 7 }}>{m.notice}</div>}
         {m.agentSteps && <AgentProgressCard steps={m.agentSteps} streaming={m.streaming} />}
         {m.steps && <StepsCard steps={m.steps} streaming={m.streaming} seconds={m.seconds} />}
-        {m.artifacts && m.artifacts.length > 0 && <ArtifactCards items={m.artifacts} />}
+        {m.artifacts && m.artifacts.length > 0 && <ArtifactCards items={m.artifacts} onSend={active ? sendText : undefined} />}
         {m.text && <Prose text={m.text}
           flags={m.verify?.issues.map((i) => i.value)}
           focus={refs?.msgId === id ? refs.focus : null}

@@ -17,7 +17,8 @@ namespace HT.Agent.Api.Controllers;
 [Route("api/ops/tools")]
 [Authorize]
 [RequirePermission(PermissionKeys.SystemConfig)]
-public class ToolsController(AppDbContext db, IRuntimeConfig config, SandboxClient sandbox, SearxClient searx) : ControllerBase
+public class ToolsController(AppDbContext db, IRuntimeConfig config, SandboxClient sandbox, SearxClient searx,
+    LiteratureClient literature, IMemoryService memory, HT.Agent.Infrastructure.Vision.ImageDescriber vision) : ControllerBase
 {
     /// <summary>近 7 天每个工具调用了几次、失败几次；外加确认卡的回答情况。</summary>
     [HttpGet("stats")]
@@ -67,7 +68,37 @@ public class ToolsController(AppDbContext db, IRuntimeConfig config, SandboxClie
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) { search = false; }
         var hazFile = await config.GetStringAsync(ConfigKeys.HazchemFile, "hazchem.csv", ct);
         var hazPath = Path.IsPathRooted(hazFile) ? hazFile : Path.Combine("data", hazFile);
-        return Ok(new { sandbox = sb, search, hazchem = System.IO.File.Exists(hazPath) });
+        bool office;
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(6));
+            var conv = (await config.GetStringAsync(ConfigKeys.PdfConverterUrl, "", ct)).Trim();
+            if (conv.Length == 0) conv = ExportController.DefaultConverter;
+            var health = new Uri(new Uri(conv), "/health");
+            using var resp = await HttpContext.RequestServices.GetRequiredService<IHttpClientFactory>().CreateClient("tools").GetAsync(health, cts.Token);
+            office = resp.IsSuccessStatusCode;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or UriFormatException) { office = false; }
+        var epoSet = (await config.GetStringAsync(ConfigKeys.EpoKey, "", ct)).Trim().Length > 0
+                     && (await config.GetStringAsync(ConfigKeys.EpoSecret, "", ct)).Trim().Length > 0;
+        var (memUsers, memTotal) = await memory.StatsAsync(ct);
+        return Ok(new
+        {
+            sandbox = sb, search, hazchem = System.IO.File.Exists(hazPath), office, epo = epoSet,
+            vision = await vision.EnabledAsync(ct),
+            memory = new { users = memUsers, total = memTotal } // 只给条数，不给内容
+        });
+    }
+
+    /// <summary>试一下欧洲专利局密钥能不能用。</summary>
+    [HttpPost("test-epo")]
+    public async Task<IActionResult> TestEpo(CancellationToken ct)
+    {
+        var key = (await config.GetStringAsync(ConfigKeys.EpoKey, "", ct)).Trim();
+        var secret = (await config.GetStringAsync(ConfigKeys.EpoSecret, "", ct)).Trim();
+        if (key.Length == 0 || secret.Length == 0) return Ok(new { ok = false, error = "还没填密钥" });
+        return Ok(new { ok = await literature.CheckPatentKeyAsync(key, secret, ct) });
     }
 
     public record TestBody(string Query);
@@ -97,7 +128,7 @@ public class ToolsController(AppDbContext db, IRuntimeConfig config, SandboxClie
 [ApiController]
 [Route("api/export")]
 [Authorize]
-public class ExportController(IAuditWriter audit, ICurrentUser me) : ControllerBase
+public class ExportController(IAuditWriter audit, ICurrentUser me, IRuntimeConfig config, IHttpClientFactory http) : ControllerBase
 {
     public record DocxBody(string Title, string Markdown, List<string>? Sources);
 
@@ -111,5 +142,35 @@ public class ExportController(IAuditWriter audit, ICurrentUser me) : ControllerB
             CompanyId: me.CompanyId, Detail: new { title, chars = b.Markdown?.Length ?? 0 }), ct);
         var safe = string.Concat(title.Where(c => !Path.GetInvalidFileNameChars().Contains(c)));
         return File(bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", $"{safe}.docx");
+    }
+
+    /// <summary>默认的转换容器地址（docker-compose.tools.yml 里的 office）。</summary>
+    public const string DefaultConverter = "http://office:3000/convert";
+
+    /// <summary>导出 PDF：先按 Word 的样子排好，再交给 LibreOffice 容器转 PDF。</summary>
+    [HttpPost("pdf")]
+    public async Task<IActionResult> Pdf([FromBody] DocxBody b, CancellationToken ct)
+    {
+        var title = string.IsNullOrWhiteSpace(b.Title) ? "助手回答" : b.Title.Trim();
+        if (title.Length > 60) title = title[..60];
+        var docx = MarkdownDocx.Build(title, b.Markdown ?? "", b.Sources);
+        var url = (await config.GetStringAsync(ConfigKeys.PdfConverterUrl, "", ct)).Trim();
+        if (url.Length == 0) url = DefaultConverter;
+        byte[] pdf;
+        try
+        {
+            using var form = new MultipartFormDataContent { { new ByteArrayContent(docx), "file", "export.docx" } };
+            using var resp = await http.CreateClient("tools").PostAsync(url, form, ct);
+            resp.EnsureSuccessStatusCode();
+            pdf = await resp.Content.ReadAsByteArrayAsync(ct);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return StatusCode(503, new { code = "PDF_UNAVAILABLE", message = "PDF 转换服务没连上，可以先导出 Word" });
+        }
+        await audit.WriteAsync(new AuditEntry("export.pdf", AuditResult.Success, UserId: me.UserId, Username: me.Username,
+            CompanyId: me.CompanyId, Detail: new { title, chars = b.Markdown?.Length ?? 0 }), ct);
+        var safe = string.Concat(title.Where(c => !Path.GetInvalidFileNameChars().Contains(c)));
+        return File(pdf, "application/pdf", $"{safe}.pdf");
     }
 }

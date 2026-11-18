@@ -107,6 +107,23 @@ public static class ConfigKeys
     public const string SearxEngines = "assistant.searx_engines";
     /// <summary>本地《危险化学品目录》文件（CSV：CAS 号,中文名；相对数据目录）。没有就不判断是否危化品。</summary>
     public const string HazchemFile = "assistant.hazchem_file";
+    /// <summary>长期记忆全公司开关（on/off）。</summary>
+    public const string MemoryEnabled = "assistant.memory";
+    /// <summary>每人最多几条记忆。</summary>
+    public const string MemoryMax = "assistant.memory_max";
+    /// <summary>欧洲专利局 OPS 的 Consumer Key / Secret（developers.epo.org 免费注册）。键名带 api_key，读配置时打码。</summary>
+    public const string EpoKey = "assistant.epo_api_key";
+    public const string EpoSecret = "assistant.epo_secret_api_key";
+    /// <summary>论文检索（OpenAlex）请求里带的联系邮箱，可空。OpenAlex 建议带上，配额更宽。</summary>
+    public const string OpenAlexMailto = "assistant.openalex_mailto";
+    public const string ToolLiterature = "assistant.tool.search_literature";
+    public const string ToolLiteratureRoles = "assistant.tool.search_literature.roles";
+    public const string ToolVision = "assistant.tool.view_image";
+    public const string ToolVisionRoles = "assistant.tool.view_image.roles";
+    public const string ToolTranslateFile = "assistant.tool.translate_file";
+    public const string ToolTranslateFileRoles = "assistant.tool.translate_file.roles";
+    public const string ToolInquiryForm = "assistant.tool.inquiry_form";
+    public const string ToolInquiryFormRoles = "assistant.tool.inquiry_form.roles";
     /// <summary>关键词与向量两路权重（FR-4.3），0 纯关键词，1 纯向量。</summary>
     public const string HybridAlpha = "retrieval.hybrid_alpha";
     /// <summary>近似索引候选倍数（7.2：候选数须高于最终保留数的倍数并可配置）。</summary>

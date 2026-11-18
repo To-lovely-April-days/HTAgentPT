@@ -8,23 +8,32 @@ import { ErrorBox, Spinner } from '../../components/Common';
 import { KbMultiSelect } from '../../components/KbMultiSelect';
 
 interface Stats { total: number; asks: number; tools: { tool: string; calls: number; failed: number; avgMs: number }[] }
-interface Health { sandbox: boolean; search: boolean; hazchem: boolean }
+interface Health { sandbox: boolean; search: boolean; hazchem: boolean; office: boolean; epo: boolean; vision: boolean; memory: { users: number; total: number } }
 
-interface ToolDef { key: string; name: string; ic: string; tone: 'in' | 'calc' | 'ext'; tag?: string; desc: string; fixed?: boolean; settings?: 'search' | 'sandbox' }
+interface ToolDef { key: string; name: string; ic: string; tone: 'in' | 'calc' | 'ext'; tag?: string; desc: string; fixed?: boolean; settings?: Panel;
+  /** 开关用的配置键（默认 assistant.tool.{key}）；noRoles：不按角色分配。 */ cfgKey?: string; noRoles?: boolean }
+type Panel = 'search' | 'sandbox' | 'epo';
 const GROUPS: { title: string; note: string; tools: ToolDef[] }[] = [
   { title: '公司内部', note: '始终按权限、密级过滤', tools: [
     { key: 'search_documents', name: '搜资料 · 打开原文', ic: '资', tone: 'in', desc: '在知识库里搜、读原文，回答带编号引用', fixed: true },
     { key: 'query_projects', name: '查项目台账', ic: '台', tone: 'in', desc: '做过的项目；金额只给有「机密」密级的人', fixed: true },
+    { key: 'search_standards', name: '查标准规范', ic: '标', tone: 'in', desc: '只在「标准规范」类资料里搜，回答写清标准号和条款；上传规范时类别选「标准规范」', fixed: true },
     { key: 'ask_user', name: '请用户确认', ic: '选', tone: 'in', desc: '有歧义或查到多个候选时，给选项让人点' },
+    { key: 'inquiry_form', name: '询价缺项单', ic: '单', tone: 'in', desc: '需求不全时列出已知项和缺的项，可当场填、导出发给客户' },
+    { key: 'memory', name: '长期记忆', ic: '记', tone: 'in', desc: '记住每个人交代的偏好、工作范围、在跟的客户；内容只有本人能看、能删', cfgKey: 'assistant.memory', noRoles: true },
   ] },
   { title: '计算与文件', note: '在服务器上运行，不出公司', tools: [
     { key: 'run_python', name: '代码解释器', ic: '算', tone: 'calc', tag: '免费', desc: '隔离环境里跑 Python：工程计算、数据分析、作图；含物性计算（CoolProp）', settings: 'sandbox' },
     { key: 'compare_documents', name: '文件对比', ic: '比', tone: 'calc', tag: '免费', desc: '两份文件逐条对照：需求书对方案，找没满足的' },
+    { key: 'view_image', name: '看图 · 识别文字', ic: '图', tone: 'calc', desc: '看上传的图纸、照片、截图；把扫描件和手写单的文字读出来（用看图模型）' },
+    { key: 'translate_file', name: '整份翻译', ic: '译', tone: 'calc', desc: '上传的 Word 整份翻译，保留版式、套用已审定术语；需要「翻译」权限' },
+    { key: 'export_pdf', name: '导出 PDF / PPT', ic: '出', tone: 'calc', tag: '免费', desc: '回答导出 PDF（服务器上 LibreOffice 转换）和 PPT（浏览器里生成）', fixed: true },
   ] },
   { title: '外部数据', note: '会访问外网；发出去的内容先过滤', tools: [
     { key: 'fetch_url', name: '打开网页', ic: '网', tone: 'ext', tag: '免费', desc: '读用户给的链接或搜索结果里的网页全文（只连公网地址）' },
     { key: 'web_search', name: '联网搜索', ic: '搜', tone: 'ext', tag: '试用', desc: '自建 SearXNG 聚合必应、百度、搜狗；偶尔会搜不到', settings: 'search' },
     { key: 'chemical_info', name: '化学品安全数据', ic: '化', tone: 'ext', tag: '免费', desc: 'PubChem 查 GHS 危险性、闪点等；本地《危险化学品目录》判断是否危化品' },
+    { key: 'search_literature', name: '专利 / 论文检索', ic: '献', tone: 'ext', tag: '免费', desc: '论文用 OpenAlex（不用注册）；专利用欧洲专利局 OPS（含中国专利，需填免费密钥）', settings: 'epo' },
   ] },
 ];
 const STAT_KEY: Record<string, string[]> = {
@@ -37,11 +46,12 @@ export default function ToolsTab() {
   const roles = useQuery({ queryKey: ['roles'], queryFn: () => get<RoleRow[]>('/api/roles') });
   const stats = useQuery({ queryKey: ['tool-stats'], queryFn: () => get<Stats>('/api/ops/tools/stats') });
   const health = useQuery({ queryKey: ['tool-health'], queryFn: () => get<Health>('/api/ops/tools/health') });
-  const [panel, setPanel] = useState<'search' | 'sandbox' | null>(null);
+  const [panel, setPanel] = useState<Panel | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const c = cfg.data ?? {};
-  const isOn = (k: string) => ['on', 'true'].includes((c[`assistant.tool.${k}`] ?? (k === 'web_search' ? 'off' : 'on')).toLowerCase());
+  const keyOf = (t: ToolDef) => t.cfgKey ?? `assistant.tool.${t.key}`;
+  const isOn = (t: ToolDef) => ['on', 'true'].includes((c[keyOf(t)] ?? (t.key === 'web_search' ? 'off' : 'on')).toLowerCase());
   const rolesOf = (k: string) => (c[`assistant.tool.${k}.roles`] ?? '').split(',').map((x) => x.trim()).filter(Boolean);
   const save = async (values: Record<string, string>) => {
     setError(null);
@@ -51,7 +61,13 @@ export default function ToolsTab() {
   const callsOf = (k: string) => (stats.data?.tools ?? []).filter((t) => (STAT_KEY[k] ?? [k]).includes(t.tool)).reduce((s, t) => s + t.calls, 0);
   const failedOf = (k: string) => (stats.data?.tools ?? []).filter((t) => (STAT_KEY[k] ?? [k]).includes(t.tool)).reduce((s, t) => s + t.failed, 0);
   const status = (t: ToolDef): [string, 'ok' | 'warn' | 'off'] => {
-    if (!t.fixed && !isOn(t.key)) return ['已关闭', 'off'];
+    if (!t.fixed && !isOn(t)) return ['已关闭', 'off'];
+    const h = health.data;
+    if (!h) return ['检查中…', 'off'];
+    if (t.key === 'memory') return [`${h.memory.users} 人记了 ${h.memory.total} 条（这里只显示条数）`, 'ok'];
+    if (t.key === 'view_image') return h.vision ? ['看图模型已开启', 'ok'] : ['看图模型没开启（参数里打开「看图」并配好模型）', 'warn'];
+    if (t.key === 'export_pdf') return h.office ? ['转换服务正常', 'ok'] : ['PDF 转换服务连不上（office 容器没起来？）· PPT 不受影响', 'warn'];
+    if (t.key === 'search_literature') return h.epo ? ['论文 · 专利都可查', 'ok'] : ['只能查论文 · 专利还没填密钥', 'warn'];
     if (t.key === 'run_python') return health.data ? (health.data.sandbox ? ['运行环境正常', 'ok'] : ['运行环境连不上（sandbox 容器没起来？）', 'warn']) : ['检查中…', 'off'];
     if (t.key === 'web_search') return health.data ? (health.data.search ? ['搜索服务正常', 'ok'] : ['搜索服务连不上（searxng 容器没起来？）', 'warn']) : ['检查中…', 'off'];
     if (t.key === 'chemical_info') return health.data ? (health.data.hazchem ? ['正常', 'ok'] : ['正常 · 本地危化品目录未导入（只查 PubChem）', 'warn']) : ['检查中…', 'off'];
@@ -83,7 +99,7 @@ export default function ToolsTab() {
             <div className="tl-hd"><b>{g.title}</b><span className="dash-muted">{g.note}</span></div>
             {g.tools.map((t) => {
               const [st, tone] = status(t);
-              const on = t.fixed || isOn(t.key);
+              const on = t.fixed || isOn(t);
               return (
                 <div key={t.key} className="tl-row">
                   <span className={'tl-ic ' + t.tone} aria-hidden="true">{t.ic}</span>
@@ -94,7 +110,7 @@ export default function ToolsTab() {
                   </div>
                   <div className="tl-roles">
                     <span className="dash-muted" style={{ fontSize: 12 }}>谁能用</span>
-                    {t.fixed ? <span style={{ fontSize: 12.5 }}>按功能权限</span> : (
+                    {t.fixed || t.noRoles ? <span style={{ fontSize: 12.5 }}>{t.noRoles ? '每人自己开关' : '按功能权限'}</span> : (
                       <KbMultiSelect options={roleOptions} value={rolesOf(t.key)} placeholder="所有内部员工"
                         onChange={(v) => void save({ [`assistant.tool.${t.key}.roles`]: v.join(',') })} />
                     )}
@@ -102,14 +118,15 @@ export default function ToolsTab() {
                   <div className="tl-usage">近 7 天 {callsOf(t.key)} 次{failedOf(t.key) > 0 && <span style={{ color: '#8a5a00' }}> · 失败 {failedOf(t.key)}</span>}</div>
                   {t.settings ? <button type="button" className="fm-act" onClick={() => setPanel(t.settings!)}>设置</button> : <span style={{ width: 28 }} />}
                   <button type="button" role="switch" aria-checked={on} aria-label={`${t.name}开关`} className={'tl-sw' + (on ? ' on' : '')} disabled={t.fixed}
-                    onClick={() => void save({ [`assistant.tool.${t.key}`]: on ? 'off' : 'on' })}><i /></button>
+                    onClick={() => void save({ [keyOf(t)]: on ? 'off' : 'on' })}><i /></button>
                 </div>
               );
             })}
           </section>
         ))}
       </div>
-      {panel && <SettingsPanel kind={panel} cfg={c} onClose={() => setPanel(null)} onSave={save} />}
+      {panel === 'epo' && <EpoPanel cfg={c} onClose={() => { setPanel(null); void qc.invalidateQueries({ queryKey: ['tool-health'] }); }} onSave={save} />}
+      {panel && panel !== 'epo' && <SettingsPanel kind={panel} cfg={c} onClose={() => setPanel(null)} onSave={save} />}
     </div>
   );
 }
@@ -174,6 +191,56 @@ function SettingsPanel({ kind, cfg, onClose, onSave }: {
         <button type="button" className="pbtn" onClick={() => void onSave(kind === 'search'
           ? { 'assistant.searx_url': url, 'assistant.searx_engines': engines.join(',') }
           : { 'assistant.sandbox_url': url, 'assistant.sandbox_timeout': timeout || '30' }).then(onClose)}>保存</button>
+      </div>
+    </aside>
+  );
+}
+
+/** 专利检索的密钥。读配置时密钥是打码的，所以这里留空表示「不改」。 */
+function EpoPanel({ cfg, onClose, onSave }: { cfg: Record<string, string>; onClose: () => void; onSave: (v: Record<string, string>) => Promise<void> }) {
+  const has = !!cfg['assistant.epo_api_key'];
+  const [key, setKey] = useState('');
+  const [secret, setSecret] = useState('');
+  const [mailto, setMailto] = useState(cfg['assistant.openalex_mailto'] ?? '');
+  const [test, setTest] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const values = () => {
+    const v: Record<string, string> = { 'assistant.openalex_mailto': mailto.trim() };
+    if (key.trim()) v['assistant.epo_api_key'] = key.trim();
+    if (secret.trim()) v['assistant.epo_secret_api_key'] = secret.trim();
+    return v;
+  };
+  const runTest = async () => {
+    setBusy(true); setTest(null);
+    try {
+      await onSave(values());
+      const r = await post<{ ok: boolean; error?: string }>('/api/ops/tools/test-epo');
+      setTest(r.ok ? { ok: true, text: '✓ 密钥可用，专利检索已就绪' } : { ok: false, text: r.error ?? '密钥换不到令牌，请检查是否填反或复制多了空格' });
+    } catch (err) { setTest({ ok: false, text: err instanceof ApiError ? err.message : '测试失败' }); }
+    finally { setBusy(false); }
+  };
+  return (
+    <aside className="acc-drawer" aria-label="专利论文检索设置">
+      <div className="acc-drawer-hd"><b>专利 / 论文检索 · 设置</b><button type="button" className="refs-x" aria-label="关闭" onClick={onClose}>✕</button></div>
+      <div className="acc-drawer-body sc">
+        <p className="dash-muted" style={{ margin: 0, lineHeight: 1.7 }}>
+          论文走 OpenAlex，免费、不用注册。专利走欧洲专利局 OPS（覆盖中国、美国、欧洲等专利），免费，但要先在 developers.epo.org 注册账号、建一个 App，拿到 Consumer Key 和 Consumer Secret 填在下面。
+        </p>
+        <label className="acc-field"><span>Consumer Key</span>
+          <input className="inp m" style={{ height: 38 }} value={key} placeholder={has ? '已填（留空不改）' : '粘贴 Consumer Key'} onChange={(e) => setKey(e.target.value)} /></label>
+        <label className="acc-field"><span>Consumer Secret</span>
+          <input className="inp m" style={{ height: 38 }} type="password" value={secret} placeholder={has ? '已填（留空不改）' : '粘贴 Consumer Secret'} onChange={(e) => setSecret(e.target.value)} /></label>
+        <label className="acc-field"><span>论文检索联系邮箱（可不填）</span>
+          <input className="inp m" style={{ height: 38 }} value={mailto} placeholder="填了 OpenAlex 给的配额更宽" onChange={(e) => setMailto(e.target.value)} /></label>
+        <div className="acc-preview"><b>发出去之前系统会拦掉：</b>客户名单里的名称 · 台账里的项目编号 · 金额与报价，和联网搜索一样。</div>
+        <div className="acc-field">
+          <button type="button" className="gbtn" style={{ alignSelf: 'flex-start' }} disabled={busy} onClick={() => void runTest()}>{busy ? '测试中…' : '保存并测试密钥'}</button>
+          {test && <small style={{ color: test.ok ? '#1c6b45' : 'var(--brand-fg)' }}>{test.text}</small>}
+        </div>
+      </div>
+      <div className="acc-drawer-f">
+        <button type="button" className="gbtn" onClick={onClose}>取消</button>
+        <button type="button" className="pbtn" onClick={() => void onSave(values()).then(onClose)}>保存</button>
       </div>
     </aside>
   );
