@@ -7,11 +7,12 @@ using HT.Agent.Application.Abstractions;
 namespace HT.Agent.Application.Logic;
 
 /// <summary>工具执行的结果。ForModel 交给模型；Compact 是上下文紧张时换上的短版；Label/Detail/Result 给界面上的「查了几步」。</summary>
-public record ToolOutcome(string ForModel, string Compact, string Label, string Detail, string? Result);
+/// <summary>Pause=true：这个工具要等用户回话（比如请用户确认），本轮执行完就停下，等用户的回答再接着跑。</summary>
+public record ToolOutcome(string ForModel, string Compact, string Label, string Detail, string? Result, bool Pause = false);
 
 public record StepRecord(string Id, string Tool, string Label, string Detail, string? Result, string Status, double Seconds);
 
-public record LoopResult(string Answer, int Rounds, IReadOnlyList<StepRecord> Steps, bool HitRoundLimit);
+public record LoopResult(string Answer, int Rounds, IReadOnlyList<StepRecord> Steps, bool HitRoundLimit, string? PausedCallId = null);
 
 public record AssistantLoopOptions(int MaxRounds = 6, bool Think = true, int MaxTokens = 6000, double Temperature = 0.2, int ContextChars = 40000);
 
@@ -58,6 +59,7 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
             if (streamed) await emit(new QaEvent("replace", new { text = "" }));
             messages.Add(new AgentMessage("assistant", StripThinking(content), calls));
 
+            string? pausedOn = null;
             foreach (var call in calls)
             {
                 var id = $"s{++stepNo}";
@@ -76,10 +78,12 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
                 var rec = new StepRecord(id, call.Name, outcome.Label, outcome.Detail, outcome.Result, status, Math.Round(sw.Elapsed.TotalSeconds, 1));
                 steps.Add(rec);
                 await emit(new QaEvent("step", new { id, tool = call.Name, label = rec.Label, detail = rec.Detail, result = rec.Result, status, seconds = rec.Seconds }));
+                if (outcome.Pause) { pausedOn = call.Id; continue; } // 这个调用的结果要等用户来填，先不写回去
                 messages.Add(new AgentMessage("tool", outcome.ForModel, ToolCallId: call.Id));
                 compacts[messages.Count - 1] = outcome.Compact;
             }
             Shrink(messages, compacts, options.ContextChars);
+            if (pausedOn is not null) return new LoopResult("", round, steps, false, pausedOn);
         }
     }
 
@@ -106,6 +110,12 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         "read_attachments" => "看附件",
         "calculate" => "计算",
         "convert_unit" => "单位换算",
+        "ask_user" => "请你确认",
+        "run_python" => "运行计算",
+        "chemical_info" => "化学品数据",
+        "web_search" => "联网搜索",
+        "fetch_url" => "打开网页",
+        "compare_documents" => "文件对比",
         _ => name
     };
 

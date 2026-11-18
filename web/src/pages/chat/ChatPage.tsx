@@ -21,9 +21,10 @@ import { Perm, unwrapLedgerTable } from '../../lib/types';
 import type {
   CaseDetailData, CaseRow, ChatAttachment, GenChatPayload, GenChatTurnResult, KbRow, LedgerTable, QaSessionRow, VocabRow,
   QaTemplateRec, QaTimeline, SessionRowT, SessionView, Source, TextTranslationResult, TicketRow,
-  AssistantStep, EvidenceCard as EvidenceRef, VerifyReport,
+  AssistantStep, EvidenceCard as EvidenceRef, VerifyReport, AskSpec, ToolArtifact,
 } from '../../lib/types';
 import { RefPanel, StepsCard, VerifyBar } from './AssistantParts';
+import { ArtifactCards, AskCard, ExportBar } from './ToolCards';
 import { SideSlotCtx } from '../../Shell';
 import { BrandMark, Icon } from '../../components/Icons';
 import { ATTACH_ACCEPT, formatSize, useAttachments } from './useAttachments';
@@ -60,6 +61,8 @@ interface Msg {
   verify?: VerifyReport;
   seconds?: number | null;
   notice?: string;
+  ask?: AskSpec;                 // 助手停下来请你确认
+  artifacts?: ToolArtifact[];    // 计算结果、化学品数据等卡片
 }
 
 const MsgCtx = createContext<{
@@ -73,10 +76,11 @@ const MsgCtx = createContext<{
   genSessionId: string | null;
   refs: { msgId: string; focus: number | null } | null;
   showRefs: (msgId: string, focus?: number | null) => void;
+  sendText: (text: string) => void;
 }>({
   byId: new Map(), busy: false, focusSource: null, setFocusSource: () => {},
   pickTemplate: () => {}, genTurn: async () => {}, correctIntent: () => {}, genSessionId: null,
-  refs: null, showRefs: () => {},
+  refs: null, showRefs: () => {}, sendText: () => {},
 });
 
 export default function ChatPage() {
@@ -174,6 +178,12 @@ export default function ChatPage() {
             break;
           case 'notice':
             patch(id, { notice: p.message as string });
+            break;
+          case 'ask':
+            patch(id, { ask: ev.payload as AskSpec });
+            break;
+          case 'artifact':
+            setMsgs((x) => x.map((m) => (m.id === id ? { ...m, artifacts: [...(m.artifacts ?? []), ev.payload as ToolArtifact] } : m)));
             break;
           case 'done':
             patch(id, { seconds: (Date.now() - started) / 1000 });
@@ -351,7 +361,8 @@ export default function ChatPage() {
 
   const ctx = useMemo(() => ({
     byId, busy, focusSource, setFocusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs,
-  }), [byId, busy, focusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs]);
+    sendText: (t: string) => void send(t),
+  }), [byId, busy, focusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs, send]);
   const refMsg = refs ? byId.get(refs.msgId) : undefined;
 
   return (
@@ -640,7 +651,7 @@ function UserMessage() {
 /** 助手一条：正文按标记语法排版，后面挂这一轮长出来的结果件。 */
 function AssistantMessage() {
   const id = useAuiState((s) => s.message.id);
-  const { byId, busy, focusSource, setFocusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs } = useContext(MsgCtx);
+  const { byId, busy, focusSource, setFocusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs, sendText } = useContext(MsgCtx);
   const m = byId.get(id);
   if (!m) return null;
   const isLast = [...byId.keys()].pop() === id;
@@ -656,12 +667,17 @@ function AssistantMessage() {
         {m.notice && <div className="hint" style={{ marginBottom: 7 }}>{m.notice}</div>}
         {m.agentSteps && <AgentProgressCard steps={m.agentSteps} streaming={m.streaming} />}
         {m.steps && <StepsCard steps={m.steps} streaming={m.streaming} seconds={m.seconds} />}
+        {m.artifacts && m.artifacts.length > 0 && <ArtifactCards items={m.artifacts} />}
         {m.text && <Prose text={m.text}
           flags={m.verify?.issues.map((i) => i.value)}
           focus={refs?.msgId === id ? refs.focus : null}
           onCite={m.evidence ? (n) => showRefs(id, n) : m.sources ? (n) => setFocusSource(n) : undefined} />}
         {m.streaming && !m.text && !(m.steps && m.steps.length > 0) && <Spinner text="思考中…" />}
+        {m.ask && <AskCard ask={m.ask} active={active && !m.ask.answered} onAnswer={sendText} />}
         {m.verify && !m.streaming && <VerifyBar report={m.verify} onCite={(n) => showRefs(id, n)} />}
+        {m.evidence && !m.streaming && m.text && (
+          <ExportBar text={m.text} sources={m.evidence.used} title={(lastQuestion(byId, id) || '助手回答').slice(0, 30)} />
+        )}
         {m.evidence && m.evidence.used.length > 0 && !m.streaming && refs?.msgId !== id && (
           <button type="button" className="as-refs-btn" onClick={() => showRefs(id)}>
             参考资料 {new Set(m.evidence.used.map((c) => c.docId ?? c.kind + (c.fileName ?? ''))).size} 份 · {m.evidence.used.length} 段原文 ›
@@ -759,8 +775,12 @@ function restore(raw: string | null | undefined): Partial<Msg> {
         };
       }
       case 'assistant': {
-        const a = parsed as unknown as { steps?: AssistantStep[]; evidence?: Msg['evidence']; verify?: VerifyReport; seconds?: number };
-        return { steps: a.steps ?? [], evidence: a.evidence, verify: a.verify, seconds: a.seconds ?? null };
+        const a = parsed as unknown as { steps?: AssistantStep[]; evidence?: Msg['evidence']; verify?: VerifyReport; seconds?: number;
+          ask?: AskSpec; answered?: string; artifacts?: ToolArtifact[] };
+        return {
+          steps: a.steps ?? [], evidence: a.evidence, verify: a.verify, seconds: a.seconds ?? null, artifacts: a.artifacts,
+          ...(a.ask ? { ask: { ...a.ask, answered: a.answered ?? null }, text: '' } : {}),
+        };
       }
       case 'translation': return { ...steps, translation: data as unknown as Msg['translation'], text: '' };
       case 'cases': return {

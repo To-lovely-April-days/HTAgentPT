@@ -88,6 +88,14 @@ public static class DependencyInjection
         services.AddScoped<IQaService, QaService>();
         services.AddScoped<IAssistantService, AssistantService>();
         services.AddSingleton<IToolChatClient, OpenAiToolChatClient>();
+        // 助手工具的出站客户端：沙箱/PubChem/搜索共用 tools；打开网页走 webfetch（只连公网地址）
+        services.AddHttpClient("tools", c => c.Timeout = TimeSpan.FromSeconds(60));
+        services.AddHttpClient("webfetch", c => c.Timeout = TimeSpan.FromSeconds(15))
+            .ConfigurePrimaryHttpMessageHandler(WebFetcher.CreateHandler);
+        services.AddSingleton<SandboxClient>();
+        services.AddSingleton<PubChemClient>();
+        services.AddSingleton<SearxClient>();
+        services.AddSingleton<WebFetcher>();
         services.AddScoped<IChatAttachmentService, ChatAttachmentService>();
         services.AddScoped<IVisionClient, OpenAiVisionClient>();
         services.AddScoped<Vision.ImageDescriber>();

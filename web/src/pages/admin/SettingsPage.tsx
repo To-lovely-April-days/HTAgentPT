@@ -2,6 +2,7 @@
 // 三条界面必须自己扛的需求：换向量化模型必须连带全量重建（哨兵行常驻页底）、
 // 阈值须以真实问题集标定（不是能照抄的数）、把「没备份什么」写在界面上（灰卡）。
 import React, { useState } from 'react';
+import ToolsTab from './ToolsTab';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { get, post, put, ApiError } from '../../lib/api';
 import { ErrorBox, InfoBox, Spinner } from '../../components/Common';
@@ -61,7 +62,7 @@ const GROUPS: { title: string; keys: [string, string][] }[] = [
 ];
 
 export default function SettingsPage() {
-  const [tab, setTab] = useState<'params' | 'backup'>('params');
+  const [tab, setTab] = useState<'params' | 'tools' | 'backup'>('params');
   const tabStyle = (on: boolean): React.CSSProperties => ({
     height: 40, padding: '0 13px', display: 'inline-flex', alignItems: 'center', fontSize: 12.5, cursor: 'pointer',
     borderBottom: on ? '2px solid var(--accent)' : '2px solid transparent',
@@ -71,9 +72,10 @@ export default function SettingsPage() {
     <>
       <div style={{ flexShrink: 0, display: 'flex', gap: 2, padding: '0 40px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
         <span style={tabStyle(tab === 'params')} onClick={() => setTab('params')}>模型与运行参数</span>
+        <span style={tabStyle(tab === 'tools')} onClick={() => setTab('tools')}>助手工具</span>
         <span style={tabStyle(tab === 'backup')} onClick={() => setTab('backup')}>备份与远程接入</span>
       </div>
-      {tab === 'params' ? <ParamsTab /> : <BackupTab />}
+      {tab === 'params' ? <ParamsTab /> : tab === 'tools' ? <ToolsTab /> : <BackupTab />}
     </>
   );
 }

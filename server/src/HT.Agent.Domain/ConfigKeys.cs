@@ -83,6 +83,30 @@ public static class ConfigKeys
     public const string AssistantSearchTopK = "assistant.search_top_k";
     /// <summary>公司介绍（一两句话，告诉助手我们是做什么的）。是数据不是规则，管理员可随时改。</summary>
     public const string AssistantProfile = "assistant.company_profile";
+
+    // ── 助手工具：每个工具一个开关（on/off）和可用角色（逗号分隔的角色代码，空=所有内部员工）──
+    public const string ToolAskUser = "assistant.tool.ask_user";
+    public const string ToolAskUserRoles = "assistant.tool.ask_user.roles";
+    public const string ToolPython = "assistant.tool.run_python";
+    public const string ToolPythonRoles = "assistant.tool.run_python.roles";
+    public const string ToolChemical = "assistant.tool.chemical_info";
+    public const string ToolChemicalRoles = "assistant.tool.chemical_info.roles";
+    public const string ToolWebSearch = "assistant.tool.web_search";
+    public const string ToolWebSearchRoles = "assistant.tool.web_search.roles";
+    public const string ToolFetchUrl = "assistant.tool.fetch_url";
+    public const string ToolFetchUrlRoles = "assistant.tool.fetch_url.roles";
+    public const string ToolCompare = "assistant.tool.compare_documents";
+    public const string ToolCompareRoles = "assistant.tool.compare_documents.roles";
+    /// <summary>代码解释器服务地址（deploy/docker-compose.tools.yml 里的 sandbox 容器）。</summary>
+    public const string SandboxUrl = "assistant.sandbox_url";
+    /// <summary>每次运行最长秒数。</summary>
+    public const string SandboxTimeout = "assistant.sandbox_timeout";
+    /// <summary>联网搜索服务地址（自建 SearXNG）。</summary>
+    public const string SearxUrl = "assistant.searx_url";
+    /// <summary>用哪些搜索引擎（SearXNG 的引擎名，逗号分隔）。</summary>
+    public const string SearxEngines = "assistant.searx_engines";
+    /// <summary>本地《危险化学品目录》文件（CSV：CAS 号,中文名；相对数据目录）。没有就不判断是否危化品。</summary>
+    public const string HazchemFile = "assistant.hazchem_file";
     /// <summary>关键词与向量两路权重（FR-4.3），0 纯关键词，1 纯向量。</summary>
     public const string HybridAlpha = "retrieval.hybrid_alpha";
     /// <summary>近似索引候选倍数（7.2：候选数须高于最终保留数的倍数并可配置）。</summary>

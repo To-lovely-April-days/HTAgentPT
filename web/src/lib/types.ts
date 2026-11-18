@@ -430,7 +430,7 @@ export interface AssistantStep {
 
 /** 通用助手的一份依据：资料切块、台账记录或附件片段。n 与回答里的 [n] 对应。 */
 export interface EvidenceCard {
-  n: number; kind: 'doc' | 'ledger' | 'attachment'; title: string;
+  n: number; kind: 'doc' | 'ledger' | 'attachment' | 'web'; title: string; url?: string | null;
   docId: string | null; chunkId: number | null; section: string | null; pageNo: number | null;
   docCategory: string | null; fileName: string | null; projectNo: string | null; classification: string | null;
   text: string; highlights: { start: number; length: number }[];
@@ -464,3 +464,12 @@ export interface MyFilesContext {
 }
 
 export interface ApprovalSummary { isApprover: boolean; isAdmin?: boolean; files: number; customers: number }
+
+/** 助手请用户确认：问题和选项。answered 是用户后来的回答（打开历史时有）。 */
+export interface AskSpec { question: string; options: { label: string; detail: string | null }[]; multiple: boolean; answered?: string | null }
+
+/** 助手工具生成的结果卡：计算结果、化学品数据。 */
+export type ToolArtifact =
+  | { kind: 'calc'; code: string; stdout: string; error: string | null; images: string[]; seconds: number }
+  | { kind: 'chem'; n: number; title: string; cid: number; cas: string | null; formula: string | null; weight: string | null;
+      props: Record<string, string[]>; hazards: string[]; pictograms: string[]; hazchem: boolean | null; url: string };

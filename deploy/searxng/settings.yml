@@ -1,0 +1,28 @@
+# 助手联网搜索用的 SearXNG（免费，自建）。只在容器网络里给后端用，不对外开端口。
+# 密钥用环境变量 SEARXNG_SECRET 覆盖（compose 里设）。
+use_default_settings:
+  engines:
+    keep_only:
+      - bing
+      - baidu
+      - sogou
+      - 360search
+
+general:
+  instance_name: "htagent-search"
+
+server:
+  secret_key: "change-me-by-SEARXNG_SECRET"
+  limiter: false
+  image_proxy: false
+  public_instance: false
+
+search:
+  safe_search: 0
+  default_lang: "zh-CN"
+  formats:
+    - html
+    - json
+
+ui:
+  static_use_hash: true

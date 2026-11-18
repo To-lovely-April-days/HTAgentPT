@@ -41,7 +41,8 @@ public record EvidenceItem(
     string? ProjectNo = null,
     string? Classification = null,
     double? Score = null,
-    string? DocRef = null);     // 给模型用的短文档代号（D1、D2…），打开原文时用它
+    string? DocRef = null,      // 给模型用的短文档代号（D1、D2…），打开原文时用它
+    string? Url = null);        // 网上来的依据：网页地址
 
 /// <summary>通用助手：一个问题进来，模型自己决定查什么，回答带编号引用、右侧参考资料和数字核对。</summary>
 public interface IAssistantService

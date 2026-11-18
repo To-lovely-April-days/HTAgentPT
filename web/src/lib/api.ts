@@ -95,6 +95,26 @@ export async function upload<T>(path: string, form: FormData): Promise<T> {
   return (await resp.json()) as T;
 }
 
+/** POST 一段内容、把返回的文件存下来（导出 Word 等）。 */
+export async function postDownload(path: string, body: unknown, fallbackName = '下载文件') {
+  const headers = new Headers({ 'Content-Type': 'application/json' });
+  const token = getToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  headers.set('X-Terminal-Id', terminalId());
+  const resp = await fetch(path, { method: 'POST', headers, body: JSON.stringify(body) });
+  if (!resp.ok) throw await parseError(resp);
+  const cd = resp.headers.get('Content-Disposition') ?? '';
+  const star = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+  const plain = /filename="?([^";]+)"?/i.exec(cd);
+  const name = star ? decodeURIComponent(star[1]) : (plain ? plain[1] : fallbackName);
+  const url = URL.createObjectURL(await resp.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 /** 带鉴权下载原件：/api/files 走 Authorization 头，普通 <a href> 带不上——
  * 取回 blob 后用临时链接触发保存，文件名取自 Content-Disposition。 */
 export async function download(path: string, fallbackName = '下载文件') {
