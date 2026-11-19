@@ -26,7 +26,8 @@ public class ImageDescriber(IVisionClient vision, IRuntimeConfig config, IConfig
         if (images is null || images.Count == 0 || !await EnabledAsync(ct)) return [];
         var max = await config.GetIntAsync(ConfigKeys.VisionMaxImages, 30, ct);
         var picked = ImageNotes.Select(
-            images.Where(i => IsSupported(i.ContentType)).Select(i => new ImageNotes.Candidate(i.Bytes, i.ContentType, i.Caption, i.PageNo)), max);
+            images.Select((i, k) => (i, k)).Where(x => IsSupported(x.i.ContentType))
+                .Select(x => new ImageNotes.Candidate(x.i.Bytes, x.i.ContentType, x.i.Caption, x.i.PageNo, x.k + 1)), max);
         var notes = new List<ImageNotes.Note>();
         foreach (var img in picked)
         {
@@ -34,7 +35,7 @@ public class ImageDescriber(IVisionClient vision, IRuntimeConfig config, IConfig
             try
             {
                 var reply = await vision.DescribeAsync(img.Bytes, img.ContentType, ImageNotes.Prompt, ct);
-                if (ImageNotes.Parse(reply, img.Page, img.Caption) is { } note) notes.Add(note);
+                if (ImageNotes.Parse(reply, img.Page, img.Caption, img.Index) is { } note) notes.Add(note);
             }
             catch (VisionUnavailableException ex)
             {

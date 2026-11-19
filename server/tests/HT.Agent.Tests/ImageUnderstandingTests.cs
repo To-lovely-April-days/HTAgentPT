@@ -53,6 +53,8 @@ public class ImageUnderstandingTests
         Assert.DoesNotContain("think", pid.Text);
 
         var text = ImageNotes.ChunkText(pid);
+        Assert.Contains("〔图2〕", ImageNotes.ChunkText(pid with { Index = 2 }));
+        Assert.DoesNotContain("〔图", text);
         Assert.StartsWith("【图片描述（模型生成，以原图为准） · 第 3 页 · 图1 工艺流程】", text);
         Assert.Contains("R-101 → E-101", text);
     }

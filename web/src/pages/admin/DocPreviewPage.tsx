@@ -23,6 +23,10 @@ interface Target { page: number; bbox: number[] | null; ts: number; }
 
 const PAGE_WIDTH = 700; // 左栏页面显示宽度（px）
 
+/** 分块里的图片位置记号「〔图3〕」→ 图片序号（从 1 起，对应图片清单里 seq + 1）。Word 没有页码，靠它配图。 */
+const MARK = /〔图(\d+)〕/g;
+const marksOf = (text: string) => [...text.matchAll(MARK)].map((m) => Number(m[1]));
+
 function parseBbox(s: string | null): number[] | null {
   if (!s) return null;
   const parts = s.split(',').map((x) => Number(x));
@@ -43,6 +47,13 @@ export default function DocPreviewPage() {
   const docxBlob = useRef<Blob | null>(null);
   const [target, setTarget] = useState<Target | null>(null);
   const [activeChunk, setActiveChunk] = useState<number | null>(null);
+  const [zoom, setZoom] = useState<ImgRow | null>(null);
+  useEffect(() => {
+    if (!zoom) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setZoom(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [zoom]);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
   // 文本版（Office 等不能逐页渲染的原件）里各分块的位置，点右侧卡片时滚过去
   const chunkRefs = useRef<Record<number, HTMLDivElement | null>>({});
@@ -138,12 +149,19 @@ export default function DocPreviewPage() {
   };
 
   const title = state?.title ?? '文档对照预览';
+  // 序号 → 图片；一块该配哪些图：记号指到的（Word / PPT）+ 同一页的（PDF）
+  const bySeq = useMemo(() => new Map((images.data ?? []).map((im) => [im.seq + 1, im])), [images.data]);
   const pageImages = useMemo(() => {
     const m = new Map<number, ImgRow[]>();
     for (const im of images.data ?? [])
       if (im.pageNo != null) m.set(im.pageNo, [...(m.get(im.pageNo) ?? []), im]);
     return m;
   }, [images.data]);
+  const imagesFor = (c: { text: string; pageNo: number | null }) => {
+    const list = marksOf(c.text).map((n) => bySeq.get(n)).filter((x): x is ImgRow => !!x);
+    if (c.pageNo != null) for (const im of pageImages.get(c.pageNo) ?? []) if (!list.includes(im)) list.push(im);
+    return list;
+  };
 
   return (
     <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -195,6 +213,19 @@ export default function DocPreviewPage() {
                     <div style={{ fontSize: 13, lineHeight: 1.85, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                       {c.text}
                     </div>
+                    {marksOf(c.text).length > 0 && (
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
+                        {marksOf(c.text).map((n) => bySeq.get(n)).filter((x): x is ImgRow => !!x).map((im) => (
+                          <figure key={im.id} style={{ margin: 0 }}>
+                            <button type="button" className="img-btn" onClick={() => setZoom(im)} aria-label={`放大看图 ${im.seq + 1}`}>
+                              <AuthImage src={`/api/files/${docId}/images/${im.id}`} alt={im.caption ?? `图 ${im.seq + 1}`}
+                                style={{ maxWidth: '100%', maxHeight: 320, borderRadius: 4, border: '1px solid var(--line)', background: '#fff' }} />
+                            </button>
+                            <figcaption className="hint" style={{ marginTop: 3 }}>图 {im.seq + 1}{im.caption ? ` · ${im.caption}` : ''}</figcaption>
+                          </figure>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
                 {(images.data ?? []).length > 0 && (
@@ -244,11 +275,14 @@ export default function DocPreviewPage() {
               <div style={{ fontSize: 11.5, lineHeight: 1.7, color: 'var(--ink-2)', whiteSpace: 'pre-wrap' }}>
                 {c.text.length > 320 ? c.text.slice(0, 320) + '…' : c.text}
               </div>
-              {c.pageNo != null && (pageImages.get(c.pageNo) ?? []).length > 0 && (
-                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 6 }}>
-                  {(pageImages.get(c.pageNo) ?? []).map((im) => (
-                    <AuthImage key={im.id} src={`/api/files/${docId}/images/${im.id}`} alt={im.caption ?? ''} title={im.caption ?? undefined}
-                      style={{ maxHeight: 56, maxWidth: 100, borderRadius: 3, border: '1px solid var(--line)', background: '#fff' }} />
+              {imagesFor(c).length > 0 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                  {imagesFor(c).map((im) => (
+                    <button key={im.id} type="button" className="img-btn" title={im.caption ?? `图 ${im.seq + 1}`} aria-label={`放大看图 ${im.seq + 1}`}
+                      onClick={(e) => { e.stopPropagation(); setZoom(im); }}>
+                      <AuthImage src={`/api/files/${docId}/images/${im.id}`} alt={im.caption ?? `图 ${im.seq + 1}`}
+                        style={{ maxHeight: 90, maxWidth: 150, borderRadius: 3, border: '1px solid var(--line)', background: '#fff', display: 'block' }} />
+                    </button>
                   ))}
                 </div>
               )}
@@ -257,6 +291,17 @@ export default function DocPreviewPage() {
           {chunks.data && chunks.data.length === 0 && <div className="hint">该文档还没有解析分块——先在语料管理提交解析。</div>}
         </aside>
       </div>
+      {zoom && (
+        <div className="img-zoom" role="dialog" aria-label={`图 ${zoom.seq + 1}`} onClick={() => setZoom(null)}>
+          <figure onClick={(e) => e.stopPropagation()}>
+            <AuthImage src={`/api/files/${docId}/images/${zoom.id}`} alt={zoom.caption ?? `图 ${zoom.seq + 1}`}
+              style={{ maxWidth: '90vw', maxHeight: '80vh', background: '#fff', borderRadius: 6 }} />
+            <figcaption>图 {zoom.seq + 1}{zoom.caption ? ` · ${zoom.caption}` : ''}{zoom.pageNo != null ? ` · 第 ${zoom.pageNo} 页` : ''}
+              <button type="button" className="gbtn" style={{ marginLeft: 12, height: 26 }} onClick={() => setZoom(null)}>关闭</button>
+            </figcaption>
+          </figure>
+        </div>
+      )}
     </div>
   );
 }

@@ -59,11 +59,16 @@ public class OfficeParser : IDocumentParserClient
             throw new ParseContentException($"文件无法解析或已损坏（{fileName}）：{ex.Message}");
         }
 
-        if (blocks.Count == 0 && images.Items.Count > 0)
-            // 只有图没有字（扫描件转存、整页贴图）：给一条说明块，图片照常入库可检索
+        if (blocks.All(b => b.Kind == "image") && images.Items.Count > 0)
+        {
+            // 只有图没有字（扫描件转存、整页贴图）：给一条说明块，图片照常入库可检索；
+            // 图片位置记号接在后面，分块视图照样能配图
+            var marks = string.Concat(blocks.Select(b => b.Text));
+            blocks.Clear();
             blocks.Add(new ParsedBlock("paragraph",
                 $"本文档没有可提取的文字，含 {images.Items.Count} 张图片" +
-                (images.Captions().Length == 0 ? "。" : $"：{images.Captions()}"), null, null, null, null));
+                (images.Captions().Length == 0 ? "。" : $"：{images.Captions()}") + marks, null, null, null, null));
+        }
         if (blocks.Count == 0)
             throw new ParseContentException($"未解析出任何内容（{fileName} 可能是空文档）");
         return new ParsedDocument(blocks, images.Items.Count == 0 ? null : images.Items);
@@ -242,6 +247,7 @@ public class OfficeParser : IDocumentParserClient
             .Concat(p.Descendants<V.ImageData>().Select(d => d.RelationshipId?.Value))
             .Where(id => !string.IsNullOrEmpty(id))
             .Select(id => id!);
+        var marks = new List<int>();
         foreach (var id in ids)
         {
             var caption = Clean(p.InnerText);
@@ -251,8 +257,18 @@ public class OfficeParser : IDocumentParserClient
                     .FirstOrDefault(v => !string.IsNullOrWhiteSpace(v)) ?? "";
             if (caption.Length == 0)
                 caption = blocks.LastOrDefault(b => b.Kind is "paragraph" or "heading")?.Text ?? "";
-            images.TryAdd(main, id, caption);
+            if (images.TryAdd(main, id, caption) is { } n) marks.Add(n);
         }
+        AddImageMarks(blocks, marks);
+    }
+
+    /// <summary>图片位置记号，如「〔图3〕」：数字是图片序号（从 1 起）。</summary>
+    public static string ImageMark(int n) => $"〔图{n}〕";
+
+    private static void AddImageMarks(List<ParsedBlock> blocks, List<int> marks)
+    {
+        if (marks.Count == 0) return;
+        blocks.Add(new ParsedBlock("image", string.Concat(marks.Distinct().Select(ImageMark)), null, null, null, null));
     }
 
     // ── Excel ────────────────────────────────────────────
@@ -342,8 +358,10 @@ public class OfficeParser : IDocumentParserClient
             blocks.Add(new ParsedBlock("heading", texts.Count > 0 ? texts[0] : $"第 {no} 页", 1, null, null, null));
             foreach (var t in texts.Skip(1))
                 blocks.Add(new ParsedBlock("paragraph", t, null, null, null, null));
+            var slideMarks = new List<int>();
             foreach (var img in slide.ImageParts)
-                images.TryAdd(img, texts.Count > 0 ? texts[0] : $"第 {no} 页");
+                if (images.TryAdd(img, texts.Count > 0 ? texts[0] : $"第 {no} 页") is { } n) slideMarks.Add(n);
+            AddImageMarks(blocks, slideMarks);
         }
     }
 
@@ -360,31 +378,40 @@ public class OfficeParser : IDocumentParserClient
         private static readonly string[] Renderable =
             ["image/png", "image/jpeg", "image/gif", "image/bmp", "image/webp", "image/svg+xml"];
 
-        private readonly HashSet<string> _seen = [];
+        private readonly Dictionary<string, int?> _seen = [];
         public readonly List<ParsedImage> Items = [];
 
-        public void TryAdd(MainDocumentPart main, string relationshipId, string? caption)
+        /// <summary>收下一张图，返回它的序号（从 1 起，和入库后的图片顺序一致）；没收（图标、格式不支持、读不出）返回 null。</summary>
+        public int? TryAdd(MainDocumentPart main, string relationshipId, string? caption)
         {
             try
             {
-                if (main.GetPartById(relationshipId) is ImagePart part) TryAdd(part, caption);
+                return main.GetPartById(relationshipId) is ImagePart part ? TryAdd(part, caption) : null;
             }
             catch (Exception ex) when (ex is ArgumentOutOfRangeException or InvalidOperationException or KeyNotFoundException)
             {
                 // 关系 ID 指不到部件（文档被改坏）：跳过这一张，不影响整篇
+                return null;
             }
         }
 
-        public void TryAdd(ImagePart part, string? caption)
+        public int? TryAdd(ImagePart part, string? caption)
         {
-            if (Items.Count >= MaxImages) return;
             var key = part.Uri.ToString();
-            if (!_seen.Add(key)) return;
+            if (_seen.TryGetValue(key, out var known)) return known;
+            var index = Add(part, caption);
+            _seen[key] = index;
+            return index;
+        }
+
+        private int? Add(ImagePart part, string? caption)
+        {
+            if (Items.Count >= MaxImages) return null;
             var contentType = part.ContentType;
             // EMF/WMF：Visio、CAD 粘进 Word 的 PID 图、装配图多是这种矢量格式。
             // 服务器装了转换工具（Inkscape 或 LibreOffice）就转成 PNG 留下，没装照旧跳过
             var vector = VectorImageConverter.IsVector(contentType);
-            if (!vector && !Renderable.Contains(contentType, StringComparer.OrdinalIgnoreCase)) return;
+            if (!vector && !Renderable.Contains(contentType, StringComparer.OrdinalIgnoreCase)) return null;
             try
             {
                 using var s = part.GetStream();
@@ -394,7 +421,7 @@ public class OfficeParser : IDocumentParserClient
                 if (vector)
                 {
                     var png = VectorImageConverter.ToPng(bytes, contentType);
-                    if (png is null) return;
+                    if (png is null) return null;
                     bytes = png;
                     contentType = "image/png";
                 }
@@ -403,9 +430,9 @@ public class OfficeParser : IDocumentParserClient
                 var size = TryReadSize(bytes);
                 if (size is { } wh)
                 {
-                    if (wh.W < MinPixels || wh.H < MinPixels) return;
+                    if (wh.W < MinPixels || wh.H < MinPixels) return null;
                 }
-                else if (bytes.Length < MinBytesUnknown) return;
+                else if (bytes.Length < MinBytesUnknown) return null;
                 var ext = contentType.ToLowerInvariant() switch
                 {
                     "image/png" => ".png",
@@ -419,10 +446,12 @@ public class OfficeParser : IDocumentParserClient
                 var text = Clean(caption ?? "");
                 Items.Add(new ParsedImage(bytes, $"image-{Items.Count + 1:D3}{ext}", contentType,
                     text.Length == 0 ? null : Truncate(text, 120), null, null));
+                return Items.Count;
             }
             catch (Exception ex) when (ex is IOException or InvalidOperationException)
             {
                 // 单张图读不出来就跳过——不因为一张图让整篇解析失败
+                return null;
             }
         }
 

@@ -153,6 +153,7 @@ public class OfficeParserTests
         var block = Assert.Single(r.Blocks);
         Assert.Contains("没有可提取的文字", block.Text);
         Assert.Contains("1 张图片", block.Text);
+        Assert.Contains("〔图1〕", block.Text); // 图片位置记号：分块视图据此把原图配在这一块旁边
     }
 
     [Fact]

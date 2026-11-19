@@ -1270,3 +1270,10 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .blk-gantt .g-ms { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; background: #141414; transform: rotate(45deg); border-radius: 2px; }
 .blk-gantt .g-ms.done { background: #1c6b45; } .blk-gantt .g-ms.late { background: #b4690e; }
 .blk-gantt .g-today { position: absolute; top: 0; bottom: 0; width: 2px; background: #a00d25; opacity: .6; }
+
+/* 分块视图：配图 */
+.img-btn { border: none; padding: 0; background: none; cursor: zoom-in; display: inline-block; }
+.img-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.img-zoom { position: fixed; inset: 0; z-index: 60; background: rgba(20, 20, 20, .72); display: flex; align-items: center; justify-content: center; padding: 24px; cursor: zoom-out; }
+.img-zoom figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: default; }
+.img-zoom figcaption { color: #fff; font-size: 13px; display: flex; align-items: center; }

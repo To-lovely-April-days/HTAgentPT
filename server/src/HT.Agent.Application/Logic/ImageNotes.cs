@@ -11,10 +11,10 @@ namespace HT.Agent.Application.Logic;
 public static class ImageNotes
 {
     /// <summary>一张待看的图。Page 为页码（PDF 有，Word 没有）。</summary>
-    public record Candidate(byte[] Bytes, string ContentType, string? Caption, int? Page);
+    public record Candidate(byte[] Bytes, string ContentType, string? Caption, int? Page, int? Index = null);
 
     /// <summary>看完的结果：Kind 是模型判的类型（PID流程图/设备照片…），Text 是要入库的整段文字。</summary>
-    public record Note(int? Page, string? Caption, string Kind, string Text);
+    public record Note(int? Page, string? Caption, string Kind, string Text, int? Index = null);
 
     /// <summary>看图的说法：先判类型；PID / 工艺流程图按固定格式列位号与流向（这是工程师真会问的），
     /// 其他图写一两段描述。看不清不许猜——宁可写「看不清」，也不编一个位号出来。</summary>
@@ -38,7 +38,7 @@ public static class ImageNotes
         """;
 
     /// <summary>收模型的回话：判成「无关」或空回话不要；去掉思考标签与代码围栏；限长。</summary>
-    public static Note? Parse(string reply, int? page, string? caption)
+    public static Note? Parse(string reply, int? page, string? caption, int? index = null)
     {
         if (string.IsNullOrWhiteSpace(reply)) return null;
         var text = Regex.Replace(reply, @"<think>[\s\S]*?</think>", "").Trim();
@@ -46,14 +46,16 @@ public static class ImageNotes
         var kind = Regex.Match(text, @"类型\s*[：:]\s*([^\n]+)") is { Success: true } m ? m.Groups[1].Value.Trim() : "图片";
         if (kind.Contains("无关") || text.Length < 6) return null;
         if (text.Length > 2400) text = text[..2400] + "…";
-        return new Note(page, caption, kind, text);
+        return new Note(page, caption, kind, text, index);
     }
 
     /// <summary>入库的分块文字：开头一行标明这是模型看图写的、在第几页，回答引用时就说得清出处与分量。</summary>
     public static string ChunkText(Note n)
     {
         var where = string.Join(" · ", new[] { n.Page is { } p ? $"第 {p} 页" : null, n.Caption }.Where(s => !string.IsNullOrWhiteSpace(s)));
-        return $"【图片描述（模型生成，以原图为准）{(where.Length > 0 ? " · " + where : "")}】\n{n.Text}";
+        // 「〔图3〕」：第几张图，分块视图据此把原图配在这段描述旁边
+        var mark = n.Index is { } i ? $"〔图{i}〕" : "";
+        return $"【图片描述（模型生成，以原图为准）{(where.Length > 0 ? " · " + where : "")}】{mark}\n{n.Text}";
     }
 
     public const string SectionName = "图片描述";
