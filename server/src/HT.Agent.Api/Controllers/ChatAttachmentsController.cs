@@ -27,6 +27,11 @@ public class ChatAttachmentsController(IChatAttachmentService attachments) : Con
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
         => await attachments.GetAsync(id, ct) is { } v ? Ok(v) : NotFound();
 
+    /// <summary>原件：预览面板里直接翻看。</summary>
+    [HttpGet("{id:guid}/file")]
+    public async Task<IActionResult> Download(Guid id, CancellationToken ct)
+        => await attachments.OpenAsync(id, ct) is { } f ? File(f.Content, "application/octet-stream", f.FileName) : NotFound();
+
     /// <summary>撤回还没发出的文件。</summary>
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)

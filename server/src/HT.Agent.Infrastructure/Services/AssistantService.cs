@@ -369,7 +369,13 @@ public sealed class AssistantService(
                   datasheet 设备数据表；deviation 技术偏离表；window 操作窗口；fault_tree 故障诊断树；risk_matrix 风险矩阵；bom BOM 结构；
                   properties 物性数据；clause 规范条款；match 选型匹配；followups 跟进事项；gantt 交付计划。
                   quote、clause 的原文要逐字照抄查到的依据，系统会核对；formula 的 result.expr 系统会重算核对。
+                  化工：pfd 工艺流程图（附物流表，系统核对物料衡算）；pid 管道仪表图（附仪表清单）；molecule 分子结构；reaction 反应方程式（系统核对配平）；
+                  equipment 设备简图和管口表；interlock 联锁因果表。PFD、PID 只是示意，回答里提醒正式图纸以设计出图为准；联锁以 HAZOP / SIL 评估为准。
                 """);
+        sb.AppendLine("""
+            - 界面会把代码块直接展示成能看、能用的样子：```html 是可以预览的网页（写完整、能直接运行的单个 HTML，样式和脚本写在里面；可用 React 18、Vue 3、ECharts、Tailwind 的常用 CDN 地址，系统换成内网副本）；
+              ```mermaid 流程图 / 时序图 / 甘特图；```svg 矢量图；```csv 表格数据；```json；```echarts 是 ECharts 的 option（纯 JSON）；```smiles 分子结构。公式用 LaTeX：行内 $…$，单独一行 $$…$$。需要时用，普通问题照常写文字。
+            """);
         if (enabled.Contains("search_standards"))
             sb.AppendLine("""
             - 问到标准、规范、条款（如 GB 150、HG、ASME）时优先用 search_standards，回答写清标准号、版本和条款号。
@@ -592,6 +598,16 @@ public sealed class AssistantService(
                 match {model, basis, items:[{need, required, offered, ok:yes|no|partial}]}
                 followups {items:[{task, owner, due, status:待办|进行中|已完成|客户方}]}
                 gantt {tasks:[{name, start:"2026-11-02", end:"2026-11-20", status:done|doing|plan|late, milestone:true|false}], today, conclusion}
+                化工图（只给结构化内容，图由系统按标准图例画、自动排版）：
+                pfd 工艺流程图 {units:[{id:"R-101", type:reactor|column|exchanger|heater|cooler|pump|compressor|tank|vessel|separator|filter|mixer|valve, label, params}],
+                    streams:[{id:"1", from:"R-101"（进料留空）, to:"E-101"（产品留空）, label, T:"80 ℃", P:"0.3 MPa", flow:数字, unit:"kg/h", phase, comp:{"组分":质量分率%}}]}
+                pid 管道仪表图 {equipment:[{tag, type（同 pfd）, label}], lines:[{id:"P-1001-50-A1", from, to, size:"DN50", spec, valves:[{type:gate|globe|ball|check|control|safety|butterfly, tag}]}],
+                    instruments:[{tag:"TIC-101", on:设备位号或管线号, service, range, signal_to:"TV-101"}]}
+                molecule {smiles, name, cas}（分子式、分子量由系统按 SMILES 算）
+                reaction {reactants:[{coef, formula, name}], products:[{coef, formula, name}], above:"催化剂", below:"80 ℃, 0.5 MPa", reversible:true|false, dH:"-92 kJ/mol"}（系统核对配平）
+                equipment 设备简图 {type:vertical_vessel|horizontal_vessel|column|tank|exchanger, diameter:毫米, length:切线长毫米, head:椭圆封头|平盖|锥底, support,
+                    nozzles:[{id:"N1", size:"DN50", flange:"PN16 RF", service:"进料", position:top|bottom|side|left|right, at:离下切线或左切线的距离毫米}]}
+                interlock 联锁因果表 {causes:[{id:"C1", tag:"LT-101", condition:"液位 ≥ 85%"}], effects:[{id:"E1", tag:"XV-101", action:"关闭进料阀"}], links:[{cause:"C1", effect:"E1"}], sil}
                 """,
                 Obj(new()
                 {
@@ -997,6 +1013,7 @@ public sealed class AssistantService(
                         res["checked"] = null;
                     }
                 }
+                ChemChecks(kind, data, checks);
                 var card = new { kind = "block", block = kind, title = Clip(S("title") ?? "", 60), note = Clip(S("note") ?? "", 160), data = JsonNode.Parse(data.ToJsonString()) };
                 run.Artifacts.Add(card);
                 await emit(new QaEvent("artifact", card));
@@ -1272,6 +1289,10 @@ public sealed class AssistantService(
                     sb.AppendLine($"[{e.N}] {Clip(piece, 1400)}\n");
                     compact.AppendLine($"[{e.N}] {page.Title}：{Clip(piece, 100)}");
                 }
+                // 回答里出一张网页卡片，点开在右侧面板用阅读模式看
+                var webCard = new { kind = "webpage", url = page.Url, title = page.Title, host = Uri.TryCreate(page.Url, UriKind.Absolute, out var pu) ? pu.Host : "", pieces = picked.Count };
+                run.Artifacts.Add(webCard);
+                await emit(new QaEvent("artifact", webCard));
                 return new ToolOutcome(sb.ToString(), "（较早读过的网页）\n" + compact, label, page.Title, $"读了 {picked.Count} 段");
             }
             case "compare_documents":
@@ -1351,17 +1372,20 @@ public sealed class AssistantService(
     private async Task<IReadOnlySet<string>> EnabledToolsAsync(CancellationToken ct)
     {
         var set = new HashSet<string>();
-        var isCustomer = me.RoleCode == RoleCodes.Customer || me.Permissions.Contains(PermissionKeys.CustomerSelf) && !me.Permissions.Contains(PermissionKeys.QaInternal);
         foreach (var t in OptionalTools)
-        {
-            var on = (await config.GetStringAsync($"assistant.tool.{t}", "on", ct)).Trim();
-            if (!on.Equals("on", StringComparison.OrdinalIgnoreCase) && !on.Equals("true", StringComparison.OrdinalIgnoreCase)) continue;
-            if (isCustomer && t is not ("ask_user" or "inquiry_form" or "show_table" or "show_block")) continue;
-            var roles = (await config.GetStringAsync($"assistant.tool.{t}.roles", "", ct)).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (roles.Length > 0 && !roles.Contains(me.RoleCode, StringComparer.OrdinalIgnoreCase)) continue;
-            set.Add(t);
-        }
+            if (await ToolAllowedAsync(config, me, t, ct)) set.Add(t);
         return set;
+    }
+
+    /// <summary>某个可选工具这个人能不能用：系统设置里开着、角色在允许名单里；外部客户只给几样展示类工具。界面上直接调工具（预览里运行代码、读网页）也走这一道。</summary>
+    public static async Task<bool> ToolAllowedAsync(IRuntimeConfig config, ICurrentUser me, string tool, CancellationToken ct)
+    {
+        var isCustomer = me.RoleCode == RoleCodes.Customer || me.Permissions.Contains(PermissionKeys.CustomerSelf) && !me.Permissions.Contains(PermissionKeys.QaInternal);
+        var on = (await config.GetStringAsync($"assistant.tool.{tool}", "on", ct)).Trim();
+        if (!on.Equals("on", StringComparison.OrdinalIgnoreCase) && !on.Equals("true", StringComparison.OrdinalIgnoreCase)) return false;
+        if (isCustomer && tool is not ("ask_user" or "inquiry_form" or "show_table" or "show_block")) return false;
+        var roles = (await config.GetStringAsync($"assistant.tool.{tool}.roles", "", ct)).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return roles.Length == 0 || roles.Contains(me.RoleCode, StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>这条对话最后一条消息若在等用户确认，取出现场。</summary>
@@ -1461,10 +1485,72 @@ public sealed class AssistantService(
             pieces.Select(p => (p.Text, (string?)(p.Page is null ? p.Section : $"第 {p.Page} 页"))).ToList());
     }
 
+    /// <summary>化工组件的系统核对：SMILES 算分子式分子量、反应式配平、物料衡算。结果写回 data 给界面显示，有问题记进 checks 告诉模型。</summary>
+    internal static void ChemChecks(string kind, JsonObject data, List<string> checks)
+    {
+        static double? Num(JsonNode? v)
+        {
+            if (v is JsonValue jv && jv.TryGetValue<double>(out var d)) return d;
+            var m = System.Text.RegularExpressions.Regex.Match(v?.ToString() ?? "", @"-?\d[\d,]*(\.\d+)?");
+            return m.Success && double.TryParse(m.Value.Replace(",", ""), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x) ? x : null;
+        }
+        switch (kind)
+        {
+            case "molecule":
+            {
+                var smiles = data["smiles"]?.ToString() ?? "";
+                try
+                {
+                    var r = ChemMath.FromSmiles(smiles);
+                    data["formula"] = r.Formula;
+                    data["weight"] = Math.Round(r.Weight, 2);
+                    if (r.Charge != 0) data["charge"] = r.Charge;
+                    data.Remove("error");
+                }
+                catch (FormatException ex)
+                {
+                    data["error"] = ex.Message;
+                    checks.Add($"SMILES「{Clip(smiles, 60)}」有问题：{ex.Message}");
+                }
+                break;
+            }
+            case "reaction":
+            {
+                ChemMath.Species[] Side(string key) => (data[key] as JsonArray ?? []).OfType<JsonObject>()
+                    .Select(x => new ChemMath.Species(Num(x["coef"]) ?? 1, x["formula"]?.ToString() ?? "")).ToArray();
+                var (diff, error) = ChemMath.Balance(Side("reactants"), Side("products"));
+                if (error is not null) { data["balance"] = new JsonObject { ["ok"] = null, ["error"] = error }; break; }
+                var ok = diff!.Count == 0;
+                var detail = string.Join("，", diff.Select(kv => $"{kv.Key} 左边{(kv.Value > 0 ? "多" : "少")} {Math.Abs(kv.Value):0.##}"));
+                data["balance"] = new JsonObject { ["ok"] = ok, ["detail"] = ok ? null : detail };
+                if (!ok) checks.Add($"反应式没配平：{detail}");
+                break;
+            }
+            case "pfd":
+            {
+                var streams = (data["streams"] as JsonArray ?? []).OfType<JsonObject>()
+                    .Select(x => new ChemMath.Stream(x["id"]?.ToString() ?? "", NullIfEmpty(x["from"]?.ToString()), NullIfEmpty(x["to"]?.ToString()), Num(x["flow"]))).ToList();
+                var unitNames = (data["streams"] as JsonArray ?? []).OfType<JsonObject>().Select(x => x["unit"]?.ToString()?.Trim() ?? "").Where(x => x.Length > 0).Distinct().ToList();
+                if (unitNames.Count > 1) { data["balance"] = new JsonObject { ["note"] = "物流的流量单位不一致，没做物料衡算" }; break; }
+                var (per, overall) = ChemMath.MassBalance(streams);
+                var arr = new JsonArray();
+                foreach (var u in per.Concat(overall is null ? [] : [overall]))
+                    arr.Add(new JsonObject { ["unit"] = u.Unit, ["in"] = Math.Round(u.In, 3), ["out"] = Math.Round(u.Out, 3), ["ok"] = u.Ok });
+                data["balance"] = new JsonObject { ["items"] = arr, ["flowUnit"] = unitNames.FirstOrDefault() ?? "" };
+                foreach (var u in per.Concat(overall is null ? [] : [overall]).Where(u => !u.Ok))
+                    checks.Add($"{u.Unit} 物料不平：进 {u.In:0.###}，出 {u.Out:0.###}");
+                break;
+            }
+        }
+    }
+
+    private static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
     private static readonly string[] BlockKinds =
     [
         "metrics", "callout", "chart", "steps", "timeline", "checklist", "options", "formula", "flow", "quote",
         "datasheet", "deviation", "window", "fault_tree", "risk_matrix", "bom", "properties", "clause", "match", "followups", "gantt",
+        "pfd", "pid", "molecule", "reaction", "equipment", "interlock",
     ];
 
     /// <summary>逐字引用的核对：去掉空白和常见标点差异后，引文要整段出现在依据原文里。</summary>

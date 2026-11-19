@@ -9,6 +9,8 @@ public interface IChatAttachmentService
     /// 未发出的附件不超过 <see cref="AttachmentLimits.MaxPerMessage"/> 个，格式见 <see cref="AttachmentLimits.Extensions"/>。</summary>
     Task<ChatAttachmentView> UploadAsync(Stream content, string fileName, string contentType, long size, CancellationToken ct = default);
     Task<ChatAttachmentView?> GetAsync(Guid id, CancellationToken ct = default);
+    /// <summary>本人的附件原件（在预览面板里直接翻看）。不是本人的返回 null。</summary>
+    Task<(Stream Content, string FileName, string ContentType)?> OpenAsync(Guid id, CancellationToken ct = default);
     /// <summary>撤回还没发出的附件（已绑到对话上的随对话保存，不在这里删）。</summary>
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<ChatAttachmentView>> ListForSessionAsync(Guid qaSessionId, CancellationToken ct = default);

@@ -35,6 +35,11 @@ import { AdviceCard, EquipmentCard, EvidenceCard, SummaryCard } from '../generat
 import { AgentProgressCard, BaseCards, CasesCard, LedgerCard, mergeAgentSteps, NoResultCard, SourcesCard, TemplatePicker, TicketsCard, TranslatedCard, TranslationCard } from './ResultCards';
 import type { AgentStep } from './ResultCards';
 import { LivePreview } from './LivePreview';
+import { PreviewPanel } from './preview/PreviewPanel';
+import type { Panel } from './preview/PreviewPanel';
+import type { WebTab } from './preview/WebBrowser';
+import { PreviewCtx, htmlBlocks } from '../../components/code/preview';
+import type { PreviewItem } from '../../components/code/preview';
 
 /** 对话里的一条消息。text 是正文，其余字段是这一轮长出来的结果件。 */
 interface Msg {
@@ -77,11 +82,24 @@ const MsgCtx = createContext<{
   refs: { msgId: string; focus: number | null } | null;
   showRefs: (msgId: string, focus?: number | null) => void;
   sendText: (text: string) => void;
+  openPreview: (item: PreviewItem) => void;
 }>({
   byId: new Map(), busy: false, focusSource: null, setFocusSource: () => {},
   pickTemplate: () => {}, genTurn: async () => {}, correctIntent: () => {}, genSessionId: null,
-  refs: null, showRefs: () => {}, sendText: () => {},
+  refs: null, showRefs: () => {}, sendText: () => {}, openPreview: () => {},
 });
+
+/** 网页来源：同一个网址的几段依据合在一起，给浏览面板标黄用。 */
+function webItem(cards: EvidenceRef[], n: number): PreviewItem | null {
+  const c = cards.find((x) => x.n === n);
+  if (!c || c.kind !== 'web' || !c.url) return null;
+  const same = cards.filter((x) => x.kind === 'web' && x.url === c.url);
+  const quotes = same.map((x) => (x.highlights.length > 0 ? x.highlights.map((h) => x.text.slice(h.start, h.start + h.length)).join('\n') : x.text));
+  return { kind: 'web', url: c.url, title: c.title, label: `[${n}]`, quotes };
+}
+
+/** 长回答（够长、有好几个标题）可以在面板里按文档看。 */
+const isLongDoc = (text: string) => text.length > 1500 && (text.match(/^#{1,3}\s/gm) ?? []).length >= 3;
 
 export default function ChatPage() {
   const { profile } = useAuth();
@@ -96,6 +114,32 @@ export default function ChatPage() {
   const [refs, setRefs] = useState<{ msgId: string; focus: number | null } | null>(null);
   const showRefs = useCallback((msgId: string, focus: number | null = null) => setRefs({ msgId, focus }), []);
   const [showPreview, setShowPreview] = useState(true);
+  // 右侧预览面板：网页代码、网页浏览、长文档、文件。打开时盖住参考资料
+  const [panel, setPanel] = useState<Panel | null>(null);
+  const [webTabs, setWebTabs] = useState<WebTab[]>([]);
+  const [webActive, setWebActive] = useState(0);
+  const openPreview = useCallback((item: PreviewItem) => {
+    if (item.kind === 'web') {
+      setWebTabs((tabs) => {
+        const at = tabs.findIndex((t) => t.url === item.url);
+        if (at >= 0) {
+          setWebActive(at);
+          return tabs.map((t, i) => (i === at ? { ...t, quotes: item.quotes ?? t.quotes, label: item.label ?? t.label, title: t.title ?? item.title } : t));
+        }
+        setWebActive(tabs.length);
+        return [...tabs, { url: item.url, title: item.title, label: item.label, quotes: item.quotes }];
+      });
+      setPanel({ kind: 'web' });
+    } else setPanel(item);
+  }, []);
+  const closeWebTab = useCallback((i: number) => {
+    setWebTabs((tabs) => {
+      const next = tabs.filter((_, k) => k !== i);
+      if (next.length === 0) setPanel(null);
+      setWebActive((a) => Math.max(0, Math.min(a > i ? a - 1 : a, next.length - 1)));
+      return next;
+    });
+  }, []);
   const [revision, setRevision] = useState(0);
   // 首页输入框上的处理方式：自动判断，或指定查资料/查项目/出文档（走服务端的 forcedIntent）
   const [mode, setMode] = useState<Mode>('auto');
@@ -185,9 +229,13 @@ export default function ChatPage() {
           case 'artifact':
             setMsgs((x) => x.map((m) => (m.id === id ? { ...m, artifacts: [...(m.artifacts ?? []), ev.payload as ToolArtifact] } : m)));
             break;
-          case 'done':
+          case 'done': {
             patch(id, { seconds: (Date.now() - started) / 1000 });
+            // 回答里写了网页：写完直接在右侧打开预览
+            const pages = htmlBlocks(answer);
+            if (pages.length > 0) setPanel({ kind: 'html', code: pages[pages.length - 1] });
             break;
+          }
           case 'text':
             patch(id, { text: (p.message as string) ?? '' });
             break;
@@ -321,6 +369,7 @@ export default function ChatPage() {
       setRevision((n) => n + 1);
       setFocusSource(null);
       setRefs(null);
+      setPanel(null); setWebTabs([]);
     } catch (err) {
       push({ id: newId(), role: 'assistant', text: '', error: err instanceof ApiError ? err.message : '这条对话打不开' });
     } finally { setBusy(false); }
@@ -329,6 +378,7 @@ export default function ChatPage() {
   const newChat = useCallback(() => {
     if (busy) return;
     setMsgs([]); setQaSessionId(null); setGenSessionId(null); setGenTitle(null); setFocusSource(null); setMode('auto'); setRefs(null);
+    setPanel(null); setWebTabs([]);
     att.clear();
   }, [busy, att]);
 
@@ -361,13 +411,16 @@ export default function ChatPage() {
 
   const ctx = useMemo(() => ({
     byId, busy, focusSource, setFocusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs,
-    sendText: (t: string) => void send(t),
-  }), [byId, busy, focusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs, send]);
+    sendText: (t: string) => void send(t), openPreview,
+  }), [byId, busy, focusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs, send, openPreview]);
   const refMsg = refs ? byId.get(refs.msgId) : undefined;
+  // 这条对话里写过的所有网页（每次改都是新的一版）
+  const htmlVersions = useMemo(() => msgs.filter((m) => m.role === 'assistant' && !m.streaming).flatMap((m) => htmlBlocks(m.text)), [msgs]);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <MsgCtx.Provider value={ctx}>
+        <PreviewCtx.Provider value={openPreview}>
         <div className="chat-shell">
         {/* 最近的对话放进外框侧栏（导航下面），状态仍在这一页 */}
         {sideSlot && createPortal(
@@ -412,9 +465,10 @@ export default function ChatPage() {
                   <div className="sess-files" aria-label="本对话的文件">
                     <span className="hint">本对话的文件</span>
                     {sessionFiles.data!.map((f) => (
-                      <span key={f.id} className="sess-file" title={f.status === 'Failed' ? f.error ?? '解析失败' : `${f.fileName} · ${formatSize(f.size)}`}>
+                      <button key={f.id} type="button" className="sess-file" title={f.status === 'Failed' ? f.error ?? '解析失败' : `${f.fileName} · ${formatSize(f.size)} · 点开预览`}
+                        onClick={() => openPreview({ kind: 'file', src: `/api/chat/attachments/${f.id}/file`, fileName: f.fileName })}>
                         <Icon name="file" size={13} />{f.fileName}{f.status === 'Failed' && <b>（没读出来）</b>}
-                      </span>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -427,15 +481,22 @@ export default function ChatPage() {
           </ThreadPrimitive.Root>
         </div>
 
-        {genSessionId && showPreview && (
+        {genSessionId && showPreview && !panel && (
           <LivePreview sessionId={genSessionId} title={genTitle} revision={revision}
             onClose={() => setShowPreview(false)} />
         )}
-        {!(genSessionId && showPreview) && refs && refMsg?.evidence && (
+        {panel && (
+          <PreviewPanel panel={panel} htmlVersions={htmlVersions} webTabs={webTabs} webActive={webActive}
+            setPanel={setPanel} setWebActive={setWebActive} closeWebTab={closeWebTab}
+            openWeb={(url) => openPreview({ kind: 'web', url })} onClose={() => setPanel(null)} />
+        )}
+        {!panel && !(genSessionId && showPreview) && refs && refMsg?.evidence && (
           <RefPanel key={refs.msgId} used={refMsg.evidence.used} other={refMsg.evidence.other} focus={refs.focus}
-            onFocus={(n) => setRefs({ msgId: refs.msgId, focus: n })} onClose={() => setRefs(null)} />
+            onFocus={(n) => setRefs({ msgId: refs.msgId, focus: n })} onClose={() => setRefs(null)}
+            onOpenWeb={(n) => { const it = webItem(refMsg.evidence!.used, n); if (it) openPreview(it); }} />
         )}
         </div>
+        </PreviewCtx.Provider>
       </MsgCtx.Provider>
     </AssistantRuntimeProvider>
   );
@@ -651,7 +712,7 @@ function UserMessage() {
 /** 助手一条：正文按标记语法排版，后面挂这一轮长出来的结果件。 */
 function AssistantMessage() {
   const id = useAuiState((s) => s.message.id);
-  const { byId, busy, focusSource, setFocusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs, sendText } = useContext(MsgCtx);
+  const { byId, busy, focusSource, setFocusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs, sendText, openPreview } = useContext(MsgCtx);
   const m = byId.get(id);
   if (!m) return null;
   const isLast = [...byId.keys()].pop() === id;
@@ -668,10 +729,19 @@ function AssistantMessage() {
         {m.agentSteps && <AgentProgressCard steps={m.agentSteps} streaming={m.streaming} />}
         {m.steps && <StepsCard steps={m.steps} streaming={m.streaming} seconds={m.seconds} />}
         {m.artifacts && m.artifacts.length > 0 && <ArtifactCards items={m.artifacts} onSend={active ? sendText : undefined} />}
-        {m.text && <Prose text={m.text}
+        {m.text && <Prose text={m.text} live={m.streaming}
           flags={m.verify?.issues.map((i) => i.value)}
           focus={refs?.msgId === id ? refs.focus : null}
-          onCite={m.evidence ? (n) => showRefs(id, n) : m.sources ? (n) => setFocusSource(n) : undefined} />}
+          onCite={m.evidence ? (n) => {
+            // 网上的来源直接在右侧打开那个网页；公司资料照旧看参考资料
+            const web = webItem(m.evidence!.used, n);
+            if (web) { showRefs(id, n); openPreview(web); } else showRefs(id, n);
+          } : m.sources ? (n) => setFocusSource(n) : undefined} />}
+        {m.text && !m.streaming && isLongDoc(m.text) && (
+          <button type="button" className="as-refs-btn" onClick={() => openPreview({ kind: 'doc', title: (lastQuestion(byId, id) || '助手回答').slice(0, 30), markdown: m.text })}>
+            在面板里按文档看（有目录，可导出 Word / PDF） ›
+          </button>
+        )}
         {m.streaming && !m.text && !(m.steps && m.steps.length > 0) && <Spinner text="思考中…" />}
         {m.ask && <AskCard ask={m.ask} active={active && !m.ask.answered} onAnswer={sendText} />}
         {m.verify && !m.streaming && <VerifyBar report={m.verify} onCite={(n) => showRefs(id, n)} />}

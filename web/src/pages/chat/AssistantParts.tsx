@@ -102,8 +102,10 @@ function Highlighted({ text, spans }: { text: string; spans: EvidenceCard['highl
   return <>{out}</>;
 }
 
-export function RefPanel({ used, other, focus, onFocus, onClose }: {
+export function RefPanel({ used, other, focus, onFocus, onClose, onOpenWeb }: {
   used: EvidenceCard[]; other: EvidenceCard[]; focus: number | null; onFocus: (n: number) => void; onClose: () => void;
+  /** 网上的来源在预览面板里打开（阅读模式 + 标黄）；不给就新窗口打开 */
+  onOpenWeb?: (n: number) => void;
 }) {
   const nav = useNavigate();
   const [peek, setPeek] = useState<{ docId: string; title: string; page: number | null; find: string | null; note: string } | null>(null);
@@ -130,7 +132,7 @@ export function RefPanel({ used, other, focus, onFocus, onClose }: {
 
   const open = (c: EvidenceCard) => {
     if (c.kind === 'ledger' && c.projectNo) { nav(`/projects/${encodeURIComponent(c.projectNo)}`); return; }
-    if (c.kind === 'web' && c.url) { window.open(c.url, '_blank', 'noopener,noreferrer'); return; }
+    if (c.kind === 'web' && c.url) { if (onOpenWeb) onOpenWeb(c.n); else window.open(c.url, '_blank', 'noopener,noreferrer'); return; }
     if (c.kind === 'price') { nav(`/prices?q=${encodeURIComponent(c.title.split(' · ').slice(1).join(' '))}`); return; }
     if (c.kind !== 'doc' || !c.docId) return;
     const hl = c.highlights[0];
@@ -160,7 +162,7 @@ export function RefPanel({ used, other, focus, onFocus, onClose }: {
                   {g.meta && <span>{g.meta}</span>}
                 </span>
                 {g.kind === 'doc' && <button type="button" className="refs-open" onClick={() => open(g.first)}>打开原文 ↗</button>}
-                {g.kind === 'web' && <button type="button" className="refs-open" onClick={() => open(g.first)}>打开网页 ↗</button>}
+                {g.kind === 'web' && <button type="button" className="refs-open" onClick={() => open(g.first)}>打开网页 ›</button>}
               </div>
               {g.cards.map((c) => (
                 <div key={c.n} ref={(el) => { if (el) refs.current.set(c.n, el); else refs.current.delete(c.n); }}

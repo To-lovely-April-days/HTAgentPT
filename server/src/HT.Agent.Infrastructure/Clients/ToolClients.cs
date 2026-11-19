@@ -182,7 +182,18 @@ public class WebFetcher(IHttpClientFactory http)
         }
     };
 
+    /// <summary>取回来的原始网页：最终网址、HTML、能不能被别的网站嵌入显示（看 X-Frame-Options 和 CSP frame-ancestors）。</summary>
+    public record Raw(Uri Url, string Html, string Type, bool Embeddable, string? Note);
+
     public async Task<Page> FetchAsync(string url, CancellationToken ct)
+    {
+        var raw = await FetchRawAsync(url, ct);
+        if (raw.Note is not null) return new Page(raw.Url.ToString(), raw.Url.Host, "", raw.Note);
+        var (title, text) = raw.Type.Contains("html") || raw.Html.Contains("<html", StringComparison.OrdinalIgnoreCase) ? WebText.Extract(raw.Html) : ("", raw.Html);
+        return new Page(raw.Url.ToString(), string.IsNullOrWhiteSpace(title) ? raw.Url.Host : title, text, null);
+    }
+
+    public async Task<Raw> FetchRawAsync(string url, CancellationToken ct)
     {
         if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri) || !NetGuard.IsAllowedUrl(uri))
             throw new InvalidOperationException("只能打开 http/https 的公开网页");
@@ -192,6 +203,7 @@ public class WebFetcher(IHttpClientFactory http)
             using var req = new HttpRequestMessage(HttpMethod.Get, uri);
             req.Headers.UserAgent.ParseAdd("Mozilla/5.0 (compatible; HTLAB-Assistant/1.0)");
             req.Headers.Accept.ParseAdd("text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5");
+            req.Headers.AcceptLanguage.ParseAdd("zh-CN,zh;q=0.9,en;q=0.6");
             using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
             if ((int)resp.StatusCode is >= 300 and < 400 && resp.Headers.Location is { } loc)
             {
@@ -199,17 +211,57 @@ public class WebFetcher(IHttpClientFactory http)
                 if (!NetGuard.IsAllowedUrl(uri)) throw new InvalidOperationException("网页跳转到了不允许的地址");
                 continue;
             }
+            if ((int)resp.StatusCode is 401 or 403) return new Raw(uri, "", "", false, "这个网站拒绝了访问（可能要登录，或者不让程序读取）");
             resp.EnsureSuccessStatusCode();
             var type = resp.Content.Headers.ContentType?.MediaType ?? "";
-            if (type.Contains("pdf")) return new Page(uri.ToString(), uri.Host, "", "这个链接是 PDF 文件，暂时读不了网页里的 PDF；可以下载后作为附件上传");
+            var embeddable = Embeddable(resp);
+            if (type.Contains("pdf")) return new Raw(uri, "", type, embeddable, "这个链接是 PDF 文件，暂时读不了网页里的 PDF；可以下载后作为附件上传");
             if (!(type.Contains("html") || type.StartsWith("text/") || type.Length == 0))
-                return new Page(uri.ToString(), uri.Host, "", $"这个链接不是网页（{type}），读不了");
+                return new Raw(uri, "", type, embeddable, $"这个链接不是网页（{type}），读不了");
             var bytes = await ReadCappedAsync(await resp.Content.ReadAsStreamAsync(ct), 3 * 1024 * 1024, ct);
-            var html = Decode(bytes, resp.Content.Headers.ContentType?.CharSet);
-            var (title, text) = type.Contains("html") || html.Contains("<html", StringComparison.OrdinalIgnoreCase) ? WebText.Extract(html) : ("", html);
-            return new Page(uri.ToString(), string.IsNullOrWhiteSpace(title) ? uri.Host : title, text, null);
+            return new Raw(uri, Decode(bytes, resp.Content.Headers.ContentType?.CharSet), type, embeddable, null);
         }
         throw new InvalidOperationException("网页跳转次数太多");
+    }
+
+    private static bool Embeddable(HttpResponseMessage resp)
+    {
+        if (resp.Headers.TryGetValues("X-Frame-Options", out var xfo) && xfo.Any(v => v.Trim().Length > 0)) return false;
+        if (resp.Headers.TryGetValues("Content-Security-Policy", out var csp))
+            foreach (var v in csp)
+            {
+                var m = Regex.Match(v, @"frame-ancestors\s+([^;]+)", RegexOptions.IgnoreCase);
+                if (m.Success && m.Groups[1].Value.Trim() != "*") return false;
+            }
+        return true;
+    }
+
+    /// <summary>阅读模式里的图片由服务器代取（用户电脑不一定能上外网）：只收位图，最大 5MB。SVG 不收——它能带脚本。</summary>
+    public async Task<(byte[] Bytes, string Type)?> FetchImageAsync(string url, CancellationToken ct)
+    {
+        if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri) || !NetGuard.IsAllowedUrl(uri)) return null;
+        var client = http.CreateClient("webfetch");
+        for (var hop = 0; hop < 4; hop++)
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            req.Headers.UserAgent.ParseAdd("Mozilla/5.0 (compatible; HTLAB-Assistant/1.0)");
+            req.Headers.Accept.ParseAdd("image/avif,image/webp,image/png,image/jpeg,image/*;q=0.8");
+            req.Headers.Referrer = new Uri(uri.GetLeftPart(UriPartial.Authority) + "/");
+            using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+            if ((int)resp.StatusCode is >= 300 and < 400 && resp.Headers.Location is { } loc)
+            {
+                uri = loc.IsAbsoluteUri ? loc : new Uri(uri, loc);
+                if (!NetGuard.IsAllowedUrl(uri)) return null;
+                continue;
+            }
+            if (!resp.IsSuccessStatusCode) return null;
+            var type = resp.Content.Headers.ContentType?.MediaType ?? "";
+            if (type is not ("image/png" or "image/jpeg" or "image/gif" or "image/webp" or "image/avif" or "image/bmp")) return null;
+            if (resp.Content.Headers.ContentLength is > 5 * 1024 * 1024) return null;
+            var bytes = await ReadCappedAsync(await resp.Content.ReadAsStreamAsync(ct), 5 * 1024 * 1024, ct);
+            return (bytes, type);
+        }
+        return null;
     }
 
     private static async Task<byte[]> ReadCappedAsync(Stream s, int cap, CancellationToken ct)

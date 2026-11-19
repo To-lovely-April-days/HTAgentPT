@@ -6,13 +6,27 @@
 // 来源角标 [1]、[1,2] 由一个小的 remark 插件转成 cite: 协议的链接节点，
 // 再由下面的 a 组件渲染成可点的角标——不拼字符串 HTML。
 // flags：没在原文里核实到的数字（如「18–26 万元」），同一个插件把它们包成 flag: 节点，渲染成黄底虚线。
+//
+// 代码块按语言直接显示成能看、能用的样子（见 code/Fence）；公式用 KaTeX 排版；
+// 正文里的化学式、单位顺手排好：H2O → H₂O、m3 → m³。
 import { useMemo } from 'react';
 import type { ComponentProps, ReactNode } from 'react';
 import { Children, isValidElement } from 'react';
 import Markdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { visit } from 'unist-util-visit';
 import type { Root, Text, PhrasingContent } from 'mdast';
+import { Fence } from './code/Fence';
+import { chemText, normalizeMath } from './proseText';
+
+function remarkChem() {
+  return (tree: Root) => {
+    visit(tree, 'text', (node: Text) => { node.value = chemText(node.value); });
+  };
+}
 
 const CITE = /\[(\d{1,3}(?:\s*[,，、]\s*\d{1,3})*)\]/g;
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -74,15 +88,19 @@ function textOf(n: ReactNode): string {
 const NUMERIC = /^[\s¥$€≈约~<>≤≥+−-]*[\d.,]+(\s*[-–~至]\s*[\d.,]+)?\s*(%|‰|万|亿|元|万元|kg|g|t|m|mm|cm|L|ml|MPa|kPa|Pa|bar|psi|℃|°C|K|kW|W|rpm|h|min|s|天|个|台|套|件)?(\s*\[[\d,，、\s]+\])*\s*$/i;
 
 /** 模型输出的一段文字 → 排好版的块。onCite 给了，来源角标就是可点的；focus 是当前高亮的那个编号。 */
-export function Prose({ text, onCite, style, flags, focus }: {
+export function Prose({ text, onCite, style, flags, focus, live }: {
   text: string; onCite?: (n: number) => void; style?: React.CSSProperties; flags?: string[]; focus?: number | null;
+  /** 正在输出：代码块先按普通代码显示，写完再画图 */
+  live?: boolean;
 }) {
   const key = (flags ?? []).join('\u0001');
-  const plugins = useMemo(() => [remarkGfm, remarkMarks(key ? key.split('\u0001') : [])], [key]);
+  const plugins = useMemo(() => [remarkGfm, [remarkMath, { singleDollarTextMath: true }], remarkChem, remarkMarks(key ? key.split('\u0001') : [])], [key]);
+  const md = useMemo(() => normalizeMath(text), [text]);
   return (
     <div className="prose" style={style}>
       <Markdown
-        remarkPlugins={plugins}
+        remarkPlugins={plugins as never}
+        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: 'ignore', output: 'htmlAndMathml' }]] as never}
         // 默认的地址过滤会把 cite:/flag: 当成不安全协议清空——只放行这两个内部标记，其余照默认过滤
         urlTransform={(url) => (url.startsWith('cite:') || url === 'flag:' ? url : defaultUrlTransform(url))}
         components={{
@@ -112,9 +130,16 @@ export function Prose({ text, onCite, style, flags, focus }: {
           ul: (p: ComponentProps<'ul'>) => <ul className="plist" {...p} />,
           ol: (p: ComponentProps<'ol'>) => <ol className="plist" {...p} />,
           blockquote: (p: ComponentProps<'blockquote'>) => <blockquote className="pquote" {...p} />,
-          code: (p: ComponentProps<'code'>) => <code className="pcode" {...p} />,
+          pre: ({ children }: ComponentProps<'pre'>) => {
+            const c = Children.toArray(children)[0];
+            if (!isValidElement<{ className?: string; children?: ReactNode }>(c)) return <pre className="pcode-pre">{children}</pre>;
+            const lang = /language-([\w+#.-]+)/.exec(c.props.className ?? '')?.[1] ?? '';
+            const code = textOf(c.props.children).replace(/\n$/, '');
+            return <Fence lang={lang} code={code} live={live} />;
+          },
+          code: ({ className, ...p }: ComponentProps<'code'>) => <code className={className ? className : 'pcode'} {...p} />,
         }}
-      >{text}</Markdown>
+      >{md}</Markdown>
     </div>
   );
 }

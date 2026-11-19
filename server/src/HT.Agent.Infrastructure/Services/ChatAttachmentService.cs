@@ -56,6 +56,13 @@ public class ChatAttachmentService(
         return a is null ? null : View(a);
     }
 
+    public async Task<(Stream Content, string FileName, string ContentType)?> OpenAsync(Guid id, CancellationToken ct = default)
+    {
+        var a = await db.ChatAttachments.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && x.UploaderId == me.UserId, ct);
+        if (a is null) return null;
+        return (await storage.OpenAsync(a.FileKey, ct), a.FileName, a.ContentType);
+    }
+
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
         var a = await db.ChatAttachments.FirstOrDefaultAsync(x => x.Id == id && x.UploaderId == me.UserId, ct)

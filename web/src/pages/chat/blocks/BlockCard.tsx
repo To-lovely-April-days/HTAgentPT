@@ -5,6 +5,9 @@ import type { D } from './util';
 import { exportXlsx, followupsMail, list, s, strs } from './util';
 import { Callout, Chart, Checklist, Flow, Formula, Metrics, Options, Quote, Steps, Timeline } from './General';
 import { Bom, Clause, Datasheet, Deviation, FaultTree, Followups, Gantt, Match, OpWindow, Properties, RiskMatrix } from './Industry';
+import { Equipment, Interlock, Molecule, Pfd, Pid, Reaction } from './Chem';
+import { chemRows } from './chemData';
+import { downloadText, serializeSvg, svgToPng } from '../../../components/code/text';
 
 const META: Record<string, [string, string]> = {
   metrics: ['关键数字', 'b-blue'], callout: ['提示', 'b-gray'], chart: ['图表', 'b-amber'], steps: ['操作步骤', 'b-green'],
@@ -13,7 +16,10 @@ const META: Record<string, [string, string]> = {
   window: ['操作窗口', 'b-green'], fault_tree: ['故障诊断树', 'b-amber'], risk_matrix: ['风险矩阵', 'b-red'], bom: ['BOM 结构', 'b-teal'],
   properties: ['物性数据', 'b-blue'], clause: ['规范条款', 'b-purple'], match: ['选型匹配', 'b-green'], followups: ['跟进事项', 'b-gray'],
   gantt: ['交付计划', 'b-teal'],
+  pfd: ['工艺流程图', 'b-blue'], pid: ['管道仪表图', 'b-blue'], molecule: ['分子结构', 'b-purple'], reaction: ['反应方程式', 'b-purple'],
+  equipment: ['设备简图', 'b-teal'], interlock: ['联锁因果表', 'b-red'],
 };
+const PICTURE = new Set(['pfd', 'pid', 'molecule', 'equipment', 'flow', 'chart']);
 
 /** 能导出成表格的组件 → 行。 */
 function rowsOf(kind: string, d: D): (string | number | null)[][] | null {
@@ -34,6 +40,7 @@ function rowsOf(kind: string, d: D): (string | number | null)[][] | null {
       return [['', ...series.map((x) => s(x.name))], ...strs(d.categories).map((c, i) => [c, ...series.map((x) => (Array.isArray(x.values) ? s((x.values as unknown[])[i]) : ''))])];
     }
     case 'gantt': return [['工序', '开始', '结束', '状态'], ...list(d.tasks).map((x) => [s(x.name), s(x.start), s(x.end), s(x.status)])];
+    case 'pfd': case 'pid': case 'equipment': case 'interlock': return chemRows(kind, d);
     default: return null;
   }
 }
@@ -96,9 +103,21 @@ export function BlockCard({ a }: { a: { block: string; title: string; note: stri
       case 'match': return <Match d={d} />;
       case 'followups': return <Followups d={d} />;
       case 'gantt': return <Gantt d={d} />;
+      case 'pfd': return <Pfd d={d} />;
+      case 'pid': return <Pid d={d} />;
+      case 'molecule': return <Molecule d={d} />;
+      case 'reaction': return <Reaction d={d} />;
+      case 'equipment': return <Equipment d={d} />;
+      case 'interlock': return <Interlock d={d} />;
       default: return <pre className="tool-out">{JSON.stringify(d, null, 2)}</pre>;
     }
   })();
+  // 图类组件：把里面的 svg 导出成 SVG / PNG
+  const svgText = () => {
+    const el = bodyRef.current?.querySelector('svg.chem-svg, svg.mol-svg, svg');
+    return el instanceof SVGSVGElement ? serializeSvg(el) : null;
+  };
+  const picture = PICTURE.has(a.block);
   return (
     <section className="dc-card">
       <div className="dc-hd"><div className="dc-hd-row"><span className={'dc-badge ' + tone}>{label}</span>{title !== label && <b className="dc-title">{title}</b>}</div></div>
@@ -107,6 +126,8 @@ export function BlockCard({ a }: { a: { block: string; title: string; note: stri
         <span>{msg ?? a.note}</span>
         <button type="button" onClick={() => void copy()}>{a.block === 'followups' ? '复制成邮件' : '复制'}</button>
         {md && <button type="button" onClick={() => void word()}>导出 Word</button>}
+        {picture && <button type="button" onClick={() => { const t = svgText(); if (t) downloadText(`${title || label}.svg`, t, 'image/svg+xml'); }}>SVG</button>}
+        {picture && <button type="button" onClick={() => { const t = svgText(); if (t) void svgToPng(t, `${title || label}.png`); }}>PNG</button>}
         {rows && <button type="button" onClick={() => void exportXlsx(title || label, rows)}>导出 Excel</button>}
       </div>
     </section>

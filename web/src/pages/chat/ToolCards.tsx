@@ -4,6 +4,7 @@ import { ApiError, download, postDownload } from '../../lib/api';
 import type { AskSpec, EvidenceCard, ToolArtifact } from '../../lib/types';
 import { EstimateCard, TableCard } from './DataCards';
 import { BlockCard } from './blocks/BlockCard';
+import { usePreview } from '../../components/code/preview';
 
 // ── 请你确认 ─────────────────────────────────────────
 export function AskCard({ ask, active, onAnswer }: { ask: AskSpec; active: boolean; onAnswer: (text: string) => void }) {
@@ -239,15 +240,35 @@ function OcrCard({ a }: { a: Extract<ToolArtifact, { kind: 'ocr' }> }) {
 }
 
 // ── 生成的文件（整份翻译）───────────────────────────
-function FileCard({ a }: { a: Extract<ToolArtifact, { kind: 'file' }> }) {
-  const [msg, setMsg] = useState<string | null>(null);
+/** 助手读过的网页：点开在右侧用阅读模式看。 */
+function WebPageCard({ a }: { a: Extract<ToolArtifact, { kind: 'webpage' }> }) {
+  const open = usePreview();
   return (
     <section className="tool-card file-card">
-      <span className="refs-ext" style={{ background: '#e8eef8', color: '#2a4a85' }} aria-hidden="true">DOCX</span>
+      <span className="refs-ext" style={{ background: '#e8eef8', color: '#2a4a85' }} aria-hidden="true">网页</span>
+      <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <b>{a.title}</b><span className="hint">{a.host} · 已读，用了 {a.pieces} 段</span>
+      </span>
+      <button type="button" className="pbtn" style={{ marginLeft: 'auto' }}
+        onClick={() => (open ? open({ kind: 'web', url: a.url, title: a.title }) : window.open(a.url, '_blank', 'noopener,noreferrer'))}>
+        {open ? '在右侧打开' : '打开网页'}
+      </button>
+    </section>
+  );
+}
+
+function FileCard({ a }: { a: Extract<ToolArtifact, { kind: 'file' }> }) {
+  const [msg, setMsg] = useState<string | null>(null);
+  const open = usePreview();
+  const ext = (a.title.split('.').pop() ?? '').toUpperCase().slice(0, 4) || 'DOCX';
+  return (
+    <section className="tool-card file-card">
+      <span className="refs-ext" style={{ background: '#e8eef8', color: '#2a4a85' }} aria-hidden="true">{ext}</span>
       <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <b>{a.title}</b><span className="hint">{msg ?? a.detail}</span>
       </span>
-      <button type="button" className="pbtn" style={{ marginLeft: 'auto' }}
+      {open && <button type="button" className="gbtn" style={{ marginLeft: 'auto' }} onClick={() => open({ kind: 'file', src: a.url, fileName: a.title })}>预览</button>}
+      <button type="button" className="pbtn" style={open ? undefined : { marginLeft: 'auto' }}
         onClick={() => void download(a.url, a.title).catch((e) => setMsg(e instanceof ApiError ? e.message : '下载失败'))}>下载</button>
     </section>
   );
@@ -269,6 +290,7 @@ export function ArtifactCards({ items, onSend }: { items: ToolArtifact[]; onSend
           case 'estimate': return <EstimateCard key={i} a={a} />;
           case 'table': return <TableCard key={i} a={a} />;
           case 'block': return <BlockCard key={i} a={a} />;
+          case 'webpage': return <WebPageCard key={i} a={a} />;
           default: return null;
         }
       })}
