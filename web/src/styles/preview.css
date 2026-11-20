@@ -198,3 +198,7 @@ button.sess-file:hover { background: #ebebe8; color: var(--ink); }
   .pv-grip { display: none; }
   .dp-toc { display: none; }
 }
+
+/* 助手头像：公司吉祥物 */
+.chat-avatar.mascot { background: #fff; border: 1px solid var(--line); overflow: hidden; padding: 0; }
+.chat-avatar.mascot img { width: 100%; height: 100%; object-fit: cover; display: block; }

@@ -33,8 +33,8 @@ export function Icon({ name, size = 17, stroke = 1.8 }: { name: keyof typeof PAT
 /** 品牌小标：黑底方块里一枚标志红三角（取自 HTLAB 标志里 A 的红色三角），用在对话头像这类小位置。 */
 export function BrandMark({ size = 30 }: { size?: number }) {
   return (
-    <div className="chat-avatar" style={{ width: size, height: size }} aria-hidden="true">
-      <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24"><path d="M12 5l8 14H4z" fill="var(--brand)" /></svg>
+    <div className="chat-avatar mascot" style={{ width: size, height: size }} aria-hidden="true">
+      <img src="/assistant-avatar.png" alt="" width={size} height={size} draggable={false} />
     </div>
   );
 }
