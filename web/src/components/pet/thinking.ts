@@ -29,6 +29,9 @@ const TOOL_ACT: Record<string, Act> = {
   use_skill: 'read',
 };
 
+/** 这个工具对应小人的哪个动作（分头查里子代理的小人也用这个）。 */
+export const actOfTool = (tool: string): Act => TOOL_ACT[tool] ?? 'read';
+
 /** 查价格、查项目这类「查一下」后面带上具体查什么，读起来更像人话。 */
 const MAG_SAY: Record<string, string> = {
   search_prices: '查一下价格表', query_projects: '翻翻项目台账', view_image: '凑近看看这张图', ocr_image: '认认上面的字', compare_documents: '两份对着看',
@@ -53,6 +56,7 @@ export function pickAct(live: Live, now: number): { act: Act; say: string; sub: 
   // 「思考」那一行一直挂着到答完，不算一个动作：看真正在调的工具
   const steps = live.steps.filter((s) => s.tool !== 'think');
   const running = [...steps].reverse().find((s) => s.status === 'running');
+  if (running?.tool === 'delegate') return { act: 'ponder', say: '分头查，等它们交回来', sub: short(running.detail) };
   if (running) {
     const act = TOOL_ACT[running.tool] ?? 'read';
     const say = act === 'mag' ? MAG_SAY[running.tool] ?? ACTS.mag.say

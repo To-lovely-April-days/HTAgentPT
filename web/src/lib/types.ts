@@ -474,6 +474,14 @@ export interface ApprovalSummary { isApprover: boolean; isAdmin?: boolean; files
 export interface AskSpec { question: string; options: { label: string; detail: string | null }[]; multiple: boolean; answered?: string | null }
 
 /** 助手工具生成的结果卡：计算结果、化学品数据。 */
+/** 分头查：每个子代理一行（像素小人、做什么、状态、一句话结论、它自己查了哪几步）。 */
+export interface AgentsCardData {
+  id: string; kind: 'agents';
+  items: { n: number; title: string; deliver: string; status: 'queued' | 'running' | 'done' | 'partial' | 'error';
+    result: string | null; note: string | null; seconds: number;
+    steps: { id: string; tool: string; label: string; detail: string; result: string | null; status: string }[] }[];
+}
+
 export type ToolArtifact =
   | { kind: 'calc'; code: string; stdout: string; error: string | null; images: string[]; seconds: number }
   | { kind: 'chem'; n: number; title: string; cid: number; cas: string | null; formula: string | null; weight: string | null;

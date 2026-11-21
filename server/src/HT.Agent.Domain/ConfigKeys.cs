@@ -114,6 +114,16 @@ public static class ConfigKeys
     /// <summary>做好的文件保留几天。</summary>
     public const string FileKeepDays = "assistant.file.keep_days";
 
+    // ── 分头查：助手按任务复杂度自己决定要不要派子代理（标准、深度档才能拆，快速档不拆）──
+    /// <summary>on / off。</summary>
+    public const string Delegate = "assistant.delegate";
+    /// <summary>一次最多拆几个子任务。</summary>
+    public const string DelegateMaxTasks = "assistant.delegate.max_tasks";
+    /// <summary>同时跑几个子代理（模型服务同时 4 路，留一路给别人）。</summary>
+    public const string DelegateParallel = "assistant.delegate.parallel";
+    /// <summary>子代理最多查几轮，超过算没查完。</summary>
+    public const string DelegateRounds = "assistant.delegate.rounds";
+
     // ── 助手工具：每个工具一个开关（on/off）和可用角色（逗号分隔的角色代码，空=所有内部员工）──
     public const string ToolAskUser = "assistant.tool.ask_user";
     public const string ToolAskUserRoles = "assistant.tool.ask_user.roles";

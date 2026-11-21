@@ -47,6 +47,7 @@ public class ConfigController(IRuntimeConfig config, ICurrentUser me, IAuditWrit
         ConfigKeys.UploadMaxFileMb, ConfigKeys.UploadMaxBatch, ConfigKeys.JwtLifetimeMinutes,
         ConfigKeys.AuditRetentionMonths, ConfigKeys.TranslateBatchChars,
         ConfigKeys.AssistantContextChars, ConfigKeys.AssistantSearchTopK, ConfigKeys.ChatContextTokens, ConfigKeys.FileKeepDays,
+        ConfigKeys.DelegateMaxTasks, ConfigKeys.DelegateParallel, ConfigKeys.DelegateRounds,
         ConfigKeys.LevelFastRounds, ConfigKeys.LevelFastMaxTokens, ConfigKeys.LevelFastTemperature, ConfigKeys.LevelStandardRounds, ConfigKeys.LevelStandardMaxTokens, ConfigKeys.LevelStandardTemperature, ConfigKeys.LevelDeepRounds, ConfigKeys.LevelDeepMaxTokens, ConfigKeys.LevelDeepTemperature,
         ConfigKeys.SandboxTimeout, ConfigKeys.MemoryMax, ConfigKeys.PriceStaleMonths
     };
@@ -58,6 +59,7 @@ public class ConfigController(IRuntimeConfig config, ICurrentUser me, IAuditWrit
         [ConfigKeys.LevelDeepEffort] = HT.Agent.Application.Logic.ThinkLevels.Efforts,
         [ConfigKeys.AssistantLevelDefault] = ["auto", "fast", "standard", "deep"],
         [ConfigKeys.AssistantLevelUserChoice] = ["true", "false"],
+        [ConfigKeys.Delegate] = ["on", "off"],
     };
 
     [HttpPut]

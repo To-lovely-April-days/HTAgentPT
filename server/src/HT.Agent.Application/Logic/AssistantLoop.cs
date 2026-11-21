@@ -168,6 +168,7 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         "show_table" => "生成表格",
         "show_block" => "显示组件",
         "note_correction" => "记下纠正",
+        "delegate" => "分头查",
         _ => name
     };
 
@@ -178,6 +179,7 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         {
             var node = JsonNode.Parse(string.IsNullOrWhiteSpace(call.ArgumentsJson) ? "{}" : call.ArgumentsJson) as JsonObject;
             if (node is null) return "";
+            if (call.Name == "delegate") return node["tasks"] is JsonArray ts ? $"{ts.Count} 个子任务，同时进行" : "分头查";
             var parts = node.Where(kv => kv.Value is not null && kv.Value.ToString().Length > 0)
                 .Select(kv => kv.Key is "query" or "expression" or "keyword" || call.Name == "use_skill" ? kv.Value!.ToString() : $"{kv.Key}={kv.Value}");
             var s = string.Join("，", parts);

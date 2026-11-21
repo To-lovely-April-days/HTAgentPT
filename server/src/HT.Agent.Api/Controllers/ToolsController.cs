@@ -45,11 +45,25 @@ public class ToolsController(AppDbContext db, IRuntimeConfig config, SandboxClie
         // 助手做的文件：每种做了几份、几份检查没过
         var files = await db.MadeFiles.AsNoTracking().Where(f => f.CreatedAt >= from)
             .GroupBy(f => f.Kind == "csv" ? "xlsx" : f.Kind).Select(g => new { kind = g.Key, made = g.Count(x => x.Ok), failed = g.Count(x => !x.Ok) }).ToListAsync(ct);
+        // 分头查：拆了几次、平均几个子任务、几成没查完
+        var dels = await db.AuditLogs.AsNoTracking().Where(a => a.At >= from && a.Action == "qa.delegate").Select(a => a.Detail).ToListAsync(ct);
+        int dTasks = 0, dFailed = 0;
+        foreach (var d in dels)
+        {
+            try
+            {
+                using var j = JsonDocument.Parse(d ?? "{}");
+                dTasks += j.RootElement.TryGetProperty("tasks", out var t) && t.TryGetInt32(out var tv) ? tv : 0;
+                dFailed += j.RootElement.TryGetProperty("failed", out var f) && f.TryGetInt32(out var fv) ? fv : 0;
+            }
+            catch (JsonException) { }
+        }
         return Ok(new
         {
             total = rows.Count,
             asks,
             files,
+            @delegate = new { runs = dels.Count, avgTasks = dels.Count == 0 ? 0 : Math.Round((double)dTasks / dels.Count, 1), failedPct = dTasks == 0 ? 0 : (int)Math.Round(100.0 * dFailed / dTasks) },
             tools = byTool.Select(kv => new { tool = kv.Key, calls = kv.Value.N, failed = kv.Value.Failed, avgMs = kv.Value.N == 0 ? 0 : kv.Value.Ms / kv.Value.N })
                 .OrderByDescending(x => x.calls).ToList()
         });

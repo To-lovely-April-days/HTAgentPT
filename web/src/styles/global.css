@@ -1357,3 +1357,34 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .lv-warn > svg { color: #8a5a00; flex: 0 0 auto; margin-top: 2px; }
 .lv-warn div { display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 1.7; color: var(--ink-3); }
 .lv-warn b { font-weight: 500; color: var(--ink); font-size: 12.5px; }
+
+/* 分头查：每个子代理一行，像素小人换颜色带编号 */
+.ag { border: 1px solid var(--line); border-radius: 12px; margin: 4px 0 12px; overflow: hidden; background: var(--panel); }
+.ag-hd { display: flex; align-items: baseline; gap: 10px; padding: 9px 14px; background: #fafaf9; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
+.ag-hd b { font-weight: 600; }
+.ag-row-w + .ag-row-w { border-top: 1px solid var(--line-soft); }
+.ag-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 14px; border: none; background: none; font: inherit; text-align: left; cursor: pointer; color: var(--ink); }
+.ag-row:hover { background: #fafaf9; }
+.ag-pet { position: relative; flex: 0 0 auto; display: inline-block; line-height: 0; }
+.ag-pet i { position: absolute; right: -5px; bottom: -3px; min-width: 14px; height: 14px; border-radius: 7px; color: #fff; font-style: normal;
+  font-family: var(--mono); font-size: 9.5px; line-height: 14px; text-align: center; box-shadow: 0 0 0 1.5px var(--panel); }
+.ag-f1, .ag-f2 { animation: ag-f1 var(--ag-speed, .5s) steps(1) infinite; }
+.ag-f2 { position: absolute; left: 0; top: 0; animation-name: ag-f2; }
+@keyframes ag-f1 { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes ag-f2 { 0%, 49% { opacity: 0; } 50%, 100% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .ag-f1 { animation: none; } .ag-f2 { display: none; } }
+.ag-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ag-t b { font-weight: 500; font-size: 13px; }
+.ag-t span { font-size: 12px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ag-st { flex: 0 0 auto; font-size: 11.5px; padding: 2px 8px; border-radius: 5px; white-space: nowrap; }
+.ag-st.q { background: #f1f1ef; color: #6b6b6b; }
+.ag-st.run { background: #eef2fa; color: #2a4a85; }
+.ag-st.ok { background: #e6f2ec; color: #1c6b45; }
+.ag-st.bad { background: #fde8ea; color: #a00d25; }
+.ag-steps { margin: 0 14px 10px 50px; padding: 4px 0 4px 10px; border-left: 2px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
+.ag-step { display: flex; align-items: baseline; gap: 8px; font-size: 12px; }
+.ag-step svg { color: #1c6b45; flex: 0 0 auto; align-self: center; }
+.ag-step.err svg { color: var(--brand-fg); }
+.ag-step b { font-weight: 500; flex: 0 0 60px; color: var(--ink-2); }
+.ag-step span { flex: 1; min-width: 0; color: var(--ink-3); overflow-wrap: anywhere; }
+.ag-step em { font-style: normal; color: var(--ink-4); white-space: nowrap; }

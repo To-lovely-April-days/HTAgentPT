@@ -21,8 +21,9 @@ import { Perm, unwrapLedgerTable } from '../../lib/types';
 import type {
   CaseDetailData, CaseRow, ChatAttachment, GenChatPayload, GenChatTurnResult, KbRow, LedgerTable, QaSessionRow, VocabRow,
   QaTemplateRec, QaTimeline, SessionRowT, SessionView, Source, TextTranslationResult, TicketRow,
-  AssistantStep, EvidenceCard as EvidenceRef, VerifyReport, AskSpec, ToolArtifact,
+  AssistantStep, EvidenceCard as EvidenceRef, VerifyReport, AskSpec, ToolArtifact, AgentsCardData,
 } from '../../lib/types';
+import { AgentsCard } from './AgentsCard';
 import { RefPanel, StepsCard, VerifyBar } from './AssistantParts';
 import { ArtifactCards, AskCard, ExportBar } from './ToolCards';
 import { SideSlotCtx } from '../../Shell';
@@ -79,6 +80,7 @@ interface Msg {
   feedbackReason?: string | null;
   level?: string;                // 这一轮用的思考档位（fast / standard / deep）
   truncated?: boolean;           // 写到「回答最长」停了
+  agents?: AgentsCardData[];     // 分头查：每次一张，子代理的进度和结论
 }
 
 const MsgCtx = createContext<{
@@ -249,6 +251,15 @@ export default function ChatPage() {
           case 'truncated':
             patch(id, { truncated: true, level: p.level as string });
             break;
+          case 'agents': {
+            const card = ev.payload as AgentsCardData;
+            setMsgs((x) => x.map((m) => {
+              if (m.id !== id) return m;
+              const list = m.agents ?? [];
+              return { ...m, agents: list.some((c) => c.id === card.id) ? list.map((c) => (c.id === card.id ? card : c)) : [...list, card] };
+            }));
+            break;
+          }
           case 'ask':
             patch(id, { ask: ev.payload as AskSpec });
             break;
@@ -731,6 +742,7 @@ function AssistantMessage() {
         {m.agentSteps && <AgentProgressCard steps={m.agentSteps} streaming={m.streaming} />}
         {staging && <ThinkingStage steps={m.steps ?? []} hasText={!!m.text} />}
         {m.steps && !staging && <StepsCard steps={m.steps} streaming={m.streaming} seconds={m.seconds} />}
+        {m.agents?.map((c) => <AgentsCard key={c.id} card={c} live={!!m.streaming} />)}
         {m.artifacts && m.artifacts.length > 0 && <ArtifactCards items={m.artifacts} onSend={active ? sendText : undefined} />}
         {m.text && <Prose text={m.text} live={m.streaming}
           flags={m.verify?.issues.map((i) => i.value)}
@@ -864,10 +876,10 @@ function restore(raw: string | null | undefined): Partial<Msg> {
       }
       case 'assistant': {
         const a = parsed as unknown as { steps?: AssistantStep[]; evidence?: Msg['evidence']; verify?: VerifyReport; seconds?: number;
-          ask?: AskSpec; answered?: string; artifacts?: ToolArtifact[]; level?: string; truncated?: boolean };
+          ask?: AskSpec; answered?: string; artifacts?: ToolArtifact[]; level?: string; truncated?: boolean; agents?: AgentsCardData[] };
         return {
           steps: a.steps ?? [], evidence: a.evidence, verify: a.verify, seconds: a.seconds ?? null, artifacts: a.artifacts,
-          level: a.level, truncated: a.truncated,
+          level: a.level, truncated: a.truncated, agents: a.agents,
           ...(a.ask ? { ask: { ...a.ask, answered: a.answered ?? null }, text: '' } : {}),
         };
       }

@@ -70,6 +70,29 @@ public sealed class AssistantService(
     /// <summary>等用户回话时存下来的现场：对话（含已查到的资料）、等着填结果的那次调用、依据编号表。</summary>
     public record PendingState(List<AgentMessage> Messages, string CallId, RunState Run);
 
+    /// <summary>分头查的卡片：每个子代理一行（像素小人、做什么、状态、一句话结论、它自己查了哪几步）。</summary>
+    private sealed class AgentsCard
+    {
+        public string Id { get; set; } = "";
+        public string Kind { get; set; } = "agents";
+        public List<AgentItem> Items { get; set; } = [];
+    }
+
+    private sealed class AgentItem
+    {
+        public int N { get; set; }
+        public string Title { get; set; } = "";
+        public string Deliver { get; set; } = "";
+        /// <summary>queued / running / done / partial / error。</summary>
+        public string Status { get; set; } = "queued";
+        public string? Result { get; set; }
+        public string? Note { get; set; }
+        public double Seconds { get; set; }
+        public List<SubStep> Steps { get; set; } = [];
+    }
+
+    private sealed record SubStep(string Id, string Tool, string Label, string Detail, string? Result, string Status);
+
     private sealed class Run
     {
         public readonly Dictionary<int, EvidenceItem> Evidence = new();
@@ -96,6 +119,13 @@ public sealed class AssistantService(
         public IReadOnlySet<string> FileKinds = new HashSet<string>();
         /// <summary>每种文件检查没过了几次：到 3 次就不让再做了。</summary>
         public readonly Dictionary<string, int> FileFails = new();
+        /// <summary>分头查：子代理照主助手的参数跑（轮数另算）；能不能查资料、查项目和主助手一样。</summary>
+        public AssistantLoopOptions LoopOptions = new();
+        public bool CanDocs, CanProjects;
+        /// <summary>分头查的卡片（每次分头查一张），随消息存。</summary>
+        public readonly List<AgentsCard> Agents = [];
+        /// <summary>子代理同时跑时，工具一个一个执行（共用依据编号和数据库连接）。</summary>
+        public readonly SemaphoreSlim ToolLock = new(1, 1);
 
         public RunState ToState() => new(Evidence.Values.OrderBy(e => e.N).ToList(), new(Keys),
             DocRefs.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value), [.. Computed], [.. Searches], NextN);
@@ -155,7 +185,17 @@ public sealed class AssistantService(
         var fileKinds = enabled.Contains("run_python") ? await FileKindsAsync(config, me, ct) : new HashSet<string>();
         var skills = await SkillsForAsync(req, fileKinds, ct);
         if (skills.Count > 0) ((HashSet<string>)enabled).Add("use_skill");
-        var tools = BuildTools(canDocs, canProjects, attachmentFiles.Count > 0, enabled, fileKinds);
+        // 思考档位：输入框里选的（或自动判断的）那一档，决定思考强度、查几轮、回答最长、温度
+        var levels = await LevelConfig.LoadAsync(config, ct);
+        var choice = ThinkLevels.Resolve(req.Level, levels.Default, levels.UserChoice || req.LevelForced, levels.DeepAvailable, req.Question, attachmentFiles.Count > 0);
+        var lv = levels.Levels[choice.Level];
+        var sampling = ThinkLevels.SamplingFor(lv.Think);
+        // 分头查：后台开着、这一档不是快速档，才把「分头查」交给助手
+        var delegateMax = Math.Clamp(await config.GetIntAsync(ConfigKeys.DelegateMaxTasks, 4, ct), 2, 6);
+        if (choice.Level != ThinkLevel.Fast && req.SkillTest is null
+            && (await config.GetStringAsync(ConfigKeys.Delegate, "on", ct)).Trim().Equals("on", StringComparison.OrdinalIgnoreCase))
+            ((HashSet<string>)enabled).Add("delegate");
+        var tools = BuildTools(canDocs, canProjects, attachmentFiles.Count > 0, enabled, fileKinds, delegateMax);
         List<AgentMessage> messages;
         // 上一轮在等用户确认：这句话就是回答，接着上次的现场跑——前面查到的不重来，编号也接着用
         var pending = await PendingAsync(session.Id, ct);
@@ -192,16 +232,14 @@ public sealed class AssistantService(
                 Detail: new { question = Clip(req.Question, 300), tools = tools.Select(t => t.Name).ToArray(), attachments = attachmentFiles.Count }), ct);
         }
 
-        // 思考档位：输入框里选的（或自动判断的）那一档，决定思考强度、查几轮、回答最长、温度
-        var levels = await LevelConfig.LoadAsync(config, ct);
-        var choice = ThinkLevels.Resolve(req.Level, levels.Default, levels.UserChoice || req.LevelForced, levels.DeepAvailable, req.Question, attachmentFiles.Count > 0);
-        var lv = levels.Levels[choice.Level];
-        var sampling = ThinkLevels.SamplingFor(lv.Think);
         var options = new AssistantLoopOptions(
             MaxRounds: lv.MaxRounds, Think: lv.Think, MaxTokens: lv.MaxTokens, Temperature: lv.Temperature,
             ContextChars: Math.Clamp(await config.GetIntAsync(ConfigKeys.AssistantContextChars, 36000, ct), 6000, 200000),
             Effort: lv.Think ? lv.Effort : null, TopP: sampling.TopP, TopK: sampling.TopK, PresencePenalty: sampling.PresencePenalty,
             ContextTokens: levels.ContextTokens);
+        run.LoopOptions = options;
+        run.CanDocs = canDocs;
+        run.CanProjects = canProjects;
         await emit(new QaEvent("step", new { id = "t0", tool = "think", label = "思考", detail = ThinkLevels.Describe(choice, lv.Think, 0), status = "running" }));
         await emit(new QaEvent("level", new { level = ThinkLevels.Code(choice.Level), auto = choice.Auto }));
         var topK = Math.Clamp(await config.GetIntAsync(ConfigKeys.AssistantSearchTopK, 6, ct), 2, 12);
@@ -266,7 +304,7 @@ public sealed class AssistantService(
                 message.Answer = ask.Question + "\n" + string.Join("\n", ask.Options.Select(o => $"· {o.Label}"));
                 message.Payload = JsonSerializer.Serialize(new
                 {
-                    kind = "assistant", rounds = result.Rounds, steps = askSteps, artifacts = run.Artifacts, level = levelCode,
+                    kind = "assistant", rounds = result.Rounds, steps = askSteps, artifacts = run.Artifacts, level = levelCode, agents = run.Agents,
                     ask = new { question = ask.Question, options = ask.Options, multiple = ask.Multiple },
                     pending = new PendingState(messages, result.PausedCallId, run.ToState())
                 }, Json);
@@ -303,7 +341,7 @@ public sealed class AssistantService(
             {
                 kind = "assistant", rounds = result.Rounds, seconds = Math.Round((DateTimeOffset.UtcNow - started).TotalSeconds, 1),
                 steps = stepRows, evidence = new { used, other }, verify, artifacts = run.Artifacts, searches = run.SearchLog,
-                level = levelCode, truncated = result.Truncated
+                level = levelCode, truncated = result.Truncated, agents = run.Agents
             }, Json);
             // 查过资料却一条都没用上：记成「没答上来」，进语料缺口清单
             var searched = run.Searches.Count > 0;
@@ -476,7 +514,7 @@ public sealed class AssistantService(
     private static object Int(string d) => new Dictionary<string, object> { ["type"] = "integer", ["description"] = d };
     private static object Num(string d) => new Dictionary<string, object> { ["type"] = "number", ["description"] = d };
 
-    private static List<ToolSpec> BuildTools(bool canDocs, bool canProjects, bool hasAttachments, IReadOnlySet<string> enabled, IReadOnlySet<string>? fileKinds = null)
+    private static List<ToolSpec> BuildTools(bool canDocs, bool canProjects, bool hasAttachments, IReadOnlySet<string> enabled, IReadOnlySet<string>? fileKinds = null, int delegateMax = 4)
     {
         var list = new List<ToolSpec>();
         if (enabled.Contains("use_skill"))
@@ -700,6 +738,35 @@ public sealed class AssistantService(
             }
             list.Add(new ToolSpec("run_python", desc, Obj(props, "code")));
         }
+        if (enabled.Contains("delegate"))
+            list.Add(new ToolSpec("delegate",
+                "分头查：把一个复杂任务拆成几个互不相干的子任务，派子代理同时去做，各自交回结论，你再汇总。适合：几份文件要逐份对照（每份一个子任务）；一个问题有几块各查各的（如选型、报价、安全风险）；每块都要读很多资料。"
+                + $"不适合：简单问题、一件事、前一步的结果决定下一步查什么——这些自己查。一次最多 {delegateMax} 个子任务。子代理能查资料、查项目、查价格、翻技能、运行代码，但不能问用户、不能做文件。"
+                + "每个子任务写清楚做什么、交回什么；用到附件就写进 files。拿到结论后自己汇总、核对矛盾，没查到的自己补查。",
+                new Dictionary<string, object>
+                {
+                    ["type"] = "object",
+                    ["properties"] = new Dictionary<string, object>
+                    {
+                        ["tasks"] = new Dictionary<string, object>
+                        {
+                            ["type"] = "array", ["minItems"] = 2, ["maxItems"] = delegateMax,
+                            ["items"] = new Dictionary<string, object>
+                            {
+                                ["type"] = "object",
+                                ["properties"] = new Dictionary<string, object>
+                                {
+                                    ["title"] = Str("子任务的短名字，如「某研究院协议 · 逐条对照」"),
+                                    ["task"] = Str("要做什么，写清楚范围和依据"),
+                                    ["deliver"] = Str("要交回什么，如「做不到的条款、原因、能怎么改」"),
+                                    ["files"] = new Dictionary<string, object> { ["type"] = "array", ["items"] = new Dictionary<string, object> { ["type"] = "string" }, ["description"] = "要用的附件文件名（可省略）" },
+                                },
+                                ["required"] = new[] { "title", "task", "deliver" }
+                            }
+                        }
+                    },
+                    ["required"] = new[] { "tasks" }
+                }));
         if (enabled.Contains("chemical_info"))
             list.Add(new ToolSpec("chemical_info",
                 "查化学品的公开数据（PubChem）：CAS 号、分子式、沸点、闪点、蒸气压、密度、GHS 危险性说明，并判断是否列入《危险化学品目录》。名称请用英文名或 CAS 号（如 dichloromethane 或 75-09-2）。",
@@ -1302,6 +1369,8 @@ public sealed class AssistantService(
                 run.Ask = new AskSpec(Clip(q, 200), opts.Take(6).ToList(), a["multiple"] is JsonValue mv && mv.TryGetValue<bool>(out var mb) && mb);
                 return new ToolOutcome("", "", label, q, $"{run.Ask.Options.Count} 个选项，等你选", Pause: true);
             }
+            case "delegate":
+                return await DelegateAsync(a, run, req, attachments, topK, enabled, emit, label, ct);
             case "run_python":
             {
                 var code = S("code") ?? "";
@@ -1542,6 +1611,106 @@ public sealed class AssistantService(
         if (isCustomer && tool is not ("ask_user" or "inquiry_form" or "show_table" or "show_block")) return false;
         var roles = (await config.GetStringAsync($"assistant.tool.{tool}.roles", "", ct)).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return roles.Length == 0 || roles.Contains(me.RoleCode, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>分头查：每个子任务开一个子代理（同一个助手，新开一份上下文），最多同时跑几个，各自交回结论。
+    /// 子代理不能再拆、不能问人、不能做文件；工具一个一个执行（共用依据编号和数据库连接）。过程实时推给界面（每个子代理一个像素小人）。</summary>
+    private async Task<ToolOutcome> DelegateAsync(JsonObject a, Run run, QaRequest req,
+        IReadOnlyList<(Guid Id, string FileName, string? Chunks)> attachments, int topK, IReadOnlySet<string> enabled,
+        Func<QaEvent, Task> emit, string label, CancellationToken ct)
+    {
+        var max = Math.Clamp(await config.GetIntAsync(ConfigKeys.DelegateMaxTasks, 4, ct), 2, 6);
+        var parallel = Math.Clamp(await config.GetIntAsync(ConfigKeys.DelegateParallel, 3, ct), 1, 6);
+        var rounds = Math.Clamp(await config.GetIntAsync(ConfigKeys.DelegateRounds, 5, ct), 2, 12);
+        var tasks = Delegation.Parse(a, max);
+        if (tasks.Count < 2) return new ToolOutcome("分头查至少要两个子任务。只有一件事就自己查。", "没拆", label, "", "没拆");
+
+        var company = await db.Companies.AsNoTracking().Where(c => c.Id == me.CompanyId).Select(c => c.Name).FirstOrDefaultAsync(ct) ?? "本公司";
+        var profile = (await config.GetStringAsync(ConfigKeys.AssistantProfile, "", ct)).Trim();
+        var subEnabled = enabled.Where(t => !Delegation.SubAgentDrops.Contains(t)).ToHashSet();
+        var subTools = BuildTools(run.CanDocs, run.CanProjects, attachments.Count > 0, subEnabled, new HashSet<string>());
+        var subOptions = run.LoopOptions with { MaxRounds = rounds, MaxTokens = Math.Min(run.LoopOptions.MaxTokens, 4000) };
+        var skillsPrompt = SkillsPrompt(run.Skills.Where(k => MadeFiles.SkillKind(k.Code) is null).ToList(), null);
+
+        var card = new AgentsCard { Id = $"g{run.Agents.Count + 1}", Items = tasks.Select(t => new AgentItem { N = t.N, Title = t.Title, Deliver = t.Deliver }).ToList() };
+        run.Agents.Add(card);
+        var emitLock = new SemaphoreSlim(1, 1);
+        async Task Push()
+        {
+            await emitLock.WaitAsync(CancellationToken.None);
+            try { await emit(new QaEvent("agents", card)); } finally { emitLock.Release(); }
+        }
+        await Push();
+
+        var gate = new SemaphoreSlim(parallel, parallel);
+        var started = DateTimeOffset.UtcNow;
+        async Task<SubResult> One(SubTask t, AgentItem item)
+        {
+            await gate.WaitAsync(ct);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                item.Status = "running";
+                await Push();
+                var files = t.Files.Count > 0 ? t.Files : attachments.Count <= 3 ? attachments.Select(x => x.FileName).ToList() : [];
+                var msgs = new List<AgentMessage>
+                {
+                    new("system", Delegation.SubPrompt(company, profile, t, files) + skillsPrompt),
+                    new("user", Delegation.SubQuestion(t))
+                };
+                async Task SubEmit(QaEvent e)
+                {
+                    if (e.Kind == "artifact") { await emit(e); return; }
+                    if (e.Kind != "step") return;               // 子代理的正文不往用户的回答里流
+                    string? P(string k) => e.Payload.GetType().GetProperty(k)?.GetValue(e.Payload)?.ToString();
+                    var st = new SubStep(P("id") ?? "", P("tool") ?? "", P("label") ?? "", P("detail") ?? "", P("result"), P("status") ?? "done");
+                    var at = item.Steps.FindIndex(x => x.Id == st.Id);
+                    if (at >= 0) item.Steps[at] = st; else item.Steps.Add(st);
+                    await Push();
+                }
+                var loop = new AssistantLoop(new SlotClient(model), subOptions);
+                var res = await loop.RunAsync(msgs, subTools,
+                    async (call, c) =>
+                    {
+                        await run.ToolLock.WaitAsync(c);
+                        var tsw = System.Diagnostics.Stopwatch.StartNew();
+                        var ok = false;
+                        try { var o = await ExecuteAsync(call, run, req, attachments, topK, subEnabled, SubEmit, c); ok = true; return o; }
+                        finally
+                        {
+                            try
+                            {
+                                await audit.WriteAsync(new AuditEntry("qa.tool", ok ? AuditResult.Success : AuditResult.Failed,
+                                    UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId, TargetType: "qa_session", TargetId: run.SessionId.ToString(),
+                                    Detail: new { tool = call.Name, ms = tsw.ElapsedMilliseconds, args = Clip(call.ArgumentsJson, 300), sub = t.N }), CancellationToken.None);
+                            }
+                            finally { run.ToolLock.Release(); }
+                        }
+                    }, SubEmit, ct);
+                var answer = res.Answer.Length > Delegation.MaxAnswer + 300 ? res.Answer[..(Delegation.MaxAnswer + 300)] + "…" : res.Answer;
+                var status = answer.Trim().Length < 10 ? "error" : res.HitRoundLimit ? "partial" : "done";
+                var note = status switch { "error" => "没交回结论", "partial" => $"查了 {rounds} 轮还没查完，停了", _ => null };
+                item.Status = status; item.Result = Delegation.Short(answer); item.Note = note; item.Seconds = Math.Round(sw.Elapsed.TotalSeconds, 1);
+                await Push();
+                return new SubResult(t, status, answer, note);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or ToolCallingUnavailableException)
+            {
+                item.Status = "error"; item.Note = "出错了：" + Clip(ex.Message, 60); item.Seconds = Math.Round(sw.Elapsed.TotalSeconds, 1);
+                await Push();
+                return new SubResult(t, "error", "", item.Note);
+            }
+            finally { gate.Release(); }
+        }
+
+        var results = await Task.WhenAll(tasks.Select((t, i) => One(t, card.Items[i])));
+        var bad = results.Count(r => r.Status != "done");
+        await audit.WriteAsync(new AuditEntry("qa.delegate", AuditResult.Success, UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+            TargetType: "qa_session", TargetId: run.SessionId.ToString(),
+            Detail: new { tasks = results.Length, failed = bad, seconds = Math.Round((DateTimeOffset.UtcNow - started).TotalSeconds, 1) }), ct);
+        return new ToolOutcome(Delegation.ForMain(results), Delegation.Compact(results), label, $"{results.Length} 个子任务，同时进行",
+            bad == 0 ? $"{results.Length} 个完成" : $"{results.Length - bad} 个完成 · {bad} 个没查完", Failed: bad == results.Length);
     }
 
     /// <summary>这个人能让助手做哪几种文件：后台每种一个开关（Excel、Word 默认开，PPT、PDF 默认关）和可用角色；外部客户都不行。</summary>

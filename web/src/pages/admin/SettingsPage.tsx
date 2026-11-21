@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import ToolsTab from './ToolsTab';
 import { LevelsCard } from './LevelsCard';
+import { DelegateCard } from './DelegateCard';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { get, post, put, ApiError } from '../../lib/api';
 import { ErrorBox, InfoBox, Spinner } from '../../components/Common';
@@ -361,6 +362,7 @@ function ParamsTab() {
         <ChatModelPicker cfg={cfg.data ?? {}} />
 
         <LevelsCard values={values} onChange={(k, val) => setDraft((d) => ({ ...d, [k]: val }))} />
+        <DelegateCard values={values} onChange={(k, val) => setDraft((d) => ({ ...d, [k]: val }))} />
 
         <ServicePicker
           title="向量化模型"

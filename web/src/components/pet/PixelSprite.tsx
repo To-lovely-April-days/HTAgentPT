@@ -3,7 +3,7 @@ import { memo } from 'react';
 import { H, ICONS, PALETTE, POSES, W } from './sprite';
 import type { Icon, Pose } from './sprite';
 
-const cache = new Map<string, { fill: string; d: string }[]>();
+const cache = new Map<string, { ch: string; fill: string; d: string }[]>();
 
 function paths(key: string, rows: string[]) {
   const hit = cache.get(key);
@@ -23,19 +23,20 @@ function paths(key: string, rows: string[]) {
       x = end;
     }
   });
-  const out = [...byColor].map(([ch, ds]) => ({ fill: PALETTE[ch] ?? '#000', d: ds.join('') }));
+  const out = [...byColor].map(([ch, ds]) => ({ ch, fill: PALETTE[ch] ?? '#000', d: ds.join('') }));
   cache.set(key, out);
   return out;
 }
 
-export const PixelSprite = memo(function PixelSprite({ pose, width = 32, className, title }: {
-  pose: Pose; width?: number; className?: string; title?: string;
+/** tint：把头带和衣服上的红色（R 亮、r 暗）换成别的颜色——分头查时每个子代理一个颜色。 */
+export const PixelSprite = memo(function PixelSprite({ pose, width = 32, className, title, tint }: {
+  pose: Pose; width?: number; className?: string; title?: string; tint?: readonly [string, string];
 }) {
   const height = Math.round((width * H) / W);
   return (
     <svg className={className} width={width} height={height} viewBox={`0 0 ${W} ${H}`} shapeRendering="crispEdges"
       role={title ? 'img' : undefined} aria-label={title} aria-hidden={title ? undefined : true}>
-      {paths(pose, POSES[pose]).map((p) => <path key={p.fill} d={p.d} fill={p.fill} />)}
+      {paths(pose, POSES[pose]).map((p) => <path key={p.ch} d={p.d} fill={tint && p.ch === 'R' ? tint[0] : tint && p.ch === 'r' ? tint[1] : p.fill} />)}
     </svg>
   );
 });
@@ -46,7 +47,7 @@ export const PixelIcon = memo(function PixelIcon({ icon, unit, className }: { ic
   const w = Math.max(...rows.map((r) => r.length));
   return (
     <svg className={className} width={w * unit} height={rows.length * unit} viewBox={`0 0 ${w} ${rows.length}`} shapeRendering="crispEdges" aria-hidden="true">
-      {paths('icon:' + icon, rows).map((p) => <path key={p.fill} d={p.d} fill={p.fill} />)}
+      {paths('icon:' + icon, rows).map((p) => <path key={p.ch} d={p.d} fill={p.fill} />)}
     </svg>
   );
 });
