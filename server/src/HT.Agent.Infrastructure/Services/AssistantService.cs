@@ -639,7 +639,7 @@ public sealed class AssistantService(
                 }, "kind", "data")));
         if (enabled.Contains("run_python"))
             list.Add(new ToolSpec("run_python",
-                "在隔离环境里运行 Python 代码做计算：工程计算、物性（CoolProp）、数据统计、作图（matplotlib，图会显示给用户）。可用 numpy、scipy、pandas。不能上网、不能读写公司文件。用 print 输出结果。",
+                "在隔离环境里运行 Python 代码做计算：工程计算、物性、数据统计、作图（matplotlib，图会显示给用户）。可用 numpy、scipy、pandas，以及化工计算库：fluids（管道压降、调节阀 Kv、安全阀 API 520、泵）、ht（换热、LMTD、夹套传热）、CoolProp 和 thermo / chemicals（物性、7 万多种化学品）。不能上网、不能读写公司文件。用 print 输出结果，写明单位。",
                 Obj(new() { ["code"] = Str("完整的 Python 代码") }, "code")));
         if (enabled.Contains("chemical_info"))
             list.Add(new ToolSpec("chemical_info",

@@ -19,7 +19,7 @@ public static class SkillFiles
     ];
 
     /// <summary>回答组件里带下划线的名字（show_block 的 kind），正文里提到它们不算未知工具。</summary>
-    public static readonly string[] KnownWords = ["fault_tree", "risk_matrix"];
+    public static readonly string[] KnownWords = ["fault_tree", "risk_matrix", "signal_to", "drawing_no"];
 
     /// <summary>允许导入的许可证（可商用、可修改）。没声明的不让导入。</summary>
     public static readonly string[] OpenLicenses = ["apache-2.0", "apache 2.0", "mit", "bsd-2-clause", "bsd-3-clause", "isc", "cc-by-4.0", "cc0-1.0", "mpl-2.0", "unlicense"];
@@ -80,8 +80,9 @@ public static class SkillFiles
     /// <summary>正文里像工具名（小写加下划线、或 bash / python 这类）但我们没有的词。</summary>
     public static List<string> UnknownTools(string body)
     {
-        var found = Regex.Matches(body ?? "", @"(?<![\w./-])([a-z]+(?:_[a-z]+)+)(?![\w./-])").Select(m => m.Groups[1].Value)
-            .Concat(Regex.Matches(body ?? "", @"`(bash|python|web_fetch|websearch|read|write|edit|grep|glob)`").Select(m => m.Groups[1].Value))
+        body = Regex.Replace(body ?? "", @"```.*?```", "", RegexOptions.Singleline);   // 代码块里的函数名、变量名不算
+        var found = Regex.Matches(body, @"(?<![\w./-])([a-z]+(?:_[a-z]+)+)(?![\w./-])").Select(m => m.Groups[1].Value)
+            .Concat(Regex.Matches(body, @"`(bash|python|web_fetch|websearch|read|write|edit|grep|glob)`").Select(m => m.Groups[1].Value))
             .Distinct().Where(w => !KnownTools.Contains(w) && !KnownWords.Contains(w)).ToList();
         return found;
     }

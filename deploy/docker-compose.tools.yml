@@ -2,7 +2,7 @@
 #
 #   docker compose --env-file ... -f deploy/docker-compose.yml [-f deploy/docker-compose.mineru.yml] -f deploy/docker-compose.tools.yml up -d --build
 #
-#   sandbox  代码解释器：Python + CoolProp。不接外网、只读文件系统、去掉全部特权、限 CPU/内存/进程数
+#   sandbox  代码解释器：Python + 化工计算库（CoolProp、fluids、ht、thermo）。不接外网、只读文件系统、去掉全部特权、限 CPU/内存/进程数
 #   searxng  联网搜索：自建 SearXNG，聚合必应/百度/搜狗/360。只给后端用，不对外开端口
 #   office   导出 PDF：LibreOffice 把 Word 转成 PDF。只给后端用，不对外开端口
 #

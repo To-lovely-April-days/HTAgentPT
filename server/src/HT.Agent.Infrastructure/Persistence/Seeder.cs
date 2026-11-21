@@ -36,41 +36,59 @@ public static class Seeder
         await db.SaveChangesAsync(ct);
     }
 
-    /// <summary>技能包初稿（Skills/*.md，SKILL.md 格式）：公司还一个技能都没有时放进去。
-    /// 6 份完整初稿标「待审核」，其余是「草稿」大纲，都不自动启用——技术部审过、在后台打开才生效。</summary>
+    /// <summary>系统自带的技能（Skills/*.md，SKILL.md 格式）：
+    /// · 公司还没有这个代号的技能 → 加上；
+    /// · 已有、但从没被人在后台改过（UpdatedById 为空）且内容和这版不同 → 换成这版，留一个版本记录；
+    /// · 有人改过的一律不动。</summary>
     private static async Task EnsureSkillsAsync(AppDbContext db, CancellationToken ct)
     {
         var asm = typeof(Seeder).Assembly;
         var names = asm.GetManifestResourceNames().Where(n => n.StartsWith("skills/") && n.EndsWith(".md")).OrderBy(n => n).ToList();
         if (names.Count == 0) return;
-        var companies = await db.Companies.Select(c => c.Id).ToListAsync(ct);
-        foreach (var cid in companies)
+        var seeds = new List<(HT.Agent.Application.Logic.SkillFiles.Parsed P, string Title, string Category, string Source, SkillStatus Status)>();
+        foreach (var n in names)
         {
-            if (await db.AssistantSkills.AnyAsync(s => s.CompanyId == cid, ct)) continue;
+            using var stream = asm.GetManifestResourceStream(n)!;
+            using var reader = new StreamReader(stream);
+            var p = HT.Agent.Application.Logic.SkillFiles.Parse(await reader.ReadToEndAsync(ct));
+            if (string.IsNullOrWhiteSpace(p.Name)) continue;
+            var st = p.Meta.GetValueOrDefault("status") switch { "enabled" => SkillStatus.Enabled, "review" => SkillStatus.Review, _ => SkillStatus.Draft };
+            seeds.Add((p, p.Meta.GetValueOrDefault("title") ?? p.Name, p.Meta.GetValueOrDefault("category") ?? "其他", p.Meta.GetValueOrDefault("source") ?? "own", st));
+        }
+        var changed = false;
+        foreach (var cid in await db.Companies.Select(c => c.Id).ToListAsync(ct))
+        {
+            var existing = await db.AssistantSkills.Where(s => s.CompanyId == cid).ToDictionaryAsync(s => s.Code, ct);
             var now = DateTimeOffset.UtcNow;
-            foreach (var n in names)
+            foreach (var (p, title, category, source, status) in seeds)
             {
-                using var stream = asm.GetManifestResourceStream(n)!;
-                using var reader = new StreamReader(stream);
-                var p = HT.Agent.Application.Logic.SkillFiles.Parse(await reader.ReadToEndAsync(ct));
-                if (string.IsNullOrWhiteSpace(p.Name)) continue;
-                var title = p.Meta.TryGetValue("title", out var t) ? t : p.Name;
-                var skill = new AssistantSkill
+                if (!existing.TryGetValue(p.Name, out var skill))
                 {
-                    Id = Guid.NewGuid(), CompanyId = cid, Code = p.Name, Name = title,
-                    Category = p.Meta.TryGetValue("category", out var c) ? c : "其他", Description = p.Description, Body = p.Body,
-                    Source = p.Meta.TryGetValue("source", out var src) ? src : "own",
-                    Status = p.Meta.TryGetValue("status", out var st) && st == "review" ? SkillStatus.Review : SkillStatus.Draft,
-                    Version = 1, UpdatedAt = now, CreatedAt = now,
-                };
-                db.AssistantSkills.Add(skill);
+                    skill = new AssistantSkill
+                    {
+                        Id = Guid.NewGuid(), CompanyId = cid, Code = p.Name, Name = title, Category = category, Description = p.Description,
+                        Body = p.Body, Source = source, Status = status, Version = 1, UpdatedAt = now, CreatedAt = now,
+                    };
+                    db.AssistantSkills.Add(skill);
+                    db.AssistantSkillVersions.Add(new AssistantSkillVersion
+                    {
+                        SkillId = skill.Id, Version = 1, Name = skill.Name, Description = skill.Description, Body = skill.Body, Note = "系统自带", EditedAt = now,
+                    });
+                    changed = true;
+                    continue;
+                }
+                if (skill.UpdatedById is not null) continue;   // 有人改过，不动
+                if (skill.Body == p.Body && skill.Description == p.Description && skill.Name == title && skill.Status == status) continue;
+                skill.Name = title; skill.Category = category; skill.Description = p.Description; skill.Body = p.Body;
+                skill.Source = source; skill.Status = status; skill.Version++; skill.UpdatedAt = now;
                 db.AssistantSkillVersions.Add(new AssistantSkillVersion
                 {
-                    SkillId = skill.Id, Version = 1, Name = skill.Name, Description = skill.Description, Body = skill.Body, Note = "系统自带的初稿", EditedAt = now,
+                    SkillId = skill.Id, Version = skill.Version, Name = skill.Name, Description = skill.Description, Body = skill.Body, Note = "系统更新自带的技能", EditedAt = now,
                 });
+                changed = true;
             }
         }
-        await db.SaveChangesAsync(ct);
+        if (changed) await db.SaveChangesAsync(ct);
     }
 
     private static async Task EnsureTermsAsync(AppDbContext db, CancellationToken ct)

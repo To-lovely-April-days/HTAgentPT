@@ -90,17 +90,27 @@ public class SkillSeedTests
     }
 
     [Fact]
-    public void FullDraftsAreReadyForReview()
+    public void AllSeedSkillsAreFinished()
     {
-        var full = All().Where(a => a.P.Meta.GetValueOrDefault("status") == "review").ToList();
-        Assert.Equal(6, full.Count);
-        foreach (var (n, p) in full)
+        foreach (var (n, p) in All())
         {
+            Assert.Equal("enabled", p.Meta.GetValueOrDefault("status"));
             Assert.DoesNotContain("[待写]", p.Body);
-            Assert.Empty(SkillFiles.UnknownTools(p.Body));   // 正文里提到的工具都真有
+            Assert.DoesNotContain("[待填]", p.Body);
+            Assert.True(SkillFiles.UnknownTools(p.Body).Count == 0, n + "：" + string.Join("、", SkillFiles.UnknownTools(p.Body)));
             Assert.Contains("## 先确认", p.Body);
             Assert.Contains("## 回答怎么写", p.Body);
-            _ = n;
+            Assert.Contains("## 该查什么", p.Body);
         }
+    }
+
+    [Fact]
+    public void CalculationSkillsUseSandboxLibraries()
+    {
+        var all = All().ToDictionary(a => a.P.Name, a => a.P.Body);
+        foreach (var code in new[] { "piping-flow", "control-valve", "pressure-relief", "physical-properties", "heat-transfer-jacket" })
+            Assert.Contains("```python", all[code]);
+        Assert.Contains("fluids", all["pressure-relief"]);
+        Assert.Contains("CoolProp", all["physical-properties"]);
     }
 }

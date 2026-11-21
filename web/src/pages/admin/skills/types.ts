@@ -32,7 +32,8 @@ export const bodyLength = (s: string) => s.replace(/\s+/g, '').length;
 
 /** 正文里像工具名、但助手没有的词（和服务端 SkillFiles.UnknownTools 一致）。 */
 export function unknownTools(body: string, known: string[]): string[] {
-  const ok = new Set([...known, 'fault_tree', 'risk_matrix']);
+  const ok = new Set([...known, 'fault_tree', 'risk_matrix', 'signal_to', 'drawing_no']);
+  body = body.replace(/```[\s\S]*?```/g, '');   // 代码块里的函数名、变量名不算
   const words = [...body.matchAll(/(?<![\w./-])([a-z]+(?:_[a-z]+)+)(?![\w./-])/g)].map((m) => m[1])
     .concat([...body.matchAll(/`(bash|python|web_fetch|websearch|read|write|edit|grep|glob)`/g)].map((m) => m[1]));
   return [...new Set(words)].filter((w) => !ok.has(w));
