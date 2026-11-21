@@ -74,7 +74,7 @@ public class RuntimeConfig(IServiceScopeFactory scopeFactory, IMemoryCache cache
         [ConfigKeys.ChunkContextSummary] = "on",
         [ConfigKeys.PriceStaleMonths] = "12",
         [ConfigKeys.PriceTaxRate] = "1.13",
-        [ConfigKeys.AssistantProfile] = "公司主营反应釜、高压釜等实验与中试设备，以及化工产线成套设备，客户以高校、科研院所和化工企业为主。",
+        [ConfigKeys.AssistantProfile] = "霍桐仪器专业生产反应釜，是反应釜、固定床和工艺流程一体化解决方案的制造商：从实验室微型、平行、自动升降反应釜，到 5–30000 L 的生产中试釜和按工艺定制的成套反应装置、连续流反应装置；有压力容器特种设备生产许可证、CE 和 ISO9001 认证；客户以高校、科研院所和石油、化工、制药、新材料、能源、环保企业为主。总部在上海，北京、广州、安徽设有分公司。",
         [ConfigKeys.HybridAlpha] = "0.6",
         [ConfigKeys.AnnCandidateFactor] = "4",
         [ConfigKeys.ChunkTargetLength] = "800",

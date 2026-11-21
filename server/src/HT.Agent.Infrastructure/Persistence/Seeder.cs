@@ -104,6 +104,21 @@ public static class Seeder
         if (added) await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>早期版本的公司简介默认值太笼统（助手被问公司是干什么的答不全）。
+    /// 库里存的还是那句原话、没人改过的，换成现在的默认值；有人改过的不动。</summary>
+    private const string OldProfile = "公司主营反应釜、高压釜等实验与中试设备，以及化工产线成套设备，客户以高校、科研院所和化工企业为主。";
+    private static async Task EnsureProfileAsync(AppDbContext db, CancellationToken ct)
+    {
+        var row = await db.SysConfigs.FindAsync([ConfigKeys.AssistantProfile], ct);
+        if (row is null) return;
+        string? old;
+        try { old = System.Text.Json.JsonSerializer.Deserialize<string>(row.Value); } catch (System.Text.Json.JsonException) { return; }
+        if (old?.Trim() != OldProfile) return;
+        row.Value = System.Text.Json.JsonSerializer.Serialize(Services.RuntimeConfig.Defaults[ConfigKeys.AssistantProfile]);
+        row.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
+    }
+
     public static async Task SeedAsync(AppDbContext db, IPasswordHasher hasher, IConfiguration config, CancellationToken ct = default)
     {
         if (await db.Companies.AnyAsync(ct))
@@ -111,6 +126,7 @@ public static class Seeder
             await EnsureTermsAsync(db, ct); // 已初始化：只补后来新增的固定取值
             await EnsurePurchasingAsync(db, ct);
             await EnsureSkillsAsync(db, ct);
+            await EnsureProfileAsync(db, ct);
             return;
         }
 

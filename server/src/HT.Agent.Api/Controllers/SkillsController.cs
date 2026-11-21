@@ -20,7 +20,7 @@ namespace HT.Agent.Api.Controllers;
 [RequirePermission(PermissionKeys.TemplateManage)]
 public class SkillsController(AppDbContext db, ICurrentUser me, IAuditWriter audit, IChatModelClient model, ILogger<SkillsController> logger) : ControllerBase
 {
-    public static readonly string[] Categories = ["售前与客户", "设计与标准", "图纸与文档", "售后与运维", "安全与化学", "其他"];
+    public static readonly string[] Categories = ["公司与产品", "售前与客户", "设计与标准", "图纸与文档", "售后与运维", "安全与化学", "其他"];
 
     [HttpGet("meta")]
     public IActionResult Meta() => Ok(new

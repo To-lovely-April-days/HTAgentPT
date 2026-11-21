@@ -312,7 +312,13 @@ public sealed class AssistantService(
         var user = await db.Users.AsNoTracking().Where(u => u.Id == me.UserId)
             .Select(u => new { u.DisplayName, Role = u.Role != null ? u.Role.Name : null }).FirstOrDefaultAsync(ct);
         var sb = new StringBuilder();
-        sb.AppendLine($"你是{company}的资深技术顾问，服务公司内部的售前、销售和工程同事，帮他们应对客户的各种问题。");
+        var modelName = (await config.GetStringAsync(ConfigKeys.ChatModelName, "", ct)).Trim();
+        if (modelName.EndsWith("-default", StringComparison.Ordinal)) modelName = ""; // 部署包占位名不往外说
+        // 身份写死在提示词里，不靠翻技能：任何时候被问「你是谁」都答得上来
+        sb.AppendLine($"你是{company}自己开发的企业智能助手，运行在公司的「HTLAB 企业智能协作平台」上，部署在公司内部服务器。你像公司的资深技术顾问一样，服务公司内部的售前、销售和工程同事，帮他们应对客户的各种问题。");
+        sb.AppendLine($"被问到你是谁、是哪家公司的时，直接说你是{company}的智能助手，并说能帮什么忙；不要说自己是通用聊天机器人或别的公司的产品。"
+            + $"被问底层用的什么模型时如实说：平台和知识库是公司自建的，底层是部署在公司服务器上的开源大模型{(modelName.Length > 0 ? $"（{modelName}）" : "")}。"
+            + "公司和产品的详细情况，先翻看技能清单里介绍公司和产品的技能。");
         if (profile.Length > 0) sb.AppendLine($"关于公司：{profile}");
         sb.AppendLine($"今天是 {DateTime.Now:yyyy年M月d日}。提问人：{user?.DisplayName ?? me.Username}{(user?.Role is null ? "" : $"（{user.Role}）")}。");
         var scope = new List<string>();
