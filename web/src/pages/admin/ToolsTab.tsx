@@ -9,12 +9,12 @@ import { KbMultiSelect } from '../../components/KbMultiSelect';
 import { Icon } from '../../components/Icons';
 
 interface Stats { total: number; asks: number; tools: { tool: string; calls: number; failed: number; avgMs: number }[]; files?: { kind: string; made: number; failed: number }[] }
-interface Health { sandbox: boolean; search: boolean; hazchem: boolean; office: boolean; epo: boolean; vision: boolean; memory: { users: number; total: number } }
+interface Health { sandbox: boolean; search: boolean; hazchem: boolean; office: boolean; epo: boolean; vision: boolean; browser?: boolean; memory: { users: number; total: number } }
 
 interface ToolDef { key: string; name: string; ic: string; tone: 'in' | 'calc' | 'ext'; tag?: string; desc: string; fixed?: boolean; settings?: Panel;
   /** 开关用的配置键（默认 assistant.tool.{key}）；noRoles：不按角色分配。 */ cfgKey?: string; noRoles?: boolean;
   /** 做文件的四种：用 assistant.file.{kind}，默认关的要写明 */ file?: string; defOff?: boolean }
-type Panel = 'search' | 'sandbox' | 'epo';
+type Panel = 'search' | 'sandbox' | 'epo' | 'browser';
 const GROUPS: { title: string; note: string; tools: ToolDef[] }[] = [
   { title: '公司内部', note: '始终按权限、密级过滤', tools: [
     { key: 'search_documents', name: '搜资料 · 打开原文', ic: '资', tone: 'in', desc: '在知识库里搜、读原文，回答带编号引用', fixed: true },
@@ -42,6 +42,7 @@ const GROUPS: { title: string; note: string; tools: ToolDef[] }[] = [
   ] },
   { title: '外部数据', note: '会访问外网；发出去的内容先过滤', tools: [
     { key: 'fetch_url', name: '打开网页', ic: '网', tone: 'ext', tag: '免费', desc: '读用户给的链接或搜索结果里的网页全文（只连公网地址）' },
+    { key: 'browser', name: '内置浏览器', ic: '浏', tone: 'ext', tag: '免费', desc: '服务器上的真浏览器：助手能打开网页、读、点、填，员工在右边画面上看得到、也能自己点；密码验证码员工自己填，提交类按钮先问员工', settings: 'browser' },
     { key: 'web_search', name: '联网搜索', ic: '搜', tone: 'ext', tag: '试用', desc: '自建 SearXNG 聚合必应、百度、搜狗；偶尔会搜不到', settings: 'search' },
     { key: 'chemical_info', name: '化学品安全数据', ic: '化', tone: 'ext', tag: '免费', desc: 'PubChem 查 GHS 危险性、闪点等；本地《危险化学品目录》判断是否危化品' },
     { key: 'search_literature', name: '专利 / 论文检索', ic: '献', tone: 'ext', tag: '免费', desc: '论文用 OpenAlex（不用注册）；专利用欧洲专利局 OPS（含中国专利，需填免费密钥）', settings: 'epo' },
@@ -83,6 +84,7 @@ export default function ToolsTab() {
     if (t.key === 'search_literature') return h.epo ? ['论文 · 专利都可查', 'ok'] : ['只能查论文 · 专利还没填密钥', 'warn'];
     if (t.file) return !h.sandbox ? ['代码解释器连不上（sandbox 容器没起来？）', 'warn']
       : h.office ? ['运行环境和检查服务正常', 'ok'] : ['检查服务连不上（office 容器没起来？）：只能确认文件能打开', 'warn'];
+    if (t.key === 'browser') return h.browser ? ['浏览器服务正常', 'ok'] : ['浏览器服务连不上（browser 容器没起来？）', 'warn'];
     if (t.key === 'run_python') return health.data ? (health.data.sandbox ? ['运行环境正常', 'ok'] : ['运行环境连不上（sandbox 容器没起来？）', 'warn']) : ['检查中…', 'off'];
     if (t.key === 'web_search') return health.data ? (health.data.search ? ['搜索服务正常', 'ok'] : ['搜索服务连不上（searxng 容器没起来？）', 'warn']) : ['检查中…', 'off'];
     if (t.key === 'chemical_info') return health.data ? (health.data.hazchem ? ['正常', 'ok'] : ['正常 · 本地危化品目录未导入（只查 PubChem）', 'warn']) : ['检查中…', 'off'];
@@ -144,7 +146,8 @@ export default function ToolsTab() {
         ))}
       </div>
       {panel === 'epo' && <EpoPanel cfg={c} onClose={() => { setPanel(null); void qc.invalidateQueries({ queryKey: ['tool-health'] }); }} onSave={save} />}
-      {panel && panel !== 'epo' && <SettingsPanel kind={panel} cfg={c} onClose={() => setPanel(null)} onSave={save} />}
+      {panel === 'browser' && <BrowserPanel cfg={c} onClose={() => setPanel(null)} onSave={save} />}
+      {panel && panel !== 'epo' && panel !== 'browser' && <SettingsPanel kind={panel} cfg={c} onClose={() => setPanel(null)} onSave={save} />}
     </div>
   );
 }
@@ -166,6 +169,33 @@ function KeepDays({ value, onSave }: { value: string; onSave: (v: string) => voi
 }
 
 const ENGINES = [['bing', '必应'], ['baidu', '百度'], ['sogou', '搜狗'], ['360search', '360']] as const;
+
+/** 内置浏览器：允许打开的内网地址（默认内网一律拦）、不让打开的网站（网银、支付类默认已拦）。 */
+function BrowserPanel({ cfg, onClose, onSave }: { cfg: Record<string, string>; onClose: () => void; onSave: (v: Record<string, string>) => Promise<void> }) {
+  const [allow, setAllow] = useState(cfg['browser.allow_hosts'] ?? '');
+  const [block, setBlock] = useState(cfg['browser.block_hosts'] ?? '');
+  const clean = (s: string) => s.split(/[,，\s]+/).map((x) => x.trim().toLowerCase()).filter(Boolean).join(',');
+  return (
+    <aside className="acc-drawer" aria-label="内置浏览器设置">
+      <div className="acc-drawer-hd"><b>内置浏览器 · 设置</b><button type="button" className="refs-x" aria-label="关闭" onClick={onClose}><Icon name="x" size={14} style={{ display: 'block' }} /></button></div>
+      <div className="acc-drawer-body sc">
+        <p className="dash-muted" style={{ margin: 0, lineHeight: 1.7 }}>浏览器跑在公司服务器上，每个对话一个独立的浏览器（登录状态互不相通），闲置 15 分钟关掉；同时最多开 4 个、每个对话最多 8 个网页（在部署配置里改）。密码、验证码、付款、证件号助手一律不填；提交、确认、下单、删除这类按钮先问员工。每一步都记进审计。</p>
+        <label className="acc-field"><span>允许打开的内网地址</span>
+          <textarea className="inp m" rows={3} value={allow} placeholder="如 erp.htlab.local, 192.168.1.20" onChange={(e) => setAllow(e.target.value)} />
+          <small className="dash-muted">内网、本机地址默认一律拦（不然从服务器上的浏览器能摸到数据库和模型服务）。只把员工确实要用的内部系统加进来。</small>
+        </label>
+        <label className="acc-field"><span>不让打开的网站</span>
+          <textarea className="inp m" rows={3} value={block} placeholder="如 example.com" onChange={(e) => setBlock(e.target.value)} />
+          <small className="dash-muted">网银、支付宝、微信支付、银联等已经默认拦了，这里再加别的。</small>
+        </label>
+      </div>
+      <div className="acc-drawer-f">
+        <button type="button" className="gbtn" onClick={onClose}>取消</button>
+        <button type="button" className="pbtn" onClick={() => void onSave({ 'browser.allow_hosts': clean(allow), 'browser.block_hosts': clean(block) }).then(onClose)}>保存</button>
+      </div>
+    </aside>
+  );
+}
 
 function SettingsPanel({ kind, cfg, onClose, onSave }: {
   kind: 'search' | 'sandbox'; cfg: Record<string, string>; onClose: () => void; onSave: (v: Record<string, string>) => Promise<void>;

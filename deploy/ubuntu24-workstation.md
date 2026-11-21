@@ -438,6 +438,42 @@ docker compose --env-file /srv/htagent/config/compose.env \
 
 然后到后台「系统设置 · 助手工具」，「助手做文件」那一组：Excel、Word 默认开着，状态应该是「运行环境和检查服务正常」；PPT、PDF 默认关着，用测试题跑过、成功率够了再开。在对话里试一句「出一份 30L 加氢釜的报价单 Excel」，回答里应该出现文件卡，能预览、能下载。
 
+## 10. 升级：内置浏览器（助手能打开网页、读、点、填）
+
+新加一个 browser 容器：Chromium 用 Debian 软件源装，Playwright 用 pip 装，不用从国外下载浏览器。业务数据不受影响。
+
+```bash
+cd /srv/htagent/app
+docker compose --env-file /srv/htagent/config/compose.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.tools.yml build browser
+docker compose --env-file /srv/htagent/config/compose.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.tools.yml up -d browser
+```
+
+（平时还带 `-f deploy/docker-compose.mineru.yml` 的，照样带上。）
+
+验证浏览器能打开公网网页、拦得住内网：
+
+```bash
+docker compose --env-file /srv/htagent/config/compose.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.tools.yml exec -T browser python - <<'PY'
+import json, urllib.request
+def call(path, body):
+    req = urllib.request.Request("http://127.0.0.1:8100" + path, json.dumps(body).encode(), {"Content-Type": "application/json"})
+    try:
+        return json.load(urllib.request.urlopen(req, timeout=60))
+    except urllib.error.HTTPError as e:
+        return json.load(e)
+print(call("/s/selftest-0001/open", {"url": "https://www.htlab.cn/"}))
+print(call("/s/selftest-0001/open", {"url": "http://db:5432/"}))
+urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8100/s/selftest-0001", method="DELETE"))
+PY
+```
+
+第一行应该返回网页标题，第二行应该是「这是公司内网或本机地址，默认不让打开」。
+
+然后到后台「系统设置 · 助手工具」，「外部数据」里的「内置浏览器」状态应是「浏览器服务正常」。员工要用的内部系统（如 ERP），在它的「设置」里加进「允许打开的内网地址」。同时开几个浏览器、每个对话最多几个网页、闲置多久关，在 compose.env 里用 BROWSER_MAX_SESSIONS、BROWSER_MAX_TABS、BROWSER_IDLE_MINUTES 改，默认 4、8、15。
+
 ## 排错所需信息
 
 出现问题时，提供 GPU 型号/驱动版本、失败命令、错误日志尾部即可。不要发送 compose.env、管理员密码或 API key。

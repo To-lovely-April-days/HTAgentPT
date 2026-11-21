@@ -124,6 +124,16 @@ public static class ConfigKeys
     /// <summary>子代理最多查几轮，超过算没查完。</summary>
     public const string DelegateRounds = "assistant.delegate.rounds";
 
+    // ── 内置浏览器（服务器上的 Chromium，助手能读、能点、能填）──
+    public const string ToolBrowser = "assistant.tool.browser";
+    public const string ToolBrowserRoles = "assistant.tool.browser.roles";
+    /// <summary>浏览器容器地址。</summary>
+    public const string BrowserUrl = "browser.url";
+    /// <summary>允许打开的内网地址（逗号分隔的域名或 IP，如 erp.htlab.local）。默认内网一律拦。</summary>
+    public const string BrowserAllowHosts = "browser.allow_hosts";
+    /// <summary>不让打开的网站（逗号分隔），网银、支付类默认已拦。</summary>
+    public const string BrowserBlockHosts = "browser.block_hosts";
+
     // ── 助手工具：每个工具一个开关（on/off）和可用角色（逗号分隔的角色代码，空=所有内部员工）──
     public const string ToolAskUser = "assistant.tool.ask_user";
     public const string ToolAskUserRoles = "assistant.tool.ask_user.roles";

@@ -2,7 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { get } from '../../lib/api';
 
-export interface Caps { web: boolean; python: boolean }
+export interface Caps { web: boolean; python: boolean; browser?: boolean }
 
 export function useCaps(): Caps {
   const q = useQuery({ queryKey: ['web-caps'], queryFn: () => get<Caps>('/api/web/caps'), staleTime: 5 * 60_000, retry: false });

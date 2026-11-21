@@ -21,6 +21,7 @@ public class WebController(IRuntimeConfig config, ICurrentUser me, WebFetcher fe
     {
         web = await AssistantService.ToolAllowedAsync(config, me, "fetch_url", ct),
         python = await AssistantService.ToolAllowedAsync(config, me, "run_python", ct),
+        browser = await AssistantService.ToolAllowedAsync(config, me, "browser", ct),
     });
 
     /// <summary>阅读模式：抓网页，拆成标题、段落、表格、图片块。embeddable 告诉前端「原网页」能不能嵌进来显示。</summary>

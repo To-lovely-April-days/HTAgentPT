@@ -4,7 +4,7 @@ import { createContext, useContext } from 'react';
 
 export type PreviewItem =
   | { kind: 'html'; code: string }
-  | { kind: 'web'; url: string; title?: string; label?: string; quotes?: string[] }
+  | { kind: 'web'; url: string; title?: string; label?: string; quotes?: string[]; live?: string }
   | { kind: 'doc'; title: string; markdown: string }
   | { kind: 'file'; src: string; fileName: string };
 

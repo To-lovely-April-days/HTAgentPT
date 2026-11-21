@@ -137,13 +137,14 @@ export default function ChatPage() {
   const openPreview = useCallback((item: PreviewItem) => {
     if (item.kind === 'web') {
       setWebTabs((tabs) => {
-        const at = tabs.findIndex((t) => t.url === item.url);
+        // 内置浏览器的标签按标签号认，别的按网址认
+        const at = item.live ? tabs.findIndex((t) => t.live === item.live) : tabs.findIndex((t) => !t.live && t.url === item.url);
         if (at >= 0) {
           setWebActive(at);
           return tabs.map((t, i) => (i === at ? { ...t, quotes: item.quotes ?? t.quotes, label: item.label ?? t.label, title: t.title ?? item.title } : t));
         }
         setWebActive(tabs.length);
-        return [...tabs, { url: item.url, title: item.title, label: item.label, quotes: item.quotes }];
+        return [...tabs, { url: item.url, title: item.title, label: item.label, quotes: item.quotes, live: item.live }];
       });
       setPanel({ kind: 'web' });
     } else setPanel(item);
@@ -154,6 +155,17 @@ export default function ChatPage() {
       if (next.length === 0) setPanel(null);
       setWebActive((a) => Math.max(0, Math.min(a > i ? a - 1 : a, next.length - 1)));
       return next;
+    });
+  }, []);
+  // 网页标签切到「可操作」、或内置浏览器里冒出新标签（网页自己开的新窗口、助手开的）
+  const setLive = useCallback((i: number, live: string, url?: string, title?: string) => {
+    setWebTabs((tabs) => tabs.map((t, k) => (k === i ? { ...t, live, url: url ?? t.url, title: title || t.title } : t)));
+  }, []);
+  const adoptTabs = useCallback((extra: WebTab[]) => {
+    setWebTabs((tabs) => {
+      const known = new Set(tabs.map((t) => t.live));
+      const add = extra.filter((t) => !known.has(t.live)).slice(0, Math.max(0, 8 - tabs.length));
+      return add.length ? [...tabs, ...add] : tabs;
     });
   }, []);
   const [revision, setRevision] = useState(0);
@@ -206,6 +218,8 @@ export default function ChatPage() {
         attachmentIds: attachmentIds && attachmentIds.length > 0 ? attachmentIds : null,
         filters: { query: question, kbIds: scope.kbId ? [scope.kbId] : null, docCategory: scope.docCategory },
         level: levelOverride ?? (level === 'auto' ? null : level),
+        // 右边开着可操作的网页：助手自动读这一页
+        browserTab: panel?.kind === 'web' ? webTabs[Math.min(webActive, webTabs.length - 1)]?.live ?? null : null,
       })) {
         const p = ev.payload as Record<string, unknown>;
         switch (ev.kind) {
@@ -250,6 +264,10 @@ export default function ChatPage() {
             break;
           case 'truncated':
             patch(id, { truncated: true, level: p.level as string });
+            break;
+          case 'browser':
+            // 助手在内置浏览器里开了网页：右边面板跟着打开这个标签
+            openPreview({ kind: 'web', url: p.url as string, title: p.title as string, live: p.tab as string });
             break;
           case 'agents': {
             const card = ev.payload as AgentsCardData;
@@ -319,7 +337,7 @@ export default function ChatPage() {
     } catch (err) {
       patch(id, { streaming: false, error: err instanceof ApiError ? err.message : '连接中断，本轮未完成' });
     }
-  }, [qaSessionId, scope, level]);
+  }, [qaSessionId, scope, level, panel, webTabs, webActive, openPreview]);
 
   // ── 方案生成的一轮：会话已开时，这条对话就由它接着走 ──────────
   const runGenTurn = useCallback(async (sessionId: string, body: Record<string, unknown>) => {
@@ -535,9 +553,9 @@ export default function ChatPage() {
             onClose={() => setShowPreview(false)} />
         )}
         {panel && (
-          <PreviewPanel panel={panel} htmlVersions={htmlVersions} webTabs={webTabs} webActive={webActive}
+          <PreviewPanel panel={panel} htmlVersions={htmlVersions} webTabs={webTabs} webActive={webActive} sessionId={qaSessionId}
             setPanel={setPanel} setWebActive={setWebActive} closeWebTab={closeWebTab}
-            openWeb={(url) => openPreview({ kind: 'web', url })} onClose={() => setPanel(null)} />
+            openWeb={(url) => openPreview({ kind: 'web', url })} setLive={setLive} adoptTabs={adoptTabs} onClose={() => setPanel(null)} />
         )}
         {!panel && !(genSessionId && showPreview) && refs && refMsg?.evidence && (
           <RefPanel key={refs.msgId} used={refMsg.evidence.used} other={refMsg.evidence.other} focus={refs.focus}

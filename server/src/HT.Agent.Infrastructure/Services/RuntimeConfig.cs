@@ -32,6 +32,7 @@ public class RuntimeConfig(IServiceScopeFactory scopeFactory, IMemoryCache cache
         [ConfigKeys.FilePdf] = "off",
         [ConfigKeys.FileKeepDays] = "7",
         [ConfigKeys.Delegate] = "on",
+        [ConfigKeys.BrowserUrl] = "http://browser:8100",
         [ConfigKeys.DelegateMaxTasks] = "4",
         [ConfigKeys.DelegateParallel] = "3",
         [ConfigKeys.DelegateRounds] = "5",

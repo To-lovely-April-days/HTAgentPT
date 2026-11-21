@@ -220,3 +220,45 @@ button.sess-file:hover { background: #ebebe8; color: var(--ink); }
 .pid-export button { height: 26px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--panel); font: inherit; font-size: 12px; color: var(--ink); cursor: pointer; }
 .pid-export button:hover { border-color: #c4c4c0; }
 .pid-export i { font-style: normal; color: var(--ink-3); }
+
+/* 网页面板顶部：一排标签（谁在操作用像素小人表示）+ 一行工具（前进后退、地址、看法、更多） */
+.wb-tabs { position: relative; }
+.wb-fav { flex: 0 0 16px; height: 16px; border-radius: 4px; color: #fff; font-size: 9.5px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.wb-tab.mini { max-width: none; }
+.wb-tab.mini .wb-tab-b { padding: 7px 8px; }
+.wb-who { position: relative; flex: 0 0 auto; line-height: 0; }
+.wb-live { position: absolute; right: -3px; top: -2px; width: 6px; height: 6px; border-radius: 50%; background: #2f6fd6; box-shadow: 0 0 0 1.5px var(--panel); animation: wb-pulse 1.2s ease-in-out infinite; }
+.wb-done { position: absolute; right: -5px; bottom: -3px; width: 11px; height: 11px; border-radius: 50%; background: #1c6b45; color: #fff; display: flex; align-items: center; justify-content: center; }
+@keyframes wb-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .wb-live { animation: none; } }
+.wb-plus { align-self: center; margin: 0 2px 4px; width: 26px; height: 26px; border: none; border-radius: 7px; background: none; color: var(--ink-3); font-size: 16px; cursor: pointer; }
+.wb-plus:hover { background: #e4e4e0; color: var(--ink); }
+.wb-all { align-self: center; margin: 0 4px 4px auto; height: 24px; padding: 0 8px; border: none; border-radius: 7px; background: #e4e4e0; font: inherit; font-size: 11.5px; color: var(--ink-2); cursor: pointer; white-space: nowrap; }
+.wb-close { align-self: center; margin: 0 2px 4px 4px; border: none; background: none; color: var(--ink-3); cursor: pointer; padding: 4px; border-radius: 6px; }
+.wb-close:hover { background: #e4e4e0; color: var(--ink); }
+.wb-drop { position: absolute; right: 8px; top: 42px; z-index: 20; width: 280px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 12px 32px rgba(0,0,0,.12); }
+.wb-drop-r { display: flex; align-items: center; border-radius: 6px; }
+.wb-drop-r.on, .wb-drop-r:hover { background: #f4f4f2; }
+.wb-drop-r > button:first-child { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; border: none; background: none; padding: 6px 8px; font: inherit; font-size: 12px; text-align: left; cursor: pointer; color: var(--ink); }
+.wb-drop-t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wb-drop-s { font-size: 11px; color: var(--ink-4); }
+.wb-nav button { font-size: 15px; }
+.wb-more-w { position: relative; flex: 0 0 auto; }
+.wb-more { width: 28px; height: 28px; border: none; border-radius: 7px; background: none; color: var(--ink-3); font-size: 15px; letter-spacing: 1px; cursor: pointer; }
+.wb-more:hover, .wb-more.on { background: #f1f1ef; color: var(--ink); }
+.wb-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; width: 160px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 12px 32px rgba(0,0,0,.12); display: flex; flex-direction: column; }
+.wb-menu button { border: none; background: none; text-align: left; padding: 7px 10px; border-radius: 6px; font: inherit; font-size: 12.5px; color: var(--ink); cursor: pointer; }
+.wb-menu button:hover:not(:disabled) { background: #f4f4f2; }
+.wb-menu button:disabled { color: var(--ink-4); cursor: default; }
+.wb-menu i { height: 1px; margin: 4px 6px; background: var(--line-soft); }
+.wb-strip { display: flex; align-items: center; gap: 8px; padding: 6px 14px; font-size: 12px; border-bottom: 1px solid var(--line-soft); }
+.wb-strip.ai { background: #f3f6fc; color: #2a4a85; }
+.wb-strip.me { background: #fafaf9; color: var(--ink-3); }
+.wb-strip button { margin-left: auto; height: 24px; padding: 0 10px; border: 1px solid #c9d5ec; border-radius: 6px; background: #fff; color: #2a4a85; font: inherit; font-size: 12px; cursor: pointer; }
+.wb-msg { padding: 6px 14px; font-size: 12px; color: #8a5a00; background: #fffcf5; border-bottom: 1px solid #f3ead6; }
+/* 可操作：服务器上浏览器的画面 */
+.lv-view { position: relative; flex: 1; min-height: 0; display: flex; align-items: flex-start; justify-content: center; padding: 10px; outline: none; background: #f1f1ef; }
+.lv-view img { display: block; width: 100%; height: auto; border-radius: 6px; box-shadow: 0 1px 6px rgba(16,24,40,.12); cursor: pointer; user-select: none; }
+.lv-view.focus img { box-shadow: 0 0 0 2px #2f6fd6, 0 1px 6px rgba(16,24,40,.12); }
+.lv-view.busy img { cursor: not-allowed; }
+.lv-tip { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); padding: 4px 10px; border-radius: 999px; background: rgba(20,20,20,.72); color: #fff; font-size: 11.5px; pointer-events: none; white-space: nowrap; }

@@ -99,6 +99,8 @@ public static class DependencyInjection
             .ConfigurePrimaryHttpMessageHandler(WebFetcher.CreateHandler);
         services.AddSingleton<SandboxClient>();
         services.AddSingleton<OfficeCheckClient>();
+        services.AddSingleton<BrowserClient>();
+        services.AddSingleton<BrowserActivity>();
         services.AddSingleton<PubChemClient>();
         services.AddSingleton<SearxClient>();
         services.AddSingleton<WebFetcher>();

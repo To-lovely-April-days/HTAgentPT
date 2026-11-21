@@ -50,7 +50,9 @@ public record QaRequest(Guid? SessionId, string Question, RetrievalRequest Retri
     /// <summary>思考档位：auto / fast / standard / deep（空=自动）。员工不能自己选时以后台默认为准。</summary>
     string? Level = null,
     /// <summary>跑测试题时按指定档位跑，不管员工能不能自己选。</summary>
-    bool LevelForced = false);
+    bool LevelForced = false,
+    /// <summary>用户在右边面板里开着的网页（内置浏览器的标签号）：助手自动读它。</summary>
+    string? BrowserTab = null);
 
 /// <summary>试技能：Code 是技能代号；On=true 只开这一个并要求先翻看，On=false 不开任何技能。</summary>
 public record SkillTest(string Code, bool On);

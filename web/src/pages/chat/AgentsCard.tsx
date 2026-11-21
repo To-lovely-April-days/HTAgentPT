@@ -6,11 +6,7 @@ import { Icon } from '../../components/Icons';
 import { ACTS, actOfTool } from '../../components/pet/thinking';
 import type { Pose } from '../../components/pet/sprite';
 import type { AgentsCardData } from '../../lib/types';
-
-/** 子代理 1–4：蓝、绿、黄、紫（主助手是红色）。 */
-const AGENT_TINTS: readonly (readonly [string, string])[] = [
-  ['#2F6FD6', '#1D4A94'], ['#1E9E63', '#126B42'], ['#E39B00', '#9A6400'], ['#7A4FD0', '#4F2F96'], ['#0E8A8A', '#095E5E'], ['#C2410C', '#8A2E08'],
-];
+import { tintOf } from '../../components/pet/tints';
 
 type Item = AgentsCardData['items'][number];
 
@@ -25,7 +21,7 @@ function frames(it: Item, live: boolean): [Pose, Pose, number] {
 }
 
 function Mascot({ it, live, size = 26 }: { it: Item; live: boolean; size?: number }) {
-  const tint = AGENT_TINTS[(it.n - 1) % AGENT_TINTS.length];
+  const tint = tintOf(it.n)!;
   const [f1, f2, speed] = frames(it, live);
   return (
     <span className="ag-pet" style={{ ['--ag-speed' as string]: `${speed}s` }}>

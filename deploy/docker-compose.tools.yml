@@ -5,6 +5,7 @@
 #   sandbox  代码解释器：Python + 化工计算库（CoolProp、fluids、ht、thermo）+ 做文件的库（Excel、Word、PPT、PDF）。不接外网、只读文件系统、去掉全部特权、限 CPU/内存/进程数
 #   searxng  联网搜索：自建 SearXNG，聚合必应/百度/搜狗/360。只给后端用，不对外开端口
 #   office   导出 PDF、检查助手做的文件（Excel 重算公式查错）：LibreOffice。只给后端用，不对外开端口
+#   browser  内置浏览器：Chromium + Playwright，助手能打开网页、读、点、填。只给后端用，不对外开端口；内网地址默认拦
 #
 # 不起这几个容器也没关系：系统设置里对应工具会显示「连不上」，助手照常用其它工具回答。
 services:
@@ -46,6 +47,24 @@ services:
       - /tmp:size=512m,mode=1777
     mem_limit: 2g
     cpus: 1.5
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
+  browser:
+    build:
+      context: ./browser
+      args:
+        PY_IMAGE: ${PY_IMAGE:-docker.m.daocloud.io/library/python:3.12-slim}
+        PIP_INDEX: ${PIP_INDEX:-https://pypi.tuna.tsinghua.edu.cn/simple}
+    image: htagent-browser
+    environment:
+      MAX_SESSIONS: ${BROWSER_MAX_SESSIONS:-4}     # 同时开几个浏览器（一个对话一个）
+      MAX_TABS: ${BROWSER_MAX_TABS:-8}             # 每个对话最多几个网页
+      IDLE_MINUTES: ${BROWSER_IDLE_MINUTES:-15}    # 闲置多久关掉（登录状态一起清掉）
+    shm_size: 1g                                   # Chromium 要用共享内存，太小会崩
+    mem_limit: 3g
+    cpus: 2
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     restart: unless-stopped

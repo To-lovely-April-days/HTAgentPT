@@ -57,16 +57,18 @@ function DocPanel({ title, markdown, onClose }: { title: string; markdown: strin
   );
 }
 
-export function PreviewPanel({ panel, htmlVersions, webTabs, webActive, setPanel, setWebActive, closeWebTab, openWeb, onClose }: {
-  panel: Panel; htmlVersions: string[]; webTabs: WebTab[]; webActive: number;
-  setPanel: (p: Panel) => void; setWebActive: (i: number) => void; closeWebTab: (i: number) => void; openWeb: (url: string) => void; onClose: () => void;
+export function PreviewPanel({ panel, htmlVersions, webTabs, webActive, sessionId, setPanel, setWebActive, closeWebTab, openWeb, setLive, adoptTabs, onClose }: {
+  panel: Panel; htmlVersions: string[]; webTabs: WebTab[]; webActive: number; sessionId: string | null;
+  setPanel: (p: Panel) => void; setWebActive: (i: number) => void; closeWebTab: (i: number) => void; openWeb: (url: string) => void;
+  setLive: (i: number, live: string, url?: string, title?: string) => void; adoptTabs: (tabs: WebTab[]) => void; onClose: () => void;
 }) {
   const [wide, setWide] = useState(false);
   return (
     <aside className={'pv' + (wide ? ' wide' : '')} aria-label="预览">
       <button type="button" className="pv-grip" title={wide ? '收窄' : '放宽'} aria-label={wide ? '收窄预览' : '放宽预览'} onClick={() => setWide(!wide)}>{wide ? '›' : '‹'}</button>
       {panel.kind === 'html' && <HtmlPreview code={panel.code} versions={htmlVersions} onPick={(code) => setPanel({ kind: 'html', code })} onClose={onClose} />}
-      {panel.kind === 'web' && <WebBrowser tabs={webTabs} active={webActive} onActivate={setWebActive} onCloseTab={closeWebTab} onOpen={openWeb} onClose={onClose} />}
+      {panel.kind === 'web' && <WebBrowser tabs={webTabs} active={webActive} sessionId={sessionId} onActivate={setWebActive} onCloseTab={closeWebTab}
+        onOpen={openWeb} onSetLive={setLive} onAdopt={adoptTabs} onClose={onClose} />}
       {panel.kind === 'doc' && <DocPanel title={panel.title} markdown={panel.markdown} onClose={onClose} />}
       {panel.kind === 'file' && (
         <div className="pv-inner">

@@ -104,6 +104,7 @@ public class ToolsController(AppDbContext db, IRuntimeConfig config, SandboxClie
         return Ok(new
         {
             sandbox = sb, search, hazchem = System.IO.File.Exists(hazPath), office, epo = epoSet,
+            browser = await HttpContext.RequestServices.GetRequiredService<HT.Agent.Infrastructure.Clients.BrowserClient>().HealthyAsync(ct),
             vision = await vision.EnabledAsync(ct),
             memory = new { users = memUsers, total = memTotal } // 只给条数，不给内容
         });
