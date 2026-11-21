@@ -606,8 +606,10 @@ public sealed class AssistantService(
                 化工图（只给结构化内容，图由系统按标准图例画、自动排版）：
                 pfd 工艺流程图 {units:[{id:"R-101", type:reactor|column|exchanger|heater|cooler|pump|compressor|tank|vessel|separator|filter|mixer|valve, label, params}],
                     streams:[{id:"1", from:"R-101"（进料留空）, to:"E-101"（产品留空）, label, T:"80 ℃", P:"0.3 MPa", flow:数字, unit:"kg/h", phase, comp:{"组分":质量分率%}}]}
-                pid 管道仪表图 {equipment:[{tag, type（同 pfd）, label}], lines:[{id:"P-1001-50-A1", from, to, size:"DN50", spec, valves:[{type:gate|globe|ball|check|control|safety|butterfly, tag}]}],
-                    instruments:[{tag:"TIC-101", on:设备位号或管线号, service, range, signal_to:"TV-101"}]}
+                pid 管道仪表图 {project:"项目名（可省）", drawing_no:"图号（可省）", equipment:[{tag, type（同 pfd）, label}],
+                    lines:[{id:"P-1001-50-A1", from, to（来自上游 / 去下游时留空）, label:"一头留空时写去哪或从哪来，如 去火炬总管", size:"DN50", spec,
+                      valves:[{type:gate|globe|ball|check|control|safety|butterfly|needle, tag}]}],
+                    instruments:[{tag:"TIC-101", on:设备位号或管线号, location:field|panel|dcs（就地 / 控制室盘面 / DCS，不确定就省略）, service, range, signal_to:"TV-101"}]}
                 molecule {smiles, name, cas}（分子式、分子量由系统按 SMILES 算）
                 reaction {reactants:[{coef, formula, name}], products:[{coef, formula, name}], above:"催化剂", below:"80 ℃, 0.5 MPa", reversible:true|false, dH:"-92 kJ/mol"}（系统核对配平）
                 equipment 设备简图 {type:vertical_vessel|horizontal_vessel|column|tank|exchanger, diameter:毫米, length:切线长毫米, head:椭圆封头|平盖|锥底, support,

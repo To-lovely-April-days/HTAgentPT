@@ -8,6 +8,7 @@ import { fmt, list, n, s } from './util';
 import { MoleculeSvg } from '../../../components/code/Views';
 import { chemParts } from './chemData';
 import { Icon } from '../../../components/Icons';
+import { PidDrawing } from './pid/PidDrawing';
 
 /** 化学式：数字用真正的下标排，字距不散。 */
 function ChemF({ f }: { f: string }) {
@@ -69,25 +70,6 @@ function Symbol({ kind, x, y }: { kind: Kind; x: number; y: number }) {
     default:
       return <rect x={l} y={t} width={w} height={h} rx={w / 2} {...st} />;
   }
-}
-
-/** 小阀门图例（画在管线上）。 */
-function Valve({ type, x, y, tag }: { type: string; x: number; y: number; tag?: string }) {
-  const st = { fill: '#fff', stroke: '#2b2b2b', strokeWidth: 1.2 };
-  const bow = <path d={`M${x - 8} ${y - 5} L${x + 8} ${y + 5} L${x + 8} ${y - 5} L${x - 8} ${y + 5} Z`} {...st} />;
-  const t = type.toLowerCase();
-  return (
-    <g>
-      {t.includes('check') || t.includes('止回') ? <g><path d={`M${x - 8} ${y - 6} L${x - 8} ${y + 6} L${x + 8} ${y} Z`} {...st} /><line x1={x + 8} y1={y - 6} x2={x + 8} y2={y + 6} stroke="#2b2b2b" /></g>
-        : t.includes('safety') || t.includes('relief') || t.includes('安全') ? <g><path d={`M${x - 7} ${y + 7} L${x + 7} ${y + 7} L${x} ${y - 4} Z`} {...st} /><path d={`M${x} ${y - 4} L${x} ${y - 14} M${x - 4} ${y - 10} L${x + 4} ${y - 14}`} stroke="#2b2b2b" /></g>
-        : t.includes('control') || t.includes('调节') ? <g>{bow}<line x1={x} y1={y} x2={x} y2={y - 12} stroke="#2b2b2b" /><path d={`M${x - 7} ${y - 12} A7 7 0 0 1 ${x + 7} ${y - 12} Z`} {...st} /></g>
-        : t.includes('ball') || t.includes('球') ? <g>{bow}<circle cx={x} cy={y} r={3} fill="#2b2b2b" /></g>
-        : t.includes('butterfly') || t.includes('蝶') ? <g><line x1={x - 7} y1={y - 7} x2={x - 7} y2={y + 7} stroke="#2b2b2b" /><line x1={x + 7} y1={y - 7} x2={x + 7} y2={y + 7} stroke="#2b2b2b" /><line x1={x - 7} y1={y + 6} x2={x + 7} y2={y - 6} stroke="#2b2b2b" /></g>
-        : t.includes('globe') || t.includes('截止') ? <g>{bow}<circle cx={x} cy={y} r={3} fill="#fff" stroke="#2b2b2b" /></g>
-        : bow}
-      {tag && <text x={x} y={y + 18} textAnchor="middle" fontSize={9} fill="#4a4a4a">{tag}</text>}
-    </g>
-  );
 }
 
 // ── 自动排版 ──────────────────────────────────────
@@ -253,56 +235,11 @@ export function Pfd({ d }: { d: D }) {
 }
 
 // ── 管道仪表图 ─────────────────────────────────────
-export function Pid({ d }: { d: D }) {
-  const lines = edgesOf(d.lines);
-  const lay = layout(list(d.equipment).map((x) => ({ ...x, id: s(x.tag) || s(x.id) })), lines, 240);
+export function Pid({ d, title = '' }: { d: D; title?: string }) {
   const insts = list(d.instruments);
-  // 仪表圆圈放在所在设备上方 / 所在管线上方，同一处多个往右排
-  const used = new Map<string, number>();
-  const bubbles = insts.map((x) => {
-    const on = s(x.on);
-    const nd = lay.nodes.get(on);
-    const ln = lay.edges.find((e) => e.e.id === on);
-    const base: [number, number] = nd ? [nd.x, nd.y - nd.h / 2 - 34] : ln ? [ln.mid[0], ln.mid[1] - 40] : [PAD, 26];
-    const k = used.get(on) ?? 0; used.set(on, k + 1);
-    return { x, cx: base[0] + k * 46, cy: base[1], anchor: nd ? [nd.x, nd.y - nd.h / 2] as [number, number] : ln ? ln.mid : null };
-  });
-  // 调节阀位置：管线上的阀门按顺序排在第一段水平线上
-  const valvePos = new Map<string, [number, number]>();
-  const valves = lay.edges.flatMap(({ e, seg }) => {
-    const vs = list(e.raw.valves);
-    const [x1, y1, x2] = seg;
-    return vs.map((v, i) => {
-      const x = x1 + ((x2 - x1) * (i + 1)) / (vs.length + 1);
-      if (s(v.tag)) valvePos.set(s(v.tag), [x, y1]);
-      return { v, x, y: y1 };
-    });
-  });
   return (
     <div>
-      <Diagram lay={lay} label="管道仪表图">
-        {lay.edges.map(({ e, seg }, i) => e.id && (
-          <text key={i} x={(seg[0] + seg[2]) / 2} y={seg[1] + 34} textAnchor="middle" fontSize={9} fill="#6b6b6b" fontFamily="JetBrains Mono, monospace">
-            {e.id}{s(e.raw.size) ? ` ${s(e.raw.size)}` : ''}
-          </text>
-        ))}
-        {valves.map(({ v, x, y }, i) => <Valve key={i} type={s(v.type)} x={x} y={y} tag={s(v.tag)} />)}
-        {bubbles.map(({ x, cx, cy, anchor }, i) => {
-          const tag = s(x.tag);
-          const [fn, num] = [tag.replace(/[-\s]?\d.*$/, ''), (/\d[\w-]*$/.exec(tag) ?? [''])[0]];
-          const to = valvePos.get(s(x.signal_to));
-          return (
-            <g key={i}>
-              {anchor && <line x1={cx} y1={cy + 15} x2={anchor[0]} y2={anchor[1]} stroke="#2b2b2b" strokeWidth={0.9} />}
-              {to && <path d={`M${cx + 15} ${cy} H${to[0]} V${to[1] - 19}`} fill="none" stroke="#2b2b2b" strokeWidth={0.9} strokeDasharray="5 3" />}
-              <circle cx={cx} cy={cy} r={15} fill="#fff" stroke="#2b2b2b" strokeWidth={1.2} />
-              <line x1={cx - 15} x2={cx + 15} y1={cy} y2={cy} stroke="#2b2b2b" strokeWidth={0.9} />
-              <text x={cx} y={cy - 3} textAnchor="middle" fontSize={8.5} fontWeight={700}>{fn}</text>
-              <text x={cx} y={cy + 10} textAnchor="middle" fontSize={8}>{num}</text>
-            </g>
-          );
-        })}
-      </Diagram>
+      <PidDrawing d={d} title={title} />
       {insts.length > 0 && (
         <div className="dc-scroll">
           <table className="dc-table compact">
@@ -313,7 +250,7 @@ export function Pid({ d }: { d: D }) {
           </table>
         </div>
       )}
-      <div className="chem-note">示意图：图例按 ISA 5.1 简化画出，正式图纸以设计院出图为准。</div>
+      <div className="chem-note">示意图：图例参照 HG/T 20519、HG/T 20505 画出，正式图纸以设计院出图为准。</div>
     </div>
   );
 }

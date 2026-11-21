@@ -104,7 +104,7 @@ export function BlockCard({ a }: { a: { block: string; title: string; note: stri
       case 'followups': return <Followups d={d} />;
       case 'gantt': return <Gantt d={d} />;
       case 'pfd': return <Pfd d={d} />;
-      case 'pid': return <Pid d={d} />;
+      case 'pid': return <Pid d={d} title={a.title} />;
       case 'molecule': return <Molecule d={d} />;
       case 'reaction': return <Reaction d={d} />;
       case 'equipment': return <Equipment d={d} />;

@@ -202,3 +202,16 @@ button.sess-file:hover { background: #ebebe8; color: var(--ink); }
 /* 助手头像：公司吉祥物 */
 .chat-avatar.mascot { background: none; border: none; border-radius: 0; padding: 0; height: auto !important; align-items: flex-start; }
 .chat-avatar.mascot svg { display: block; }
+
+/* ── 管道仪表图：卡片里整张缩小看全貌，点图或「全屏看」放大 ── */
+.pid-wrap { position: relative; padding: 10px 12px; background: #fff; border-bottom: 1px solid var(--line-soft); }
+.pid-thumb { display: block; width: 100%; padding: 0; border: none; background: none; overflow: hidden; cursor: zoom-in; text-align: left; }
+.pid-svg { display: block; max-width: none; }
+.pid-full-btn { position: absolute; top: 16px; right: 18px; height: 26px; padding: 0 10px; border: 1px solid var(--line-strong);
+  border-radius: 7px; background: var(--panel); font: inherit; font-size: 12px; color: var(--ink-2); cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.pid-full-btn:hover { color: var(--ink); }
+.pid-full { position: fixed; inset: 0; z-index: 60; background: rgba(20, 20, 20, .55); display: flex; align-items: center; justify-content: center; padding: 28px; }
+.pid-full-in { max-width: 100%; max-height: 100%; overflow: auto; background: #fff; border-radius: 6px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+.pid-full-in .pid-svg { width: min(calc(100vw - 56px), 2000px); height: auto; min-width: 1000px; }
+.pid-full-x { position: fixed; top: 14px; right: 16px; width: 34px; height: 34px; border-radius: 50%; border: none; background: #fff; color: var(--ink);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
