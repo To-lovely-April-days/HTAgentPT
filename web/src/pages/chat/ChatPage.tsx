@@ -30,11 +30,14 @@ import { BrandMark, Icon } from '../../components/Icons';
 import { ATTACH_ACCEPT, formatSize, useAttachments } from './useAttachments';
 import type { PendingFile } from './useAttachments';
 import { Prose } from '../../components/Prose';
-import { ErrorBox, Spinner } from '../../components/Common';
+import { ErrorBox } from '../../components/Common';
 import { AdviceCard, EquipmentCard, EvidenceCard, SummaryCard } from '../generate/ChatCards';
 import { AgentProgressCard, BaseCards, CasesCard, LedgerCard, mergeAgentSteps, NoResultCard, SourcesCard, TemplatePicker, TicketsCard, TranslatedCard, TranslationCard } from './ResultCards';
 import type { AgentStep } from './ResultCards';
 import { LivePreview } from './LivePreview';
+import { Home } from './home/Home';
+import { InputPet } from '../../components/pet/InputPet';
+import { PixelSprite } from '../../components/pet/PixelSprite';
 import { PreviewPanel } from './preview/PreviewPanel';
 import type { Panel } from './preview/PreviewPanel';
 import type { WebTab } from './preview/WebBrowser';
@@ -448,7 +451,7 @@ export default function ChatPage() {
           )}
 
           <ThreadPrimitive.Root className="chat-root">
-            <ThreadPrimitive.Viewport className="chat-view sc" autoScroll>
+            <ThreadPrimitive.Viewport className="chat-view sc" autoScroll={msgs.length > 0}>
               <ThreadPrimitive.Empty>
                 <Welcome has={has} name={profile?.displayName ?? ''}
                   attach={canAttach ? { files: att.files, onAdd: att.add, onRemove: att.remove } : undefined}
@@ -456,7 +459,6 @@ export default function ChatPage() {
                   onPick={(q) => void send(q)} onOpenDoc={(id) => nav(`/generate?session=${id}`)} />
               </ThreadPrimitive.Empty>
               <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
-              {busy && <div style={{ padding: '4px 0 10px 42px' }}><Spinner text="处理中…" /></div>}
             </ThreadPrimitive.Viewport>
 
             {msgs.length > 0 && (
@@ -472,7 +474,7 @@ export default function ChatPage() {
                     ))}
                   </div>
                 )}
-                <Composer placeholder={genSessionId ? '接着说这份文档的内容，或问我别的' : '接着问，或说下一件要做的事'}
+                <Composer busy={busy} placeholder={genSessionId ? '接着说这份文档的内容，或问我别的' : '接着问，或说下一件要做的事'}
                   attach={canAttach && !genSessionId ? { files: att.files, onAdd: att.add, onRemove: att.remove } : undefined}>
                   {canScope && !genSessionId && <ScopePicker value={scope} options={scopeOptions} onChange={setScope} />}
                 </Composer>
@@ -543,8 +545,10 @@ interface AttachProps { files: PendingFile[]; onAdd: (f: FileList | File[]) => v
 
 /** 输入框：首页是居中的大框（输入在上、处理方式与发送在下），对话中是底部的一行。
     能传文件时左边有回形针，也可以把文件直接拖到框上；传上来的文件以小卡片排在输入上方。 */
-function Composer({ placeholder, big, attach, children }: {
+function Composer({ placeholder, big, attach, children, busy = false }: {
   placeholder: string; big?: boolean; attach?: AttachProps; children?: ReactNode;
+  /** 助手正在回答：输入框上的小人坐到右端抱着笔记本等 */
+  busy?: boolean;
 }) {
   const pick = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
@@ -568,7 +572,7 @@ function Composer({ placeholder, big, attach, children }: {
       aria-label="输入你的问题或任务" placeholder={placeholder} />
   );
   return (
-    <ComposerPrimitive.Root className={'composer' + (drag ? ' drag' : '')}
+    <ComposerPrimitive.Root className={'composer has-pet' + (big ? ' big' : '') + (drag ? ' drag' : '')}
       onDragOver={attach ? (e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDrag(true); } } : undefined}
       onDragLeave={attach ? () => setDrag(false) : undefined}
       onDrop={attach ? (e) => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files.length) attach.onAdd(e.dataTransfer.files); } : undefined}>
@@ -600,13 +604,9 @@ function Composer({ placeholder, big, attach, children }: {
         <div className="composer-line">{clip}{input}{children}{send}</div>
       )}
       {drag && <div className="composer-drop">松开即可添加文件</div>}
+      <InputPet busy={busy} size={big ? 40 : 32} />
     </ComposerPrimitive.Root>
   );
-}
-
-function greet(): string {
-  const h = new Date().getHours();
-  return h < 5 ? '夜深了' : h < 11 ? '早上好' : h < 13 ? '中午好' : h < 18 ? '下午好' : '晚上好';
 }
 
 function ago(iso: string): string {
@@ -620,76 +620,40 @@ function ago(iso: string): string {
   return iso.slice(5, 10).replace('-', '/');
 }
 
-/** 首页（对话还没开始时）：问候、居中的大输入框、按权限给的示例、接着上次没填完的文档。
-    不摆功能入口——说一句话就行，示例只是让人知道还能这样问。 */
+/** 首页（对话还没开始时）：吉祥物 + 今天的台词、大输入框、最要紧的几件正事、歇一会、表情包（见 home/Home）。 */
 function Welcome({ has, name, scopePicker, attach, onPick, onOpenDoc }: {
   has: (p: string) => boolean; name: string; scopePicker: ReactNode;
   attach?: AttachProps;
   onPick: (q: string) => void; onOpenDoc: (sessionId: string) => void;
 }) {
-  // 只是让人知道能这样问——什么都可以问，不用先选功能
-  const samples: { perm: string[]; tag: string; text: string }[] = [
-    { perm: [Perm.QaInternal], tag: '客户只说产物', text: '客户想做尼龙66小试，单釜 5L，我们做过类似的吗？推荐什么配置？' },
-    { perm: [Perm.QaInternal], tag: '客户给了工况', text: '50℃、3 mbar、流量 20 L/h 的工况，冷凝和真空系统一般怎么配？' },
-    { perm: [Perm.ProjectSearch], tag: '翻历史项目', text: '近三年做过哪些高压釜项目，设计压力都是多少？' },
-    { perm: [Perm.QaInternal, Perm.QaPublic], tag: '查参数', text: 'CJF-5L 磁力耦合轴承的复装力矩是多少' },
-  ];
-  const shown = samples.filter((c) => c.perm.some(has));
   const docs = useQuery({
     queryKey: ['gen-sessions'], enabled: has(Perm.Generate),
     queryFn: () => get<SessionRowT[]>('/api/generate/sessions'),
   });
+  const open = (docs.data ?? []).filter((d) => d.status !== 'Completed');
   const recent = (docs.data ?? []).slice(0, 3);
-
   return (
-    <div className="home">
-      <div>
-        <h1 className="home-hi">{greet()}{name ? `，${name}` : ''}</h1>
-        <p className="home-sub">客户问的任何问题都可以直接问：做没做过、怎么选型、参数多少、大概什么价。回答会标出用了哪些资料。</p>
-      </div>
-
-      <Composer big attach={attach}
-        placeholder={attach ? '直接问，也可以把客户的需求文件拖进来问' : '直接问，比如：客户要做尼龙66小试，我们做过类似的吗？'}>
-        {scopePicker}
-      </Composer>
-
-      {shown.length > 0 && (
-        <div className="home-chips">
-          {shown.map((c) => (
-            <button key={c.tag} type="button" className="home-chip" onClick={() => onPick(c.text)}>
-              <b>{c.tag}</b>{c.text}
-            </button>
-          ))}
+    <Home fallbackName={name} onPick={onPick}
+      drafts={open.length} onDrafts={() => { if (open[0]) onOpenDoc(open[0].id); }}
+      composer={(
+        <Composer big attach={attach}
+          placeholder={attach ? '问点什么，或把客户文件拖进来' : '问点什么'}>
+          {scopePicker}
+        </Composer>
+      )}
+      resume={recent.length > 0 ? (
+        <div className="hm-resume">
+          <span>接着上次：</span>
+          {recent.map((d) => {
+            const finished = d.status === 'Completed';
+            return (
+              <button key={d.id} type="button" onClick={() => onOpenDoc(d.id)} title={ago(d.updatedAt)}>
+                {d.templateName}<i>{finished ? '已生成' : `${d.done}/${d.total}`}</i>
+              </button>
+            );
+          })}
         </div>
-      )}
-
-      {recent.length > 0 && (
-        <section className="home-sec" aria-labelledby="home-docs">
-          <div className="home-sec-hd">
-            <h2 id="home-docs" className="home-sec-t">接着上次的工作</h2>
-          </div>
-          <div className="home-grid">
-            {recent.map((d) => {
-              const pct = d.total > 0 ? Math.round((d.done / d.total) * 100) : 0;
-              const finished = d.status === 'Completed';
-              return (
-                <button key={d.id} type="button" className="home-card" onClick={() => onOpenDoc(d.id)}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                    <span className={'pill ' + (finished ? 'pill-neutral' : 'pill-brand')}>{finished ? '已生成' : '填写中'}</span>
-                    <span className="hint" style={{ marginLeft: 'auto' }}>{ago(d.updatedAt)}</span>
-                  </span>
-                  <span className="home-card-t">{d.templateName}</span>
-                  <span className="home-card-m">{finished ? '已生成 · 待复核' : `已填 ${d.done} / ${d.total} 项`}</span>
-                  <span className="home-bar" style={{ width: '100%' }} aria-hidden="true"><i style={{ width: `${finished ? 100 : pct}%` }} /></span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      <p className="home-foot">回答逐句标注来源 · 生成的文件带「待复核」标记，人工确认后再对外使用</p>
-    </div>
+      ) : null} />
   );
 }
 
@@ -742,7 +706,9 @@ function AssistantMessage() {
             在面板里按文档看（有目录，可导出 Word / PDF） ›
           </button>
         )}
-        {m.streaming && !m.text && !(m.steps && m.steps.length > 0) && <Spinner text="思考中…" />}
+        {m.streaming && !m.text && !(m.steps && m.steps.length > 0) && (
+          <span className="pet-thinking"><PixelSprite pose="busy" width={22} />正在翻资料<i>▍</i></span>
+        )}
         {m.ask && <AskCard ask={m.ask} active={active && !m.ask.answered} onAnswer={sendText} />}
         {m.verify && !m.streaming && <VerifyBar report={m.verify} onCite={(n) => showRefs(id, n)} />}
         {m.evidence && !m.streaming && m.text && (

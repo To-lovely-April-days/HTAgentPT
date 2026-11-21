@@ -70,6 +70,7 @@ public static class DependencyInjection
         services.AddScoped<IOrgService, OrgService>();
         services.AddScoped<IMemoryService, MemoryService>();
         services.AddScoped<IPriceService, PriceService>();
+        services.AddScoped<HomeService>();
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<IFaultCaseService, FaultCaseService>();
         services.AddScoped<ITranslationService, TranslationService>();

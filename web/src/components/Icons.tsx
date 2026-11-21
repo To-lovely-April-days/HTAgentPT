@@ -1,3 +1,4 @@
+import { PixelSprite } from './pet/PixelSprite';
 // 线框图标：统一 24 网格、描边 1.8，颜色跟随文字（currentColor）。
 // 只收界面里真用到的几枚，不引图标库——内网离线部署，少一个依赖少一处打包问题。
 import type { ReactElement } from 'react';
@@ -30,11 +31,11 @@ export function Icon({ name, size = 17, stroke = 1.8 }: { name: keyof typeof PAT
   );
 }
 
-/** 品牌小标：黑底方块里一枚标志红三角（取自 HTLAB 标志里 A 的红色三角），用在对话头像这类小位置。 */
+/** 助手头像：HTLAB 吉祥物的 8-bit 像素版。 */
 export function BrandMark({ size = 30 }: { size?: number }) {
   return (
-    <div className="chat-avatar mascot" style={{ width: size, height: size }} aria-hidden="true">
-      <img src="/assistant-avatar.png" alt="" width={size} height={size} draggable={false} />
+    <div className="chat-avatar mascot" style={{ width: size }} aria-hidden="true">
+      <PixelSprite pose="idle" width={size} />
     </div>
   );
 }
