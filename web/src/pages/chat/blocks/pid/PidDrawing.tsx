@@ -7,6 +7,8 @@ import type { D } from '../util';
 import { s } from '../util';
 import { Icon } from '../../../../components/Icons';
 import { layoutPid } from './pidLayout';
+import { saveBlob, toDrawio, toDxf, toPdf } from './pidExport';
+import { serializeSvg } from '../../../../components/code/text';
 import type { Bubble, Eq, Nozzle, PidLayout, Text } from './pidLayout';
 
 const K = '#1a1a1a';
@@ -230,25 +232,30 @@ function Sheet({ lay, title, project, no }: { lay: PidLayout; title: string; pro
   );
   return (
     <svg className="chem-svg pid-svg" viewBox={`0 0 ${lay.width} ${lay.height}`} width={lay.width} height={lay.height} role="img" aria-label={`管道仪表图：${title}`}>
-      <rect width={lay.width} height={lay.height} fill="#fff" />
-      <Frame lay={lay} title={title} project={project} no={no} />
-      {lay.eqs.map((e) => (
-        <g key={'lb' + e.id}><line x1={e.x - 62} y1={104} x2={e.x + 62} y2={104} stroke={K} strokeWidth={1} /></g>
-      ))}
-      {lay.wires.map((w, i) => <path key={'w' + i} d={w.d} fill="none" stroke={K} strokeWidth={w.signal ? 1 : 0.9} strokeDasharray={w.signal ? '7 4' : undefined} />)}
-      {lay.runs.map((r, i) => <polyline key={'r' + i} points={r.path.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={K} strokeWidth={MAIN} strokeLinejoin="miter" />)}
-      {lay.eqs.map((e) => <Equipment key={e.id} e={e} />)}
-      {lay.nozzles.map((n, i) => <NozzleStub key={'n' + i} n={n} />)}
-      {lay.valves.map((v, i) => (
-        <g key={'v' + i} transform={v.vertical ? `rotate(90 ${v.x} ${v.y})` : undefined}>
-          <ValveBody type={v.type} x={v.x} y={v.y} actuated={v.actuated} flowBack={v.flow === 'l' || v.flow === 'u'} />
-        </g>
-      ))}
-      {lay.reliefs.map((r, i) => <Relief key={'p' + i} x={r.x} y={r.y} />)}
-      {lay.arrows.map((a, i) => <Arrowhead key={'a' + i} {...a} />)}
-      {lay.offpages.map(offpage)}
-      {lay.bubbles.map((b, i) => <InstBubble key={'b' + i} b={b} />)}
-      {lay.texts.map((t, i) => <Label key={'t' + i} t={t} />)}
+      <rect width={lay.width} height={lay.height} fill="#fff" data-bg="1" />
+      <g data-layer="FRAME"><Frame lay={lay} title={title} project={project} no={no} />
+        {lay.eqs.map((e) => <line key={'lb' + e.id} x1={e.x - 62} y1={104} x2={e.x + 62} y2={104} stroke={K} strokeWidth={1} />)}
+      </g>
+      <g data-layer="INST">{lay.wires.map((w, i) => <path key={'w' + i} d={w.d} fill="none" stroke={K} strokeWidth={w.signal ? 1 : 0.9} strokeDasharray={w.signal ? '7 4' : undefined} />)}</g>
+      <g data-layer="PIPE">{lay.runs.map((r, i) => <polyline key={'r' + i} points={r.path.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={K} strokeWidth={MAIN} strokeLinejoin="miter" />)}</g>
+      <g data-layer="EQUIP">
+        {lay.eqs.map((e) => <g key={e.id} data-item="eq"><Equipment e={e} /></g>)}
+        {lay.nozzles.map((n, i) => <g key={'n' + i} data-item="nozzle"><NozzleStub n={n} /></g>)}
+      </g>
+      <g data-layer="VALVE">
+        {lay.valves.map((v, i) => (
+          <g key={'v' + i} data-item="valve" transform={v.vertical ? `rotate(90 ${v.x} ${v.y})` : undefined}>
+            <ValveBody type={v.type} x={v.x} y={v.y} actuated={v.actuated} flowBack={v.flow === 'l' || v.flow === 'u'} />
+          </g>
+        ))}
+        {lay.reliefs.map((r, i) => <g key={'p' + i} data-item="relief"><Relief x={r.x} y={r.y} /></g>)}
+      </g>
+      <g data-layer="PIPE">
+        {lay.arrows.map((a, i) => <g key={'a' + i} data-item="arrow"><Arrowhead {...a} /></g>)}
+        {lay.offpages.map((o, i) => <g key={'o' + i} data-item="offpage">{offpage(o, i)}</g>)}
+      </g>
+      <g data-layer="INST">{lay.bubbles.map((b, i) => <g key={'b' + i} data-item="bubble"><InstBubble b={b} /></g>)}</g>
+      <g data-layer="TEXT">{lay.texts.map((t, i) => <Label key={'t' + i} t={t} />)}</g>
     </svg>
   );
 }
@@ -273,7 +280,23 @@ export function PidDrawing({ d, title }: { d: D; title: string }) {
     return () => window.removeEventListener('keydown', f);
   }, [full]);
   const k = cw ? Math.min(1, cw / lay.width) : 0.4;
-  const sheet = <Sheet lay={lay} title={title || s(d.title) || '管道及仪表流程图'} project={s(d.project)} no={s(d.drawing_no)} />;
+  const name = title || s(d.title) || '管道及仪表流程图';
+  const sheet = <Sheet lay={lay} title={name} project={s(d.project)} no={s(d.drawing_no)} />;
+  const [msg, setMsg] = useState<string | null>(null);
+  const file = (name + (s(d.drawing_no) ? ' ' + s(d.drawing_no) : '')).replace(/[\\/:*?"<>|]/g, '');
+  const svgEl = () => box.current?.querySelector('svg.pid-svg') as SVGSVGElement | null;
+  const run = async (kind: 'drawio' | 'dxf' | 'pdf') => {
+    const el = svgEl();
+    if (!el) return;
+    setMsg(null);
+    try {
+      if (kind === 'dxf') saveBlob(`${file}.dxf`, toDxf(el), 'application/dxf');
+      else if (kind === 'drawio') saveBlob(`${file}.drawio`, toDrawio(el, name), 'application/xml');
+      else { setMsg('正在生成 PDF…'); saveBlob(`${file}.pdf`, await toPdf(serializeSvg(el), lay.width, lay.height, name), 'application/pdf'); setMsg(null); }
+    } catch {
+      setMsg('导出失败，换个浏览器再试');
+    }
+  };
   return (
     <>
       <div className="pid-wrap" ref={box}>
@@ -281,6 +304,13 @@ export function PidDrawing({ d, title }: { d: D; title: string }) {
           <div style={{ transform: `scale(${k})`, transformOrigin: '0 0', width: lay.width }}>{sheet}</div>
         </button>
         <button type="button" className="pid-full-btn" onClick={() => setFull(true)}>全屏看</button>
+      </div>
+      <div className="pid-export">
+        <span>下载图纸</span>
+        <button type="button" onClick={() => void run('drawio')} title="用 draw.io 打开接着改：设备、阀门是图块，文字和管线都能改">draw.io</button>
+        <button type="button" onClick={() => void run('dxf')} title="AutoCAD 等 CAD 软件打开，按图层分，1 单位 = 1 mm">DXF</button>
+        <button type="button" onClick={() => void run('pdf')} title="A3 横版，打印或发给客户">PDF（A3）</button>
+        {msg && <i>{msg}</i>}
       </div>
       {full && <FullView onClose={() => setFull(false)}>{sheet}</FullView>}
     </>

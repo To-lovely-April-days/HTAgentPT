@@ -215,3 +215,8 @@ button.sess-file:hover { background: #ebebe8; color: var(--ink); }
 .pid-full-in .pid-svg { width: min(calc(100vw - 56px), 2000px); height: auto; min-width: 1000px; }
 .pid-full-x { position: fixed; top: 14px; right: 16px; width: 34px; height: 34px; border-radius: 50%; border: none; background: #fff; color: var(--ink);
   display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.pid-export { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-bottom: 1px solid var(--line-soft); font-size: 12px; color: var(--ink-3); flex-wrap: wrap; }
+.pid-export span { margin-right: 4px; }
+.pid-export button { height: 26px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--panel); font: inherit; font-size: 12px; color: var(--ink); cursor: pointer; }
+.pid-export button:hover { border-color: #c4c4c0; }
+.pid-export i { font-style: normal; color: var(--ink-3); }
