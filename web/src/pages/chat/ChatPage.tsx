@@ -37,7 +37,7 @@ import type { AgentStep } from './ResultCards';
 import { LivePreview } from './LivePreview';
 import { Home } from './home/Home';
 import { InputPet } from '../../components/pet/InputPet';
-import { PixelSprite } from '../../components/pet/PixelSprite';
+import { ThinkingStage } from '../../components/pet/ThinkingStage';
 import { PreviewPanel } from './preview/PreviewPanel';
 import type { Panel } from './preview/PreviewPanel';
 import type { WebTab } from './preview/WebBrowser';
@@ -682,8 +682,10 @@ function AssistantMessage() {
   const isLast = [...byId.keys()].pop() === id;
   const active = isLast && !busy;
 
+  // 正在回答：小人跳进这条回答里干活（左边的头像先空着，免得两个小人）
+  const staging = !!m.streaming && !m.agentSteps;
   return (
-    <MessagePrimitive.Root className="chat-assistant">
+    <MessagePrimitive.Root className={'chat-assistant' + (staging ? ' staging' : '')}>
       <BrandMark />
       <div className="chat-bubble">
         {m.intent === 'general' && (
@@ -691,7 +693,8 @@ function AssistantMessage() {
         )}
         {m.notice && <div className="hint" style={{ marginBottom: 7 }}>{m.notice}</div>}
         {m.agentSteps && <AgentProgressCard steps={m.agentSteps} streaming={m.streaming} />}
-        {m.steps && <StepsCard steps={m.steps} streaming={m.streaming} seconds={m.seconds} />}
+        {staging && <ThinkingStage steps={m.steps ?? []} hasText={!!m.text} />}
+        {m.steps && !staging && <StepsCard steps={m.steps} streaming={m.streaming} seconds={m.seconds} />}
         {m.artifacts && m.artifacts.length > 0 && <ArtifactCards items={m.artifacts} onSend={active ? sendText : undefined} />}
         {m.text && <Prose text={m.text} live={m.streaming}
           flags={m.verify?.issues.map((i) => i.value)}
@@ -705,9 +708,6 @@ function AssistantMessage() {
           <button type="button" className="as-refs-btn" onClick={() => openPreview({ kind: 'doc', title: (lastQuestion(byId, id) || '助手回答').slice(0, 30), markdown: m.text })}>
             在面板里按文档看（有目录，可导出 Word / PDF） ›
           </button>
-        )}
-        {m.streaming && !m.text && !(m.steps && m.steps.length > 0) && (
-          <span className="pet-thinking"><PixelSprite pose="busy" width={22} />正在翻资料<i>▍</i></span>
         )}
         {m.ask && <AskCard ask={m.ask} active={active && !m.ask.answered} onAnswer={sendText} />}
         {m.verify && !m.streaming && <VerifyBar report={m.verify} onCite={(n) => showRefs(id, n)} />}

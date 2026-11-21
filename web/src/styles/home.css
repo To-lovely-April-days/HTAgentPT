@@ -12,9 +12,7 @@
 .pet-z { position: absolute; left: calc(var(--pet-w) - 4px); top: -6px; font-family: var(--mono); font-size: 11px; color: #9a9a9a; animation: pet-z 2.2s ease-out infinite; }
 .pet-z b { font-size: 14px; font-weight: 500; }
 @keyframes pet-z { 0% { opacity: 0; translate: 0 4px; } 30% { opacity: 1; } 100% { opacity: 0; translate: 8px -12px; } }
-.pet-busy { position: absolute; left: calc(var(--pet-w) + 6px); bottom: 14px; white-space: nowrap; font-family: var(--mono); font-size: 11.5px; color: #6b6b6b; }
-.pet-busy i, .pet-thinking i { font-style: normal; color: #C8102E; animation: pet-caret 1s steps(1) infinite; }
-@keyframes pet-caret { 50% { opacity: 0; } }
+.pet.away { visibility: hidden; }
 .pet-tip { pointer-events: auto; position: absolute; bottom: calc(100% + 6px); left: calc(var(--pet-w) - 8px); width: 260px; background: #111; color: #fff;
   font-size: 12.5px; line-height: 1.65; padding: 9px 12px; border-radius: 3px; box-shadow: 3px 3px 0 #C8102E; display: flex; flex-direction: column; gap: 3px;
   animation: pet-pop .2s steps(3); }
@@ -22,11 +20,45 @@
 .pet-tip b { font-family: var(--mono); font-size: 11px; font-weight: 500; color: #f2a7b3; letter-spacing: .06em; }
 .pet-tip-t { font-weight: 600; font-size: 13.5px; }
 @keyframes pet-pop { from { transform: scale(.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-.pet-thinking { display: inline-flex; align-items: flex-end; gap: 8px; font-family: var(--mono); font-size: 12.5px; color: #6b6b6b; }
-.pet-thinking svg { display: block; }
+
+/* ── 回答里的舞台：小人干活 + 像素对话框 + 走过的步骤 ── */
+.chat-assistant.staging > .chat-avatar { visibility: hidden; }
+.ts { display: flex; flex-direction: column; gap: 10px; margin: 2px 0 12px; }
+.ts-row { display: flex; align-items: flex-end; gap: 14px; min-height: 64px; }
+.ts-pet { position: relative; flex: 0 0 auto; line-height: 0; animation: ts-in .25s steps(3); }
+.ts-pet svg { display: block; }
+.ts-f1, .ts-f2 { animation: ts-f1 var(--ts-speed, .5s) steps(1) infinite; }
+.ts-f2 { position: absolute; left: 0; top: 0; animation-name: ts-f2; }
+@keyframes ts-f1 { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes ts-f2 { 0%, 49% { opacity: 0; } 50%, 100% { opacity: 1; } }
+@keyframes ts-in { from { translate: 0 -10px; opacity: 0; } to { translate: 0 0; opacity: 1; } }
+.ts-pet.bob { animation: ts-bob .5s steps(2) infinite; }
+@keyframes ts-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
+.ts-ic { position: absolute; }
+.ts-ic-q { right: -11px; top: -13px; }
+.ts-ic-dots { right: -13px; top: -8px; }
+.ts-ic-wave { right: -9px; top: -4px; }
+.ts-ic-sweat { right: 2px; top: 13px; }
+.ts-ic-bulb { right: -13px; top: -17px; }
+.ts-say { position: relative; margin-bottom: 20px; background: #fff; border: 2px solid #111; border-radius: 4px; box-shadow: 3px 3px 0 #111;
+  padding: 6px 11px; font-family: var(--mono); font-size: 12.5px; display: flex; align-items: baseline; gap: 10px; min-width: 0; max-width: 100%; }
+.ts-say::before { content: ''; position: absolute; left: -9px; bottom: 7px; width: 8px; height: 8px; background: #111; clip-path: polygon(100% 0, 0 100%, 100% 100%); }
+.ts-say b { font-weight: 700; color: #111; white-space: nowrap; }
+.ts-say span { color: #8a8a8a; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ts-say i { font-style: normal; color: #C8102E; animation: ts-caret 1s steps(1) infinite; }
+@keyframes ts-caret { 50% { opacity: 0; } }
+.ts-trail { display: flex; flex-wrap: wrap; gap: 6px 18px; padding-left: 2px; }
+.ts-tr { display: inline-flex; align-items: baseline; gap: 6px; font-size: 12.5px; color: #4a4a4a; }
+.ts-tr i { font-style: normal; font-size: 10.5px; color: #067647; }
+.ts-tr.running i { color: #C8102E; animation: ts-caret 1s steps(1) infinite; }
+.ts-tr.error i { color: #b42318; }
+.ts-tr b { font-weight: 500; color: #111; }
+.ts-tr span { color: #9a9a9a; font-family: var(--mono); font-size: 11.5px; }
 @media (prefers-reduced-motion: reduce) {
   .pet.glide { transition: none; }
-  .pet.jumping, .pet-z, .pet-busy i, .pet-thinking i, .pet-tip { animation: none; }
+  .pet.jumping, .pet-z, .pet-tip { animation: none; }
+  .ts-pet, .ts-pet.bob, .ts-f1, .ts-say i, .ts-tr.running i { animation: none; }
+  .ts-f2 { display: none; }
 }
 
 /* ── 首页 ─────────────────────────────────────────── */

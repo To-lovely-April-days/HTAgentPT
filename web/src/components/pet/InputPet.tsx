@@ -1,5 +1,5 @@
 // 住在输入框上沿的 8-bit 小人。放在输入框（position: relative）里面，自己找同一个框里的文本框来听打字。
-// 空闲时沿上沿走来走去、走累了坐下；打字时走到光标上方低头看；发送时跳一下；等回答时坐在右端抱着笔记本；
+// 空闲时沿上沿走来走去、走累了坐下；打字时走到光标上方低头看；发送时跳一下就离开（跳进回答里干活，见 ThinkingStage），答完跳回来坐下；
 // 很久没人动就打瞌睡；点它一下举手，冒出一条今日知识。系统设置了「减少动态效果」的人，它只坐着不走。
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -7,7 +7,7 @@ import { get } from '../../lib/api';
 import { PixelSprite } from './PixelSprite';
 import type { Pose } from './sprite';
 
-type Mode = 'walk' | 'sit' | 'look' | 'jump' | 'busy' | 'sleepy' | 'cheer';
+type Mode = 'walk' | 'sit' | 'look' | 'jump' | 'away' | 'sleepy' | 'cheer';
 
 interface Knowledge { title: string; body: string }
 interface Today { fun?: { knowledge?: Knowledge | null } }
@@ -70,7 +70,7 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
     let t: ReturnType<typeof setTimeout> | undefined;
     const onInput = () => {
       state.current.lastInput = Date.now();
-      if (state.current.mode === 'busy' || state.current.mode === 'jump') return;
+      if (state.current.mode === 'away' || state.current.mode === 'jump') return;
       if (!ta.value.trim()) { go('sit'); return; }
       go('look');
       moveTo(caretX(ta, host) - size / 2, true);
@@ -93,24 +93,31 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
     return () => { window.removeEventListener('pointermove', wake); window.removeEventListener('keydown', wake); };
   }, [go]);
 
-  // 发送：跳一下，然后坐到右端等回答
-  // 从 false 起：刚发完问题、底部输入框才出现时也要跳一下再去等
+  // 发送：跳一下就离开，去回答里干活；答完跳回来坐下，歇会儿再溜达
+  // 从 false 起：刚发完问题、底部输入框才出现时也要先跳一下再走
   const wasBusy = useRef(false);
   useEffect(() => {
     const prev = wasBusy.current;
     wasBusy.current = busy;
     let t: ReturnType<typeof setTimeout> | undefined;
+    let t2: ReturnType<typeof setTimeout> | undefined;
+    // 跳完之后该到的状态；还没跳完就被清理（开发环境效果跑两遍、或状态很快又变）时直接落到这个状态，不会卡在半空
+    let pending: (() => void) | null = null;
     if (busy && !prev) {
       go('jump');
-      t = setTimeout(() => { go('busy'); moveTo(state.current.width - size - 110, true); }, 650);
+      pending = () => go('away');
+      t = setTimeout(() => { pending = null; go('away'); }, 650);
     } else if (!busy && prev) {
-      go('sit');
-      state.current.walkUntil = Date.now() + 9000;
-      t = setTimeout(() => { if (state.current.mode === 'sit' && !still) go('walk'); }, 2500);
+      go('jump');
+      pending = () => {
+        go('sit');
+        state.current.walkUntil = Date.now() + 9000;
+        t2 = setTimeout(() => { if (state.current.mode === 'sit' && !still) go('walk'); }, 2500);
+      };
+      t = setTimeout(() => { const land = pending; pending = null; land?.(); }, 600);
     }
-    // 清理时把记录退回去：开发环境下效果会跑两遍，退回后第二遍照样能接上
-    return () => { clearTimeout(t); wasBusy.current = prev; };
-  }, [busy, go, moveTo, size, still]);
+    return () => { clearTimeout(t); if (pending) pending(); clearTimeout(t2); };
+  }, [busy, go, still]);
 
   // 主循环：走路、换步、坐下歇会儿、犯困
   useEffect(() => {
@@ -119,7 +126,7 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
     const tick = (now: number) => {
       const dt = Math.min(0.1, (now - last) / 1000); last = now;
       const s = state.current;
-      if (s.mode !== 'busy' && s.mode !== 'jump' && s.mode !== 'cheer' && Date.now() - s.lastInput > SLEEP_AFTER) {
+      if (s.mode !== 'away' && s.mode !== 'jump' && s.mode !== 'cheer' && Date.now() - s.lastInput > SLEEP_AFTER) {
         if (s.mode !== 'sleepy') go('sleepy');
       }
       if (s.mode === 'walk') {
@@ -156,31 +163,29 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
   }, [mode, go]);
   const poke = () => {
     state.current.lastInput = Date.now();
-    if (state.current.mode === 'busy') return;
+    if (state.current.mode === 'away') return;
     setTipLeft(state.current.x > state.current.width / 2);
     go(state.current.mode === 'cheer' ? 'sit' : 'cheer');
   };
 
-  // 减少动态效果：只坐着（等回答时抱笔记本），点它照样能看今日知识
-  const shown: Mode = still && mode !== 'cheer' ? (busy ? 'busy' : 'sit') : mode;
+  // 减少动态效果：只坐着（回答时不在），点它照样能看今日知识
+  const shown: Mode = still && mode !== 'cheer' ? (busy ? 'away' : 'sit') : mode;
   const pose: Pose = shown === 'walk' ? (frame ? 'walk2' : 'walk1')
     : shown === 'sit' ? (blink ? 'blink' : 'sit')
       : shown === 'look' ? 'look'
         : shown === 'jump' ? 'jump'
-          : shown === 'busy' ? 'busy'
             : shown === 'sleepy' ? 'sleepy'
               : 'cheer';
-  const seated = shown === 'sit' || shown === 'look' || shown === 'busy' || shown === 'sleepy';
+  const seated = shown === 'sit' || shown === 'look' || shown === 'sleepy';
 
   return (
-    <div ref={ref} className={'pet' + (seated ? ' seated' : '') + (shown === 'jump' ? ' jumping' : '') + (smooth ? ' glide' : '')}
+    <div ref={ref} className={'pet' + (seated ? ' seated' : '') + (shown === 'jump' ? ' jumping' : '') + (shown === 'away' ? ' away' : '') + (smooth ? ' glide' : '')}
       style={{ left: x, ['--pet-w' as string]: `${size}px` }}>
       <button type="button" className="pet-btn" onClick={poke} title={mode === 'cheer' ? '收起' : '点我看今日知识'}
         aria-label={mode === 'cheer' ? '收起今日知识' : '看今日知识'}>
         <PixelSprite pose={pose} width={size} />
       </button>
       {shown === 'sleepy' && <span className="pet-z" aria-hidden="true">z<b>Z</b></span>}
-      {shown === 'busy' && <span className="pet-busy">正在翻资料<i>▍</i></span>}
       {mode === 'cheer' && (
         <div className={'pet-tip' + (tipLeft ? ' left' : '')} role="status">
           <b>今日知识</b>

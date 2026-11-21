@@ -1,15 +1,15 @@
 // 把一张像素字符画画成 SVG：同一行里连在一起的同色格子合成一段，每种颜色一条 path，格子再多也很轻。
 import { memo } from 'react';
-import { H, PALETTE, POSES, W } from './sprite';
-import type { Pose } from './sprite';
+import { H, ICONS, PALETTE, POSES, W } from './sprite';
+import type { Icon, Pose } from './sprite';
 
-const cache = new Map<Pose, { fill: string; d: string }[]>();
+const cache = new Map<string, { fill: string; d: string }[]>();
 
-function paths(pose: Pose) {
-  const hit = cache.get(pose);
+function paths(key: string, rows: string[]) {
+  const hit = cache.get(key);
   if (hit) return hit;
   const byColor = new Map<string, string[]>();
-  POSES[pose].forEach((row, y) => {
+  rows.forEach((row, y) => {
     let x = 0;
     while (x < row.length) {
       const ch = row[x];
@@ -24,7 +24,7 @@ function paths(pose: Pose) {
     }
   });
   const out = [...byColor].map(([ch, ds]) => ({ fill: PALETTE[ch] ?? '#000', d: ds.join('') }));
-  cache.set(pose, out);
+  cache.set(key, out);
   return out;
 }
 
@@ -35,7 +35,18 @@ export const PixelSprite = memo(function PixelSprite({ pose, width = 32, classNa
   return (
     <svg className={className} width={width} height={height} viewBox={`0 0 ${W} ${H}`} shapeRendering="crispEdges"
       role={title ? 'img' : undefined} aria-label={title} aria-hidden={title ? undefined : true}>
-      {paths(pose).map((p) => <path key={p.fill} d={p.d} fill={p.fill} />)}
+      {paths(pose, POSES[pose]).map((p) => <path key={p.fill} d={p.d} fill={p.fill} />)}
+    </svg>
+  );
+});
+
+/** 头顶冒出来的小图标（问号、省略号、灯泡、汗滴、信号），格子和小人一样大。 */
+export const PixelIcon = memo(function PixelIcon({ icon, unit, className }: { icon: Icon; unit: number; className?: string }) {
+  const rows = ICONS[icon];
+  const w = Math.max(...rows.map((r) => r.length));
+  return (
+    <svg className={className} width={w * unit} height={rows.length * unit} viewBox={`0 0 ${w} ${rows.length}`} shapeRendering="crispEdges" aria-hidden="true">
+      {paths('icon:' + icon, rows).map((p) => <path key={p.fill} d={p.d} fill={p.fill} />)}
     </svg>
   );
 });
