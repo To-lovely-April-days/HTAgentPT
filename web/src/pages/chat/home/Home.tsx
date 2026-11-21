@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { get } from '../../../lib/api';
+import { get, post } from '../../../lib/api';
+import { Icon } from '../../../components/Icons';
 
 interface Line { title: string; sub: string }
 interface WorkItem { id: string; emoji: string; title: string; badge: string; tone: string; detail: string; action: string; prompt: string }
@@ -54,7 +55,7 @@ function Quiz({ q }: { q: NonNullable<HomeToday['fun']['quiz']> }) {
         const state = pick == null ? '' : i === q.answer ? ' right' : i === pick ? ' wrong' : ' dim';
         return (
           <button key={i} type="button" className={'fun-opt' + state} disabled={pick != null} onClick={() => setPick(i)}>
-            <i>{'ABCD'[i]}</i><span>{o}</span>{pick != null && i === q.answer && <em>✓</em>}{pick === i && i !== q.answer && <em>✕</em>}
+            <i>{'ABCD'[i]}</i><span>{o}</span>{pick != null && i === q.answer && <em><Icon name="check" size={14} stroke={2.2} style={{ verticalAlign: '-2px' }} /></em>}{pick === i && i !== q.answer && <em><Icon name="x" size={14} stroke={2.2} style={{ verticalAlign: '-2px' }} /></em>}
           </button>
         );
       })}
@@ -70,6 +71,7 @@ export function Home({ fallbackName, composer, resume, onPick, drafts, onDrafts 
 }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['home-today'], queryFn: () => get<HomeToday>('/api/home/today'), staleTime: 30 * 60_000, retry: false });
+  const fixed = useQuery({ queryKey: ['feedback-resolved'], queryFn: () => get<{ id: string; question: string; note: string | null }[]>('/api/qa-sessions/feedback/resolved'), retry: false });
   const data = q.data;
   const now = useNow();
   const slot = slotOf(now);
@@ -103,7 +105,7 @@ export function Home({ fallbackName, composer, resume, onPick, drafts, onDrafts 
             <b id="hm-fun-t">今天有点意思</b>
             <span>每天换 · 跟你常碰的材料和设备有关</span>
             {data && data.refreshLeft > 0 && (
-              <button type="button" className="hm-link" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? '正在换…' : '换一组 ↻'}</button>
+              <button type="button" className="hm-link" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? '正在换…' : <>换一组<Icon name="refresh" size={13} style={{ verticalAlign: '-2px', marginLeft: 4 }} /></>}</button>
             )}
           </div>
           {q.isPending && <div className="hm-skel"><i /><i /></div>}
@@ -115,7 +117,7 @@ export function Home({ fallbackName, composer, resume, onPick, drafts, onDrafts 
                   <b className="fun-t">{fun.knowledge.title}</b>
                   <p>{fun.knowledge.body}</p>
                   <div className="fun-acts">
-                    <button type="button" className={liked ? 'on' : ''} onClick={() => setLiked(!liked)}>{liked ? '原来如此 ✓' : '原来如此 👍'}</button>
+                    <button type="button" className={liked ? 'on' : ''} onClick={() => setLiked(!liked)}>原来如此<Icon name={liked ? 'check' : 'thumbUp'} size={13} style={{ verticalAlign: '-2px', marginLeft: 5 }} /></button>
                     <button type="button" onClick={() => onPick(`再详细讲讲：${fun.knowledge!.title}`)}>再讲详细点</button>
                   </div>
                 </div>
@@ -143,6 +145,20 @@ export function Home({ fallbackName, composer, resume, onPick, drafts, onDrafts 
       )}
 
       <section className="hm-work" aria-labelledby="hm-work-t">
+        {/* 反馈过的问题处理好了：点一下用原来的问题再问一次 */}
+        {(fixed.data ?? []).map((f) => (
+          <button key={f.id} type="button" className="hm-row" onClick={() => {
+            void post(`/api/qa-sessions/feedback/${f.id}/seen`).finally(() => void qc.invalidateQueries({ queryKey: ['feedback-resolved'] }));
+            onPick(f.question);
+          }}>
+            <span className="hm-dot" style={{ background: DOT.ok }} aria-hidden="true" />
+            <span className="hm-row-m">
+              <span className="hm-row-t"><b>你反馈的问题处理好了</b></span>
+              <span className="hm-row-d">「{f.question}」{f.note ? ` · ${f.note}` : ''}</span>
+            </span>
+            <span className="hm-row-a">再问一次</span>
+          </button>
+        ))}
         {(data?.work.length ?? 0) > 0 && (
           <div className="hm-sec-hd"><b id="hm-work-t">正事</b><span>{data!.work.length} 件，数字由系统核算</span></div>
         )}

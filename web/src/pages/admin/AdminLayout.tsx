@@ -12,6 +12,7 @@ export const ADMIN_NAV: { label: string; items: { to: string; name: string; icon
       { to: '/admin/kbs', name: '知识库管理', icon: 'folder' },
       { to: '/admin/prices', name: '价格库', icon: 'ticket' },
       { to: '/admin/meta', name: '元数据与词表', icon: 'ticket' },
+      { to: '/admin/quality', name: '回答质量', icon: 'check' },
     ],
   },
   { label: '能力域', items: [{ to: '/admin/templates', name: '模板管理', icon: 'chat' }] },

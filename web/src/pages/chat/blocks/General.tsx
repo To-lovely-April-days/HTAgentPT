@@ -1,8 +1,10 @@
 // 通用组件：关键数字、提示框、图表、步骤、时间线、检查清单、方案卡、计算过程、流程图、原文引用。
 import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { D } from './util';
 import { fmt, list, niceMax, niceStep, nums, PALETTE, s, strs, tickFractions } from './util';
 import { Refs } from './Refs';
+import { Icon } from '../../../components/Icons';
 
 // ── 关键数字 ─────────────────────────────────────
 export function Metrics({ d }: { d: D }) {
@@ -20,7 +22,7 @@ export function Metrics({ d }: { d: D }) {
 }
 
 // ── 提示框 ───────────────────────────────────────
-const TONE: Record<string, [string, string]> = { 结论: ['ok', '✓'], 提示: ['info', 'i'], 注意: ['warn', '!'], 危险: ['danger', '!'] };
+const TONE: Record<string, [string, ReactNode]> = { 结论: ['ok', <Icon key="ok" name="check" size={13} stroke={2.6} />], 提示: ['info', 'i'], 注意: ['warn', '!'], 危险: ['danger', '!'] };
 export function Callout({ d }: { d: D }) {
   const [cls, sym] = TONE[s(d.tone)] ?? TONE.提示;
   return (
@@ -223,7 +225,7 @@ export function Formula({ d }: { d: D }) {
           <b>{s(r.value)}</b>
         </div>
       )}
-      {r.checked === true && <span className="chk ok">✓ 系统已按式子重算核对</span>}
+      {r.checked === true && <span className="chk ok"><Icon name="check" size={13} stroke={2.2} style={{ verticalAlign: '-2px', marginRight: 3 }} />系统已按式子重算核对</span>}
       {r.checked === false && <span className="chk bad">按式子重算是 {s(r.computed)}，和上面的结果对不上，请核对</span>}
     </div>
   );
@@ -286,7 +288,7 @@ export function Quote({ d }: { d: D }) {
           <blockquote>「{s(q.text)}」</blockquote>
           <figcaption>
             <Refs v={q.ref} /><span>{s(q.source)}</span>
-            {q.verified === true && <span className="chk ok">✓ 已核对原文</span>}
+            {q.verified === true && <span className="chk ok"><Icon name="check" size={13} stroke={2.2} style={{ verticalAlign: '-2px', marginRight: 3 }} />已核对原文</span>}
             {q.verified === false && <span className="chk bad">原文里没找到这段，请核对</span>}
           </figcaption>
         </figure>

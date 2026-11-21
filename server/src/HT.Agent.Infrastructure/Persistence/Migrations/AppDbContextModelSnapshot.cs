@@ -25,6 +25,91 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "vector");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("HT.Agent.Domain.Entities.AnswerIssue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Category")
+                        .HasColumnType("text")
+                        .HasColumnName("category");
+
+                    b.Property<string>("Comment")
+                        .HasColumnType("text")
+                        .HasColumnName("comment");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("EvalQuestionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("eval_question_id");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_id");
+
+                    b.Property<bool>("Notify")
+                        .HasColumnType("boolean")
+                        .HasColumnName("notify");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid?>("ReporterId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reporter_id");
+
+                    b.Property<string>("ResolveNote")
+                        .HasColumnType("text")
+                        .HasColumnName("resolve_note");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolved_at");
+
+                    b.Property<Guid?>("ResolvedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resolved_by_id");
+
+                    b.Property<DateTimeOffset?>("SeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("seen_at");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("source");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_answer_issue");
+
+                    b.HasIndex("MessageId", "Source")
+                        .IsUnique()
+                        .HasDatabaseName("ix_answer_issue_message_id_source");
+
+                    b.HasIndex("ReporterId", "Status")
+                        .HasDatabaseName("ix_answer_issue_reporter_id_status");
+
+                    b.HasIndex("CompanyId", "Status", "CreatedAt")
+                        .HasDatabaseName("ix_answer_issue_company_id_status_created_at");
+
+                    b.ToTable("answer_issue");
+                });
+
             modelBuilder.Entity("HT.Agent.Domain.Entities.AppUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -900,6 +985,222 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_document_kb_kb_id");
 
                     b.ToTable("document_kb");
+                });
+
+            modelBuilder.Entity("HT.Agent.Domain.Entities.EvalQuestion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("code");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_id");
+
+                    b.Property<string>("Dept")
+                        .HasColumnType("text")
+                        .HasColumnName("dept");
+
+                    b.Property<bool>("ExpectAsk")
+                        .HasColumnType("boolean")
+                        .HasColumnName("expect_ask");
+
+                    b.Property<string>("ExpectDocs")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("expect_docs");
+
+                    b.Property<string>("ExpectPoints")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("expect_points");
+
+                    b.Property<string>("ExpectProjects")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("expect_projects");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<Guid?>("IssueId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("issue_id");
+
+                    b.Property<string>("Question")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("question");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("source");
+
+                    b.HasKey("Id")
+                        .HasName("pk_eval_question");
+
+                    b.HasIndex("CompanyId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_eval_question_company_id_code");
+
+                    b.ToTable("eval_question");
+                });
+
+            modelBuilder.Entity("HT.Agent.Domain.Entities.EvalResult", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Answer")
+                        .HasColumnType("text")
+                        .HasColumnName("answer");
+
+                    b.Property<bool?>("AnswerOk")
+                        .HasColumnType("boolean")
+                        .HasColumnName("answer_ok");
+
+                    b.Property<bool>("AskOk")
+                        .HasColumnType("boolean")
+                        .HasColumnName("ask_ok");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("text")
+                        .HasColumnName("error");
+
+                    b.Property<string>("FoundDocs")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("found_docs");
+
+                    b.Property<string>("MissingPoints")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("missing_points");
+
+                    b.Property<Guid>("QuestionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("question_id");
+
+                    b.Property<bool?>("RetrievalOk")
+                        .HasColumnType("boolean")
+                        .HasColumnName("retrieval_ok");
+
+                    b.Property<Guid>("RunId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("run_id");
+
+                    b.Property<double>("Seconds")
+                        .HasColumnType("double precision")
+                        .HasColumnName("seconds");
+
+                    b.HasKey("Id")
+                        .HasName("pk_eval_result");
+
+                    b.HasIndex("QuestionId")
+                        .HasDatabaseName("ix_eval_result_question_id");
+
+                    b.HasIndex("RunId", "QuestionId")
+                        .HasDatabaseName("ix_eval_result_run_id_question_id");
+
+                    b.ToTable("eval_result");
+                });
+
+            modelBuilder.Entity("HT.Agent.Domain.Entities.EvalRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AnswerOk")
+                        .HasColumnType("integer")
+                        .HasColumnName("answer_ok");
+
+                    b.Property<int>("AnswerTotal")
+                        .HasColumnType("integer")
+                        .HasColumnName("answer_total");
+
+                    b.Property<string>("Changes")
+                        .HasColumnType("text")
+                        .HasColumnName("changes");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<string>("Config")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("config");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("text")
+                        .HasColumnName("error");
+
+                    b.Property<int>("Finished")
+                        .HasColumnType("integer")
+                        .HasColumnName("finished");
+
+                    b.Property<DateTimeOffset?>("FinishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("finished_at");
+
+                    b.Property<int>("RetrievalOk")
+                        .HasColumnType("integer")
+                        .HasColumnName("retrieval_ok");
+
+                    b.Property<int>("RetrievalTotal")
+                        .HasColumnType("integer")
+                        .HasColumnName("retrieval_total");
+
+                    b.Property<string>("RunAs")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("run_as");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<Guid>("StartedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("started_by_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.Property<int>("Total")
+                        .HasColumnType("integer")
+                        .HasColumnName("total");
+
+                    b.HasKey("Id")
+                        .HasName("pk_eval_run");
+
+                    b.HasIndex("CompanyId", "StartedAt")
+                        .HasDatabaseName("ix_eval_run_company_id_started_at");
+
+                    b.ToTable("eval_run");
                 });
 
             modelBuilder.Entity("HT.Agent.Domain.Entities.FaultCase", b =>
@@ -2204,6 +2505,18 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                     b.ToTable("vocab_term");
                 });
 
+            modelBuilder.Entity("HT.Agent.Domain.Entities.AnswerIssue", b =>
+                {
+                    b.HasOne("HT.Agent.Domain.Entities.QaMessage", "Message")
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_answer_issue__qa_messages_message_id");
+
+                    b.Navigation("Message");
+                });
+
             modelBuilder.Entity("HT.Agent.Domain.Entities.AppUser", b =>
                 {
                     b.HasOne("HT.Agent.Domain.Entities.Company", "Company")
@@ -2280,6 +2593,23 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_document_kb_document_document_id");
+                });
+
+            modelBuilder.Entity("HT.Agent.Domain.Entities.EvalResult", b =>
+                {
+                    b.HasOne("HT.Agent.Domain.Entities.EvalQuestion", null)
+                        .WithMany()
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_eval_result_eval_question_question_id");
+
+                    b.HasOne("HT.Agent.Domain.Entities.EvalRun", null)
+                        .WithMany()
+                        .HasForeignKey("RunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_eval_result__eval_runs_run_id");
                 });
 
             modelBuilder.Entity("HT.Agent.Domain.Entities.GenChatMessage", b =>

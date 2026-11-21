@@ -13,6 +13,7 @@ import { Prose } from '../../components/Prose';
 import { ProjectPreviewModal } from './ProjectPreviewModal';
 import { ClsBadge } from '../../components/Common';
 import type { Classification } from '../../lib/types';
+import { Icon } from '../../components/Icons';
 
 /**
  * 一轮问答中的协作步骤。服务端只应发送高层阶段（例如检索、核验、整理），
@@ -459,7 +460,7 @@ export function TicketsCard({ rows, status, note }: {
             <span className="advc-bar" />
             <button type="button" className="advc-tog" aria-expanded={open === t.id}
               onClick={() => setOpen(open === t.id ? null : t.id)}>
-              <span className="advc-tri">▶</span>
+              <span className="advc-tri"><Icon name="play" size={9} style={{ display: 'block' }} /></span>
               <span className="m" style={{ flex: '0 0 auto', width: 104, fontSize: 11.5, color: 'var(--cls-int)' }}>{t.ticketNo}</span>
               <span className="advc-val"><b>{t.deviceNo}</b> — {t.description}</span>
             </button>

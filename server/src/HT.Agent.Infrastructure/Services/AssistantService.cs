@@ -76,6 +76,8 @@ public sealed class AssistantService(
         public readonly Dictionary<string, Guid> RefDocs = new(StringComparer.OrdinalIgnoreCase);
         public readonly List<double> Computed = [];
         public readonly List<string> Searches = [];
+        /// <summary>每次搜资料的情况（搜什么、最高分、给了几段），存进消息，后台「回答质量」据此看错在哪一步。</summary>
+        public readonly List<object> SearchLog = [];
         public int NextN = 1;
         /// <summary>这一轮生成的结果卡（计算结果、化学品数据），随消息存。不跨轮。</summary>
         public readonly List<object> Artifacts = [];
@@ -255,13 +257,16 @@ public sealed class AssistantService(
             message.Payload = JsonSerializer.Serialize(new
             {
                 kind = "assistant", rounds = result.Rounds, seconds = Math.Round((DateTimeOffset.UtcNow - started).TotalSeconds, 1),
-                steps, evidence = new { used, other }, verify, artifacts = run.Artifacts
+                steps, evidence = new { used, other }, verify, artifacts = run.Artifacts, searches = run.SearchLog
             }, Json);
             // 查过资料却一条都没用上：记成「没答上来」，进语料缺口清单
             var searched = run.Searches.Count > 0;
             if (searched && cited.Count == 0)
                 message.NoResultHints = JsonSerializer.Serialize(run.Searches.Distinct().Take(10).ToList());
             db.QaMessages.Add(message);
+            // 系统自己发现的问题，进后台「回答质量」：查了资料却一条没用上；回答里的数字在原文里核对不上
+            if (searched && cited.Count == 0) db.AnswerIssues.Add(SystemIssue(message.Id, IssueSource.NoEvidence));
+            if (report.Issues.Count > 0) db.AnswerIssues.Add(SystemIssue(message.Id, IssueSource.Unverified));
             session.UpdatedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(ct);
             saved = true;
@@ -731,6 +736,7 @@ public sealed class AssistantService(
                     DeviceType = S("device_type"),
                 }, ct);
                 var chunks = r.Chunks.Take(topK).ToList();
+                run.SearchLog.Add(new { query, top = Math.Round(r.TopScore, 3), found = chunks.Count, hints = r.PossiblyRelatedDocs.Take(5).ToList() });
                 if (chunks.Count == 0 && standards)
                     return new ToolOutcome($"「标准规范」类资料里没有搜到「{query}」。可能还没上传这份规范，回答时请说明没能在公司规范库里核实。", "没搜到", label, query, "没有相关规范");
                 if (chunks.Count == 0)
@@ -1353,6 +1359,11 @@ public sealed class AssistantService(
     }
 
     /// <summary>右侧参考资料的一张卡。用到的给全文和高亮位置；没用上的只给摘要。</summary>
+    private AnswerIssue SystemIssue(Guid messageId, IssueSource source) => new()
+    {
+        Id = Guid.NewGuid(), CompanyId = me.CompanyId, MessageId = messageId, Source = source, CreatedAt = DateTimeOffset.UtcNow
+    };
+
     private static object Card(EvidenceItem e, string answer, bool full)
     {
         var text = full ? Clip(e.Text, 2400) : Clip(e.Text, 160);
@@ -1361,7 +1372,7 @@ public sealed class AssistantService(
         {
             n = e.N, kind = e.Kind, title = e.Title, docId = e.DocId, chunkId = e.ChunkId, section = e.Section, pageNo = e.PageNo,
             docCategory = e.DocCategory, fileName = e.FileName, projectNo = e.ProjectNo, classification = e.Classification, url = e.Url, priceId = e.PriceId,
-            text, highlights = hl.Select(h => new { start = h.Start, length = h.Length }).ToList()
+            score = e.Score, text, highlights = hl.Select(h => new { start = h.Start, length = h.Length }).ToList()
         };
     }
 

@@ -8,6 +8,7 @@ import { get, post, put, ApiError } from '../../lib/api';
 import type { Classification, RoleRow, UserRow } from '../../lib/types';
 import { ErrorBox, Spinner } from '../../components/Common';
 import { CLS_DESC, CLS_ORDER, CLS_TAG, PERM_GROUPS, permLabel } from './permCatalog';
+import { Icon } from '../../components/Icons';
 
 interface Draft { id: string | null; code: string; name: string; classifications: Classification[]; permissions: string[]; isSystem: boolean }
 
@@ -15,7 +16,7 @@ const toDraft = (r: RoleRow): Draft => ({ id: r.id, code: r.code, name: r.name, 
 
 /** 三态勾选框：全选 ✓、部分 −、没选。 */
 function Tri({ state }: { state: 'all' | 'some' | 'none' }) {
-  return <span className={'rl-cb ' + state} aria-hidden="true">{state === 'all' ? '✓' : state === 'some' ? '−' : ''}</span>;
+  return <span className={'rl-cb ' + state} aria-hidden="true">{state === 'all' ? <Icon name="check" size={12} stroke={2.6} /> : state === 'some' ? '−' : ''}</span>;
 }
 
 export default function RolesTab() {

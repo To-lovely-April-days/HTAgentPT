@@ -56,6 +56,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
     public DbSet<QaSession> QaSessions => Set<QaSession>();
     public DbSet<QaMessage> QaMessages => Set<QaMessage>();
     public DbSet<ChatAttachment> ChatAttachments => Set<ChatAttachment>();
+    public DbSet<AnswerIssue> AnswerIssues => Set<AnswerIssue>();
+    public DbSet<EvalQuestion> EvalQuestions => Set<EvalQuestion>();
+    public DbSet<EvalRun> EvalRuns => Set<EvalRun>();
+    public DbSet<EvalResult> EvalResults => Set<EvalResult>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -275,6 +279,35 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
         {
             e.Property(x => x.Sources).HasColumnType("jsonb");
             e.Property(x => x.Payload).HasColumnType("jsonb");
+        });
+
+        // 回答质量：一条回答一种来源最多一条记录（员工改了主意就更新那一条）
+        b.Entity<AnswerIssue>(e =>
+        {
+            e.HasIndex(x => new { x.MessageId, x.Source }).IsUnique();
+            e.HasIndex(x => new { x.CompanyId, x.Status, x.CreatedAt });
+            e.HasIndex(x => new { x.ReporterId, x.Status });
+            e.HasOne(x => x.Message).WithMany().HasForeignKey(x => x.MessageId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<EvalQuestion>(e =>
+        {
+            e.HasIndex(x => new { x.CompanyId, x.Code }).IsUnique();
+            e.Property(x => x.ExpectDocs).HasColumnType("jsonb").HasConversion(JsonList<string>(), JsonListComparer<string>());
+            e.Property(x => x.ExpectProjects).HasColumnType("jsonb").HasConversion(JsonList<string>(), JsonListComparer<string>());
+            e.Property(x => x.ExpectPoints).HasColumnType("jsonb").HasConversion(JsonList<string>(), JsonListComparer<string>());
+        });
+        b.Entity<EvalRun>(e =>
+        {
+            e.HasIndex(x => new { x.CompanyId, x.StartedAt });
+            e.Property(x => x.Config).HasColumnType("jsonb");
+        });
+        b.Entity<EvalResult>(e =>
+        {
+            e.HasIndex(x => new { x.RunId, x.QuestionId });
+            e.HasOne<EvalRun>().WithMany().HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<EvalQuestion>().WithMany().HasForeignKey(x => x.QuestionId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.MissingPoints).HasColumnType("jsonb").HasConversion(JsonList<string>(), JsonListComparer<string>());
+            e.Property(x => x.FoundDocs).HasColumnType("jsonb").HasConversion(JsonList<string>(), JsonListComparer<string>());
         });
 
         ApplyConventions(b);

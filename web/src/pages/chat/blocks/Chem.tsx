@@ -7,6 +7,7 @@ import type { D } from './util';
 import { fmt, list, n, s } from './util';
 import { MoleculeSvg } from '../../../components/code/Views';
 import { chemParts } from './chemData';
+import { Icon } from '../../../components/Icons';
 
 /** 化学式：数字用真正的下标排，字距不散。 */
 function ChemF({ f }: { f: string }) {
@@ -240,7 +241,7 @@ export function Pfd({ d }: { d: D }) {
       )}
       {(items.length > 0 || s(bal.note)) && (
         <div className={'chem-bal' + (bad.length ? ' bad' : '')}>
-          <b>{bad.length ? `✕ 物料衡算有 ${bad.length} 处对不上` : '✓ 物料衡算核对通过'}</b>
+          <b><Icon name={bad.length ? 'x' : 'check'} size={13} stroke={2.2} style={{ verticalAlign: '-2px', marginRight: 4 }} />{bad.length ? `物料衡算有 ${bad.length} 处对不上` : '物料衡算核对通过'}</b>
           {s(bal.note) && <span>{s(bal.note)}</span>}
           {items.map((x, i) => (
             <span key={i} className={x.ok === false ? 'bad' : ''}>{s(x.unit)}：进 {fmt(n(x.in) ?? 0)} / 出 {fmt(n(x.out) ?? 0)} {s(bal.flowUnit)}</span>
@@ -330,7 +331,7 @@ export function Molecule({ d }: { d: D }) {
         {n(d.weight) != null && <span><i>分子量</i><b>{n(d.weight)!.toFixed(2)}</b> g/mol</span>}
         {s(d.cas) && <span><i>CAS</i><b className="mono">{s(d.cas)}</b></span>}
         <span><i>SMILES</i><code className="pcode">{s(d.smiles)}</code></span>
-        {error ? <span className="chem-bad">✕ {error}</span> : <span className="chem-ok">分子式、分子量由系统按结构计算</span>}
+        {error ? <span className="chem-bad"><Icon name="x" size={13} stroke={2.2} style={{ verticalAlign: '-2px', marginRight: 4 }} />{error}</span> : <span className="chem-ok">分子式、分子量由系统按结构计算</span>}
       </div>
     </div>
   );
@@ -367,8 +368,8 @@ export function Reaction({ d }: { d: D }) {
         <Side items={list(d.products)} />
       </div>
       <div className="rx-ft">
-        {bal.ok === true && <span className="chem-ok">✓ 已配平（系统逐个元素核对）</span>}
-        {bal.ok === false && <span className="chem-bad">✕ 没配平：{s(bal.detail)}</span>}
+        {bal.ok === true && <span className="chem-ok"><Icon name="check" size={13} stroke={2.2} style={{ verticalAlign: '-2px', marginRight: 4 }} />已配平（系统逐个元素核对）</span>}
+        {bal.ok === false && <span className="chem-bad"><Icon name="x" size={13} stroke={2.2} style={{ verticalAlign: '-2px', marginRight: 4 }} />没配平：{s(bal.detail)}</span>}
         {s(bal.error) && <span className="chem-bad">{s(bal.error)}</span>}
         {s(d.dH) && <span>ΔH = {s(d.dH)}</span>}
       </div>
@@ -488,7 +489,7 @@ export function Interlock({ d }: { d: D }) {
             {causes.map((c, i) => (
               <tr key={i}>
                 <td><b className="mono">{s(c.id)}</b> <span className="mono">{s(c.tag)}</span><span className="cell-sub">{s(c.condition)}</span></td>
-                {effects.map((e, j) => <td key={j} className="il-x">{links.has(`${s(c.id)}>${s(e.id)}`) ? <span className="il-dot" aria-label="触发">●</span> : ''}</td>)}
+                {effects.map((e, j) => <td key={j} className="il-x">{links.has(`${s(c.id)}>${s(e.id)}`) ? <span className="il-dot" role="img" aria-label="触发"><Icon name="dot" size={14} style={{ verticalAlign: '-2px' }} /></span> : ''}</td>)}
               </tr>
             ))}
           </tbody>

@@ -5,6 +5,7 @@ import type { AssistantStep } from '../../lib/types';
 import { PixelIcon, PixelSprite } from './PixelSprite';
 import { ACTS, HOLD_MS, pickAct } from './thinking';
 import type { Act, Live } from './thinking';
+import { Icon } from '../Icons';
 
 const SIZE = 44;
 
@@ -60,7 +61,7 @@ export function ThinkingStage({ steps, hasText }: { steps: AssistantStep[]; hasT
         <div className="ts-trail">
           {steps.map((s) => (
             <span key={s.id} className={'ts-tr ' + s.status}>
-              <i aria-hidden="true">{s.status === 'running' ? '●' : s.status === 'error' ? '✕' : '✓'}</i>
+              <i aria-hidden="true"><Icon name={s.status === 'running' ? 'dot' : s.status === 'error' ? 'x' : 'check'} size={11} stroke={2.4} /></i>
               <b>{s.label}</b>
               {s.status !== 'running' && s.result && <span>{s.result}</span>}
             </span>

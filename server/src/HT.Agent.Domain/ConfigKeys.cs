@@ -68,6 +68,10 @@ public static class ConfigKeys
     public const string MaxRetrievalPerTurn = "retrieval.max_per_turn";
     public const string HistoryTurns = "retrieval.history_turns";
 
+    // ── 回答质量 ──────────────────────────────────────
+    /// <summary>跑测试题用的账号（用户名）。专门建一个普通员工角色的账号，问出来的结果和大家看到的一样；空=用点「跑一遍」的人的账号。</summary>
+    public const string QualityEvalUser = "quality.eval_user";
+
     // ── 通用助手 ──────────────────────────────────────
     /// <summary>问答方式：assistant=通用助手（模型自己决定查什么，默认）；classic=原来的分类+固定流程（回退用）。</summary>
     public const string QaEngine = "assistant.engine";

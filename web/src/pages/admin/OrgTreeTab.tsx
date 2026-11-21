@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { del, get, post, put, ApiError } from '../../lib/api';
 import type { DeptRow, UserRow } from '../../lib/types';
 import { ErrorBox, Spinner } from '../../components/Common';
+import { Icon } from '../../components/Icons';
 
 const UNASSIGNED = '__none__';
 
@@ -217,7 +218,7 @@ function Members({ rows, depts, deptId, headId, onMove, onHead }: {
               </td>
               <td style={{ color: 'var(--ink-2)' }}>{u.username}</td>
               <td>{u.roleName ?? '未指派'}</td>
-              <td style={{ color: u.isActive ? '#1c6b45' : 'var(--ink-4)', fontSize: 12 }}>● {u.isActive ? '正常' : '已停用'}</td>
+              <td style={{ color: u.isActive ? '#1c6b45' : 'var(--ink-4)', fontSize: 12 }}><Icon name="dot" size={12} style={{ verticalAlign: '-2px' }} /> {u.isActive ? '正常' : '已停用'}</td>
               <td>
                 <select className="inp" style={{ height: 30, width: 170 }} value={deptId ?? ''} aria-label={`把 ${u.displayName} 调到`}
                   onChange={(e) => onMove(u.id, e.target.value || null)}>

@@ -5,6 +5,7 @@ import type { AskSpec, EvidenceCard, ToolArtifact } from '../../lib/types';
 import { EstimateCard, TableCard } from './DataCards';
 import { BlockCard } from './blocks/BlockCard';
 import { usePreview } from '../../components/code/preview';
+import { Icon } from '../../components/Icons';
 
 // ── 请你确认 ─────────────────────────────────────────
 export function AskCard({ ask, active, onAnswer }: { ask: AskSpec; active: boolean; onAnswer: (text: string) => void }) {
@@ -21,7 +22,7 @@ export function AskCard({ ask, active, onAnswer }: { ask: AskSpec; active: boole
           return (
             <button key={o.label} type="button" className={'ask-opt' + (on ? ' on' : '')} disabled={!active}
               role={ask.multiple ? 'checkbox' : 'radio'} aria-checked={!!on} onClick={() => toggle(o.label)}>
-              <span className={'ask-mark' + (ask.multiple ? ' sq' : '')} aria-hidden="true">{on ? (ask.multiple ? '✓' : '●') : ''}</span>
+              <span className={'ask-mark' + (ask.multiple ? ' sq' : '')} aria-hidden="true">{on && <Icon name={ask.multiple ? 'check' : 'dot'} size={ask.multiple ? 12 : 14} stroke={2.6} />}</span>
               <span className="ask-t"><b>{o.label}</b>{o.detail && <span>{o.detail}</span>}</span>
             </button>
           );

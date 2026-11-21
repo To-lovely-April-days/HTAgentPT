@@ -6,6 +6,7 @@ import { CodeBlock } from '../../../components/code/CodeBlock';
 import { downloadText } from '../../../components/code/text';
 import { htmlTitle } from '../../../components/code/preview';
 import { inlineVendors, openInWindow, prepareHtml, SANDBOX } from './html';
+import { Icon } from '../../../components/Icons';
 
 const DEVICES = [
   { key: 'desktop', label: '桌面', width: null },
@@ -54,7 +55,7 @@ export function HtmlPreview({ code, versions, onPick, onClose }: {
           <button type="button" role="tab" aria-selected={tab === 'preview'} className={tab === 'preview' ? 'on' : ''} onClick={() => setTab('preview')}>预览</button>
           <button type="button" role="tab" aria-selected={tab === 'code'} className={tab === 'code' ? 'on' : ''} onClick={() => setTab('code')}>代码</button>
         </span>
-        <button type="button" className="refs-x" aria-label="关闭预览" onClick={onClose}>✕</button>
+        <button type="button" className="refs-x" aria-label="关闭预览" onClick={onClose}><Icon name="x" size={14} style={{ display: 'block' }} /></button>
       </div>
       <div className="pv-tools">
         {tab === 'preview' && (

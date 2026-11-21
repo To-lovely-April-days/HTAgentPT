@@ -1,6 +1,7 @@
 // 资料库多选：下拉里每个库前面一个复选框，选中的以小标签排在框里。
 // 不能选的库（公开库要走审定发布、共享库总部下发）灰着显示并写明原因——不藏起来，免得人以为没这个库。
 import { useEffect, useRef, useState } from 'react';
+import { Icon } from './Icons';
 
 export interface KbChoice { id: string; name: string; note?: string | null; count?: string; disabled?: string | null }
 
@@ -29,7 +30,7 @@ export function KbMultiSelect({ options, value, onChange, placeholder = '选择�
         {picked.map((o) => (
           <span key={o.id} className="kbms-tag">
             {o.name}
-            <button type="button" aria-label={`去掉 ${o.name}`} onClick={(e) => { e.stopPropagation(); toggle(o.id); }}>✕</button>
+            <button type="button" aria-label={`去掉 ${o.name}`} onClick={(e) => { e.stopPropagation(); toggle(o.id); }}><Icon name="x" size={11} stroke={2.2} style={{ display: 'block' }} /></button>
           </span>
         ))}
         <span className="kbms-caret" aria-hidden="true">{open ? '▴' : '▾'}</span>
@@ -41,7 +42,7 @@ export function KbMultiSelect({ options, value, onChange, placeholder = '选择�
             return (
               <button key={o.id} type="button" role="option" aria-selected={on} disabled={!!o.disabled}
                 className={'kbms-opt' + (on ? ' on' : '')} onClick={() => toggle(o.id)}>
-                <span className="kbms-cb" aria-hidden="true">{on ? '✓' : ''}</span>
+                <span className="kbms-cb" aria-hidden="true">{on && <Icon name="check" size={12} stroke={2.6} />}</span>
                 <span className="kbms-t">
                   <b>{o.name}</b>
                   {(o.disabled || o.note) && <span>{o.disabled ?? o.note}</span>}

@@ -32,6 +32,8 @@ export interface QaTimelineTurn {
   genSessionId: string | null; templateName: string | null; at: string;
   /** 问答分流结果；通用回答重开历史时仍显示同一提示。 */
   intent?: string | null;
+  /** 存下来的那条回答，和本人给过的反馈 */
+  messageId?: string | null; helpful?: boolean | null; feedbackReason?: string | null;
 }
 export interface QaTimeline {
   turns: QaTimelineTurn[];

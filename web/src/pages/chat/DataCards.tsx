@@ -3,6 +3,7 @@
 import { Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import type { EstimateLine, ToolArtifact } from '../../lib/types';
+import { Icon } from '../../components/Icons';
 
 type Estimate = Extract<ToolArtifact, { kind: 'estimate' }>;
 type Table = Extract<ToolArtifact, { kind: 'table' }>;
@@ -139,7 +140,7 @@ function Cell({ v, type }: { v: string; type: string }) {
       return <Spark text={t} />;
     case 'mark': {
       const m = /^[✓✔√]/.test(t) ? 'ok' : /^[✕✗×xX]/.test(t) ? 'bad' : /^[!！]/.test(t) ? 'mid' : null;
-      return m ? <span className={'mark ' + m}><b>{t[0] === '√' || t[0] === '✔' ? '✓' : t[0] === '！' ? '!' : t[0]}</b>{t.slice(1).trim()}</span> : <>{t}</>;
+      return m ? <span className={'mark ' + m}><b>{m === 'ok' ? <Icon name="check" size={13} stroke={2.4} style={{ verticalAlign: '-2px' }} /> : m === 'bad' ? <Icon name="x" size={13} stroke={2.4} style={{ verticalAlign: '-2px' }} /> : '!'}</b>{t.slice(1).trim()}</span> : <>{t}</>;
     }
     default:
       return <>{t}</>;

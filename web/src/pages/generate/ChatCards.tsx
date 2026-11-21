@@ -3,6 +3,7 @@
 // 而不是把几十条内容一次性铺满屏幕。
 import React, { useMemo, useState } from 'react';
 import type { GenAdvice, GenChatPayload, GenEquipmentCard, GenEquipmentItem, GenSuggestion } from '../../lib/types';
+import { Icon } from '../../components/Icons';
 
 /** 一条建议一行：名称 + 现值→建议值 + 状态，点开才展开理由/风险/出处。
     默认收起是有意的——工程师先扫一眼哪几项要动，再决定读哪条的为什么，
@@ -19,7 +20,7 @@ function AdviceRow({ name, current, value, tone, pill, high, detail, active, onA
       <div className={`advc-row${open ? ' open' : ''}`}>
         <span className={`advc-bar${high ? ' on' : ''}`} />
         <button type="button" className="advc-tog" aria-expanded={open} onClick={() => setOpen(!open)}>
-          <span className="advc-tri">▶</span>
+          <span className="advc-tri"><Icon name="play" size={9} style={{ display: 'block' }} /></span>
           <span className="advc-name" style={high ? { color: tone, fontWeight: 600 } : undefined}>{name}</span>
           <span className="advc-val">
             {changed && <><span className="advc-old">{current}</span> → </>}

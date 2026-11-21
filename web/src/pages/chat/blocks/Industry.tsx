@@ -1,8 +1,10 @@
 // 行业专用组件：设备数据表、技术偏离表、操作窗口、故障诊断树、风险矩阵、BOM 结构、物性数据、规范条款、选型匹配、跟进事项、交付计划。
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import type { D } from './util';
 import { list, n, s, strs } from './util';
 import { Refs } from './Refs';
+import { Icon } from '../../../components/Icons';
 
 // ── 设备数据表 ───────────────────────────────────
 export function Datasheet({ d }: { d: D }) {
@@ -226,7 +228,7 @@ export function Clause({ d }: { d: D }) {
       <div className="txt">
         <b className="mono">{s(d.clause)}</b>
         <span>「{s(d.text)}」<Refs v={d.ref} />
-          {d.verified === true && <span className="chk ok">✓ 已核对原文</span>}
+          {d.verified === true && <span className="chk ok"><Icon name="check" size={13} stroke={2.2} style={{ verticalAlign: '-2px', marginRight: 3 }} />已核对原文</span>}
           {d.verified === false && <span className="chk bad">原文里没找到这段，请核对</span>}</span>
       </div>
       <dl className="kv">
@@ -239,7 +241,11 @@ export function Clause({ d }: { d: D }) {
 }
 
 // ── 选型匹配 ─────────────────────────────────────
-const OK: Record<string, [string, string]> = { yes: ['✓', 'ok'], no: ['✕', 'bad'], partial: ['!', 'mid'] };
+const OK: Record<string, [ReactNode, string]> = {
+  yes: [<Icon key="ok" name="check" size={13} stroke={2.4} style={{ verticalAlign: '-2px' }} />, 'ok'],
+  no: [<Icon key="bad" name="x" size={13} stroke={2.4} style={{ verticalAlign: '-2px' }} />, 'bad'],
+  partial: ['!', 'mid'],
+};
 export function Match({ d }: { d: D }) {
   const items = list(d.items);
   const met = items.filter((x) => s(x.ok) === 'yes').length;

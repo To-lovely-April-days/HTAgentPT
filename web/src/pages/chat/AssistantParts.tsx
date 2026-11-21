@@ -6,6 +6,7 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { AssistantStep, EvidenceCard, VerifyReport } from '../../lib/types';
 import { DocPreviewModal } from './ResultCards';
+import { Icon } from '../../components/Icons';
 
 // ── ① 过程 ───────────────────────────────────────────
 export function StepsCard({ steps, streaming, seconds }: { steps: AssistantStep[]; streaming?: boolean; seconds?: number | null }) {
@@ -40,7 +41,7 @@ export function VerifyBar({ report, onCite }: { report: VerifyReport; onCite: (n
   return (
     <div className="as-verify">
       <span className={'as-verify-s' + (ok ? ' ok' : '')}>
-        {ok ? '✓ ' : ''}引用 {report.cited} 处
+        {ok && <Icon name="check" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />}引用 {report.cited} 处
         {report.checked > 0 && `，${report.verified} / ${report.checked} 个数字已在原文中核实`}
       </span>
       {report.issues.map((i, k) => (
@@ -146,7 +147,7 @@ export function RefPanel({ used, other, focus, onFocus, onClose, onOpenWeb }: {
       <div className="refs-hd">
         <b>参考资料</b>
         <span className="as-muted">{[groups.length + stdGroups.length ? `${groups.length + stdGroups.length} 份` : '', webGroups.length ? `网页 ${webGroups.length} 个` : '', `${used.length} 段原文`].filter(Boolean).join(' · ')}</span>
-        <button type="button" className="refs-x" aria-label="收起参考资料" onClick={onClose}>✕</button>
+        <button type="button" className="refs-x" aria-label="收起参考资料" onClick={onClose}><Icon name="x" size={14} style={{ display: 'block' }} /></button>
       </div>
       <div className="refs-body sc">
         {used.length === 0 && <div className="as-muted" style={{ padding: '6px 2px' }}>这次回答没有引用公司资料。</div>}

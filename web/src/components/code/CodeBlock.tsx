@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ApiError, post } from '../../lib/api';
 import { useCaps } from './caps';
 import { downloadText, splitLines } from './text';
+import { Icon } from '../Icons';
 
 const EXT: Record<string, string> = {
   python: 'py', py: 'py', javascript: 'js', js: 'js', typescript: 'ts', ts: 'ts', tsx: 'tsx', jsx: 'jsx', html: 'html', css: 'css',
@@ -74,7 +75,7 @@ export function CodeBlock({ code, lang, title, maxHeight, bare, unfold }: {
         <span className="cb-count">{lines.length} 行</span>
         <span className="cb-sp" />
         {msg && <span className="cb-msg">{msg}</span>}
-        {canRun && <button type="button" className="cb-btn run" disabled={running} onClick={() => void exec()}>{running ? '运行中…' : '▶ 运行'}</button>}
+        {canRun && <button type="button" className="cb-btn run" disabled={running} onClick={() => void exec()}>{running ? '运行中…' : <><Icon name="play" size={11} style={{ verticalAlign: '-1px', marginRight: 4 }} />运行</>}</button>}
         <button type="button" className={'cb-btn' + (wrap ? ' on' : '')} aria-pressed={wrap} onClick={() => setWrap(!wrap)}>换行</button>
         <button type="button" className="cb-btn" onClick={() => void copy()}>复制</button>
         <button type="button" className="cb-btn" onClick={() => downloadText(`代码.${ext}`, code)}>下载</button>

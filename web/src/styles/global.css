@@ -1277,3 +1277,28 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .img-zoom { position: fixed; inset: 0; z-index: 60; background: rgba(20, 20, 20, .72); display: flex; align-items: center; justify-content: center; padding: 24px; cursor: zoom-out; }
 .img-zoom figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: default; }
 .img-zoom figcaption { color: #fff; font-size: 13px; display: flex; align-items: center; }
+
+/* ── 回答下面的「有帮助 / 没帮上」 ── */
+.fb { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.fb-row { display: flex; align-items: center; gap: 6px; }
+.fb-btn { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border: 1px solid transparent; border-radius: 7px;
+  background: none; font: inherit; font-size: 12.5px; color: var(--ink-3); cursor: pointer; }
+.fb-btn:hover { background: var(--bg-soft); color: var(--ink); }
+.fb-btn.on { color: var(--ink); font-weight: 500; background: var(--bg-soft); }
+.fb-btn:disabled { cursor: default; }
+.fb-note { font-size: 12px; color: var(--ink-4); }
+.fb-panel { max-width: 520px; border: 1px solid var(--line-strong); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; background: var(--panel); }
+.fb-panel b { font-size: 12.5px; font-weight: 500; }
+.fb-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.fb-chip { height: 28px; padding: 0 11px; border-radius: 7px; border: 1px solid var(--line-strong); background: var(--panel); font: inherit; font-size: 12.5px; cursor: pointer; }
+.fb-chip.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.fb-panel textarea { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 12.5px; line-height: 1.6; resize: vertical; }
+.fb-panel textarea:focus { outline: none; border-color: var(--ink-4); }
+.fb-foot { display: flex; align-items: center; gap: 10px; }
+.fb-check { position: relative; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); cursor: pointer; margin-right: auto; }
+.fb-check input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.fb-check input:focus-visible + svg { outline: 2px solid var(--ink-4); outline-offset: 1px; border-radius: 4px; }
+.fb-err { font-size: 12px; color: #b42318; }
+.fb-cancel { border: none; background: none; font: inherit; font-size: 12.5px; color: var(--ink-3); cursor: pointer; }
+.fb-send { height: 28px; padding: 0 14px; border-radius: 8px; border: none; background: var(--ink); color: #fff; font: inherit; font-size: 12.5px; cursor: pointer; }
+.fb-send:disabled { opacity: .6; cursor: default; }

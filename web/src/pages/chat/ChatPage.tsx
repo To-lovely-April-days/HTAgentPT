@@ -38,6 +38,7 @@ import { LivePreview } from './LivePreview';
 import { Home } from './home/Home';
 import { InputPet } from '../../components/pet/InputPet';
 import { ThinkingStage } from '../../components/pet/ThinkingStage';
+import { FeedbackBar } from './Feedback';
 import { PreviewPanel } from './preview/PreviewPanel';
 import type { Panel } from './preview/PreviewPanel';
 import type { WebTab } from './preview/WebBrowser';
@@ -71,6 +72,9 @@ interface Msg {
   notice?: string;
   ask?: AskSpec;                 // 助手停下来请你确认
   artifacts?: ToolArtifact[];    // 计算结果、化学品数据等卡片
+  messageId?: string;            // 存下来的那条回答（反馈用）
+  helpful?: boolean | null;
+  feedbackReason?: string | null;
 }
 
 const MsgCtx = createContext<{
@@ -233,7 +237,7 @@ export default function ChatPage() {
             setMsgs((x) => x.map((m) => (m.id === id ? { ...m, artifacts: [...(m.artifacts ?? []), ev.payload as ToolArtifact] } : m)));
             break;
           case 'done': {
-            patch(id, { seconds: (Date.now() - started) / 1000 });
+            patch(id, { seconds: (Date.now() - started) / 1000, ...(typeof p.messageId === 'string' ? { messageId: p.messageId } : {}) });
             // 回答里写了网页：写完直接在右侧打开预览
             const pages = htmlBlocks(answer);
             if (pages.length > 0) setPanel({ kind: 'html', code: pages[pages.length - 1] });
@@ -362,7 +366,8 @@ export default function ChatPage() {
         }
         let sources: Source[] | undefined;
         try { sources = t.sources ? (JSON.parse(t.sources) as Source[]) : undefined; } catch { /* 老数据容错 */ }
-        return { id: t.id, role: 'assistant', text: t.text, intent: t.intent ?? undefined, sources, ...restore(t.payload) };
+        return { id: t.id, role: 'assistant', text: t.text, intent: t.intent ?? undefined, sources, ...restore(t.payload),
+          messageId: t.messageId ?? undefined, helpful: t.helpful ?? null, feedbackReason: t.feedbackReason ?? null };
       });
       setMsgs(rebuilt);
       setQaSessionId(id);
@@ -394,6 +399,14 @@ export default function ChatPage() {
   // 侧栏的「新建对话」：外框经路由 state 递一个时间戳过来，这里收到就清空回首页
   const fresh = (location.state as { fresh?: number } | null)?.fresh;
   useEffect(() => { if (fresh) newChat(); }, [fresh]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 后台「回答质量」里点「重问」：带着原来的问题过来，开一条新对话直接问
+  const reask = (location.state as { ask?: string } | null)?.ask;
+  useEffect(() => {
+    if (!reask) return;
+    // 等这一轮渲染完再开新对话：清空和发送都在同一个回调里
+    const t = setTimeout(() => { window.history.replaceState({}, ''); newChat(); void send(reask); }, 0);
+    return () => clearTimeout(t);
+  }, [reask]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const byId = useMemo(() => new Map(msgs.map((m) => [m.id, m])), [msgs]);
 
@@ -718,6 +731,9 @@ function AssistantMessage() {
           <button type="button" className="as-refs-btn" onClick={() => showRefs(id)}>
             参考资料 {new Set(m.evidence.used.map((c) => c.docId ?? c.kind + (c.fileName ?? ''))).size} 份 · {m.evidence.used.length} 段原文 ›
           </button>
+        )}
+        {m.messageId && !m.streaming && (m.text || m.noResult) && (
+          <FeedbackBar key={m.messageId} messageId={m.messageId} helpful={m.helpful} reason={m.feedbackReason} />
         )}
         {m.error && <ErrorBox message={m.error} />}
 

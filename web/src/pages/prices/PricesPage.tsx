@@ -8,6 +8,7 @@ import { useAuth } from '../../lib/auth';
 import { Perm } from '../../lib/types';
 import type { ColumnMap, PriceHit, PriceOverview, PricePreview, PriceTableRow } from '../../lib/types';
 import { ErrorBox, Spinner } from '../../components/Common';
+import { Icon } from '../../components/Icons';
 
 const FIELDS: [string, string][] = [
   ['name', '名称'], ['spec', '规格'], ['group', '分组'], ['unit', '数量单位'], ['price', '含税单价'], ['price_net', '未税单价'],
@@ -229,7 +230,7 @@ function ImportDrawer({ table, onClose, onDone }: { table: PriceTableRow | null;
 
   return (
     <aside className="acc-drawer pl-drawer" aria-label="导入价格表">
-      <div className="acc-drawer-hd"><b>{table ? `上传新版 · ${table.name}` : '上传价格表'}</b><button type="button" className="refs-x" aria-label="关闭" onClick={onClose}>✕</button></div>
+      <div className="acc-drawer-hd"><b>{table ? `上传新版 · ${table.name}` : '上传价格表'}</b><button type="button" className="refs-x" aria-label="关闭" onClick={onClose}><Icon name="x" size={14} style={{ display: 'block' }} /></button></div>
       <div className="acc-drawer-body sc">
         {error && <ErrorBox message={error} />}
         <label className="pl-drop">

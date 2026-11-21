@@ -6,6 +6,7 @@ import { get, post, put, ApiError } from '../../lib/api';
 import type { RoleRow } from '../../lib/types';
 import { ErrorBox, Spinner } from '../../components/Common';
 import { KbMultiSelect } from '../../components/KbMultiSelect';
+import { Icon } from '../../components/Icons';
 
 interface Stats { total: number; asks: number; tools: { tool: string; calls: number; failed: number; avgMs: number }[] }
 interface Health { sandbox: boolean; search: boolean; hazchem: boolean; office: boolean; epo: boolean; vision: boolean; memory: { users: number; total: number } }
@@ -109,7 +110,7 @@ export default function ToolsTab() {
                   <div className="tl-main">
                     <span><b>{t.name}</b>{t.tag && <em className={'tl-tag ' + (t.tag === '试用' ? 'try' : 'free')}>{t.tag}</em>}</span>
                     <span className="tl-desc">{t.desc}</span>
-                    <span className={'tl-st ' + tone}>● {st}</span>
+                    <span className={'tl-st ' + tone}><Icon name="dot" size={12} style={{ verticalAlign: '-2px' }} /> {st}</span>
                   </div>
                   <div className="tl-roles">
                     <span className="dash-muted" style={{ fontSize: 12 }}>谁能用</span>
@@ -151,14 +152,14 @@ function SettingsPanel({ kind, cfg, onClose, onSave }: {
       await onSave({ 'assistant.searx_url': url, 'assistant.searx_engines': engines.join(',') });
       const r = await post<{ ok: boolean; seconds?: number; count?: number; engines?: Record<string, number>; error?: string; redacted?: boolean; query: string }>('/api/ops/tools/test-search', { query: q });
       setTest(r.ok
-        ? { ok: true, text: `✓ ${r.seconds} 秒 · 返回 ${r.count} 条（${Object.entries(r.engines ?? {}).map(([k, v]) => `${k} ${v}`).join(' · ')}）${r.redacted ? ` · 发出去的是「${r.query}」` : ''}` }
+        ? { ok: true, text: `${r.seconds} 秒 · 返回 ${r.count} 条（${Object.entries(r.engines ?? {}).map(([k, v]) => `${k} ${v}`).join(' · ')}）${r.redacted ? ` · 发出去的是「${r.query}」` : ''}` }
         : { ok: false, text: `没搜到：${r.error ?? '搜索服务没有返回结果'}` });
     } catch (err) { setTest({ ok: false, text: err instanceof ApiError ? err.message : '测试失败' }); }
     finally { setBusy(false); }
   };
   return (
     <aside className="acc-drawer" aria-label="工具设置">
-      <div className="acc-drawer-hd"><b>{kind === 'search' ? '联网搜索 · 设置' : '代码解释器 · 设置'}</b><button type="button" className="refs-x" aria-label="关闭" onClick={onClose}>✕</button></div>
+      <div className="acc-drawer-hd"><b>{kind === 'search' ? '联网搜索 · 设置' : '代码解释器 · 设置'}</b><button type="button" className="refs-x" aria-label="关闭" onClick={onClose}><Icon name="x" size={14} style={{ display: 'block' }} /></button></div>
       <div className="acc-drawer-body sc">
         {kind === 'search' ? (
           <>
@@ -168,7 +169,7 @@ function SettingsPanel({ kind, cfg, onClose, onSave }: {
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {ENGINES.map(([k, n]) => (
                   <button key={k} type="button" className={'rv-chip' + (engines.includes(k) ? ' on' : '')}
-                    onClick={() => setEngines((e) => (e.includes(k) ? e.filter((x) => x !== k) : [...e, k]))}>{n}{engines.includes(k) ? ' ✓' : ''}</button>
+                    onClick={() => setEngines((e) => (e.includes(k) ? e.filter((x) => x !== k) : [...e, k]))}>{n}{engines.includes(k) && <Icon name="check" size={13} stroke={2.2} style={{ marginLeft: 4 }} />}</button>
                 ))}
               </div>
             </div>
@@ -178,7 +179,7 @@ function SettingsPanel({ kind, cfg, onClose, onSave }: {
                 <input className="inp" style={{ height: 38, flex: 1 }} value={q} onChange={(e) => setQ(e.target.value)} />
                 <button type="button" className="gbtn" disabled={busy || !q.trim()} onClick={() => void runTest()}>{busy ? '搜索中…' : '搜索'}</button>
               </span>
-              {test && <small style={{ color: test.ok ? '#1c6b45' : 'var(--brand-fg)' }}>{test.text}</small>}
+              {test && <small style={{ color: test.ok ? '#1c6b45' : 'var(--brand-fg)' }}>{test.ok && <Icon name="check" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />}{test.text}</small>}
             </div>
           </>
         ) : (
@@ -218,13 +219,13 @@ function EpoPanel({ cfg, onClose, onSave }: { cfg: Record<string, string>; onClo
     try {
       await onSave(values());
       const r = await post<{ ok: boolean; error?: string }>('/api/ops/tools/test-epo');
-      setTest(r.ok ? { ok: true, text: '✓ 密钥可用，专利检索已就绪' } : { ok: false, text: r.error ?? '密钥换不到令牌，请检查是否填反或复制多了空格' });
+      setTest(r.ok ? { ok: true, text: '密钥可用，专利检索已就绪' } : { ok: false, text: r.error ?? '密钥换不到令牌，请检查是否填反或复制多了空格' });
     } catch (err) { setTest({ ok: false, text: err instanceof ApiError ? err.message : '测试失败' }); }
     finally { setBusy(false); }
   };
   return (
     <aside className="acc-drawer" aria-label="专利论文检索设置">
-      <div className="acc-drawer-hd"><b>专利 / 论文检索 · 设置</b><button type="button" className="refs-x" aria-label="关闭" onClick={onClose}>✕</button></div>
+      <div className="acc-drawer-hd"><b>专利 / 论文检索 · 设置</b><button type="button" className="refs-x" aria-label="关闭" onClick={onClose}><Icon name="x" size={14} style={{ display: 'block' }} /></button></div>
       <div className="acc-drawer-body sc">
         <p className="dash-muted" style={{ margin: 0, lineHeight: 1.7 }}>
           论文走 OpenAlex，免费、不用注册。专利走欧洲专利局 OPS（覆盖中国、美国、欧洲等专利），免费，但要先在 developers.epo.org 注册账号、建一个 App，拿到 Consumer Key 和 Consumer Secret 填在下面。
@@ -238,7 +239,7 @@ function EpoPanel({ cfg, onClose, onSave }: { cfg: Record<string, string>; onClo
         <div className="acc-preview"><b>发出去之前系统会拦掉：</b>客户名单里的名称 · 台账里的项目编号 · 金额与报价，和联网搜索一样。</div>
         <div className="acc-field">
           <button type="button" className="gbtn" style={{ alignSelf: 'flex-start' }} disabled={busy} onClick={() => void runTest()}>{busy ? '测试中…' : '保存并测试密钥'}</button>
-          {test && <small style={{ color: test.ok ? '#1c6b45' : 'var(--brand-fg)' }}>{test.text}</small>}
+          {test && <small style={{ color: test.ok ? '#1c6b45' : 'var(--brand-fg)' }}>{test.ok && <Icon name="check" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />}{test.text}</small>}
         </div>
       </div>
       <div className="acc-drawer-f">

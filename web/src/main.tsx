@@ -25,6 +25,7 @@ import CorpusPage from './pages/admin/CorpusPage'
 import DocPreviewPage from './pages/admin/DocPreviewPage'
 import KbsPage from './pages/admin/KbsPage'
 import MetaPage from './pages/admin/MetaPage'
+import QualityPage from './pages/admin/quality/QualityPage'
 import TemplatesAdminPage from './pages/admin/TemplatesAdminPage'
 import UsersPage from './pages/admin/UsersPage'
 import SettingsPage from './pages/admin/SettingsPage'
@@ -97,6 +98,7 @@ function App() {
           <Route path="kbs" element={<KbsPage />} />
           <Route path="prices" element={<PricesPage />} />
           <Route path="meta" element={<MetaPage />} />
+          <Route path="quality" element={<QualityPage />} />
           <Route path="templates" element={<TemplatesAdminPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="settings" element={<SettingsPage />} />

@@ -9,6 +9,7 @@ import { useAuth } from '../../lib/auth';
 import type { Classification, DeptRow, RoleRow, UserRow } from '../../lib/types';
 import { ErrorBox, Spinner } from '../../components/Common';
 import { CLS_ORDER, CLS_TAG, permLabel } from './permCatalog';
+import { Icon } from '../../components/Icons';
 
 /** 部门树拍平成「销售中心 › 售前部 › 华东组」这样的选项，顺序按树。 */
 function deptOptions(depts: DeptRow[]): { id: string; path: string; depth: number }[] {
@@ -179,7 +180,7 @@ export default function AccountsTab() {
                       <td>{u.roleName ? <span className="acc-role">{u.roleName}</span> : <span style={{ color: 'var(--brand-fg)' }}>未指派</span>}</td>
                       <td>{r ? <ClsTags cls={r.classifications} /> : '—'}</td>
                       <td style={{ color: 'var(--ink-3)' }}>{u.lastLoginAt ? u.lastLoginAt.slice(5, 16).replace('T', ' ') : '从未登录'}</td>
-                      <td style={{ fontSize: 12, color: u.isActive ? '#1c6b45' : 'var(--ink-4)' }}>● {u.isActive ? '正常' : '已停用'}</td>
+                      <td style={{ fontSize: 12, color: u.isActive ? '#1c6b45' : 'var(--ink-4)' }}><Icon name="dot" size={12} style={{ verticalAlign: '-2px' }} /> {u.isActive ? '正常' : '已停用'}</td>
                       <td style={{ position: 'relative', textAlign: 'right' }}>
                         <button type="button" className="acc-more" aria-label={`${u.displayName} 的更多操作`} aria-expanded={menu === u.id}
                           onClick={() => setMenu(menu === u.id ? null : u.id)}>⋯</button>
@@ -361,7 +362,7 @@ function CreateDrawer({ roles, depts, opts, onClose, onCreated }: {
 
   return (
     <aside className="acc-drawer" aria-label="开通账号">
-      <div className="acc-drawer-hd"><b>开通账号</b><button type="button" className="refs-x" aria-label="关闭" onClick={onClose}>✕</button></div>
+      <div className="acc-drawer-hd"><b>开通账号</b><button type="button" className="refs-x" aria-label="关闭" onClick={onClose}><Icon name="x" size={14} style={{ display: 'block' }} /></button></div>
       <div className="acc-drawer-body sc">
         <div className="us-seg" role="group" aria-label="账号类型" style={{ alignSelf: 'flex-start' }}>
           <button type="button" className={kind === 'Employee' ? 'on' : ''} aria-pressed={kind === 'Employee'} onClick={() => { setKind('Employee'); setRoleId(''); }}>公司员工</button>

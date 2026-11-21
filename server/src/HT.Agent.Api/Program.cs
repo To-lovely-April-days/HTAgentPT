@@ -15,6 +15,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddScoped<CurrentUserHolder>();
 builder.Services.AddScoped<ICurrentUser>(sp => sp.GetRequiredService<CurrentUserHolder>());
+// 后台「跑一遍」测试题：单例排队，一次一轮
+builder.Services.AddSingleton<HT.Agent.Api.Quality.EvalRunner>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<HT.Agent.Api.Quality.EvalRunner>());
 
 builder.Services.AddControllers().AddJsonOptions(o =>
     o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));

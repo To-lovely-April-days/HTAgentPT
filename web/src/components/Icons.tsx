@@ -1,7 +1,7 @@
 import { PixelSprite } from './pet/PixelSprite';
 // 线框图标：统一 24 网格、描边 1.8，颜色跟随文字（currentColor）。
 // 只收界面里真用到的几枚，不引图标库——内网离线部署，少一个依赖少一处打包问题。
-import type { ReactElement } from 'react';
+import type { CSSProperties, ReactElement } from 'react';
 
 const PATHS: Record<string, ReactElement> = {
   plus: <path d="M12 5v14M5 12h14" />,
@@ -20,11 +20,21 @@ const PATHS: Record<string, ReactElement> = {
   clip: <path d="M21 11.5l-8.5 8.5a5 5 0 0 1-7-7L14 4.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4L15.5 7.5" />,
   x: <path d="M6 6l12 12M18 6L6 18" />,
   upload: <path d="M12 16V4M6 10l6-6 6 6M4 20h16" />,
+  check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  thumbUp: <path d="M7 10v10H4.5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1zM7 10l3.6-6.3a1.8 1.8 0 0 1 3.3 1.2L13.3 9H19a2 2 0 0 1 2 2.3l-1.2 6.9A2.2 2.2 0 0 1 17.6 20H7" />,
+  thumbDown: <g transform="rotate(180 12 12)"><path d="M7 10v10H4.5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1zM7 10l3.6-6.3a1.8 1.8 0 0 1 3.3 1.2L13.3 9H19a2 2 0 0 1 2 2.3l-1.2 6.9A2.2 2.2 0 0 1 17.6 20H7" /></g>,
+  refresh: <path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" />,
+  play: <path d="M8 5.5l11 6.5-11 6.5z" fill="currentColor" />,
+  boxOff: <rect x="3.5" y="3.5" width="17" height="17" rx="4" />,
+  boxOn: <><rect x="3.5" y="3.5" width="17" height="17" rx="4" fill="currentColor" /><path d="M8 12.3l2.8 2.8L16.3 9" stroke="#fff" /></>,
+  dot: <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />,
 };
 
-export function Icon({ name, size = 17, stroke = 1.8 }: { name: keyof typeof PATHS | string; size?: number; stroke?: number }) {
+export function Icon({ name, size = 17, stroke = 1.8, style, className }: {
+  name: keyof typeof PATHS | string; size?: number; stroke?: number; style?: CSSProperties; className?: string;
+}) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" style={style} className={className}
       strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       {PATHS[name] ?? null}
     </svg>

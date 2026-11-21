@@ -6,6 +6,7 @@ import { FileView } from '../../../components/FileView';
 import { HtmlPreview } from './HtmlPreview';
 import { WebBrowser } from './WebBrowser';
 import type { WebTab } from './WebBrowser';
+import { Icon } from '../../../components/Icons';
 
 export type Panel =
   | { kind: 'html'; code: string }
@@ -42,7 +43,7 @@ function DocPanel({ title, markdown, onClose }: { title: string; markdown: strin
         {msg && <span className="cb-msg">{msg}</span>}
         <button type="button" className="cb-btn" onClick={() => void exp('docx')}>导出 Word</button>
         <button type="button" className="cb-btn" onClick={() => void exp('pdf')}>导出 PDF</button>
-        <button type="button" className="refs-x" aria-label="关闭文档" onClick={onClose}>✕</button>
+        <button type="button" className="refs-x" aria-label="关闭文档" onClick={onClose}><Icon name="x" size={14} style={{ display: 'block' }} /></button>
       </div>
       <div className="dp">
         {toc.length > 2 && (
@@ -73,7 +74,7 @@ export function PreviewPanel({ panel, htmlVersions, webTabs, webActive, setPanel
             <span className="pv-ic doc" aria-hidden="true">文件</span>
             <b className="pv-t" title={panel.fileName}>{panel.fileName}</b>
             <span className="cb-sp" />
-            <button type="button" className="refs-x" aria-label="关闭文件预览" onClick={onClose}>✕</button>
+            <button type="button" className="refs-x" aria-label="关闭文件预览" onClick={onClose}><Icon name="x" size={14} style={{ display: 'block' }} /></button>
           </div>
           <div className="pv-file sc"><FileView key={panel.src} src={panel.src} fileName={panel.fileName} /></div>
         </div>

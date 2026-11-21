@@ -8,6 +8,7 @@ import { useAuth } from '../../lib/auth';
 import { DELIVERY_LABEL } from '../../lib/types';
 import type { ProjectSearchResult, VocabRow } from '../../lib/types';
 import { ErrorBox, Spinner } from '../../components/Common';
+import { Icon } from '../../components/Icons';
 
 interface Filters {
   customerName: string; year: string; deviceType: string; deliveryStatus: string;
@@ -227,11 +228,11 @@ export default function ProjectsPage() {
             </div>
             {appliedChips.length > 0 && (
               <div style={{ padding: '12px 13px', background: 'var(--bg-soft)', border: '1px solid var(--line-soft)', borderRadius: 5, marginBottom: 14 }}>
-                <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginBottom: 8 }}>当前条件（点 ✕ 去掉后重查）</div>
+                <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginBottom: 8 }}>当前条件（点 <Icon name="x" size={11} stroke={2.2} style={{ verticalAlign: '-1px' }} /> 去掉后重查）</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {appliedChips.map((c) => (
                     <button key={c.key} className="gbtn" style={{ height: 24, fontSize: 11.5 }} onClick={() => removeCondition(c.key, c.extra)}>
-                      {c.label}　✕
+                      {c.label}<Icon name="x" size={11} stroke={2.2} style={{ verticalAlign: '-1px', marginLeft: 6 }} />
                     </button>
                   ))}
                 </div>

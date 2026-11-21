@@ -12,6 +12,7 @@ import { Spinner } from '../../../components/Common';
 import { useCaps } from '../../../components/code/caps';
 import UploadModal from '../../admin/UploadModal';
 import { findMarks, quoteSentences } from './marks';
+import { Icon } from '../../../components/Icons';
 
 export interface WebTab { url: string; title?: string; label?: string; quotes?: string[] }
 
@@ -163,11 +164,11 @@ export function WebBrowser({ tabs, active, onActivate, onCloseTab, onOpen, onClo
               {t.label && <span className="wb-n">{t.label}</span>}
               <span className="wb-tab-t">{t.title || (() => { try { return new URL(t.url).host; } catch { return t.url; } })()}</span>
             </button>
-            <button type="button" className="wb-tab-x" aria-label="关闭这个网页" onClick={() => onCloseTab(i)}>✕</button>
+            <button type="button" className="wb-tab-x" aria-label="关闭这个网页" onClick={() => onCloseTab(i)}><Icon name="x" size={11} stroke={2.2} style={{ display: 'block' }} /></button>
           </span>
         ))}
         <span className="cb-sp" />
-        <button type="button" className="refs-x" aria-label="关闭网页浏览" onClick={onClose}>✕</button>
+        <button type="button" className="refs-x" aria-label="关闭网页浏览" onClick={onClose}><Icon name="x" size={14} style={{ display: 'block' }} /></button>
       </div>
       <div className="wb-bar">
         <span className="wb-nav">
@@ -175,7 +176,7 @@ export function WebBrowser({ tabs, active, onActivate, onCloseTab, onOpen, onClo
           <button type="button" aria-label="下一个网页" disabled={active >= tabs.length - 1} onClick={() => onActivate(active + 1)}>›</button>
         </span>
         <form className="wb-addr" onSubmit={(e) => { e.preventDefault(); const v = addrValue.trim(); if (/^https?:\/\//i.test(v) && v !== tab.url) onOpen(v); setAddr(null); }}>
-          <span className={'wb-lock' + (tab.url.startsWith('https') ? ' ok' : '')} aria-hidden="true">●</span>
+          <span className={'wb-lock' + (tab.url.startsWith('https') ? ' ok' : '')} aria-hidden="true"><Icon name="dot" size={10} style={{ display: 'block' }} /></span>
           <input value={addrValue} aria-label="网址" spellCheck={false} onChange={(e) => setAddr({ for: tab.url, value: e.target.value })} />
         </form>
         <span className="pv-seg small">
