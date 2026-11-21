@@ -18,7 +18,7 @@ public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, 
     };
 
     public record AskBody(Guid? SessionId, string Question, RetrievalRequest? Filters, string? ForcedIntent,
-        List<Guid>? AttachmentIds = null);
+        List<Guid>? AttachmentIds = null, SkillTest? SkillTest = null);
 
     /// <summary>问答（表 8-1 POST /api/chat/completions）：SSE 流式。
     /// 事件：meta（改写与命中）→ delta*（增量）→ sources → done；或 meta → no_result。</summary>
@@ -43,7 +43,7 @@ public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, 
         var retrieval = (body.Filters ?? new RetrievalRequest(body.Question)) with { Query = body.Question };
         try
         {
-            await foreach (var ev in qa.AskStreamAsync(new QaRequest(body.SessionId, body.Question, retrieval, body.ForcedIntent, body.AttachmentIds), ct))
+            await foreach (var ev in qa.AskStreamAsync(new QaRequest(body.SessionId, body.Question, retrieval, body.ForcedIntent, body.AttachmentIds, body.SkillTest), ct))
             {
                 await Response.WriteAsync($"event: {ev.Kind}\n", ct);
                 await Response.WriteAsync($"data: {JsonSerializer.Serialize(ev.Payload, JsonOpts)}\n\n", ct);

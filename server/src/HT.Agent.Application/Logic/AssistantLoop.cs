@@ -117,6 +117,7 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         "fetch_url" => "打开网页",
         "compare_documents" => "文件对比",
         "remember" => "记住",
+        "use_skill" => "翻看技能",
         "forget" => "删记忆",
         "inquiry_form" => "询价缺项单",
         "search_standards" => "查标准规范",
@@ -140,7 +141,7 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
             var node = JsonNode.Parse(string.IsNullOrWhiteSpace(call.ArgumentsJson) ? "{}" : call.ArgumentsJson) as JsonObject;
             if (node is null) return "";
             var parts = node.Where(kv => kv.Value is not null && kv.Value.ToString().Length > 0)
-                .Select(kv => kv.Key is "query" or "expression" or "keyword" ? kv.Value!.ToString() : $"{kv.Key}={kv.Value}");
+                .Select(kv => kv.Key is "query" or "expression" or "keyword" || call.Name == "use_skill" ? kv.Value!.ToString() : $"{kv.Key}={kv.Value}");
             var s = string.Join("，", parts);
             return s.Length <= 120 ? s : s[..120] + "…";
         }

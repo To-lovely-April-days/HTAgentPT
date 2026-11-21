@@ -36,6 +36,43 @@ public static class Seeder
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>技能包初稿（Skills/*.md，SKILL.md 格式）：公司还一个技能都没有时放进去。
+    /// 6 份完整初稿标「待审核」，其余是「草稿」大纲，都不自动启用——技术部审过、在后台打开才生效。</summary>
+    private static async Task EnsureSkillsAsync(AppDbContext db, CancellationToken ct)
+    {
+        var asm = typeof(Seeder).Assembly;
+        var names = asm.GetManifestResourceNames().Where(n => n.StartsWith("skills/") && n.EndsWith(".md")).OrderBy(n => n).ToList();
+        if (names.Count == 0) return;
+        var companies = await db.Companies.Select(c => c.Id).ToListAsync(ct);
+        foreach (var cid in companies)
+        {
+            if (await db.AssistantSkills.AnyAsync(s => s.CompanyId == cid, ct)) continue;
+            var now = DateTimeOffset.UtcNow;
+            foreach (var n in names)
+            {
+                using var stream = asm.GetManifestResourceStream(n)!;
+                using var reader = new StreamReader(stream);
+                var p = HT.Agent.Application.Logic.SkillFiles.Parse(await reader.ReadToEndAsync(ct));
+                if (string.IsNullOrWhiteSpace(p.Name)) continue;
+                var title = p.Meta.TryGetValue("title", out var t) ? t : p.Name;
+                var skill = new AssistantSkill
+                {
+                    Id = Guid.NewGuid(), CompanyId = cid, Code = p.Name, Name = title,
+                    Category = p.Meta.TryGetValue("category", out var c) ? c : "其他", Description = p.Description, Body = p.Body,
+                    Source = p.Meta.TryGetValue("source", out var src) ? src : "own",
+                    Status = p.Meta.TryGetValue("status", out var st) && st == "review" ? SkillStatus.Review : SkillStatus.Draft,
+                    Version = 1, UpdatedAt = now, CreatedAt = now,
+                };
+                db.AssistantSkills.Add(skill);
+                db.AssistantSkillVersions.Add(new AssistantSkillVersion
+                {
+                    SkillId = skill.Id, Version = 1, Name = skill.Name, Description = skill.Description, Body = skill.Body, Note = "系统自带的初稿", EditedAt = now,
+                });
+            }
+        }
+        await db.SaveChangesAsync(ct);
+    }
+
     private static async Task EnsureTermsAsync(AppDbContext db, CancellationToken ct)
     {
         var added = false;
@@ -55,6 +92,7 @@ public static class Seeder
         {
             await EnsureTermsAsync(db, ct); // 已初始化：只补后来新增的固定取值
             await EnsurePurchasingAsync(db, ct);
+            await EnsureSkillsAsync(db, ct);
             return;
         }
 
@@ -185,6 +223,7 @@ public static class Seeder
         }
 
         await db.SaveChangesAsync(ct);
+        await EnsureSkillsAsync(db, ct);
         await EnsureTermsAsync(db, ct);
     }
 }

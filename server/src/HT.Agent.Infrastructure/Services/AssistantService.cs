@@ -64,6 +64,7 @@ public sealed class AssistantService(
     public record RunState(List<EvidenceItem> Evidence, Dictionary<string, int> Keys, Dictionary<string, string> DocRefs,
         List<double> Computed, List<string> Searches, int NextN);
     public record AskOption(string Label, string? Detail);
+    public record SkillRef(Guid Id, string Code, string Name, string Description, int Version);
     public record AskSpec(string Question, List<AskOption> Options, bool Multiple);
     /// <summary>等用户回话时存下来的现场：对话（含已查到的资料）、等着填结果的那次调用、依据编号表。</summary>
     public record PendingState(List<AgentMessage> Messages, string CallId, RunState Run);
@@ -85,6 +86,10 @@ public sealed class AssistantService(
         public AskSpec? Ask;
         /// <summary>提示词里记忆的编号 M1、M2… → 记忆 id（forget 用）。</summary>
         public readonly Dictionary<string, Guid> MemoryRefs = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>这次能翻看的技能（提示词里列出的那些）。</summary>
+        public readonly List<SkillRef> Skills = [];
+        /// <summary>这一轮回答存成的消息 id：记「哪条回答用了哪个技能」。</summary>
+        public Guid MessageId;
 
         public RunState ToState() => new(Evidence.Values.OrderBy(e => e.N).ToList(), new(Keys),
             DocRefs.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value), [.. Computed], [.. Searches], NextN);
@@ -139,6 +144,9 @@ public sealed class AssistantService(
         if (attachmentFiles.Count == 0) { ((HashSet<string>)enabled).Remove("view_image"); ((HashSet<string>)enabled).Remove("translate_file"); }
         else if (enabled.Contains("view_image") && !await visionSwitch.EnabledAsync(ct)) ((HashSet<string>)enabled).Remove("view_image");
         if (!has(PermissionKeys.Translate)) ((HashSet<string>)enabled).Remove("translate_file");
+        // 技能：只列这个人的角色能用、已启用的（后台「试一试」时只开指定的那一个，或一个都不开）
+        var skills = await SkillsForAsync(req, ct);
+        if (skills.Count > 0) ((HashSet<string>)enabled).Add("use_skill");
         var tools = BuildTools(canDocs, canProjects, attachmentFiles.Count > 0, enabled);
         List<AgentMessage> messages;
         // 上一轮在等用户确认：这句话就是回答，接着上次的现场跑——前面查到的不重来，编号也接着用
@@ -155,11 +163,12 @@ public sealed class AssistantService(
         {
             for (var i = 0; i < mems.Count; i++) run.MemoryRefs[$"M{i + 1}"] = mems[i].Id;
             var hints = QuestionHints.Build(req.Question, await TermEntriesAsync(ct));
-            messages = [new("system", await SystemPromptAsync(req, attachmentFiles.Select(a => a.FileName).ToList(), enabled, mems, hints, ct))];
+            messages = [new("system", await SystemPromptAsync(req, attachmentFiles.Select(a => a.FileName).ToList(), enabled, mems, hints, ct) + SkillsPrompt(skills, req.SkillTest))];
             messages.AddRange(await HistoryAsync(session.Id, ct));
             messages.Add(new AgentMessage("user", req.Question));
         }
 
+        run.Skills.AddRange(skills);
         await emit(new QaEvent("meta", new { sessionId = session.Id, intent = "assistant", mode = "assistant" }));
         // 开始的留痕等模型真的接手了再写：模型端不支持工具调用会退回原问答，那边自己记，不重复计数
         var startLogged = false;
@@ -185,6 +194,7 @@ public sealed class AssistantService(
         {
             Id = Guid.NewGuid(), SessionId = session.Id, Question = req.Question, Intent = "assistant", At = started
         };
+        run.MessageId = message.Id;
         var answerSoFar = new StringBuilder();
         var saved = false;
         LoopResult? result = null;
@@ -427,6 +437,10 @@ public sealed class AssistantService(
     private static List<ToolSpec> BuildTools(bool canDocs, bool canProjects, bool hasAttachments, IReadOnlySet<string> enabled)
     {
         var list = new List<ToolSpec>();
+        if (enabled.Contains("use_skill"))
+            list.Add(new ToolSpec("use_skill",
+                "翻看一项技能的全文：公司技术骨干写的这类问题的答题指南（先确认什么、怎么判断、常见的坑、该查什么、回答怎么写）。问题和技能清单里的某一项对上了，先翻看再查资料、回答；对上几项就翻几项。",
+                Obj(new() { ["name"] = Str("技能名称，照技能清单里写") }, "name")));
         if (enabled.Contains("ask_user"))
             list.Add(new ToolSpec("ask_user",
                 "请用户确认或选择：问题有歧义、或查到多个候选且会影响答案时用。给出问题和 2–6 个选项（每个附一句区别），用户可以点选，也可以自己补充。调用后等用户回答再继续。",
@@ -1055,6 +1069,30 @@ public sealed class AssistantService(
                 await emit(new QaEvent("artifact", card));
                 return new ToolOutcome($"已记住：{row.Text}", $"已记住：{row.Text}", "记住", Clip(row.Text, 60), "已记住");
             }
+            case "use_skill":
+            {
+                var n = (S("name") ?? "").Trim().Trim('「', '」', '《', '》');
+                if (run.Skills.Count == 0) run.Skills.AddRange(await SkillsForAsync(req, ct));   // 接着上次等确认的现场跑时重新取
+                var sk = run.Skills.FirstOrDefault(x => x.Name == n || x.Code.Equals(n, StringComparison.OrdinalIgnoreCase))
+                         ?? run.Skills.FirstOrDefault(x => n.Length > 1 && (x.Name.Contains(n) || n.Contains(x.Name)));
+                if (sk is null)
+                    return new ToolOutcome($"没有叫「{n}」的技能。能翻看的：{string.Join("、", run.Skills.Select(x => x.Name))}", "没有这个技能", label, n, "没有这个技能");
+                var row = await db.AssistantSkills.AsNoTracking().Where(x => x.Id == sk.Id)
+                    .Select(x => new { x.Body, x.RefDocIds, x.Version }).FirstAsync(ct);
+                var sb = new StringBuilder($"技能「{sk.Name}」（v{row.Version}）全文，照着要求确认、查找和回答：\n{row.Body}\n");
+                if (row.RefDocIds.Count > 0)
+                {
+                    var cls = me.Classifications.ToList();
+                    var refs = await db.Documents.AsNoTracking()
+                        .Where(d => row.RefDocIds.Contains(d.Id) && !d.IsWithdrawn && cls.Contains(d.Classification))
+                        .Select(d => new { d.Id, d.Title }).ToListAsync(ct);
+                    if (refs.Count > 0)
+                        sb.AppendLine("这个技能附带的参考资料（需要时用 read_document 打开）：" + string.Join("；", refs.Select(d => $"《{d.Title}》（{run.RefOf(d.Id)}）")));
+                }
+                if (run.MessageId != Guid.Empty)
+                    db.SkillUses.Add(new SkillUse { SkillId = sk.Id, CompanyId = me.CompanyId, MessageId = run.MessageId, UserId = me.UserId, Version = row.Version, At = DateTimeOffset.UtcNow });
+                return new ToolOutcome(sb.ToString(), $"（较早翻看过技能「{sk.Name}」，要点：）\n{Clip(row.Body, 900)}", label, $"{sk.Name} v{row.Version}", "已翻看");
+            }
             case "forget":
             {
                 var r = S("ref") ?? "";
@@ -1382,6 +1420,30 @@ public sealed class AssistantService(
         "search_literature", "view_image", "translate_file", "inquiry_form", "search_prices", "show_table", "show_block"];
 
     /// <summary>这次能用哪些可选工具：系统设置里开着的、角色在允许名单里的。外部客户只给「请用户确认」。</summary>
+    /// <summary>这次能翻看的技能：已启用、角色对得上（空 = 所有内部员工）。后台「试一试」只开指定的那一个（草稿也行），或一个都不开。</summary>
+    private async Task<List<SkillRef>> SkillsForAsync(QaRequest req, CancellationToken ct)
+    {
+        var test = req.SkillTest is not null && me.Permissions.Contains(PermissionKeys.TemplateManage) ? req.SkillTest : null;
+        if (test is { On: false }) return [];
+        var q = db.AssistantSkills.AsNoTracking().Where(s => s.CompanyId == me.CompanyId);
+        q = test is not null ? q.Where(s => s.Code == test.Code) : q.Where(s => s.Status == SkillStatus.Enabled);
+        var rows = await q.OrderBy(s => s.Category).ThenBy(s => s.Name)
+            .Select(s => new { s.Id, s.Code, s.Name, s.Description, s.Version, s.Roles }).ToListAsync(ct);
+        var internalUser = me.Permissions.Contains(PermissionKeys.QaInternal);
+        return rows.Where(r => test is not null || (r.Roles.Count == 0 ? internalUser : r.Roles.Contains(me.RoleCode, StringComparer.OrdinalIgnoreCase)))
+            .Select(r => new SkillRef(r.Id, r.Code, r.Name, r.Description, r.Version)).ToList();
+    }
+
+    /// <summary>技能清单：每个一行「名称：什么时候用」，正文要用时才翻看。</summary>
+    private static string SkillsPrompt(IReadOnlyList<SkillRef> skills, SkillTest? test)
+    {
+        if (skills.Count == 0) return "";
+        var sb = new StringBuilder("\n可用的技能（公司技术骨干写的答题指南）。问题和某一项对上了，先用 use_skill 翻看全文，照着里面的要求确认、查找和回答；对上几项就翻几项，都对不上就不用翻：\n");
+        foreach (var s in skills) sb.AppendLine($"- {s.Name}：{s.Description}");
+        if (test is { On: true }) sb.AppendLine($"这次请先用 use_skill 翻看「{skills[0].Name}」，再按它的要求回答。");
+        return sb.ToString();
+    }
+
     private async Task<IReadOnlySet<string>> EnabledToolsAsync(CancellationToken ct)
     {
         var set = new HashSet<string>();

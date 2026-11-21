@@ -216,6 +216,157 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                     b.ToTable("app_user");
                 });
 
+            modelBuilder.Entity("HT.Agent.Domain.Entities.AssistantSkill", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("body");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("category");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("code");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("License")
+                        .HasColumnType("text")
+                        .HasColumnName("license");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<string>("RefDocIds")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("ref_doc_ids");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_id");
+
+                    b.Property<string>("Roles")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("roles");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("source");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_id");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_assistant_skill");
+
+                    b.HasIndex("CompanyId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_assistant_skill_company_id_code");
+
+                    b.HasIndex("CompanyId", "Status")
+                        .HasDatabaseName("ix_assistant_skill_company_id_status");
+
+                    b.ToTable("assistant_skill");
+                });
+
+            modelBuilder.Entity("HT.Agent.Domain.Entities.AssistantSkillVersion", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("body");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<DateTimeOffset>("EditedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("edited_at");
+
+                    b.Property<Guid?>("EditedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("edited_by_id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("text")
+                        .HasColumnName("note");
+
+                    b.Property<Guid>("SkillId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("skill_id");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_assistant_skill_version");
+
+                    b.HasIndex("SkillId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_assistant_skill_version_skill_id_version");
+
+                    b.ToTable("assistant_skill_version");
+                });
+
             modelBuilder.Entity("HT.Agent.Domain.Entities.AuditLog", b =>
                 {
                     b.Property<long>("Id")
@@ -2021,6 +2172,54 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                     b.ToTable("role");
                 });
 
+            modelBuilder.Entity("HT.Agent.Domain.Entities.SkillUse", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("at");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_id");
+
+                    b.Property<Guid>("SkillId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("skill_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_skill_use");
+
+                    b.HasIndex("MessageId")
+                        .HasDatabaseName("ix_skill_use_message_id");
+
+                    b.HasIndex("CompanyId", "At")
+                        .HasDatabaseName("ix_skill_use_company_id_at");
+
+                    b.HasIndex("SkillId", "At")
+                        .HasDatabaseName("ix_skill_use_skill_id_at");
+
+                    b.ToTable("skill_use");
+                });
+
             modelBuilder.Entity("HT.Agent.Domain.Entities.SyncLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2537,6 +2736,16 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                     b.Navigation("Role");
                 });
 
+            modelBuilder.Entity("HT.Agent.Domain.Entities.AssistantSkillVersion", b =>
+                {
+                    b.HasOne("HT.Agent.Domain.Entities.AssistantSkill", null)
+                        .WithMany()
+                        .HasForeignKey("SkillId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_assistant_skill_version_assistant_skill_skill_id");
+                });
+
             modelBuilder.Entity("HT.Agent.Domain.Entities.Chunk", b =>
                 {
                     b.HasOne("HT.Agent.Domain.Entities.Document", "Doc")
@@ -2668,6 +2877,16 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_qa_message__qa_sessions_session_id");
 
                     b.Navigation("Session");
+                });
+
+            modelBuilder.Entity("HT.Agent.Domain.Entities.SkillUse", b =>
+                {
+                    b.HasOne("HT.Agent.Domain.Entities.AssistantSkill", null)
+                        .WithMany()
+                        .HasForeignKey("SkillId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_skill_use_assistant_skill_skill_id");
                 });
 
             modelBuilder.Entity("HT.Agent.Domain.Entities.TemplateSlot", b =>

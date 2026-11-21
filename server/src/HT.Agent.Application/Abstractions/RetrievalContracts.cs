@@ -44,7 +44,12 @@ public record QaRequest(Guid? SessionId, string Question, RetrievalRequest Retri
     /// <summary>用户手动纠正的意图（FR-4.1）。空则由路由器判定。</summary>
     string? ForcedIntent = null,
     /// <summary>随这句话一起发出的附件（已上传、还没绑到对话上的）。绑定后这条对话后面的提问都能用。</summary>
-    IReadOnlyList<Guid>? AttachmentIds = null);
+    IReadOnlyList<Guid>? AttachmentIds = null,
+    /// <summary>后台「试一试」：只开这一个技能（草稿也行），或者一个技能都不开。只有能管理技能的人能用。</summary>
+    SkillTest? SkillTest = null);
+
+/// <summary>试技能：Code 是技能代号；On=true 只开这一个并要求先翻看，On=false 不开任何技能。</summary>
+public record SkillTest(string Code, bool On);
 
 /// <summary>SSE 事件。Kind: meta | progress | delta | sources | no_result | done | error。</summary>
 public record QaEvent(string Kind, object Payload);

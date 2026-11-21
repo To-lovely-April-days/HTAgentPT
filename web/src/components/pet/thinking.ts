@@ -26,6 +26,7 @@ const TOOL_ACT: Record<string, Act> = {
   calculate: 'calc', convert_unit: 'calc', run_python: 'calc', cost_estimate: 'calc',
   web_search: 'web', fetch_url: 'web', chemical_info: 'web',
   ask_user: 'ask', inquiry_form: 'ask',
+  use_skill: 'read',
 };
 
 /** 查价格、查项目这类「查一下」后面带上具体查什么，读起来更像人话。 */
@@ -53,7 +54,8 @@ export function pickAct(live: Live, now: number): { act: Act; say: string; sub: 
   const running = [...steps].reverse().find((s) => s.status === 'running');
   if (running) {
     const act = TOOL_ACT[running.tool] ?? 'read';
-    const say = act === 'mag' ? MAG_SAY[running.tool] ?? ACTS.mag.say : act === 'read' && running.tool === 'read_document' ? '打开原文看看' : ACTS[act].say;
+    const say = act === 'mag' ? MAG_SAY[running.tool] ?? ACTS.mag.say
+      : running.tool === 'read_document' ? '打开原文看看' : running.tool === 'use_skill' ? '翻翻经验' : ACTS[act].say;
     return { act, say, sub: short(running.detail) };
   }
   const last = steps[steps.length - 1];

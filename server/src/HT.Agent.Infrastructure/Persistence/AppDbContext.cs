@@ -60,6 +60,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
     public DbSet<EvalQuestion> EvalQuestions => Set<EvalQuestion>();
     public DbSet<EvalRun> EvalRuns => Set<EvalRun>();
     public DbSet<EvalResult> EvalResults => Set<EvalResult>();
+    public DbSet<AssistantSkill> AssistantSkills => Set<AssistantSkill>();
+    public DbSet<AssistantSkillVersion> AssistantSkillVersions => Set<AssistantSkillVersion>();
+    public DbSet<SkillUse> SkillUses => Set<SkillUse>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -295,6 +298,26 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
             e.Property(x => x.ExpectDocs).HasColumnType("jsonb").HasConversion(JsonList<string>(), JsonListComparer<string>());
             e.Property(x => x.ExpectProjects).HasColumnType("jsonb").HasConversion(JsonList<string>(), JsonListComparer<string>());
             e.Property(x => x.ExpectPoints).HasColumnType("jsonb").HasConversion(JsonList<string>(), JsonListComparer<string>());
+        });
+        // 技能：同一公司代号唯一；版本按技能 + 版本号唯一；使用记录按时间统计
+        b.Entity<AssistantSkill>(e =>
+        {
+            e.HasIndex(x => new { x.CompanyId, x.Code }).IsUnique();
+            e.HasIndex(x => new { x.CompanyId, x.Status });
+            e.Property(x => x.Roles).HasColumnType("jsonb").HasConversion(JsonList<string>(), JsonListComparer<string>());
+            e.Property(x => x.RefDocIds).HasColumnType("jsonb").HasConversion(JsonList<Guid>(), JsonListComparer<Guid>());
+        });
+        b.Entity<AssistantSkillVersion>(e =>
+        {
+            e.HasIndex(x => new { x.SkillId, x.Version }).IsUnique();
+            e.HasOne<AssistantSkill>().WithMany().HasForeignKey(x => x.SkillId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<SkillUse>(e =>
+        {
+            e.HasIndex(x => new { x.CompanyId, x.At });
+            e.HasIndex(x => new { x.SkillId, x.At });
+            e.HasIndex(x => x.MessageId);
+            e.HasOne<AssistantSkill>().WithMany().HasForeignKey(x => x.SkillId).OnDelete(DeleteBehavior.Cascade);
         });
         b.Entity<EvalRun>(e =>
         {

@@ -25,4 +25,9 @@
     <InternalsVisibleTo Include="HT.Agent.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 技能包初稿（SKILL.md 格式），首次启动时放进库里 -->
+    <EmbeddedResource Include="Skills\*.md" LogicalName="skills/%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>
