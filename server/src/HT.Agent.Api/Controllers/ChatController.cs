@@ -9,8 +9,16 @@ namespace HT.Agent.Api.Controllers;
 [ApiController]
 [Route("api/chat")]
 [Authorize]
-public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, ILogger<ChatController> logger) : ControllerBase
+public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, IRuntimeConfig config, ILogger<ChatController> logger) : ControllerBase
 {
+    /// <summary>输入框里的「思考」：默认档位、能不能自己选、深度档开没开（模型服务上下文到 32K 才开）。</summary>
+    [HttpGet("levels")]
+    public async Task<IActionResult> Levels(CancellationToken ct)
+    {
+        var c = await HT.Agent.Infrastructure.Services.LevelConfig.LoadAsync(config, ct);
+        return Ok(new { @default = c.Default, userChoice = c.UserChoice, deepAvailable = c.DeepAvailable, contextTokens = c.ContextTokens });
+    }
+
     // SSE 手写响应不走 MVC 序列化管道，枚举转字符串要在这里单独配，否则密级/交付状态吐出来是数字
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web)
     {
@@ -18,7 +26,7 @@ public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, 
     };
 
     public record AskBody(Guid? SessionId, string Question, RetrievalRequest? Filters, string? ForcedIntent,
-        List<Guid>? AttachmentIds = null, SkillTest? SkillTest = null);
+        List<Guid>? AttachmentIds = null, SkillTest? SkillTest = null, string? Level = null);
 
     /// <summary>问答（表 8-1 POST /api/chat/completions）：SSE 流式。
     /// 事件：meta（改写与命中）→ delta*（增量）→ sources → done；或 meta → no_result。</summary>
@@ -43,7 +51,7 @@ public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, 
         var retrieval = (body.Filters ?? new RetrievalRequest(body.Question)) with { Query = body.Question };
         try
         {
-            await foreach (var ev in qa.AskStreamAsync(new QaRequest(body.SessionId, body.Question, retrieval, body.ForcedIntent, body.AttachmentIds, body.SkillTest), ct))
+            await foreach (var ev in qa.AskStreamAsync(new QaRequest(body.SessionId, body.Question, retrieval, body.ForcedIntent, body.AttachmentIds, body.SkillTest, body.Level), ct))
             {
                 await Response.WriteAsync($"event: {ev.Kind}\n", ct);
                 await Response.WriteAsync($"data: {JsonSerializer.Serialize(ev.Payload, JsonOpts)}\n\n", ct);

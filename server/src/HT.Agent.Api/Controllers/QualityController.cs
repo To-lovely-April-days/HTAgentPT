@@ -268,8 +268,11 @@ public class QualityController(AppDbContext db, ICurrentUser me, IRuntimeConfig 
             })
             .ToListAsync(ct));
 
+    /// <summary>Level：按哪一档跑（auto / fast / standard / deep，空=和员工一样按默认）。同一批题三档各跑一遍，比准确率和用时。</summary>
+    public record StartRunBody(string? Level);
+
     [HttpPost("eval/runs")]
-    public async Task<IActionResult> StartRun(CancellationToken ct)
+    public async Task<IActionResult> StartRun([FromBody] StartRunBody? body, CancellationToken ct)
     {
         if (await db.EvalRuns.AnyAsync(r => r.CompanyId == me.CompanyId && r.Status == EvalRunStatus.Running, ct))
             throw new DomainRuleException("EVAL_RUNNING", "上一轮还在跑，等它跑完再来");
@@ -282,6 +285,8 @@ public class QualityController(AppDbContext db, ICurrentUser me, IRuntimeConfig 
             throw new DomainRuleException("EVAL_USER", $"系统设置里的测试账号「{runAs}」不存在或已停用");
 
         var snapshot = await SnapshotAsync(total, ct);
+        var level = HT.Agent.Application.Logic.ThinkLevels.Parse(body?.Level);
+        snapshot["eval.level"] = level is null ? "auto" : HT.Agent.Application.Logic.ThinkLevels.Code(level.Value);
         var prev = await db.EvalRuns.AsNoTracking().Where(r => r.CompanyId == me.CompanyId && r.Status == EvalRunStatus.Done && r.Config != null)
             .OrderByDescending(r => r.StartedAt).Select(r => r.Config).FirstOrDefaultAsync(ct);
         var prevSnap = prev is null ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(prev);

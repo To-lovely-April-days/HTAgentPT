@@ -239,6 +239,34 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .scope-sel:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
 .scope-sel option, .scope-sel optgroup { color: var(--ink); background: var(--panel); }
 .chat-composer .scope { align-self: center; }
+/* 思考档位：和「资料范围」同一个样子；点开往上弹一个列表 */
+.think-pick { position: relative; flex: 0 0 auto; align-self: center; }
+.think-btn { border: none; background: none; font: inherit; }
+.think-btn b { font-weight: 600; }
+.think-btn svg { color: var(--ink-4); }
+.think-btn.on svg { color: #c9c9c6; }
+.think-pop { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 30; width: 330px; padding: 6px; box-sizing: border-box;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: 0 14px 40px rgba(0,0,0,.12); }
+.chat-composer .think-pop { left: auto; right: 0; }
+/* 首页的大输入框在页面上半截：往下弹 */
+.composer.big .think-pop { top: calc(100% + 8px); bottom: auto; }
+.think-opt { display: flex; gap: 10px; width: 100%; padding: 9px 10px; border: none; border-radius: 8px; background: none; font: inherit;
+  text-align: left; cursor: pointer; color: var(--ink); }
+.think-opt:hover:not(:disabled), .think-opt.sel { background: #f4f4f2; }
+.think-opt:disabled { cursor: default; opacity: .5; }
+.think-ic { flex: 0 0 28px; height: 28px; border-radius: 7px; background: #f1f1ef; display: flex; align-items: center; justify-content: center; color: var(--ink-2); }
+.think-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.think-t { display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 600; }
+.think-t i { font-style: normal; font-weight: 400; font-size: 11.5px; color: var(--ink-4); font-family: var(--mono, monospace); }
+.think-d { font-size: 12px; color: var(--ink-3); line-height: 1.55; }
+.think-foot { margin: 4px 4px 0; padding: 8px 6px 4px; border-top: 1px solid var(--line-soft); font-size: 11.5px; color: var(--ink-4); line-height: 1.6; }
+@media (max-width: 560px) { .think-btn .scope-cap { display: none; } .think-pop { width: min(330px, calc(100vw - 32px)); } }
+/* 回答写到上限停了 */
+.as-trunc { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0; padding: 9px 12px; border-radius: 10px;
+  border: 1px solid #f1d9a8; background: #fffcf5; font-size: 13px; color: var(--ink); }
+.as-trunc > svg { color: #8a5a00; flex: 0 0 auto; }
+.as-trunc .hint { font-size: 12px; }
+.as-trunc button { margin-left: auto; }
 .seg { display: inline-flex; gap: 3px; background: #f3f3f1; border-radius: var(--r-md); padding: 3px; }
 .seg-b { height: 30px; border: none; border-radius: 8px; padding: 0 12px; font: inherit; font-size: 13px;
   background: transparent; color: var(--ink-2); cursor: pointer; }
@@ -668,6 +696,10 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .as-step-v { flex: 1; min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
 .as-step-r { color: var(--ink-3); font-size: 12px; white-space: nowrap; }
 .as-step.err .as-step-r { color: var(--brand-fg); }
+.as-more { border: none; background: none; padding: 0; font: inherit; font-size: 12px; color: var(--ink-3); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.as-more:hover { color: var(--ink); }
+.as-thought { margin: 2px 0 8px 90px; padding: 8px 10px; border-radius: 8px; background: var(--bg-soft); color: var(--ink-3); font-size: 12px; line-height: 1.7;
+  white-space: pre-wrap; max-height: 260px; overflow: auto; }
 .as-verify { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 12px; padding-top: 10px;
   border-top: 1px solid var(--line-soft); font-size: 12.5px; color: var(--ink-2); }
 .as-verify-s.ok { color: #1c6b45; }
@@ -1302,3 +1334,23 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .fb-cancel { border: none; background: none; font: inherit; font-size: 12.5px; color: var(--ink-3); cursor: pointer; }
 .fb-send { height: 28px; padding: 0 14px; border-radius: 8px; border: none; background: var(--ink); color: #fff; font: inherit; font-size: 12.5px; cursor: pointer; }
 .fb-send:disabled { opacity: .6; cursor: default; }
+
+/* 系统设置 · 思考档位 */
+.lv-card { padding: 14px 16px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; }
+.lv-hd { display: flex; flex-direction: column; gap: 3px; }
+.lv-hd b { font-size: 12.5px; font-weight: 600; }
+.lv-t { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+.lv-t th { text-align: left; font-weight: 500; color: var(--ink-3); font-size: 11.5px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.lv-t td { padding: 7px 8px; border-bottom: 1px solid var(--line-soft); }
+.lv-t td b { font-weight: 600; }
+.lv-in { height: 28px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; font-size: 12.5px; background: var(--panel); color: var(--ink); box-sizing: border-box; }
+.lv-pill { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 5px; font-size: 11px; }
+.lv-pill.ok { background: #e6f2ec; color: #1c6b45; }
+.lv-pill.warn { background: #fdf4e3; color: #8a5a00; }
+.lv-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; font-size: 12.5px; }
+.lv-row label { display: inline-flex; align-items: center; gap: 8px; }
+.lv-check { display: inline-flex; align-items: center; gap: 6px; border: none; background: none; padding: 0; font: inherit; font-size: 12.5px; color: var(--ink); cursor: pointer; }
+.lv-warn { display: flex; gap: 8px; padding: 10px 12px; border-radius: 8px; border: 1px solid #f1d9a8; background: #fffcf5; }
+.lv-warn > svg { color: #8a5a00; flex: 0 0 auto; margin-top: 2px; }
+.lv-warn div { display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 1.7; color: var(--ink-3); }
+.lv-warn b { font-weight: 500; color: var(--ink); font-size: 12.5px; }

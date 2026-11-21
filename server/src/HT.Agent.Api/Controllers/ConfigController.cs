@@ -46,8 +46,18 @@ public class ConfigController(IRuntimeConfig config, ICurrentUser me, IAuditWrit
         ConfigKeys.ChunkTargetLength, ConfigKeys.ChunkOverlap, ConfigKeys.ChunkMinLength,
         ConfigKeys.UploadMaxFileMb, ConfigKeys.UploadMaxBatch, ConfigKeys.JwtLifetimeMinutes,
         ConfigKeys.AuditRetentionMonths, ConfigKeys.TranslateBatchChars,
-        ConfigKeys.AssistantMaxRounds, ConfigKeys.AssistantMaxTokens, ConfigKeys.AssistantContextChars, ConfigKeys.AssistantSearchTopK,
+        ConfigKeys.AssistantContextChars, ConfigKeys.AssistantSearchTopK, ConfigKeys.ChatContextTokens,
+        ConfigKeys.LevelFastRounds, ConfigKeys.LevelFastMaxTokens, ConfigKeys.LevelFastTemperature, ConfigKeys.LevelStandardRounds, ConfigKeys.LevelStandardMaxTokens, ConfigKeys.LevelStandardTemperature, ConfigKeys.LevelDeepRounds, ConfigKeys.LevelDeepMaxTokens, ConfigKeys.LevelDeepTemperature,
         ConfigKeys.SandboxTimeout, ConfigKeys.MemoryMax, ConfigKeys.PriceStaleMonths
+    };
+
+    private static readonly Dictionary<string, string[]> Choices = new()
+    {
+        [ConfigKeys.LevelFastEffort] = HT.Agent.Application.Logic.ThinkLevels.Efforts,
+        [ConfigKeys.LevelStandardEffort] = HT.Agent.Application.Logic.ThinkLevels.Efforts,
+        [ConfigKeys.LevelDeepEffort] = HT.Agent.Application.Logic.ThinkLevels.Efforts,
+        [ConfigKeys.AssistantLevelDefault] = ["auto", "fast", "standard", "deep"],
+        [ConfigKeys.AssistantLevelUserChoice] = ["true", "false"],
     };
 
     [HttpPut]
@@ -62,6 +72,10 @@ public class ConfigController(IRuntimeConfig config, ICurrentUser me, IAuditWrit
             .Select(kv => kv.Key).ToList();
         if (bad.Count > 0)
             return UnprocessableEntity(new { code = "CONFIG_NOT_NUMERIC", message = $"这些键要求数值：{string.Join("、", bad)}" });
+        // 取值固定的键：思考强度、默认档位
+        var badChoice = body.Values.Where(kv => Choices.TryGetValue(kv.Key, out var ok) && !ok.Contains(kv.Value.Trim())).Select(kv => kv.Key).ToList();
+        if (badChoice.Count > 0)
+            return UnprocessableEntity(new { code = "CONFIG_BAD_CHOICE", message = $"这些键的取值不对：{string.Join("、", badChoice.Select(k => $"{k}（可选 {string.Join(" / ", Choices[k])}）"))}" });
         // 读取端回显的是掩码——原样存回会把真密钥覆盖成掩码字符串
         if (body.Values.Any(kv => kv.Value.StartsWith("••", StringComparison.Ordinal)))
             return UnprocessableEntity(new { code = "CONFIG_MASKED_VALUE", message = "密钥字段回显的是掩码，不能原样保存；要更换密钥请输入新值，不改则不要提交该字段" });

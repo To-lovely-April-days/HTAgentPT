@@ -12,9 +12,13 @@ public record ToolOutcome(string ForModel, string Compact, string Label, string 
 
 public record StepRecord(string Id, string Tool, string Label, string Detail, string? Result, string Status, double Seconds);
 
-public record LoopResult(string Answer, int Rounds, IReadOnlyList<StepRecord> Steps, bool HitRoundLimit, string? PausedCallId = null);
+/// <summary>Truncated：最后一轮写到「回答最长」停了。Reasoning / ThinkSeconds：各轮思考过程拼起来、思考用时加起来。</summary>
+public record LoopResult(string Answer, int Rounds, IReadOnlyList<StepRecord> Steps, bool HitRoundLimit, string? PausedCallId = null,
+    bool Truncated = false, string Reasoning = "", double ThinkSeconds = 0);
 
-public record AssistantLoopOptions(int MaxRounds = 6, bool Think = true, int MaxTokens = 6000, double Temperature = 0.2, int ContextChars = 40000);
+/// <summary>ContextTokens：模型服务的上下文长度（0=不知道）。知道时每轮按已用的估一下，回答上限不超出剩下的，免得模型服务直接拒掉。</summary>
+public record AssistantLoopOptions(int MaxRounds = 6, bool Think = true, int MaxTokens = 6000, double Temperature = 0.2, int ContextChars = 40000,
+    string? Effort = null, double? TopP = null, int? TopK = null, double? PresencePenalty = null, int ContextTokens = 0);
 
 /// <summary>通用助手的回合循环：把问题和工具交给模型 → 模型要查什么就执行什么、把结果交回去 → 直到它直接回答。
 /// 这里不判断问题类型、不规定先查什么后查什么——全由模型决定。系统只负责：执行工具、限制回合数、
@@ -31,13 +35,23 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         var steps = new List<StepRecord>();
         var compacts = new Dictionary<int, string>(); // messages 下标 → 短版
         var stepNo = 0;
+        var reasoning = new System.Text.StringBuilder();
+        var thinkSeconds = 0.0;
+        var toolChars = ToolChars(tools);
         for (var round = 1; ; round++)
         {
             var allowTools = round <= options.MaxRounds && tools.Count > 0;
             var streamed = false;
             var result = await client.RunRoundAsync(messages, tools,
-                new ToolRoundOptions(allowTools, options.Think, options.MaxTokens, options.Temperature),
+                new ToolRoundOptions(allowTools, options.Think, RoundMaxTokens(messages, allowTools ? toolChars : 0, options), options.Temperature,
+                    options.Effort, options.TopP, options.TopK, options.PresencePenalty),
                 async text => { streamed = true; await emit(new QaEvent("delta", new { text })); }, ct);
+            thinkSeconds += result.ThinkSeconds;
+            if (!string.IsNullOrWhiteSpace(result.Reasoning) && reasoning.Length < MaxReasoning)
+            {
+                if (reasoning.Length > 0) reasoning.Append("\n\n");
+                reasoning.Append(result.Reasoning.Trim());
+            }
 
             var calls = result.ToolCalls;
             var content = result.Content;
@@ -52,7 +66,8 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
             {
                 var answer = StripThinking(content);
                 if (answer != content) await emit(new QaEvent("replace", new { text = answer }));
-                return new LoopResult(answer.Trim(), round, steps, round > options.MaxRounds);
+                return new LoopResult(answer.Trim(), round, steps, round > options.MaxRounds,
+                    Truncated: result.FinishReason == "length", Reasoning: Clip(reasoning.ToString(), MaxReasoning), ThinkSeconds: thinkSeconds);
             }
 
             // 这一轮是「先说一句再去查」：说的话不算答案，界面上清掉
@@ -83,8 +98,29 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
                 compacts[messages.Count - 1] = outcome.Compact;
             }
             Shrink(messages, compacts, options.ContextChars);
-            if (pausedOn is not null) return new LoopResult("", round, steps, false, pausedOn);
+            if (pausedOn is not null)
+                return new LoopResult("", round, steps, false, pausedOn, Reasoning: Clip(reasoning.ToString(), MaxReasoning), ThinkSeconds: thinkSeconds);
         }
+    }
+
+    /// <summary>界面上「看思路」最多留多少字。</summary>
+    public const int MaxReasoning = 6000;
+
+    private static string Clip(string s, int max) => s.Length <= max ? s : s[..max] + "…";
+
+    private static int ToolChars(IReadOnlyList<ToolSpec> tools)
+        => tools.Sum(t => t.Name.Length + t.Description.Length + JsonSerializer.Serialize(t.Parameters).Length);
+
+    /// <summary>粗估 token：中文约 1.3 字一个，英文和 JSON 更省——按 1.3 估偏多，宁可回答上限给小一点也别超。</summary>
+    public static int EstimateTokens(int chars) => (int)Math.Ceiling(chars / 1.3) + 64;
+
+    /// <summary>这一轮的回答上限：不超过本档的「回答最长」，也不超过上下文里剩下的。</summary>
+    public static int RoundMaxTokens(IReadOnlyList<AgentMessage> messages, int toolChars, AssistantLoopOptions o)
+    {
+        if (o.ContextTokens <= 0) return o.MaxTokens;
+        var chars = toolChars + messages.Sum(m => (m.Content?.Length ?? 0) + 8 + (m.ToolCalls?.Sum(c => c.Name.Length + c.ArgumentsJson.Length) ?? 0));
+        var left = o.ContextTokens - EstimateTokens(chars);
+        return Math.Clamp(left, Math.Min(256, o.MaxTokens), o.MaxTokens);
     }
 
     /// <summary>工具结果总量超过预算时，从最早的开始换成短版（短版里保留编号和出处，模型仍能引用）。</summary>

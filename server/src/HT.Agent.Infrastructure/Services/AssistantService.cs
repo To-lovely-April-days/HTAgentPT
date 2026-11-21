@@ -182,12 +182,18 @@ public sealed class AssistantService(
                 Detail: new { question = Clip(req.Question, 300), tools = tools.Select(t => t.Name).ToArray(), attachments = attachmentFiles.Count }), ct);
         }
 
+        // 思考档位：输入框里选的（或自动判断的）那一档，决定思考强度、查几轮、回答最长、温度
+        var levels = await LevelConfig.LoadAsync(config, ct);
+        var choice = ThinkLevels.Resolve(req.Level, levels.Default, levels.UserChoice || req.LevelForced, levels.DeepAvailable, req.Question, attachmentFiles.Count > 0);
+        var lv = levels.Levels[choice.Level];
+        var sampling = ThinkLevels.SamplingFor(lv.Think);
         var options = new AssistantLoopOptions(
-            MaxRounds: Math.Clamp(await config.GetIntAsync(ConfigKeys.AssistantMaxRounds, 6, ct), 1, 12),
-            Think: (await config.GetStringAsync(ConfigKeys.AssistantThinking, "true", ct)).Trim().Equals("true", StringComparison.OrdinalIgnoreCase),
-            MaxTokens: Math.Clamp(await config.GetIntAsync(ConfigKeys.AssistantMaxTokens, 6000, ct), 512, 16000),
-            Temperature: await config.GetDoubleAsync(ConfigKeys.ChatTemperature, 0.2, ct),
-            ContextChars: Math.Clamp(await config.GetIntAsync(ConfigKeys.AssistantContextChars, 36000, ct), 6000, 200000));
+            MaxRounds: lv.MaxRounds, Think: lv.Think, MaxTokens: lv.MaxTokens, Temperature: lv.Temperature,
+            ContextChars: Math.Clamp(await config.GetIntAsync(ConfigKeys.AssistantContextChars, 36000, ct), 6000, 200000),
+            Effort: lv.Think ? lv.Effort : null, TopP: sampling.TopP, TopK: sampling.TopK, PresencePenalty: sampling.PresencePenalty,
+            ContextTokens: levels.ContextTokens);
+        await emit(new QaEvent("step", new { id = "t0", tool = "think", label = "思考", detail = ThinkLevels.Describe(choice, lv.Think, 0), status = "running" }));
+        await emit(new QaEvent("level", new { level = ThinkLevels.Code(choice.Level), auto = choice.Auto }));
         var topK = Math.Clamp(await config.GetIntAsync(ConfigKeys.AssistantSearchTopK, 6, ct), 2, 12);
 
         var message = new QaMessage
@@ -202,6 +208,8 @@ public sealed class AssistantService(
         {
             var loop = new AssistantLoop(new SlotClient(model), options);
             var files = attachmentFiles.Select(a => (a.Id, a.FileName, a.Chunks)).ToList();
+            try
+            {
             result = await loop.RunAsync(messages, tools,
                 async (call, c) =>
                 {
@@ -222,17 +230,33 @@ public sealed class AssistantService(
                     if (e.Kind == "replace") { answerSoFar.Clear(); if (e.Payload.GetType().GetProperty("text")?.GetValue(e.Payload) is string r) answerSoFar.Append(r); }
                     await emit(e);
                 }, ct);
+            }
+            catch (ToolCallingUnavailableException)
+            {
+                // 模型服务没开工具调用：退回老的问答流程。思考那一行写清楚，管理员一看就知道要改启动参数
+                await emit(new QaEvent("step", new { id = "t0", tool = "think", label = "思考", detail = "模型服务没开工具调用，这次按老的问答流程答（查不了技能、项目、计算）", status = "error" }));
+                throw;
+            }
 
             await LogStartAsync();
+            var thinkStep = new
+            {
+                id = "t0", tool = "think", label = "思考", detail = ThinkLevels.Describe(choice, lv.Think, result.ThinkSeconds), result = (string?)null,
+                status = "done", seconds = Math.Round(result.ThinkSeconds, 1), more = result.Reasoning.Length > 0 ? result.Reasoning : null
+            };
+            await emit(new QaEvent("step", thinkStep));
+            var stepRows = new List<object> { thinkStep };
+            stepRows.AddRange(result.Steps.Select(s => new { id = s.Id, tool = s.Tool, label = s.Label, detail = s.Detail, result = s.Result, status = s.Status, seconds = s.Seconds, more = (string?)null }));
+            var levelCode = ThinkLevels.Code(choice.Level);
             if (result.PausedCallId is not null && run.Ask is not null)
             {
                 var ask = run.Ask;
-                var askSteps = result.Steps.Select(s => new { id = s.Id, tool = s.Tool, label = s.Label, detail = s.Detail, result = s.Result, status = s.Status, seconds = s.Seconds }).ToList();
+                var askSteps = stepRows;
                 await emit(new QaEvent("ask", new { question = ask.Question, options = ask.Options, multiple = ask.Multiple }));
                 message.Answer = ask.Question + "\n" + string.Join("\n", ask.Options.Select(o => $"· {o.Label}"));
                 message.Payload = JsonSerializer.Serialize(new
                 {
-                    kind = "assistant", rounds = result.Rounds, steps = askSteps, artifacts = run.Artifacts,
+                    kind = "assistant", rounds = result.Rounds, steps = askSteps, artifacts = run.Artifacts, level = levelCode,
                     ask = new { question = ask.Question, options = ask.Options, multiple = ask.Multiple },
                     pending = new PendingState(messages, result.PausedCallId, run.ToState())
                 }, Json);
@@ -263,11 +287,13 @@ public sealed class AssistantService(
             await emit(new QaEvent("verify", verify));
 
             message.Answer = answer;
-            var steps = result.Steps.Select(s => new { id = s.Id, tool = s.Tool, label = s.Label, detail = s.Detail, result = s.Result, status = s.Status, seconds = s.Seconds }).ToList();
+            // 写到「回答最长」停了：界面出黄条，可以换深度再答一遍
+            if (result.Truncated) await emit(new QaEvent("truncated", new { level = levelCode }));
             message.Payload = JsonSerializer.Serialize(new
             {
                 kind = "assistant", rounds = result.Rounds, seconds = Math.Round((DateTimeOffset.UtcNow - started).TotalSeconds, 1),
-                steps, evidence = new { used, other }, verify, artifacts = run.Artifacts, searches = run.SearchLog
+                steps = stepRows, evidence = new { used, other }, verify, artifacts = run.Artifacts, searches = run.SearchLog,
+                level = levelCode, truncated = result.Truncated
             }, Json);
             // 查过资料却一条都没用上：记成「没答上来」，进语料缺口清单
             var searched = run.Searches.Count > 0;

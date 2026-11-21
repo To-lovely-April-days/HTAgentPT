@@ -50,7 +50,8 @@ export function pickAct(live: Live, now: number): { act: Act; say: string; sub: 
     const act: Act = live.firstTextAt != null && now - live.firstTextAt < IDEA_MS ? 'idea' : 'write';
     return { act, say: ACTS[act].say, sub: '' };
   }
-  const steps = live.steps;
+  // 「思考」那一行一直挂着到答完，不算一个动作：看真正在调的工具
+  const steps = live.steps.filter((s) => s.tool !== 'think');
   const running = [...steps].reverse().find((s) => s.status === 'running');
   if (running) {
     const act = TOOL_ACT[running.tool] ?? 'read';

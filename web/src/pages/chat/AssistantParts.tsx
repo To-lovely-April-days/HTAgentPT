@@ -11,24 +11,34 @@ import { Icon } from '../../components/Icons';
 // ── ① 过程 ───────────────────────────────────────────
 export function StepsCard({ steps, streaming, seconds }: { steps: AssistantStep[]; streaming?: boolean; seconds?: number | null }) {
   const [open, setOpen] = useState<boolean | null>(null);
+  const [thought, setThought] = useState(false);
   const expanded = open ?? !!streaming;
   if (steps.length === 0) return null;
   const running = steps.some((s) => s.status === 'running');
+  // 「思考」那一行（用了哪一档、想了多久）不算查了几步
+  const used = steps.filter((s) => s.tool !== 'think').length;
   return (
     <div className="as-steps">
       <button type="button" className="as-steps-hd" aria-expanded={expanded} onClick={() => setOpen(!expanded)}>
         <i className={'as-dot' + (running ? ' run' : '')} aria-hidden="true" />
-        <b>{running ? '正在查' : `查了 ${steps.length} 步`}</b>
+        <b>{running ? '正在查' : used > 0 ? `查了 ${used} 步` : '直接回答'}</b>
         {!running && seconds != null && <span className="as-muted">· 用时 {Math.round(seconds)} 秒</span>}
         {running && <span className="as-muted">· {steps[steps.length - 1].label}…</span>}
         <span className="as-muted" style={{ marginLeft: 'auto' }}>{expanded ? '收起 ▴' : '展开 ▾'}</span>
       </button>
       {expanded && steps.map((s) => (
-        <div key={s.id} className={'as-step' + (s.status === 'error' ? ' err' : '')}>
-          <span className="as-step-k">{s.label}</span>
-          <span className="as-step-v">{s.detail || '—'}</span>
-          <span className="as-step-r">{s.status === 'running' ? '…' : s.result ?? ''}</span>
-        </div>
+        <Fragment key={s.id}>
+          <div className={'as-step' + (s.status === 'error' ? ' err' : '')}>
+            <span className="as-step-k">{s.label}</span>
+            <span className="as-step-v">{s.detail || '—'}</span>
+            <span className="as-step-r">
+              {s.status === 'running' ? '…' : s.more
+                ? <button type="button" className="as-more" aria-expanded={thought} onClick={() => setThought(!thought)}>{thought ? '收起思路' : '看思路'}</button>
+                : s.result ?? ''}
+            </span>
+          </div>
+          {s.more && thought && <div className="as-thought">{s.more}</div>}
+        </Fragment>
       ))}
     </div>
   );

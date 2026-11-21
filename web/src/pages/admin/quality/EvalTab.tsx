@@ -27,13 +27,15 @@ export function EvalTab() {
   const [form, setForm] = useState<QuestionDraft | null>(null);
   const [importing, setImporting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // 按哪一档跑：同一批题快速、标准、深度各跑一遍，比准确率和用时
+  const [level, setLevel] = useState('auto');
   // 跑完一轮，题目的对错历史也刷一下
   const latestDone = done[0]?.id;
   useEffect(() => { if (latestDone) void qc.invalidateQueries({ queryKey: ['eval-questions'] }); }, [latestDone, qc]);
 
   const start = async () => {
     setMsg(null);
-    try { await post('/api/quality/eval/runs'); setRunId(null); void qc.invalidateQueries({ queryKey: ['eval-runs'] }); }
+    try { await post('/api/quality/eval/runs', { level }); setRunId(null); void qc.invalidateQueries({ queryKey: ['eval-runs'] }); }
     catch (e) { setMsg(e instanceof ApiError ? e.message : '没能开始'); }
   };
   const qs = questions.data ?? [];
@@ -51,6 +53,10 @@ export function EvalTab() {
         {msg && <span className="q-err">{msg}</span>}
         <button type="button" className="gbtn" onClick={() => setImporting(true)}>导入题目</button>
         <button type="button" className="gbtn" onClick={() => setForm({ question: '', expectDocs: [], expectProjects: [], expectPoints: [], expectAsk: false, dept: '' })}>加一题</button>
+        <label className="ev-level" title="同一批题按不同档位各跑一遍，比准确率和用时">按
+          <select value={level} onChange={(e) => setLevel(e.target.value)} disabled={!!running}>
+            <option value="auto">默认档位</option><option value="fast">快速</option><option value="standard">标准</option><option value="deep">深度</option>
+          </select>跑</label>
         <button type="button" className="pbtn ev-run" disabled={!!running || qs.length === 0} onClick={() => void start()}>
           <Icon name="play" size={11} />{running ? '正在跑…' : '跑一遍'}
         </button>

@@ -39,6 +39,8 @@ import { Home } from './home/Home';
 import { InputPet } from '../../components/pet/InputPet';
 import { ThinkingStage } from '../../components/pet/ThinkingStage';
 import { FeedbackBar } from './Feedback';
+import { ThinkPicker } from './ThinkPicker';
+import type { Level, LevelsInfo } from './ThinkPicker';
 import { PreviewPanel } from './preview/PreviewPanel';
 import type { Panel } from './preview/PreviewPanel';
 import type { WebTab } from './preview/WebBrowser';
@@ -75,6 +77,8 @@ interface Msg {
   messageId?: string;            // 存下来的那条回答（反馈用）
   helpful?: boolean | null;
   feedbackReason?: string | null;
+  level?: string;                // 这一轮用的思考档位（fast / standard / deep）
+  truncated?: boolean;           // 写到「回答最长」停了
 }
 
 const MsgCtx = createContext<{
@@ -90,10 +94,13 @@ const MsgCtx = createContext<{
   showRefs: (msgId: string, focus?: number | null) => void;
   sendText: (text: string) => void;
   openPreview: (item: PreviewItem) => void;
+  /** 深度档开着、员工能自己选时，回答下面有「深度再答」 */
+  deepOk: boolean;
+  deepAgain: (question: string) => void;
 }>({
   byId: new Map(), busy: false, focusSource: null, setFocusSource: () => {},
   pickTemplate: () => {}, genTurn: async () => {}, correctIntent: () => {}, genSessionId: null,
-  refs: null, showRefs: () => {}, sendText: () => {}, openPreview: () => {},
+  refs: null, showRefs: () => {}, sendText: () => {}, openPreview: () => {}, deepOk: false, deepAgain: () => {},
 });
 
 /** 网页来源：同一个网址的几段依据合在一起，给浏览面板标黄用。 */
@@ -153,6 +160,11 @@ export default function ChatPage() {
   // 资料范围：全部 / 某个知识库 / 某一类文档。对一条对话一直生效，随检索条件下发（服务端检索本来就支持）
   const [scope, setScope] = useState<Scope>(ALL_SCOPE);
   const canScope = has(Perm.QaInternal);
+  // 思考档位：自动 / 快速 / 标准 / 深度。只管这一个对话，开新对话回到自动
+  const [level, setLevel] = useState<Level>('auto');
+  const levels = useQuery({ queryKey: ['chat-levels'], staleTime: 60_000, queryFn: () => get<LevelsInfo>('/api/chat/levels') });
+  const canPickLevel = levels.data?.userChoice ?? false;
+  const deepOk = canPickLevel && (levels.data?.deepAvailable ?? false);
   // 输入框里传文件：附件按内部资料处理，要内部问答权限；填文档时不收（那条路不读附件）
   const canAttach = has(Perm.QaInternal);
   const att = useAttachments();
@@ -181,7 +193,7 @@ export default function ChatPage() {
       : m)));
 
   // ── 问答一轮（SSE）：意图由服务端判，结果就地长出来 ──────────
-  const askQa = useCallback(async (question: string, forcedIntent?: string, attachmentIds?: string[]) => {
+  const askQa = useCallback(async (question: string, forcedIntent?: string, attachmentIds?: string[], levelOverride?: Level) => {
     const id = newId();
     const started = Date.now();
     push({ id, role: 'assistant', text: '', streaming: true });
@@ -191,6 +203,7 @@ export default function ChatPage() {
         sessionId: qaSessionId, question, forcedIntent: forcedIntent ?? null,
         attachmentIds: attachmentIds && attachmentIds.length > 0 ? attachmentIds : null,
         filters: { query: question, kbIds: scope.kbId ? [scope.kbId] : null, docCategory: scope.docCategory },
+        level: levelOverride ?? (level === 'auto' ? null : level),
       })) {
         const p = ev.payload as Record<string, unknown>;
         switch (ev.kind) {
@@ -229,6 +242,12 @@ export default function ChatPage() {
             break;
           case 'notice':
             patch(id, { notice: p.message as string });
+            break;
+          case 'level':
+            patch(id, { level: p.level as string });
+            break;
+          case 'truncated':
+            patch(id, { truncated: true, level: p.level as string });
             break;
           case 'ask':
             patch(id, { ask: ev.payload as AskSpec });
@@ -289,7 +308,7 @@ export default function ChatPage() {
     } catch (err) {
       patch(id, { streaming: false, error: err instanceof ApiError ? err.message : '连接中断，本轮未完成' });
     }
-  }, [qaSessionId, scope]);
+  }, [qaSessionId, scope, level]);
 
   // ── 方案生成的一轮：会话已开时，这条对话就由它接着走 ──────────
   const runGenTurn = useCallback(async (sessionId: string, body: Record<string, unknown>) => {
@@ -307,7 +326,7 @@ export default function ChatPage() {
     }
   }, []);
 
-  const send = useCallback(async (text: string) => {
+  const send = useCallback(async (text: string, levelOverride?: Level) => {
     if (!text.trim() || busy) return;
     setBusy(true);
     const withFiles = canAttach && !genSessionId && att.files.some((f) => f.state !== 'error');
@@ -318,7 +337,7 @@ export default function ChatPage() {
       else {
         // 文件还在解析就等它出结果再问——不然这一问拿不到文件内容
         const { ids } = withFiles ? await att.take() : { ids: [] as string[] };
-        await askQa(text, mode === 'auto' ? undefined : mode, ids);
+        await askQa(text, mode === 'auto' ? undefined : mode, ids, levelOverride);
       }
       setMode('auto');
       void qc.invalidateQueries({ queryKey: ['qa-sessions'] });
@@ -371,6 +390,7 @@ export default function ChatPage() {
       });
       setMsgs(rebuilt);
       setQaSessionId(id);
+      setLevel('auto');
       // 还没生成完的那一份接着填；已经生成完的就只是历史，不把人拉回填写态
       setGenSessionId(tl.resume?.sessionId ?? null);
       setGenTitle(tl.resume?.templateName ?? null);
@@ -385,7 +405,7 @@ export default function ChatPage() {
 
   const newChat = useCallback(() => {
     if (busy) return;
-    setMsgs([]); setQaSessionId(null); setGenSessionId(null); setGenTitle(null); setFocusSource(null); setMode('auto'); setRefs(null);
+    setMsgs([]); setQaSessionId(null); setGenSessionId(null); setGenTitle(null); setFocusSource(null); setMode('auto'); setRefs(null); setLevel('auto');
     setPanel(null); setWebTabs([]);
     att.clear();
   }, [busy, att]);
@@ -428,7 +448,9 @@ export default function ChatPage() {
   const ctx = useMemo(() => ({
     byId, busy, focusSource, setFocusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs,
     sendText: (t: string) => void send(t), openPreview,
-  }), [byId, busy, focusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs, send, openPreview]);
+    deepOk, deepAgain: (q: string) => void send(q, 'deep'),
+  }), [byId, busy, focusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs, send, openPreview, deepOk]);
+  const thinkPicker = canPickLevel ? <ThinkPicker value={level} onChange={setLevel} deepOk={deepOk} /> : null;
   const refMsg = refs ? byId.get(refs.msgId) : undefined;
   // 这条对话里写过的所有网页（每次改都是新的一版）
   const htmlVersions = useMemo(() => msgs.filter((m) => m.role === 'assistant' && !m.streaming).flatMap((m) => htmlBlocks(m.text)), [msgs]);
@@ -468,7 +490,7 @@ export default function ChatPage() {
               <ThreadPrimitive.Empty>
                 <Welcome has={has} name={profile?.displayName ?? ''}
                   attach={canAttach ? { files: att.files, onAdd: att.add, onRemove: att.remove } : undefined}
-                  scopePicker={canScope ? <ScopePicker value={scope} options={scopeOptions} onChange={setScope} /> : null}
+                  scopePicker={<>{canScope && <ScopePicker value={scope} options={scopeOptions} onChange={setScope} />}{thinkPicker}</>}
                   onPick={(q) => void send(q)} onOpenDoc={(id) => nav(`/generate?session=${id}`)} />
               </ThreadPrimitive.Empty>
               <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
@@ -490,6 +512,7 @@ export default function ChatPage() {
                 <Composer busy={busy} placeholder={genSessionId ? '接着说这份文档的内容，或问我别的' : '接着问，或说下一件要做的事'}
                   attach={canAttach && !genSessionId ? { files: att.files, onAdd: att.add, onRemove: att.remove } : undefined}>
                   {canScope && !genSessionId && <ScopePicker value={scope} options={scopeOptions} onChange={setScope} />}
+                  {!genSessionId && thinkPicker}
                 </Composer>
               </div>
             )}
@@ -689,7 +712,7 @@ function UserMessage() {
 /** 助手一条：正文按标记语法排版，后面挂这一轮长出来的结果件。 */
 function AssistantMessage() {
   const id = useAuiState((s) => s.message.id);
-  const { byId, busy, focusSource, setFocusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs, sendText, openPreview } = useContext(MsgCtx);
+  const { byId, busy, focusSource, setFocusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs, sendText, openPreview, deepOk, deepAgain } = useContext(MsgCtx);
   const m = byId.get(id);
   if (!m) return null;
   const isLast = [...byId.keys()].pop() === id;
@@ -732,8 +755,21 @@ function AssistantMessage() {
             参考资料 {new Set(m.evidence.used.map((c) => c.docId ?? c.kind + (c.fileName ?? ''))).size} 份 · {m.evidence.used.length} 段原文 ›
           </button>
         )}
+        {m.truncated && !m.streaming && (
+          <div className="as-trunc" role="status">
+            <Icon name="warn" size={15} stroke={2} /><b style={{ fontWeight: 500 }}>回答太长，写到一半停了</b>
+            {deepOk && m.level !== 'deep'
+              ? <button type="button" className="gbtn" disabled={busy} onClick={() => deepAgain(lastQuestion(byId, id))}>
+                  <Icon name="refresh" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />用深度再答一遍</button>
+              : <span className="hint">可以把问题拆小一点，分几次问</span>}
+          </div>
+        )}
         {m.messageId && !m.streaming && (m.text || m.noResult) && (
-          <FeedbackBar key={m.messageId} messageId={m.messageId} helpful={m.helpful} reason={m.feedbackReason} />
+          <FeedbackBar key={m.messageId} messageId={m.messageId} helpful={m.helpful} reason={m.feedbackReason}
+            extra={deepOk && m.steps && m.level !== 'deep' && !m.truncated && lastQuestion(byId, id) ? (
+              <button type="button" className="fb-btn" disabled={busy} title="同一个问题，多想、多查几轮再答一遍"
+                onClick={() => deepAgain(lastQuestion(byId, id))}><Icon name="layers" size={14} />深度再答</button>
+            ) : null} />
         )}
         {m.error && <ErrorBox message={m.error} />}
 
@@ -828,9 +864,10 @@ function restore(raw: string | null | undefined): Partial<Msg> {
       }
       case 'assistant': {
         const a = parsed as unknown as { steps?: AssistantStep[]; evidence?: Msg['evidence']; verify?: VerifyReport; seconds?: number;
-          ask?: AskSpec; answered?: string; artifacts?: ToolArtifact[] };
+          ask?: AskSpec; answered?: string; artifacts?: ToolArtifact[]; level?: string; truncated?: boolean };
         return {
           steps: a.steps ?? [], evidence: a.evidence, verify: a.verify, seconds: a.seconds ?? null, artifacts: a.artifacts,
+          level: a.level, truncated: a.truncated,
           ...(a.ask ? { ask: { ...a.ask, answered: a.answered ?? null }, text: '' } : {}),
         };
       }

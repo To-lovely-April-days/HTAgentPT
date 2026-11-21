@@ -14,6 +14,8 @@ public static class ConfigKeys
     public const string ChatApiKey = "model.chat.api_key";
     public const string ChatTemperature = "model.chat.temperature";
     public const string ChatMaxTokens = "model.chat.max_tokens";
+    /// <summary>模型服务的上下文长度（vLLM 的 --max-model-len）。到 32K 才开放深度档；助手每轮按它算回答还能写多长。</summary>
+    public const string ChatContextTokens = "model.chat.context_tokens";
     /// <summary>向量化提供方（E15 服务选择）：stub=内置演示向量；其余值（siliconflow/local…）
     /// 走兼容端点。运行时可切——但切换即换向量空间，须配合全量重建（页底哨兵行）。</summary>
     public const string EmbeddingProvider = "model.embedding.provider";
@@ -75,12 +77,24 @@ public static class ConfigKeys
     // ── 通用助手 ──────────────────────────────────────
     /// <summary>问答方式：assistant=通用助手（模型自己决定查什么，默认）；classic=原来的分类+固定流程（回退用）。</summary>
     public const string QaEngine = "assistant.engine";
-    /// <summary>一个问题最多查几轮（每轮模型可同时调用多个工具）。</summary>
-    public const string AssistantMaxRounds = "assistant.max_rounds";
-    /// <summary>查资料、决定下一步时是否让模型先思考（更准，慢几秒）：true/false。</summary>
-    public const string AssistantThinking = "assistant.thinking";
-    /// <summary>每一轮模型最多输出多少 token（含思考）。</summary>
-    public const string AssistantMaxTokens = "assistant.max_tokens";
+    // 思考档位（输入框里选「自动 / 快速 / 标准 / 深度」）：每档一组参数——
+    // 思考强度（off / low / medium / xhigh）、最多查几轮、每轮回答最长（token，含思考）、温度
+    /// <summary>默认档位：auto / fast / standard / deep。</summary>
+    public const string AssistantLevelDefault = "assistant.level.default";
+    /// <summary>员工能不能在输入框里自己选档位：true/false。</summary>
+    public const string AssistantLevelUserChoice = "assistant.level.user_choice";
+    public const string LevelFastEffort = "assistant.level.fast.effort";
+    public const string LevelFastRounds = "assistant.level.fast.rounds";
+    public const string LevelFastMaxTokens = "assistant.level.fast.max_tokens";
+    public const string LevelFastTemperature = "assistant.level.fast.temperature";
+    public const string LevelStandardEffort = "assistant.level.standard.effort";
+    public const string LevelStandardRounds = "assistant.level.standard.rounds";
+    public const string LevelStandardMaxTokens = "assistant.level.standard.max_tokens";
+    public const string LevelStandardTemperature = "assistant.level.standard.temperature";
+    public const string LevelDeepEffort = "assistant.level.deep.effort";
+    public const string LevelDeepRounds = "assistant.level.deep.rounds";
+    public const string LevelDeepMaxTokens = "assistant.level.deep.max_tokens";
+    public const string LevelDeepTemperature = "assistant.level.deep.temperature";
     /// <summary>放进模型的对话+资料总字数上限；超出时最早的资料换成摘要。按上下文 32K 估。</summary>
     public const string AssistantContextChars = "assistant.context_chars";
     /// <summary>每次搜索最多返回几段资料给模型。</summary>

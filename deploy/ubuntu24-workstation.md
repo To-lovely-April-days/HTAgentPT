@@ -4,7 +4,7 @@
 
 前置条件：Ubuntu 24.04、NVIDIA 驱动和 Docker 已安装，nvidia-smi 与 docker compose version 正常。以下命令在目标工作站执行。GPU 参数是首次部署的起点；完成生成、检索、业务请求和重启检查后，才能确认目标机器可用。
 
-模型采用 Qwen/Qwen3.8-27B 原始权重，示例推理版本为 vLLM 0.30.0。量化权重需要另行确认来源和兼容性，不能沿用原始权重的显存预估。具体 GPU/驱动兼容性以 PyTorch 自检和启动结果为准。
+模型采用 Qwen 官方的 FP8 权重 Qwen/Qwen3.8-27B-FP8（官方说明效果和原版几乎一样，权重约为原版一半），示例推理版本为 vLLM 0.30.0（官方要求 ≥ 0.17.0）。省下的显存用来把上下文开到 32K，助手的「深度」思考档要这么长的上下文。具体 GPU/驱动兼容性以 PyTorch 自检和启动结果为准。已经按旧版指南装了原版权重的，看第 8 节升级。
 
 ## 1. 确认硬件和目录
 
@@ -132,8 +132,8 @@ x = torch.ones((64,64), device="cuda")
 print("CUDA tensor check:", (x @ x)[0,0].item())
 PY
 
-/srv/htagent/vllm/bin/hf download Qwen/Qwen3.8-27B \
-  --local-dir /srv/htagent/models/Qwen3.8-27B
+/srv/htagent/vllm/bin/hf download Qwen/Qwen3.8-27B-FP8 \
+  --local-dir /srv/htagent/models/Qwen3.8-27B-FP8
 /srv/htagent/vllm/bin/hf download BAAI/bge-m3 \
   --local-dir /srv/htagent/models/bge-m3
 /srv/htagent/vllm/bin/hf download BAAI/bge-reranker-v2-m3 \
@@ -155,18 +155,27 @@ printf '%s\n' "$MODEL_BIND"
 首次在前台运行 Qwen，观察完整日志：
 
 ```bash
-/srv/htagent/vllm/bin/vllm serve /srv/htagent/models/Qwen3.8-27B \
+/srv/htagent/vllm/bin/vllm serve /srv/htagent/models/Qwen3.8-27B-FP8 \
   --served-model-name Qwen/Qwen3.8-27B \
   --host "$MODEL_BIND" --port 8000 \
   --gpu-memory-utilization 0.80 \
-  --max-model-len 8192 --max-num-seqs 4 \
+  --max-model-len 32768 --max-num-seqs 4 \
   --max-num-batched-tokens 8192 \
   --language-model-only --enable-prefix-caching \
   --reasoning-parser qwen3 \
+  --enable-auto-tool-choice --tool-call-parser qwen3_coder \
   --default-chat-template-kwargs '{"enable_thinking":false}'
 ```
 
-这组参数是首次试运行起点，不是已测出的最大并发。27B 原始 BF16 权重约占 50GiB 量级，另需运行开销和 KV cache。先避免仓库示例中的 64K 上下文、32 并发。8K 仅用于初次验收；应用默认检索上下文和多轮历史可能超过此限制。先在后台降低检索上下文预算和历史轮数，用真实文档、多轮问答验证，再按显存余量扩大 max-model-len；不要把单句生成成功当作长对话验收通过。若启动报告模型架构或模板参数不支持，核对下载模型的 config.json 和 vLLM 支持情况；若显存不足，查看实际占用与 KV cache 日志，再调整，不能只提高所有服务的利用率。
+这组参数是首次试运行起点，不是已测出的最大并发。每个参数为什么这样设：
+
+- `--served-model-name Qwen/Qwen3.8-27B`：权重换成 FP8 也沿用这个名字，后台的模型名不用改。
+- `--enable-auto-tool-choice --tool-call-parser qwen3_coder`：**必须带**。没有这两个参数，模型不能调用工具，助手会悄悄退回老的问答流程，查技能、计算、查项目、查价格都用不上。回答上方「查了几步」的思考那一行会写「模型服务没开工具调用」。
+- `--reasoning-parser qwen3`：把思考过程和正文分开，不带的话思考内容会混进回答。
+- `--max-model-len 32768`：FP8 权重约 28GB。这个模型 64 层里只有 16 层是全注意力，上下文占的显存很小（按配置估算每千个 token 约 64MB），32K、4 路并发约 8GB。显存不够时先把 `--max-num-seqs` 降到 2，或加 `--kv-cache-dtype fp8`。
+- `--default-chat-template-kwargs '{"enable_thinking":false}'`：只是没带参数的请求的默认值。助手每次提问都会按思考档位带上思考开关和强度，以请求里的为准。
+
+启动后到后台「系统设置 · 思考档位」把「模型服务的上下文」改成和 `--max-model-len` 一样的数（32768），深度档才会开放；助手也按这个数算每轮回答还能写多长。若启动报告模型架构或模板参数不支持，核对下载模型的 config.json 和 vLLM 支持情况；若显存不足，查看实际占用与 KV cache 日志，再调整，不能只提高所有服务的利用率。
 
 另开终端（重新设置 MODEL_BIND）验证真实生成：
 
@@ -179,7 +188,23 @@ curl -fsS "http://$MODEL_BIND:8000/v1/chat/completions" \
   -d '{"model":"Qwen/Qwen3.8-27B","messages":[{"role":"user","content":"请用一句话介绍你能提供什么帮助。"}],"max_tokens":128,"stream":false}'
 ```
 
-必须返回非空 message.content；不能只检查端口。应用代码本身没有发送关闭思考的参数，所以在服务端设置模板默认值，并在实测中核对正文输出。
+必须返回非空 message.content；不能只检查端口。
+
+再验证工具调用和思考强度。第一条必须返回 `tool_calls`（不是报错，也不是把调用写成文字）；第二条把思考强度设成 low，必须正常返回，`reasoning_content` 或 `reasoning` 里有思考过程：
+
+```bash
+curl -fsS "http://$MODEL_BIND:8000/v1/chat/completions" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"Qwen/Qwen3.8-27B","messages":[{"role":"user","content":"把 3 bar 换算成 kPa"}],"max_tokens":512,"tool_choice":"auto","chat_template_kwargs":{"enable_thinking":false},"tools":[{"type":"function","function":{"name":"convert_unit","description":"单位换算","parameters":{"type":"object","properties":{"value":{"type":"number"},"from":{"type":"string"},"to":{"type":"string"}},"required":["value","from","to"]}}}]}' \
+  | python3 -c 'import json,sys; m=json.load(sys.stdin)["choices"][0]["message"]; assert m.get("tool_calls"), m; print("tool call OK:", m["tool_calls"][0]["function"])'
+
+curl -fsS "http://$MODEL_BIND:8000/v1/chat/completions" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"Qwen/Qwen3.8-27B","messages":[{"role":"user","content":"316L 能不能用在 80 度的 10% 盐酸里？一句话回答。"}],"max_tokens":2048,"chat_template_kwargs":{"enable_thinking":true,"reasoning_effort":"low"}}' \
+  | python3 -c 'import json,sys; m=json.load(sys.stdin)["choices"][0]["message"]; r=m.get("reasoning_content") or m.get("reasoning") or ""; print("reasoning chars:", len(r)); print("answer:", m["content"])'
+```
+
+把第二条的 `low` 换成 `xhigh` 再跑一次，思考的字数应该明显更多；如果两次差不多，说明这个 vLLM 版本没有把思考强度传进模板，三档就只靠「最多查几轮」和「回答最长」区分，功能照样能用。
 
 Qwen 能正常生成后，再分别在两个终端启动：
 
@@ -205,7 +230,7 @@ MODEL_BIND="$(docker network inspect bridge --format '{{(index .IPAM.Config 0).G
   --gpu-memory-utilization 0.05
 ```
 
-80%/5%/5% 是总显存预算起点，三个进程还有额外开销；以三者同时存活并完成请求为准。若原始模型无法留出检索服务所需空间，应再选择核实过的 FP8 权重或调整部署方案，不能据标称 72GB 保证全部服务一定共卡运行。
+80%/5%/5% 是总显存预算起点，三个进程还有额外开销；以三者同时存活并完成请求为准。不能据标称 72GB 保证全部服务一定共卡运行；放不下时先降 Qwen 的 `--max-num-seqs` 或上下文，再考虑调整部署方案。
 
 验证向量维度和重排：
 
@@ -273,7 +298,7 @@ Requires=docker.service
 [Service]
 User=$HT_RUN_USER
 WorkingDirectory=/srv/htagent
-ExecStart=/srv/htagent/vllm/bin/vllm serve /srv/htagent/models/Qwen3.8-27B --served-model-name Qwen/Qwen3.8-27B --host $MODEL_BIND --port 8000 --gpu-memory-utilization 0.80 --max-model-len 8192 --max-num-seqs 4 --max-num-batched-tokens 8192 --language-model-only --enable-prefix-caching --reasoning-parser qwen3 --default-chat-template-kwargs '{"enable_thinking":false}'
+ExecStart=/srv/htagent/vllm/bin/vllm serve /srv/htagent/models/Qwen3.8-27B-FP8 --served-model-name Qwen/Qwen3.8-27B --host $MODEL_BIND --port 8000 --gpu-memory-utilization 0.80 --max-model-len 32768 --max-num-seqs 4 --max-num-batched-tokens 8192 --language-model-only --enable-prefix-caching --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --default-chat-template-kwargs '{"enable_thinking":false}'
 Restart=on-failure
 RestartSec=15
 TimeoutStopSec=120
@@ -347,6 +372,45 @@ DOCX/XLSX/PPTX 有本地解析，先用 DOCX 完成知识库验收。PDF/扫描�
 
 数据库和业务文件位于 Docker 持久卷。备份到 8TB 盘时，要把实际已挂载的备份目录挂入后端容器后再在系统设置选择该容器路径，不能直接填宿主机不可见路径。先做一次备份和恢复验证。日常停止使用 docker compose down，不使用 down -v（后者会删除业务数据卷）。
 
+## 8. 升级：换 FP8 权重、开工具调用、上下文 32K
+
+已经按旧版指南装好、正在跑原版权重（8K 上下文、没开工具调用）的机器，按下面换。业务数据和数据库不受影响，只是模型服务重启一次（约几分钟，期间助手答不了）。
+
+先下载 FP8 权重（约 30GB，原版权重先留着，换回去只要改回启动命令）：
+
+```bash
+/srv/htagent/vllm/bin/hf download Qwen/Qwen3.8-27B-FP8 \
+  --local-dir /srv/htagent/models/Qwen3.8-27B-FP8
+```
+
+用 systemd 的覆盖文件换启动命令，不改原来的服务文件（要换回去删掉这个覆盖文件即可）：
+
+```bash
+MODEL_BIND="$(docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}')" || exit 1
+: "${MODEL_BIND:?未取得 Docker 网桥地址，请先检查 Docker 网络}"
+sudo mkdir -p /etc/systemd/system/htagent-chat.service.d
+sudo tee /etc/systemd/system/htagent-chat.service.d/fp8.conf >/dev/null <<EOF
+[Service]
+ExecStart=
+ExecStart=/srv/htagent/vllm/bin/vllm serve /srv/htagent/models/Qwen3.8-27B-FP8 --served-model-name Qwen/Qwen3.8-27B --host $MODEL_BIND --port 8000 --gpu-memory-utilization 0.80 --max-model-len 32768 --max-num-seqs 4 --max-num-batched-tokens 8192 --language-model-only --enable-prefix-caching --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_coder --default-chat-template-kwargs '{"enable_thinking":false}'
+EOF
+sudo systemctl daemon-reload
+sudo systemctl restart htagent-chat
+sudo journalctl -u htagent-chat -n 80 --no-pager
+```
+
+日志里出现服务就绪后，按第 4 节最后的三条命令验证（普通生成、工具调用、思考强度）。然后到后台「系统设置 · 思考档位」把「模型服务的上下文」改成 32768，点保存。
+
+显存不够起不来时，看日志里的 KV cache 报错：先把命令里的 `--max-num-seqs 4` 改成 2 再试；还不行就把 `--max-model-len` 改回 16384，后台也填 16384（这时深度档不开放）。
+
+要换回原版：
+
+```bash
+sudo rm /etc/systemd/system/htagent-chat.service.d/fp8.conf
+sudo systemctl daemon-reload
+sudo systemctl restart htagent-chat
+```
+
 ## 排错所需信息
 
 出现问题时，提供 GPU 型号/驱动版本、失败命令、错误日志尾部即可。不要发送 compose.env、管理员密码或 API key。
@@ -361,6 +425,8 @@ docker compose --env-file /srv/htagent/config/compose.env \
 参考：
 - 本分支 deploy/README.md、docker-compose.yml 及 SettingsPage.tsx（模型别名已按实际代码纠正）。
 - https://huggingface.co/Qwen/Qwen3.8-27B
+- https://huggingface.co/Qwen/Qwen3.8-27B-FP8
+- https://recipes.vllm.ai/Qwen/Qwen3.8-27B
 - https://pypi.org/project/vllm/0.30.0/
 - https://docs.vllm.ai/en/latest/getting_started/installation/gpu/
 - https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html

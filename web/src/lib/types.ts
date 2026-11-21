@@ -429,6 +429,8 @@ export interface ChatAttachment {
 export interface AssistantStep {
   id: string; tool: string; label: string; detail: string; result?: string | null;
   status: 'running' | 'done' | 'error'; seconds?: number;
+  /** 思考那一行（tool=think）：模型的思路原文，默认收起 */
+  more?: string | null;
 }
 
 /** 通用助手的一份依据：资料切块、台账记录或附件片段。n 与回答里的 [n] 对应。 */

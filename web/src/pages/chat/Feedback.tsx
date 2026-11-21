@@ -1,12 +1,15 @@
 // 每条回答下面的「有帮助 / 没帮上」。没帮上的选一下哪里不对、可补一句，进后台「回答质量」等管理员处理；
 // 勾了「处理完告诉我」的，处理好以后首页会提示。点「有帮助」只记一下，不弹东西。
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { post, ApiError } from '../../lib/api';
 import { Icon } from '../../components/Icons';
 import { FEEDBACK_REASONS } from './feedbackReasons';
 
-export function FeedbackBar({ messageId, helpful: initial, reason: initialReason }: {
+export function FeedbackBar({ messageId, helpful: initial, reason: initialReason, extra }: {
   messageId: string; helpful?: boolean | null; reason?: string | null;
+  /** 这一排右边多放的按钮（比如「深度再答」） */
+  extra?: ReactNode;
 }) {
   const [helpful, setHelpful] = useState<boolean | null>(initial ?? null);
   const [open, setOpen] = useState(false);
@@ -40,6 +43,7 @@ export function FeedbackBar({ messageId, helpful: initial, reason: initialReason
         </button>
         {helpful === false && !open && <span className="fb-note">已记下，管理员会看</span>}
         {helpful === true && <span className="fb-note">谢谢</span>}
+        {extra && <span style={{ marginLeft: 'auto' }}>{extra}</span>}
       </div>
       {open && (
         <div className="fb-panel" role="group" aria-label="哪里不对">

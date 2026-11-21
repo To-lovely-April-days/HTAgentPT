@@ -10,7 +10,9 @@ public interface IToolChatClient
         ToolRoundOptions options, Func<string, Task>? onText, CancellationToken ct = default);
 }
 
-public record ToolRoundOptions(bool AllowTools = true, bool Think = false, int MaxTokens = 4096, double Temperature = 0.2);
+/// <summary>一轮的参数。Effort：思考强度（low / medium / xhigh，空=模型默认）；TopP/TopK/PresencePenalty 空=不传、用模型服务的默认。</summary>
+public record ToolRoundOptions(bool AllowTools = true, bool Think = false, int MaxTokens = 4096, double Temperature = 0.2,
+    string? Effort = null, double? TopP = null, int? TopK = null, double? PresencePenalty = null);
 
 /// <summary>一个工具的说明：名字、给模型看的用途说明、参数的 JSON Schema。</summary>
 public record ToolSpec(string Name, string Description, object Parameters);
@@ -20,7 +22,8 @@ public record ToolCall(string Id, string Name, string ArgumentsJson);
 /// <summary>对话里的一条：system / user / assistant（可带工具调用）/ tool（某次调用的结果）。</summary>
 public record AgentMessage(string Role, string? Content, IReadOnlyList<ToolCall>? ToolCalls = null, string? ToolCallId = null);
 
-public record ToolRoundResult(string Content, IReadOnlyList<ToolCall> ToolCalls, string? FinishReason);
+/// <summary>FinishReason=length：写到上限停了。Reasoning：模型的思考过程（推理解析器分出来的那部分）；ThinkSeconds：从发出到想完用了多久。</summary>
+public record ToolRoundResult(string Content, IReadOnlyList<ToolCall> ToolCalls, string? FinishReason, string? Reasoning = null, double ThinkSeconds = 0);
 
 /// <summary>模型端不支持工具调用（vLLM 没开 --enable-auto-tool-choice 之类）。调用方据此退回老问答流程。</summary>
 public class ToolCallingUnavailableException(string message, Exception? inner = null) : Exception(message, inner);

@@ -66,10 +66,14 @@ public sealed class EvalRunner(IServiceScopeFactory scopes, ILogger<EvalRunner> 
             .Where(q => q.CompanyId == run.CompanyId && q.IsActive).OrderBy(q => q.Code).ToListAsync(ct);
         run.Total = questions.Count;
         await db.SaveChangesAsync(ct);
+        // 按哪一档跑（开跑时记在配置快照里）：auto 就和员工一样按默认
+        string? level = null;
+        try { if (run.Config is not null && JsonSerializer.Deserialize<Dictionary<string, string>>(run.Config)?.TryGetValue("eval.level", out var l) == true) level = l; }
+        catch (JsonException) { /* 老数据没有 */ }
 
         foreach (var q in questions)
         {
-            var result = await AskOneAsync(user, q, ct);
+            var result = await AskOneAsync(user, q, level, ct);
             db.EvalResults.Add(result);
             run.Finished++;
             if (result.RetrievalOk is not null) { run.RetrievalTotal++; if (result.RetrievalOk == true) run.RetrievalOk++; }
@@ -81,7 +85,7 @@ public sealed class EvalRunner(IServiceScopeFactory scopes, ILogger<EvalRunner> 
         await db.SaveChangesAsync(ct);
     }
 
-    private async Task<EvalResult> AskOneAsync(AppUser user, EvalQuestion q, CancellationToken ct)
+    private async Task<EvalResult> AskOneAsync(AppUser user, EvalQuestion q, string? level, CancellationToken ct)
     {
         var started = DateTimeOffset.UtcNow;
         var result = new EvalResult { QuestionId = q.Id };
@@ -106,7 +110,7 @@ public sealed class EvalRunner(IServiceScopeFactory scopes, ILogger<EvalRunner> 
         try
         {
             var qa = sp.GetRequiredService<IQaService>();
-            await foreach (var ev in qa.AskStreamAsync(new QaRequest(session.Id, q.Question, new RetrievalRequest(q.Question)), timeout.Token))
+            await foreach (var ev in qa.AskStreamAsync(new QaRequest(session.Id, q.Question, new RetrievalRequest(q.Question), Level: level, LevelForced: level is not null and not "auto"), timeout.Token))
             {
                 var p = JsonSerializer.SerializeToElement(ev.Payload, Json);
                 switch (ev.Kind)

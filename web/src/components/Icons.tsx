@@ -29,6 +29,13 @@ const PATHS: Record<string, ReactElement> = {
   boxOff: <rect x="3.5" y="3.5" width="17" height="17" rx="4" />,
   boxOn: <><rect x="3.5" y="3.5" width="17" height="17" rx="4" fill="currentColor" /><path d="M8 12.3l2.8 2.8L16.3 9" stroke="#fff" /></>,
   dot: <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />,
+  // 思考档位：自动 / 快速 / 标准 / 深度
+  auto: <><circle cx="12" cy="12" r="3" /><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" /></>,
+  bolt: <path d="M13 3L5 13.5h6L10 21l8-10.5h-6z" />,
+  bulb: <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z" />,
+  layers: <><path d="M12 3l9 5-9 5-9-5z" /><path d="M3 12.5l9 5 9-5" /><path d="M3 17l9 5 9-5" /></>,
+  down: <path d="M6 9l6 6 6-6" />,
+  warn: <path d="M12 3l10 18H2zM12 10v5M12 18v.5" />,
 };
 
 export function Icon({ name, size = 17, stroke = 1.8, style, className }: {

@@ -19,8 +19,9 @@ public class OpenAiToolChatClient(IHttpClientFactory httpFactory, IRuntimeConfig
         var baseUrl = (await config.GetStringAsync(ConfigKeys.ChatModelUrl, "http://127.0.0.1:8000/v1", ct)).TrimEnd('/');
         var model = await config.GetStringAsync(ConfigKeys.ChatModelName, "chat-default", ct);
         var apiKey = (await config.GetStringAsync(ConfigKeys.ChatApiKey, "", ct)).Trim();
+        var provider = await config.GetStringAsync(ConfigKeys.ChatProvider, "", ct);
 
-        var body = BuildBody(model, messages, tools, options);
+        var body = BuildBody(model, messages, tools, options, IsQwen(provider, model));
         var http = httpFactory.CreateClient("assistant");
         using var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/chat/completions")
         {
@@ -41,6 +42,7 @@ public class OpenAiToolChatClient(IHttpClientFactory httpFactory, IRuntimeConfig
         await using var stream = await resp.Content.ReadAsStreamAsync(ct);
         using var reader = new StreamReader(stream);
         var acc = new StreamAccumulator();
+        var clock = System.Diagnostics.Stopwatch.StartNew();
         while (!reader.EndOfStream)
         {
             ct.ThrowIfCancellationRequested();
@@ -48,13 +50,17 @@ public class OpenAiToolChatClient(IHttpClientFactory httpFactory, IRuntimeConfig
             if (line is null || !line.StartsWith("data:", StringComparison.Ordinal)) continue;
             var payload = line["data:".Length..].Trim();
             if (payload == "[DONE]") break;
-            var text = acc.Feed(payload);
+            var text = acc.Feed(payload, clock.Elapsed.TotalSeconds);
             if (!string.IsNullOrEmpty(text) && onText is not null) await onText(text);
         }
         return acc.Result();
     }
 
-    internal static JsonObject BuildBody(string model, IReadOnlyList<AgentMessage> messages, IReadOnlyList<ToolSpec> tools, ToolRoundOptions o)
+    /// <summary>本地 Qwen：思考强度、top_k、presence_penalty 这些只有它（vLLM）认；在线服务不带，免得被拒。</summary>
+    internal static bool IsQwen(string provider, string model)
+        => provider.Contains("qwen", StringComparison.OrdinalIgnoreCase) || model.Contains("qwen", StringComparison.OrdinalIgnoreCase);
+
+    internal static JsonObject BuildBody(string model, IReadOnlyList<AgentMessage> messages, IReadOnlyList<ToolSpec> tools, ToolRoundOptions o, bool qwen = false)
     {
         var msgs = new JsonArray();
         foreach (var m in messages)
@@ -80,6 +86,14 @@ public class OpenAiToolChatClient(IHttpClientFactory httpFactory, IRuntimeConfig
             // Qwen 系列：思考开关走对话模板参数（vLLM 认；别家兼容接口一般忽略未知字段）
             ["chat_template_kwargs"] = new JsonObject { ["enable_thinking"] = o.Think }
         };
+        if (qwen)
+        {
+            // 思考强度：Qwen3.8 的对话模板认 reasoning_effort（low / medium / xhigh），vLLM 官方说明是放在 chat_template_kwargs 里
+            if (o.Think && !string.IsNullOrEmpty(o.Effort)) body["chat_template_kwargs"]!["reasoning_effort"] = o.Effort;
+            if (o.TopP is { } p) body["top_p"] = p;
+            if (o.TopK is { } k) body["top_k"] = k;
+            if (o.PresencePenalty is { } pp) body["presence_penalty"] = pp;
+        }
         if (tools.Count > 0)
         {
             body["tools"] = new JsonArray(tools.Select(t => (JsonNode)new JsonObject
@@ -110,9 +124,11 @@ public class OpenAiToolChatClient(IHttpClientFactory httpFactory, IRuntimeConfig
         private readonly StringBuilder _content = new();
         private readonly SortedDictionary<int, (string? Id, StringBuilder Name, StringBuilder Args)> _calls = new();
         private string? _finish;
+        private readonly StringBuilder _reasoning = new();
+        private double _thinkEnd;
 
-        /// <summary>吃一条 data: 负载，返回这一条里的正文增量（没有为 null）。</summary>
-        public string? Feed(string json)
+        /// <summary>吃一条 data: 负载，返回这一条里的正文增量（没有为 null）。at：从发出请求到现在的秒数，用来算想了多久。</summary>
+        public string? Feed(string json, double at = 0)
         {
             try
             {
@@ -122,6 +138,14 @@ public class OpenAiToolChatClient(IHttpClientFactory httpFactory, IRuntimeConfig
                 if (choice.TryGetProperty("finish_reason", out var fr) && fr.ValueKind == JsonValueKind.String)
                     _finish = fr.GetString();
                 if (!choice.TryGetProperty("delta", out var delta)) return null;
+                // 推理解析器把思考过程单独放在 reasoning_content（新版 vLLM 叫 reasoning）
+                foreach (var key in new[] { "reasoning_content", "reasoning" })
+                    if (delta.TryGetProperty(key, out var r) && r.ValueKind == JsonValueKind.String && r.GetString() is { Length: > 0 } rs)
+                    {
+                        if (_reasoning.Length < 20000) _reasoning.Append(rs);
+                        _thinkEnd = at;
+                        break;
+                    }
                 if (delta.TryGetProperty("tool_calls", out var tcs) && tcs.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var tc in tcs.EnumerateArray())
@@ -152,6 +176,6 @@ public class OpenAiToolChatClient(IHttpClientFactory httpFactory, IRuntimeConfig
             _calls.Values.Where(v => v.Name.Length > 0)
                 .Select((v, i) => new ToolCall(v.Id ?? $"call_{i}", v.Name.ToString(), v.Args.Length == 0 ? "{}" : v.Args.ToString()))
                 .ToList(),
-            _finish);
+            _finish, _reasoning.Length > 0 ? _reasoning.ToString() : null, _thinkEnd);
     }
 }

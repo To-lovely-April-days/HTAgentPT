@@ -3,6 +3,7 @@
 // 阈值须以真实问题集标定（不是能照抄的数）、把「没备份什么」写在界面上（灰卡）。
 import React, { useState } from 'react';
 import ToolsTab from './ToolsTab';
+import { LevelsCard } from './LevelsCard';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { get, post, put, ApiError } from '../../lib/api';
 import { ErrorBox, InfoBox, Spinner } from '../../components/Common';
@@ -358,6 +359,8 @@ function ParamsTab() {
     <div className="sc" style={{ flexGrow: 1, minHeight: 0, padding: '24px 40px 40px' }}>
       <div className="admin-wrap">
         <ChatModelPicker cfg={cfg.data ?? {}} />
+
+        <LevelsCard values={values} onChange={(k, val) => setDraft((d) => ({ ...d, [k]: val }))} />
 
         <ServicePicker
           title="向量化模型"
