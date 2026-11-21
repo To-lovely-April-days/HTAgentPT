@@ -258,15 +258,22 @@ function WebPageCard({ a }: { a: Extract<ToolArtifact, { kind: 'webpage' }> }) {
   );
 }
 
+const FILE_TONE: Record<string, [string, string]> = {
+  XLSX: ['#e6f2ec', '#1d6f42'], CSV: ['#e6f2ec', '#1d6f42'], DOCX: ['#e8eef8', '#2a4a85'], PPTX: ['#fbece4', '#b34a17'], PDF: ['#fde8ea', '#a00d25'],
+};
+
 function FileCard({ a }: { a: Extract<ToolArtifact, { kind: 'file' }> }) {
   const [msg, setMsg] = useState<string | null>(null);
   const open = usePreview();
   const ext = (a.title.split('.').pop() ?? '').toUpperCase().slice(0, 4) || 'DOCX';
+  // 文件种类配色：Excel 绿、Word 蓝、PPT 橙、PDF 红
+  const tone = FILE_TONE[ext] ?? FILE_TONE.DOCX;
   return (
     <section className="tool-card file-card">
-      <span className="refs-ext" style={{ background: '#e8eef8', color: '#2a4a85' }} aria-hidden="true">{ext}</span>
+      <span className="refs-ext" style={{ background: tone[0], color: tone[1] }} aria-hidden="true">{ext}</span>
       <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <b>{a.title}</b><span className="hint">{msg ?? a.detail}</span>
+        <b>{a.title}</b>
+        <span className="hint">{a.ok && !msg && <Icon name="check" size={12} stroke={2.4} style={{ verticalAlign: '-2px', marginRight: 3, color: '#1c6b45' }} />}{msg ?? a.detail}</span>
       </span>
       {open && <button type="button" className="gbtn" style={{ marginLeft: 'auto' }} onClick={() => open({ kind: 'file', src: a.url, fileName: a.title })}>预览</button>}
       <button type="button" className="pbtn" style={open ? undefined : { marginLeft: 'auto' }}

@@ -11,24 +11,41 @@ namespace HT.Agent.Infrastructure.Clients;
 /// <summary>代码解释器：调服务器上隔离容器里的 Python 运行服务（deploy/sandbox）。容器不能上网、碰不到数据库和文件。</summary>
 public class SandboxClient(IHttpClientFactory http)
 {
-    public record RunResult(string Stdout, string? Error, IReadOnlyList<string> Images, double Seconds);
+    /// <summary>代码写到 out/ 的文件（做好的 Excel、Word……）。</summary>
+    public record OutFile(string Name, byte[] Data);
+    /// <summary>放进 in/ 的文件（对话附件的只读副本）。</summary>
+    public record InFile(string Name, byte[] Data);
 
-    public async Task<RunResult> RunAsync(string baseUrl, string code, int timeoutSeconds, CancellationToken ct)
+    public record RunResult(string Stdout, string? Error, IReadOnlyList<string> Images, double Seconds,
+        IReadOnlyList<OutFile>? Files = null, IReadOnlyList<string>? Skipped = null);
+
+    public async Task<RunResult> RunAsync(string baseUrl, string code, int timeoutSeconds, CancellationToken ct, IReadOnlyList<InFile>? inputs = null)
     {
-        var client = http.CreateClient("tools");
+        var client = http.CreateClient("sandbox");
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds + 10));
-        using var resp = await client.PostAsJsonAsync($"{baseUrl.TrimEnd('/')}/run", new { code, timeout = timeoutSeconds }, cts.Token);
+        cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds + 30));
+        var body = new
+        {
+            code, timeout = timeoutSeconds,
+            inputs = (inputs ?? []).Select(f => new { name = f.Name, data = Convert.ToBase64String(f.Data) }).ToList()
+        };
+        using var resp = await client.PostAsJsonAsync($"{baseUrl.TrimEnd('/')}/run", body, cts.Token);
         resp.EnsureSuccessStatusCode();
         using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(cts.Token), cancellationToken: cts.Token);
         var r = doc.RootElement;
         var images = r.TryGetProperty("images", out var im) && im.ValueKind == JsonValueKind.Array
             ? im.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).Take(3).ToList() : [];
+        var files = r.TryGetProperty("files", out var fs) && fs.ValueKind == JsonValueKind.Array
+            ? fs.EnumerateArray().Select(f => new OutFile(f.GetProperty("name").GetString() ?? "file", Convert.FromBase64String(f.GetProperty("data").GetString() ?? ""))).ToList()
+            : [];
+        var skipped = r.TryGetProperty("skipped", out var sk) && sk.ValueKind == JsonValueKind.Array
+            ? sk.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).ToList() : [];
         return new RunResult(
             r.TryGetProperty("stdout", out var o) ? o.GetString() ?? "" : "",
             r.TryGetProperty("error", out var e) && e.ValueKind == JsonValueKind.String ? e.GetString() : null,
             images,
-            r.TryGetProperty("seconds", out var s) && s.TryGetDouble(out var sec) ? sec : 0);
+            r.TryGetProperty("seconds", out var s) && s.TryGetDouble(out var sec) ? sec : 0,
+            files, skipped);
     }
 
     public async Task<bool> HealthyAsync(string baseUrl, CancellationToken ct)
@@ -41,6 +58,37 @@ public class SandboxClient(IHttpClientFactory http)
             return resp.IsSuccessStatusCode;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) { return false; }
+    }
+}
+
+/// <summary>检查助手做的文件（office 容器的 /check）：能不能打开、Excel 公式重算后有没有错、Word 修订批注几处、几页。
+/// 地址跟导出 PDF 用的转换服务是同一个容器。连不上返回 null，调用方只做基本检查。</summary>
+public class OfficeCheckClient(IHttpClientFactory http, HT.Agent.Application.Abstractions.IRuntimeConfig config)
+{
+    /// <summary>Recalculated：Excel 重算后的那一版（公式带上计算结果，手机预览不再是空白），有就交这一版。</summary>
+    public record Result(bool Ok, IReadOnlyList<string> Problems, JsonElement? Info, byte[]? Recalculated = null);
+
+    public async Task<Result?> CheckAsync(string fileName, byte[] data, CancellationToken ct)
+    {
+        var conv = (await config.GetStringAsync(HT.Agent.Domain.ConfigKeys.PdfConverterUrl, "", ct)).Trim();
+        if (conv.Length == 0) conv = "http://office:3000/convert";
+        try
+        {
+            var url = new Uri(new Uri(conv), "/check");
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(150));
+            using var form = new MultipartFormDataContent { { new ByteArrayContent(data), "file", fileName } };
+            using var resp = await http.CreateClient("sandbox").PostAsync(url, form, cts.Token);
+            if (!resp.IsSuccessStatusCode) return null;
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(cts.Token));
+            var r = doc.RootElement;
+            var problems = r.TryGetProperty("problems", out var p) && p.ValueKind == JsonValueKind.Array
+                ? p.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).ToList() : [];
+            JsonElement? info = r.TryGetProperty("info", out var i) ? i.Clone() : null;
+            var fixedFile = r.TryGetProperty("recalculated", out var rc) && rc.ValueKind == JsonValueKind.String ? Convert.FromBase64String(rc.GetString()!) : null;
+            return new Result(problems.Count == 0, problems, info, fixedFile);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or UriFormatException or JsonException) { return null; }
     }
 }
 

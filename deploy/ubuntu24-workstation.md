@@ -411,6 +411,33 @@ sudo systemctl daemon-reload
 sudo systemctl restart htagent-chat
 ```
 
+## 9. 升级：助手做文件（Excel、Word、PPT、PDF）
+
+助手在代码解释器里写代码做文件，交出前由 office 容器检查（Excel 用 LibreOffice 重算公式查错）。要重建这两个容器：代码解释器装上做文件的库，office 容器加上表格和演示组件。业务数据不受影响。
+
+```bash
+cd /srv/htagent/app
+docker compose --env-file /srv/htagent/config/compose.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.tools.yml build sandbox office
+docker compose --env-file /srv/htagent/config/compose.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.tools.yml up -d sandbox office
+```
+
+（如果平时还带 `-f deploy/docker-compose.mineru.yml`，两条命令里照样带上。）
+
+验证两个容器都装好了：
+
+```bash
+docker compose --env-file /srv/htagent/config/compose.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.tools.yml exec -T sandbox \
+  python -c "import openpyxl, docx, pptx, pypdf, reportlab, htfiles; print('file libs ok')"
+docker compose --env-file /srv/htagent/config/compose.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.tools.yml exec -T office \
+  python -c "import openpyxl, pypdf, subprocess; print(subprocess.run(['soffice','--version'],capture_output=True,text=True).stdout)"
+```
+
+然后到后台「系统设置 · 助手工具」，「助手做文件」那一组：Excel、Word 默认开着，状态应该是「运行环境和检查服务正常」；PPT、PDF 默认关着，用测试题跑过、成功率够了再开。在对话里试一句「出一份 30L 加氢釜的报价单 Excel」，回答里应该出现文件卡，能预览、能下载。
+
 ## 排错所需信息
 
 出现问题时，提供 GPU 型号/驱动版本、失败命令、错误日志尾部即可。不要发送 compose.env、管理员密码或 API key。

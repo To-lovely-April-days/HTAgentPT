@@ -63,6 +63,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
     public DbSet<AssistantSkill> AssistantSkills => Set<AssistantSkill>();
     public DbSet<AssistantSkillVersion> AssistantSkillVersions => Set<AssistantSkillVersion>();
     public DbSet<SkillUse> SkillUses => Set<SkillUse>();
+    public DbSet<MadeFile> MadeFiles => Set<MadeFile>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -318,6 +319,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
             e.HasIndex(x => new { x.SkillId, x.At });
             e.HasIndex(x => x.MessageId);
             e.HasOne<AssistantSkill>().WithMany().HasForeignKey(x => x.SkillId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<MadeFile>(e =>
+        {
+            e.Property(x => x.FileName).HasMaxLength(200);
+            e.Property(x => x.Kind).HasMaxLength(8);
+            e.Property(x => x.Info).HasColumnType("jsonb");
+            e.HasIndex(x => new { x.CompanyId, x.CreatedAt });
+            e.HasIndex(x => x.SessionId);
+            e.HasIndex(x => x.ExpiresAt);
         });
         b.Entity<EvalRun>(e =>
         {

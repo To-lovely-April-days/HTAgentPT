@@ -93,9 +93,12 @@ public static class DependencyInjection
         services.AddSingleton<IToolChatClient, OpenAiToolChatClient>();
         // 助手工具的出站客户端：沙箱/PubChem/搜索共用 tools；打开网页走 webfetch（只连公网地址）
         services.AddHttpClient("tools", c => c.Timeout = TimeSpan.FromSeconds(60));
+        // 运行代码（最长 120 秒）和检查做好的文件（LibreOffice 转一遍）要更久，另起一个
+        services.AddHttpClient("sandbox", c => c.Timeout = TimeSpan.FromSeconds(240));
         services.AddHttpClient("webfetch", c => c.Timeout = TimeSpan.FromSeconds(15))
             .ConfigurePrimaryHttpMessageHandler(WebFetcher.CreateHandler);
         services.AddSingleton<SandboxClient>();
+        services.AddSingleton<OfficeCheckClient>();
         services.AddSingleton<PubChemClient>();
         services.AddSingleton<SearxClient>();
         services.AddSingleton<WebFetcher>();
@@ -108,6 +111,7 @@ public static class DependencyInjection
         services.AddHostedService<ParseWorker>();
         services.AddHostedService<AttachmentParseWorker>();
         services.AddHostedService<BackupWorker>();
+        services.AddHostedService<MadeFileCleanupWorker>();
         return services;
     }
 }

@@ -8,11 +8,12 @@ import { ErrorBox, Spinner } from '../../components/Common';
 import { KbMultiSelect } from '../../components/KbMultiSelect';
 import { Icon } from '../../components/Icons';
 
-interface Stats { total: number; asks: number; tools: { tool: string; calls: number; failed: number; avgMs: number }[] }
+interface Stats { total: number; asks: number; tools: { tool: string; calls: number; failed: number; avgMs: number }[]; files?: { kind: string; made: number; failed: number }[] }
 interface Health { sandbox: boolean; search: boolean; hazchem: boolean; office: boolean; epo: boolean; vision: boolean; memory: { users: number; total: number } }
 
 interface ToolDef { key: string; name: string; ic: string; tone: 'in' | 'calc' | 'ext'; tag?: string; desc: string; fixed?: boolean; settings?: Panel;
-  /** 开关用的配置键（默认 assistant.tool.{key}）；noRoles：不按角色分配。 */ cfgKey?: string; noRoles?: boolean }
+  /** 开关用的配置键（默认 assistant.tool.{key}）；noRoles：不按角色分配。 */ cfgKey?: string; noRoles?: boolean;
+  /** 做文件的四种：用 assistant.file.{kind}，默认关的要写明 */ file?: string; defOff?: boolean }
 type Panel = 'search' | 'sandbox' | 'epo';
 const GROUPS: { title: string; note: string; tools: ToolDef[] }[] = [
   { title: '公司内部', note: '始终按权限、密级过滤', tools: [
@@ -32,6 +33,12 @@ const GROUPS: { title: string; note: string; tools: ToolDef[] }[] = [
     { key: 'show_table', name: '按场景排版表格', ic: '表', tone: 'calc', tag: '免费', desc: '比价、涨跌、历史项目、方案对比、参数清单各用各的表格样式，可导出 Excel' },
     { key: 'show_block', name: '回答里的组件', ic: '件', tone: 'calc', tag: '免费', desc: '关键数字、提示框、图表、步骤、清单、数据表、偏离表、操作窗口、甘特图等 21 种，助手按内容选用' },
     { key: 'export_pdf', name: '导出 PDF / PPT', ic: '出', tone: 'calc', tag: '免费', desc: '回答导出 PDF（服务器上 LibreOffice 转换）和 PPT（浏览器里生成）', fixed: true },
+  ] },
+  { title: '助手做文件', note: '在代码解释器里写代码做文件，检查过了才交出来；先开 Excel、Word，PPT、PDF 用测试题跑过再开', tools: [
+    { key: 'file_xlsx', file: 'xlsx', name: 'Excel 报价单、计算表、对比表', ic: 'X', tone: 'calc', desc: '合计、税额都写成公式，改数会重算；交出前用 LibreOffice 重算一遍查错' },
+    { key: 'file_docx', file: 'docx', name: 'Word 修订、批注、复杂排版', ic: 'W', tone: 'calc', desc: '在客户发来的 Word 上直接改：改动用修订标出来、理由写批注，原格式不动' },
+    { key: 'file_pptx', file: 'pptx', name: 'PPT 方案汇报', ic: 'P', tone: 'calc', desc: '按提纲做 16:9 汇报，一页一个意思', defOff: true },
+    { key: 'file_pdf', file: 'pdf', name: 'PDF 合并、拆分、水印', ic: 'F', tone: 'calc', desc: '把员工传的 PDF 合并、拆分、旋转、加「霍桐仪器」水印', defOff: true },
   ] },
   { title: '外部数据', note: '会访问外网；发出去的内容先过滤', tools: [
     { key: 'fetch_url', name: '打开网页', ic: '网', tone: 'ext', tag: '免费', desc: '读用户给的链接或搜索结果里的网页全文（只连公网地址）' },
@@ -54,9 +61,11 @@ export default function ToolsTab() {
   const [error, setError] = useState<string | null>(null);
 
   const c = cfg.data ?? {};
-  const keyOf = (t: ToolDef) => t.cfgKey ?? `assistant.tool.${t.key}`;
-  const isOn = (t: ToolDef) => ['on', 'true'].includes((c[keyOf(t)] ?? 'on').toLowerCase());
-  const rolesOf = (k: string) => (c[`assistant.tool.${k}.roles`] ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+  const keyOf = (t: ToolDef) => t.cfgKey ?? (t.file ? `assistant.file.${t.file}` : `assistant.tool.${t.key}`);
+  const isOn = (t: ToolDef) => ['on', 'true'].includes((c[keyOf(t)] ?? (t.defOff ? 'off' : 'on')).toLowerCase());
+  const rolesKey = (t: ToolDef) => `${keyOf(t)}.roles`;
+  const rolesOf = (t: ToolDef) => (c[rolesKey(t)] ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+  const fileStat = (kind: string) => stats.data?.files?.find((f) => f.kind === kind);
   const save = async (values: Record<string, string>) => {
     setError(null);
     try { await put('/api/config', { values }); void qc.invalidateQueries({ queryKey: ['config'] }); }
@@ -72,6 +81,8 @@ export default function ToolsTab() {
     if (t.key === 'view_image') return h.vision ? ['看图模型已开启', 'ok'] : ['看图模型没开启（参数里打开「看图」并配好模型）', 'warn'];
     if (t.key === 'export_pdf') return h.office ? ['转换服务正常', 'ok'] : ['PDF 转换服务连不上（office 容器没起来？）· PPT 不受影响', 'warn'];
     if (t.key === 'search_literature') return h.epo ? ['论文 · 专利都可查', 'ok'] : ['只能查论文 · 专利还没填密钥', 'warn'];
+    if (t.file) return !h.sandbox ? ['代码解释器连不上（sandbox 容器没起来？）', 'warn']
+      : h.office ? ['运行环境和检查服务正常', 'ok'] : ['检查服务连不上（office 容器没起来？）：只能确认文件能打开', 'warn'];
     if (t.key === 'run_python') return health.data ? (health.data.sandbox ? ['运行环境正常', 'ok'] : ['运行环境连不上（sandbox 容器没起来？）', 'warn']) : ['检查中…', 'off'];
     if (t.key === 'web_search') return health.data ? (health.data.search ? ['搜索服务正常', 'ok'] : ['搜索服务连不上（searxng 容器没起来？）', 'warn']) : ['检查中…', 'off'];
     if (t.key === 'chemical_info') return health.data ? (health.data.hazchem ? ['正常', 'ok'] : ['正常 · 本地危化品目录未导入（只查 PubChem）', 'warn']) : ['检查中…', 'off'];
@@ -115,22 +126,41 @@ export default function ToolsTab() {
                   <div className="tl-roles">
                     <span className="dash-muted" style={{ fontSize: 12 }}>谁能用</span>
                     {t.fixed || t.noRoles ? <span style={{ fontSize: 12.5 }}>{t.noRoles ? '每人自己开关' : '按功能权限'}</span> : (
-                      <KbMultiSelect options={roleOptions} value={rolesOf(t.key)} placeholder="所有内部员工"
-                        onChange={(v) => void save({ [`assistant.tool.${t.key}.roles`]: v.join(',') })} />
+                      <KbMultiSelect options={roleOptions} value={rolesOf(t)} placeholder="所有内部员工"
+                        onChange={(v) => void save({ [rolesKey(t)]: v.join(',') })} />
                     )}
                   </div>
-                  <div className="tl-usage">近 7 天 {callsOf(t.key)} 次{failedOf(t.key) > 0 && <span style={{ color: '#8a5a00' }}> · 失败 {failedOf(t.key)}</span>}</div>
+                  {t.file
+                    ? <div className="tl-usage">近 7 天做了 {fileStat(t.file)?.made ?? 0} 份{(fileStat(t.file)?.failed ?? 0) > 0 && <span style={{ color: '#8a5a00' }}> · 没做成 {fileStat(t.file)?.failed}</span>}</div>
+                    : <div className="tl-usage">近 7 天 {callsOf(t.key)} 次{failedOf(t.key) > 0 && <span style={{ color: '#8a5a00' }}> · 失败 {failedOf(t.key)}</span>}</div>}
                   {t.settings ? <button type="button" className="fm-act" onClick={() => setPanel(t.settings!)}>设置</button> : <span style={{ width: 28 }} />}
                   <button type="button" role="switch" aria-checked={on} aria-label={`${t.name}开关`} className={'tl-sw' + (on ? ' on' : '')} disabled={t.fixed}
                     onClick={() => void save({ [keyOf(t)]: on ? 'off' : 'on' })}><i /></button>
                 </div>
               );
             })}
+            {g.title === '助手做文件' && <KeepDays value={c['assistant.file.keep_days'] ?? '7'} onSave={(v) => void save({ 'assistant.file.keep_days': v })} />}
           </section>
         ))}
       </div>
       {panel === 'epo' && <EpoPanel cfg={c} onClose={() => { setPanel(null); void qc.invalidateQueries({ queryKey: ['tool-health'] }); }} onSave={save} />}
       {panel && panel !== 'epo' && <SettingsPanel kind={panel} cfg={c} onClose={() => setPanel(null)} onSave={save} />}
+    </div>
+  );
+}
+
+/** 做好的文件保留几天：过期删文件，下载会提示已过期。 */
+function KeepDays({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [v, setV] = useState(value);
+  const dirty = v.trim() !== value && /^\d+$/.test(v.trim());
+  return (
+    <div className="tl-row">
+      <span className="dash-muted" style={{ fontSize: 12.5 }}>做好的文件保留</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
+        <input className="m" style={{ width: 56, height: 26, padding: '0 8px', border: '1px solid var(--line-strong)', borderRadius: 6 }} inputMode="numeric"
+          value={v} onChange={(e) => setV(e.target.value)} aria-label="做好的文件保留天数" />天，过期删文件（下载时会提示）
+        {dirty && <button type="button" className="pbtn" style={{ height: 26, padding: '0 10px' }} onClick={() => onSave(v.trim())}>保存</button>}
+      </span>
     </div>
   );
 }

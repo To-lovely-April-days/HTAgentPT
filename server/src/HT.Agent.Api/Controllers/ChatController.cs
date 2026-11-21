@@ -9,8 +9,31 @@ namespace HT.Agent.Api.Controllers;
 [ApiController]
 [Route("api/chat")]
 [Authorize]
-public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, IRuntimeConfig config, ILogger<ChatController> logger) : ControllerBase
+public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, IRuntimeConfig config, ILogger<ChatController> logger,
+    HT.Agent.Infrastructure.Persistence.AppDbContext db, IFileStorage storage) : ControllerBase
 {
+    /// <summary>下载助手做的文件（Excel、Word……）。只有让助手做文件的那个人能下；过了保留期文件就删了。</summary>
+    [HttpGet("made-files/{id:guid}")]
+    public async Task<IActionResult> MadeFile(Guid id, CancellationToken ct)
+    {
+        var f = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            db.MadeFiles, x => x.Id == id && x.UserId == me.UserId && x.CompanyId == me.CompanyId && x.Ok, ct);
+        if (f is null) return NotFound(new { code = "NOT_FOUND", message = "找不到这个文件" });
+        if (f.FileKey is null || f.ExpiresAt < DateTimeOffset.UtcNow)
+            return StatusCode(410, new { code = "EXPIRED", message = "这个文件已经过了保留期，删掉了。可以让助手再做一份。" });
+        var type = f.Kind switch
+        {
+            "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "pdf" => "application/pdf",
+            "csv" => "text/csv",
+            _ => "application/octet-stream"
+        };
+        var st = await storage.OpenAsync(f.FileKey, ct);
+        return File(st, type, f.FileName);
+    }
+
     /// <summary>输入框里的「思考」：默认档位、能不能自己选、深度档开没开（模型服务上下文到 32K 才开）。</summary>
     [HttpGet("levels")]
     public async Task<IActionResult> Levels(CancellationToken ct)

@@ -15,6 +15,8 @@ export async function renderDocxInto(blob: Blob, el: HTMLElement) {
   await renderAsync(blob, stage, undefined, {
     className: 'docx', inWrapper: true, breakPages: true,
     renderHeaders: true, renderFooters: true,
+    // 修订（删除线、下划线）也画出来：助手改客户文件时，预览里要看得到改了哪里（批注另外列在上面，见 docxComments）
+    renderChanges: true,
   });
   el.replaceChildren(...Array.from(stage.childNodes));
 }
@@ -25,6 +27,19 @@ async function sniff(blob: Blob): Promise<'pdf' | 'zip' | 'other'> {
   if (s.startsWith('%PDF')) return 'pdf';
   if (head[0] === 0x50 && head[1] === 0x4b) return 'zip';   // docx/xlsx/pptx 都是 zip
   return 'other';
+}
+
+/** Word 里的批注：作者和内容。预览上方列出来，看得到「为什么这么改」。 */
+async function docxComments(blob: Blob): Promise<{ author: string; text: string }[]> {
+  const JSZip = (await import('jszip')).default;
+  const xml = await (await JSZip.loadAsync(blob)).file('word/comments.xml')?.async('string');
+  if (!xml) return [];
+  const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  return Array.from(doc.getElementsByTagNameNS(W, 'comment')).map((c) => ({
+    author: c.getAttributeNS(W, 'author') ?? '',
+    text: Array.from(c.getElementsByTagNameNS(W, 't')).map((t) => t.textContent ?? '').join(''),
+  })).filter((c) => c.text.trim());
 }
 
 /** zip 包里放的是什么：按 Office 的固定目录判，比扩展名可靠。 */
@@ -95,6 +110,7 @@ export function FileView({ docId, src, fileName, page, find }: { docId?: string;
   const [sheets, setSheets] = useState<{ name: string; html: string }[]>([]);
   const [sheetAt, setSheetAt] = useState(0);
   const [slides, setSlides] = useState<{ title: string; lines: string[] }[]>([]);
+  const [comments, setComments] = useState<{ author: string; text: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -120,7 +136,8 @@ export function FileView({ docId, src, fileName, page, find }: { docId?: string;
           if (office === 'docx') {
             try {
               if (box.current) await renderDocxInto(blob, box.current);
-              if (alive) setState('docx');
+              const cs = await docxComments(blob).catch(() => []);
+              if (alive) { setComments(cs); setState('docx'); }
               if (alive && find && box.current) requestAnimationFrame(() => box.current && markInDocx(box.current, find));
             } catch { if (alive) setState('other'); }
             return;
@@ -198,6 +215,12 @@ export function FileView({ docId, src, fileName, page, find }: { docId?: string;
           <button className="pbtn" onClick={() => void download(url, fileName)}>
             下载原件 ↓
           </button>
+        </div>
+      )}
+      {state === 'docx' && comments.length > 0 && (
+        <div className="fv-cmts" aria-label="批注">
+          <b>批注 {comments.length} 条</b>
+          {comments.map((c, i) => <div key={i} className="fv-cmt"><span>{c.author || '批注'}</span>{c.text}</div>)}
         </div>
       )}
       <div ref={box} className="fv-doc" style={{ display: state === 'docx' ? 'block' : 'none' }} />

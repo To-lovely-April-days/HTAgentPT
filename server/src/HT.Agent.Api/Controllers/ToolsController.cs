@@ -42,10 +42,14 @@ public class ToolsController(AppDbContext db, IRuntimeConfig config, SandboxClie
             byTool[tool] = (cur.N + 1, cur.Failed + (r.Result == AuditResult.Success ? 0 : 1), cur.Ms + ms);
         }
         var asks = await db.AuditLogs.AsNoTracking().CountAsync(a => a.At >= from && a.Action == "qa.assistant.ask", ct);
+        // 助手做的文件：每种做了几份、几份检查没过
+        var files = await db.MadeFiles.AsNoTracking().Where(f => f.CreatedAt >= from)
+            .GroupBy(f => f.Kind == "csv" ? "xlsx" : f.Kind).Select(g => new { kind = g.Key, made = g.Count(x => x.Ok), failed = g.Count(x => !x.Ok) }).ToListAsync(ct);
         return Ok(new
         {
             total = rows.Count,
             asks,
+            files,
             tools = byTool.Select(kv => new { tool = kv.Key, calls = kv.Value.N, failed = kv.Value.Failed, avgMs = kv.Value.N == 0 ? 0 : kv.Value.Ms / kv.Value.N })
                 .OrderByDescending(x => x.calls).ToList()
         });

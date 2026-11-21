@@ -1,4 +1,6 @@
-"""助手的代码解释器：收一段 Python，在独立进程里跑，返回输出和图。
+"""助手的代码解释器：收一段 Python，在独立进程里跑，返回输出、图和做好的文件。
+
+做文件：请求里的 inputs（对话附件的只读副本）放进 in/；代码把文件写到 out/，跑完收走（最多 3 个，单个 20MB 以内）。
 
 隔离靠三层：
 1. 容器：不接外网（compose 里是 internal 网络）、根文件系统只读、去掉全部 capability、限内存/CPU/进程数；
@@ -37,6 +39,16 @@ for __i in plt.get_fignums():
 
 MAX_OUT = 100_000
 MAX_IMG = 1_500_000
+MAX_FILE = 20 * 1024 * 1024
+MAX_FILES = 3
+MAX_BODY = 90 * 1024 * 1024          # 带 3 个 20MB 附件（base64）也放得下
+FILE_EXT = (".xlsx", ".docx", ".pptx", ".pdf", ".csv")
+
+
+def safe_name(name):
+    """只留文件名本身，去掉路径和奇怪的字符。"""
+    name = os.path.basename(str(name or "")).strip().replace("\x00", "")
+    return name[:120] or "file"
 
 
 def limits(cpu_seconds):
@@ -49,10 +61,17 @@ def limits(cpu_seconds):
     return apply
 
 
-def run(code, timeout):
+def run(code, timeout, inputs=()):
     work = tempfile.mkdtemp(prefix="run-", dir="/tmp")
     started = time.time()
     try:
+        os.makedirs(os.path.join(work, "in"))
+        os.makedirs(os.path.join(work, "out"))
+        for item in list(inputs)[:MAX_FILES]:
+            dst = os.path.join(work, "in", safe_name(item.get("name")))
+            with open(dst, "wb") as f:
+                f.write(base64.b64decode(item.get("data") or ""))
+            os.chmod(dst, 0o444)                      # 只读副本：改附件要另存到 out/
         with open(os.path.join(work, "main.py"), "w", encoding="utf-8") as f:
             f.write(PRELUDE + "\n" + code + "\n" + EPILOGUE)
         env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": work, "MPLCONFIGDIR": work, "PYTHONIOENCODING": "utf-8", "LANG": "C.UTF-8"}
@@ -73,7 +92,24 @@ def run(code, timeout):
                 data = open(os.path.join(work, name), "rb").read()
                 if len(data) <= MAX_IMG:
                     images.append("data:image/png;base64," + base64.b64encode(data).decode())
-        return {"stdout": out, "error": error, "images": images, "seconds": round(time.time() - started, 2)}
+        files, skipped = [], []
+        outdir = os.path.join(work, "out")
+        for name in sorted(os.listdir(outdir)):
+            path = os.path.join(outdir, name)
+            if not os.path.isfile(path):
+                continue
+            size = os.path.getsize(path)
+            if not name.lower().endswith(FILE_EXT):
+                skipped.append(f"{name}（只收 xlsx、docx、pptx、pdf、csv）")
+            elif size > MAX_FILE:
+                skipped.append(f"{name}（超过 20MB）")
+            elif len(files) >= MAX_FILES:
+                skipped.append(f"{name}（一次最多 {MAX_FILES} 个）")
+            else:
+                with open(path, "rb") as f:
+                    files.append({"name": name, "size": size, "data": base64.b64encode(f.read()).decode()})
+        return {"stdout": out, "error": error, "images": images, "files": files, "skipped": skipped,
+                "seconds": round(time.time() - started, 2)}
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
@@ -97,15 +133,20 @@ class Handler(BaseHTTPRequestHandler):
         if self.path != "/run":
             return self._send(404, {"error": "not found"})
         length = int(self.headers.get("Content-Length") or 0)
-        if length > 200_000:
-            return self._send(413, {"error": "代码太长"})
+        if length > MAX_BODY:
+            return self._send(413, {"error": "代码和附件太大"})
         try:
             body = json.loads(self.rfile.read(length) or b"{}")
         except json.JSONDecodeError:
             return self._send(400, {"error": "不是 JSON"})
         code = str(body.get("code") or "")
         timeout = max(5, min(int(body.get("timeout") or 30), 120))
-        self._send(200, run(code, timeout))
+        if len(code) > 200_000:
+            return self._send(413, {"error": "代码太长"})
+        inputs = body.get("inputs") or []
+        if not isinstance(inputs, list):
+            return self._send(400, {"error": "inputs 要是列表"})
+        self._send(200, run(code, timeout, inputs))
 
     def log_message(self, *args):
         pass

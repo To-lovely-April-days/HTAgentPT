@@ -1624,6 +1624,84 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                     b.ToTable("knowledge_base");
                 });
 
+            modelBuilder.Entity("HT.Agent.Domain.Entities.MadeFile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("FileKey")
+                        .HasColumnType("text")
+                        .HasColumnName("file_key");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("file_name");
+
+                    b.Property<string>("Info")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("info");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid?>("MessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_id");
+
+                    b.Property<bool>("Ok")
+                        .HasColumnType("boolean")
+                        .HasColumnName("ok");
+
+                    b.Property<string>("Problems")
+                        .HasColumnType("text")
+                        .HasColumnName("problems");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_made_file");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_made_file_expires_at");
+
+                    b.HasIndex("SessionId")
+                        .HasDatabaseName("ix_made_file_session_id");
+
+                    b.HasIndex("CompanyId", "CreatedAt")
+                        .HasDatabaseName("ix_made_file_company_id_created_at");
+
+                    b.ToTable("made_file");
+                });
+
             modelBuilder.Entity("HT.Agent.Domain.Entities.ParseJob", b =>
                 {
                     b.Property<Guid>("Id")

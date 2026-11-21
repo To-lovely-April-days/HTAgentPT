@@ -102,6 +102,18 @@ public static class ConfigKeys
     /// <summary>公司介绍（一两句话，告诉助手我们是做什么的）。是数据不是规则，管理员可随时改。</summary>
     public const string AssistantProfile = "assistant.company_profile";
 
+    // ── 助手做文件（在计算沙箱里写代码做 Excel、Word、PPT、PDF）：每种一个开关和可用角色（空=所有内部员工）──
+    public const string FileXlsx = "assistant.file.xlsx";
+    public const string FileXlsxRoles = "assistant.file.xlsx.roles";
+    public const string FileDocx = "assistant.file.docx";
+    public const string FileDocxRoles = "assistant.file.docx.roles";
+    public const string FilePptx = "assistant.file.pptx";
+    public const string FilePptxRoles = "assistant.file.pptx.roles";
+    public const string FilePdf = "assistant.file.pdf";
+    public const string FilePdfRoles = "assistant.file.pdf.roles";
+    /// <summary>做好的文件保留几天。</summary>
+    public const string FileKeepDays = "assistant.file.keep_days";
+
     // ── 助手工具：每个工具一个开关（on/off）和可用角色（逗号分隔的角色代码，空=所有内部员工）──
     public const string ToolAskUser = "assistant.tool.ask_user";
     public const string ToolAskUserRoles = "assistant.tool.ask_user.roles";

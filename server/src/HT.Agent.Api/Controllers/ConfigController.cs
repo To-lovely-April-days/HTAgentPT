@@ -46,7 +46,7 @@ public class ConfigController(IRuntimeConfig config, ICurrentUser me, IAuditWrit
         ConfigKeys.ChunkTargetLength, ConfigKeys.ChunkOverlap, ConfigKeys.ChunkMinLength,
         ConfigKeys.UploadMaxFileMb, ConfigKeys.UploadMaxBatch, ConfigKeys.JwtLifetimeMinutes,
         ConfigKeys.AuditRetentionMonths, ConfigKeys.TranslateBatchChars,
-        ConfigKeys.AssistantContextChars, ConfigKeys.AssistantSearchTopK, ConfigKeys.ChatContextTokens,
+        ConfigKeys.AssistantContextChars, ConfigKeys.AssistantSearchTopK, ConfigKeys.ChatContextTokens, ConfigKeys.FileKeepDays,
         ConfigKeys.LevelFastRounds, ConfigKeys.LevelFastMaxTokens, ConfigKeys.LevelFastTemperature, ConfigKeys.LevelStandardRounds, ConfigKeys.LevelStandardMaxTokens, ConfigKeys.LevelStandardTemperature, ConfigKeys.LevelDeepRounds, ConfigKeys.LevelDeepMaxTokens, ConfigKeys.LevelDeepTemperature,
         ConfigKeys.SandboxTimeout, ConfigKeys.MemoryMax, ConfigKeys.PriceStaleMonths
     };

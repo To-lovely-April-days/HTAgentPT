@@ -8,7 +8,8 @@ namespace HT.Agent.Application.Logic;
 
 /// <summary>工具执行的结果。ForModel 交给模型；Compact 是上下文紧张时换上的短版；Label/Detail/Result 给界面上的「查了几步」。</summary>
 /// <summary>Pause=true：这个工具要等用户回话（比如请用户确认），本轮执行完就停下，等用户的回答再接着跑。</summary>
-public record ToolOutcome(string ForModel, string Compact, string Label, string Detail, string? Result, bool Pause = false);
+/// <summary>Failed=true：这一步没办成（比如做的文件检查没过），界面上这一行打叉。</summary>
+public record ToolOutcome(string ForModel, string Compact, string Label, string Detail, string? Result, bool Pause = false, bool Failed = false);
 
 public record StepRecord(string Id, string Tool, string Label, string Detail, string? Result, string Status, double Seconds);
 
@@ -90,6 +91,7 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
                     outcome = new ToolOutcome($"工具出错：{ex.Message}。可以换个参数再试，或直接根据已有信息回答。",
                         "工具出错", ToolLabel(call.Name), Describe(call), "出错了");
                 }
+                if (outcome.Failed) status = "error";
                 var rec = new StepRecord(id, call.Name, outcome.Label, outcome.Detail, outcome.Result, status, Math.Round(sw.Elapsed.TotalSeconds, 1));
                 steps.Add(rec);
                 await emit(new QaEvent("step", new { id, tool = call.Name, label = rec.Label, detail = rec.Detail, result = rec.Result, status, seconds = rec.Seconds }));

@@ -32,6 +32,7 @@ public sealed class AssistantService(
     IAuditWriter audit,
     ICurrentUser me,
     Clients.SandboxClient sandbox,
+    Clients.OfficeCheckClient officeCheck,
     Clients.PubChemClient pubchem,
     Clients.SearxClient searx,
     Clients.WebFetcher fetcher,
@@ -90,6 +91,11 @@ public sealed class AssistantService(
         public readonly List<SkillRef> Skills = [];
         /// <summary>这一轮回答存成的消息 id：记「哪条回答用了哪个技能」。</summary>
         public Guid MessageId;
+        public Guid SessionId;
+        /// <summary>这个人能让助手做哪几种文件（xlsx / docx / pptx / pdf）。</summary>
+        public IReadOnlySet<string> FileKinds = new HashSet<string>();
+        /// <summary>每种文件检查没过了几次：到 3 次就不让再做了。</summary>
+        public readonly Dictionary<string, int> FileFails = new();
 
         public RunState ToState() => new(Evidence.Values.OrderBy(e => e.N).ToList(), new(Keys),
             DocRefs.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value), [.. Computed], [.. Searches], NextN);
@@ -145,9 +151,11 @@ public sealed class AssistantService(
         else if (enabled.Contains("view_image") && !await visionSwitch.EnabledAsync(ct)) ((HashSet<string>)enabled).Remove("view_image");
         if (!has(PermissionKeys.Translate)) ((HashSet<string>)enabled).Remove("translate_file");
         // 技能：只列这个人的角色能用、已启用的（后台「试一试」时只开指定的那一个，或一个都不开）
-        var skills = await SkillsForAsync(req, ct);
+        // 做文件：运行代码开着时，再看这个人能做哪几种（后台每种一个开关和可用角色）
+        var fileKinds = enabled.Contains("run_python") ? await FileKindsAsync(config, me, ct) : new HashSet<string>();
+        var skills = await SkillsForAsync(req, fileKinds, ct);
         if (skills.Count > 0) ((HashSet<string>)enabled).Add("use_skill");
-        var tools = BuildTools(canDocs, canProjects, attachmentFiles.Count > 0, enabled);
+        var tools = BuildTools(canDocs, canProjects, attachmentFiles.Count > 0, enabled, fileKinds);
         List<AgentMessage> messages;
         // 上一轮在等用户确认：这句话就是回答，接着上次的现场跑——前面查到的不重来，编号也接着用
         var pending = await PendingAsync(session.Id, ct);
@@ -169,6 +177,8 @@ public sealed class AssistantService(
         }
 
         run.Skills.AddRange(skills);
+        run.SessionId = session.Id;
+        run.FileKinds = fileKinds;
         await emit(new QaEvent("meta", new { sessionId = session.Id, intent = "assistant", mode = "assistant" }));
         // 开始的留痕等模型真的接手了再写：模型端不支持工具调用会退回原问答，那边自己记，不重复计数
         var startLogged = false;
@@ -466,7 +476,7 @@ public sealed class AssistantService(
     private static object Int(string d) => new Dictionary<string, object> { ["type"] = "integer", ["description"] = d };
     private static object Num(string d) => new Dictionary<string, object> { ["type"] = "number", ["description"] = d };
 
-    private static List<ToolSpec> BuildTools(bool canDocs, bool canProjects, bool hasAttachments, IReadOnlySet<string> enabled)
+    private static List<ToolSpec> BuildTools(bool canDocs, bool canProjects, bool hasAttachments, IReadOnlySet<string> enabled, IReadOnlySet<string>? fileKinds = null)
     {
         var list = new List<ToolSpec>();
         if (enabled.Contains("use_skill"))
@@ -670,9 +680,26 @@ public sealed class AssistantService(
                     ["note"] = Str("组件下方一句说明，如数据来源（可省略）"),
                 }, "kind", "data")));
         if (enabled.Contains("run_python"))
-            list.Add(new ToolSpec("run_python",
-                "在隔离环境里运行 Python 代码做计算：工程计算、物性、数据统计、作图（matplotlib，图会显示给用户）。可用 numpy、scipy、pandas，以及化工计算库：fluids（管道压降、调节阀 Kv、安全阀 API 520、泵）、ht（换热、LMTD、夹套传热）、CoolProp 和 thermo / chemicals（物性、7 万多种化学品）。不能上网、不能读写公司文件。用 print 输出结果，写明单位。",
-                Obj(new() { ["code"] = Str("完整的 Python 代码") }, "code")));
+        {
+            var kinds = fileKinds ?? new HashSet<string>();
+            var props = new Dictionary<string, object> { ["code"] = Str("完整的 Python 代码") };
+            var desc = "在隔离环境里运行 Python 代码做计算：工程计算、物性、数据统计、作图（matplotlib，图会显示给用户）。可用 numpy、scipy、pandas，以及化工计算库：fluids（管道压降、调节阀 Kv、安全阀 API 520、泵）、ht（换热、LMTD、夹套传热）、CoolProp 和 thermo / chemicals（物性、7 万多种化学品）。不能上网。用 print 输出结果，写明单位。";
+            if (kinds.Count > 0)
+            {
+                desc += $"\n做文件：能做 {string.Join("、", MadeFiles.Kinds.Where(kinds.Contains).Select(MadeFiles.Label))}"
+                    + "（openpyxl、python-docx、python-pptx、pypdf、reportlab；Word 修订和批注、PDF 水印用 htfiles）。先用 use_skill 翻看对应的做文件技能。"
+                    + "把文件写到 out/ 目录（如 out/30L加氢釜报价单.xlsx，文件名写清楚是什么），一次最多 3 个。"
+                    + (hasAttachments ? "要用本对话的附件就把文件名写进 inputs，代码里从 in/ 读（只读，改完另存到 out/）。" : "")
+                    + "系统会检查做好的文件（Excel 会重算公式），过了才交给用户；没过会告诉你哪里错，改了再跑。";
+                if (hasAttachments)
+                    props["inputs"] = new Dictionary<string, object>
+                    {
+                        ["type"] = "array", ["maxItems"] = 3, ["items"] = new Dictionary<string, object> { ["type"] = "string" },
+                        ["description"] = "要放进 in/ 的附件文件名（做文件、改客户文件时用；不用就不填）"
+                    };
+            }
+            list.Add(new ToolSpec("run_python", desc, Obj(props, "code")));
+        }
         if (enabled.Contains("chemical_info"))
             list.Add(new ToolSpec("chemical_info",
                 "查化学品的公开数据（PubChem）：CAS 号、分子式、沸点、闪点、蒸气压、密度、GHS 危险性说明，并判断是否列入《危险化学品目录》。名称请用英文名或 CAS 号（如 dichloromethane 或 75-09-2）。",
@@ -1104,7 +1131,7 @@ public sealed class AssistantService(
             case "use_skill":
             {
                 var n = (S("name") ?? "").Trim().Trim('「', '」', '《', '》');
-                if (run.Skills.Count == 0) run.Skills.AddRange(await SkillsForAsync(req, ct));   // 接着上次等确认的现场跑时重新取
+                if (run.Skills.Count == 0) run.Skills.AddRange(await SkillsForAsync(req, run.FileKinds, ct));   // 接着上次等确认的现场跑时重新取
                 var sk = run.Skills.FirstOrDefault(x => x.Name == n || x.Code.Equals(n, StringComparison.OrdinalIgnoreCase))
                          ?? run.Skills.FirstOrDefault(x => n.Length > 1 && (x.Name.Contains(n) || n.Contains(x.Name)));
                 if (sk is null)
@@ -1281,8 +1308,20 @@ public sealed class AssistantService(
                 if (code.Length == 0) return new ToolOutcome("没有代码。", "没有代码", label, "", "没有代码");
                 var url = await config.GetStringAsync(ConfigKeys.SandboxUrl, "http://sandbox:8000", ct);
                 var timeout = Math.Clamp(await config.GetIntAsync(ConfigKeys.SandboxTimeout, 30, ct), 5, 120);
+                // 要用的附件：只读副本放进 in/（做文件、改客户文件时用）
+                var inputs = new List<Clients.SandboxClient.InFile>();
+                if (run.FileKinds.Count > 0 && a["inputs"] is JsonArray want)
+                    foreach (var n in want.Select(x => x?.ToString() ?? "").Where(x => x.Length > 0).Distinct().Take(3))
+                    {
+                        var att = await AttachmentAsync(n, attachments, ct);
+                        if (att is null) return new ToolOutcome($"本对话里没有叫「{n}」的附件。", "找不到附件", label, n, "找不到附件");
+                        await using var st = await storage.OpenAsync(att.FileKey, ct);
+                        using var ms = new MemoryStream();
+                        await st.CopyToAsync(ms, ct);
+                        inputs.Add(new(att.FileName, ms.ToArray()));
+                    }
                 Clients.SandboxClient.RunResult r;
-                try { r = await sandbox.RunAsync(url, code, timeout, ct); }
+                try { r = await sandbox.RunAsync(url, code, timeout, ct, inputs); }
                 catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
                 {
                     return new ToolOutcome("计算环境现在连不上，这次没法运行代码。可以改用 calculate / convert_unit 做简单计算。", "计算环境不可用", label, "", "计算环境不可用");
@@ -1295,9 +1334,17 @@ public sealed class AssistantService(
                 if (r.Stdout.Length > 0) text.AppendLine("输出：").AppendLine(Clip(r.Stdout, 6000));
                 if (r.Error is not null) text.AppendLine("出错：").AppendLine(Clip(r.Error, 2000));
                 if (r.Images.Count > 0) text.AppendLine($"（生成了 {r.Images.Count} 张图，已显示给用户）");
+                // 做好的文件：检查过了才交给用户
+                var (fileText, made, failed) = await DeliverFilesAsync(r, run, emit, ct);
+                text.Append(fileText);
                 if (text.Length == 0) text.Append("运行完了，但没有输出。要用 print 把结果打印出来。");
-                return new ToolOutcome(text.ToString(), "（较早的计算结果）\n" + Clip(r.Stdout, 400), label,
-                    Clip(code.Split('\n').FirstOrDefault(l => l.Trim().Length > 0 && !l.TrimStart().StartsWith("import")) ?? "Python", 80),
+                var firstLine = Clip(code.Split('\n').FirstOrDefault(l => l.Trim().Length > 0 && !l.TrimStart().StartsWith("import") && !l.TrimStart().StartsWith("from ")) ?? "Python", 80);
+                if (made.Count > 0 || failed.Count > 0)
+                    return new ToolOutcome(text.ToString(), $"（较早做的文件：{string.Join("、", made.Concat(failed))}）", "做文件",
+                        "生成 " + string.Join("、", made.Concat(failed)),
+                        failed.Count == 0 ? $"{made.Count} 个文件 · 检查通过" : made.Count == 0 ? "检查没过" : $"{made.Count} 个通过，{failed.Count} 个没过",
+                        Failed: made.Count == 0);
+                return new ToolOutcome(text.ToString(), "（较早的计算结果）\n" + Clip(r.Stdout, 400), label, firstLine,
                     r.Error is null ? $"{r.Seconds:0.#} 秒" : "出错了");
             }
             case "chemical_info":
@@ -1453,7 +1500,7 @@ public sealed class AssistantService(
 
     /// <summary>这次能用哪些可选工具：系统设置里开着的、角色在允许名单里的。外部客户只给「请用户确认」。</summary>
     /// <summary>这次能翻看的技能：已启用、角色对得上（空 = 所有内部员工）。后台「试一试」只开指定的那一个（草稿也行），或一个都不开。</summary>
-    private async Task<List<SkillRef>> SkillsForAsync(QaRequest req, CancellationToken ct)
+    private async Task<List<SkillRef>> SkillsForAsync(QaRequest req, IReadOnlySet<string> fileKinds, CancellationToken ct)
     {
         var test = req.SkillTest is not null && me.Permissions.Contains(PermissionKeys.TemplateManage) ? req.SkillTest : null;
         if (test is { On: false }) return [];
@@ -1463,6 +1510,8 @@ public sealed class AssistantService(
             .Select(s => new { s.Id, s.Code, s.Name, s.Description, s.Version, s.Roles }).ToListAsync(ct);
         var internalUser = me.Permissions.Contains(PermissionKeys.QaInternal);
         return rows.Where(r => test is not null || (r.Roles.Count == 0 ? internalUser : r.Roles.Contains(me.RoleCode, StringComparer.OrdinalIgnoreCase)))
+            // 做文件的技能跟着后台开关走：这种文件没开（或这个人不能做），技能也不列
+            .Where(r => test is not null || MadeFiles.SkillKind(r.Code) is not { } k || fileKinds.Contains(k))
             .Select(r => new SkillRef(r.Id, r.Code, r.Name, r.Description, r.Version)).ToList();
     }
 
@@ -1493,6 +1542,88 @@ public sealed class AssistantService(
         if (isCustomer && tool is not ("ask_user" or "inquiry_form" or "show_table" or "show_block")) return false;
         var roles = (await config.GetStringAsync($"assistant.tool.{tool}.roles", "", ct)).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return roles.Length == 0 || roles.Contains(me.RoleCode, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>这个人能让助手做哪几种文件：后台每种一个开关（Excel、Word 默认开，PPT、PDF 默认关）和可用角色；外部客户都不行。</summary>
+    public static async Task<IReadOnlySet<string>> FileKindsAsync(IRuntimeConfig config, ICurrentUser me, CancellationToken ct)
+    {
+        var set = new HashSet<string>();
+        var isCustomer = me.RoleCode == RoleCodes.Customer || me.Permissions.Contains(PermissionKeys.CustomerSelf) && !me.Permissions.Contains(PermissionKeys.QaInternal);
+        if (isCustomer) return set;
+        foreach (var k in MadeFiles.Kinds)
+        {
+            var on = (await config.GetStringAsync($"assistant.file.{k}", k is "xlsx" or "docx" ? "on" : "off", ct)).Trim();
+            if (!on.Equals("on", StringComparison.OrdinalIgnoreCase) && !on.Equals("true", StringComparison.OrdinalIgnoreCase)) continue;
+            var roles = (await config.GetStringAsync($"assistant.file.{k}.roles", "", ct)).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (roles.Length == 0 || roles.Contains(me.RoleCode, StringComparer.OrdinalIgnoreCase)) set.Add(k);
+        }
+        return set;
+    }
+
+    /// <summary>代码写到 out/ 的文件：这个人能不能做这种 → 基本检查 → office 容器检查（Excel 重算公式、转一遍 PDF）→
+    /// 过了存起来、回答里出文件卡；没过记一笔，把错在哪交给模型让它改（同一种最多 3 遍）。</summary>
+    private async Task<(string ForModel, List<string> Made, List<string> Failed)> DeliverFilesAsync(
+        Clients.SandboxClient.RunResult r, Run run, Func<QaEvent, Task> emit, CancellationToken ct)
+    {
+        var text = new StringBuilder();
+        var made = new List<string>();
+        var failed = new List<string>();
+        foreach (var s in r.Skipped ?? []) text.AppendLine($"没收下的文件：{s}");
+        var outs = r.Files ?? [];
+        if (outs.Count == 0) return (text.ToString(), made, failed);
+        var keepDays = Math.Clamp(await config.GetIntAsync(ConfigKeys.FileKeepDays, 7, ct), 1, 90);
+        foreach (var f in outs)
+        {
+            var kind = MadeFiles.KindOf(f.Name);
+            if (kind is null) continue;
+            if (!run.FileKinds.Contains(MadeFiles.SwitchOf(kind)))
+            {
+                text.AppendLine($"《{f.Name}》没有交给用户：{MadeFiles.Label(kind)} 文件现在不能做（后台没开，或这个人的角色不能用）。请在回答里直接给内容。");
+                failed.Add(f.Name);
+                continue;
+            }
+            var data = f.Data;
+            var problems = MadeFiles.BasicProblems(data, kind);
+            JsonElement? info = null;
+            var full = false;
+            if (problems.Count == 0 && kind != "csv")
+            {
+                var chk = await officeCheck.CheckAsync(f.Name, data, ct);
+                if (chk is not null)
+                {
+                    full = true; info = chk.Info; problems.AddRange(chk.Problems);
+                    // Excel 交重算过的那一版：公式带上计算结果，手机、微信里预览才不是空白
+                    if (chk.Ok && chk.Recalculated is { Length: > 0 } rc && MadeFiles.BasicProblems(rc, kind).Count == 0) data = rc;
+                }
+            }
+            var row = new MadeFile
+            {
+                Id = Guid.NewGuid(), CompanyId = me.CompanyId, UserId = me.UserId, SessionId = run.SessionId, MessageId = run.MessageId,
+                FileName = f.Name.Length > 200 ? f.Name[..200] : f.Name, Kind = kind, Size = data.Length, Ok = problems.Count == 0,
+                Problems = problems.Count > 0 ? string.Join("\n", problems) : null, Info = info?.GetRawText(),
+                CreatedAt = DateTimeOffset.UtcNow, ExpiresAt = DateTimeOffset.UtcNow.AddDays(keepDays)
+            };
+            if (problems.Count > 0)
+            {
+                db.MadeFiles.Add(row);
+                await db.SaveChangesAsync(ct);
+                var n = run.FileFails[kind] = run.FileFails.GetValueOrDefault(kind) + 1;
+                text.AppendLine(MadeFiles.ForModelAfterFail(f.Name, problems, n));
+                failed.Add(f.Name);
+                continue;
+            }
+            row.FileKey = await storage.SaveAsync(new MemoryStream(data), $"made/{row.Id:N}{Path.GetExtension(f.Name)}", ct);
+            db.MadeFiles.Add(row);
+            await db.SaveChangesAsync(ct);
+            var card = new { kind = "file", title = row.FileName, url = $"/api/chat/made-files/{row.Id}", detail = MadeFiles.Detail(kind, info, full), ok = true };
+            run.Artifacts.Add(card);
+            await emit(new QaEvent("artifact", card));
+            await audit.WriteAsync(new AuditEntry("qa.file.made", AuditResult.Success, UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+                TargetType: "made_file", TargetId: row.Id.ToString(), Detail: new { kind, name = row.FileName, size = row.Size }), ct);
+            text.AppendLine($"《{row.FileName}》已做好并检查通过（{card.detail}），用户可以在文件卡上预览、下载。回答里简单说明做了什么、关键数字是多少，不要再把整个文件内容贴一遍。");
+            made.Add(row.FileName);
+        }
+        return (text.ToString(), made, failed);
     }
 
     /// <summary>这条对话最后一条消息若在等用户确认，取出现场。</summary>

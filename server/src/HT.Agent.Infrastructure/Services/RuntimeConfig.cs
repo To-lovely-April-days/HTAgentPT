@@ -25,6 +25,12 @@ public class RuntimeConfig(IServiceScopeFactory scopeFactory, IMemoryCache cache
         [ConfigKeys.ChatTemperature] = "0.2",
         [ConfigKeys.ChatMaxTokens] = "2048",
         [ConfigKeys.ChatContextTokens] = "8192",
+        // 做文件：先开 Excel 和 Word；PPT、PDF 用测试题跑过、成功率够了再开
+        [ConfigKeys.FileXlsx] = "on",
+        [ConfigKeys.FileDocx] = "on",
+        [ConfigKeys.FilePptx] = "off",
+        [ConfigKeys.FilePdf] = "off",
+        [ConfigKeys.FileKeepDays] = "7",
         [ConfigKeys.EmbeddingUrl] = "http://127.0.0.1:8080/embed",
         [ConfigKeys.EmbeddingModelName] = "embedding-default",
         [ConfigKeys.EmbeddingDimension] = "1024",
