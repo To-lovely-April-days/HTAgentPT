@@ -502,7 +502,7 @@ export type ToolArtifact =
   | { kind: 'form'; title: string; known: number; missing: number;
       groups: { name: string; items: { field: string; value: string; status: 'known' | 'must' | 'should'; why: string }[] }[] }
   | { kind: 'lit'; query: string; patents: number; papers: number; notes: string[];
-      items: { n: number; kind: string; title: string; meta: string; abstract: string; url: string }[] }
+      items: { n: number; kind: string; title: string; meta: string; abstract: string; url: string; fullText?: string | null }[] }
   | { kind: 'image'; file: string; question: string; answer: string; thumb: string | null }
   | { kind: 'ocr'; file: string; text: string; note: string }
   | { kind: 'file'; title: string; url: string; detail: string; ok?: boolean }

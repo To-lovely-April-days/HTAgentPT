@@ -237,13 +237,20 @@ public class WebFetcher(IHttpClientFactory http)
 
     public async Task<Page> FetchAsync(string url, CancellationToken ct)
     {
-        var raw = await FetchRawAsync(url, ct);
+        var raw = await FetchRawAsync(url, ct, allowPdf: true);
         if (raw.Note is not null) return new Page(raw.Url.ToString(), raw.Url.Host, "", raw.Note);
+        if (raw.Type == "application/pdf")
+        {
+            var first = raw.Html.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault(l => l.Length >= 8) ?? raw.Url.Host;
+            return new Page(raw.Url.ToString(), "PDF：" + (first.Length > 80 ? first[..80] + "…" : first), raw.Html, null);
+        }
         var (title, text) = raw.Type.Contains("html") || raw.Html.Contains("<html", StringComparison.OrdinalIgnoreCase) ? WebText.Extract(raw.Html) : ("", raw.Html);
         return new Page(raw.Url.ToString(), string.IsNullOrWhiteSpace(title) ? raw.Url.Host : title, text, null);
     }
 
-    public async Task<Raw> FetchRawAsync(string url, CancellationToken ct)
+    /// <summary>allowPdf：PDF 也收（读全文用，比如论文的开放获取全文），抽出文字放在 Html 里，Type 为 application/pdf。
+    /// 网页阅读模式不收 PDF（它要的是能显示的 HTML）。</summary>
+    public async Task<Raw> FetchRawAsync(string url, CancellationToken ct, bool allowPdf = false)
     {
         if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri) || !NetGuard.IsAllowedUrl(uri))
             throw new InvalidOperationException("只能打开 http/https 的公开网页");
@@ -265,7 +272,16 @@ public class WebFetcher(IHttpClientFactory http)
             resp.EnsureSuccessStatusCode();
             var type = resp.Content.Headers.ContentType?.MediaType ?? "";
             var embeddable = Embeddable(resp);
-            if (type.Contains("pdf")) return new Raw(uri, "", type, embeddable, "这个链接是 PDF 文件，暂时读不了网页里的 PDF；可以下载后作为附件上传");
+            var looksPdf = type.Contains("pdf") || (type is "application/octet-stream" or "binary/octet-stream" && uri.AbsolutePath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase));
+            if (looksPdf && !allowPdf) return new Raw(uri, "", type, embeddable, "这个链接是 PDF 文件，网页阅读模式打不开；可以让助手读，或下载后作为附件上传");
+            if (looksPdf)
+            {
+                const int cap = 25 * 1024 * 1024;
+                var pdf = await ReadCappedAsync(await resp.Content.ReadAsStreamAsync(ct), cap, ct);
+                if (pdf.Length >= cap) return new Raw(uri, "", "application/pdf", embeddable, "这个 PDF 超过 25MB，读不了；可以下载后作为附件上传");
+                var (text, note) = PdfText.Extract(pdf);
+                return new Raw(uri, text, "application/pdf", embeddable, note);
+            }
             if (!(type.Contains("html") || type.StartsWith("text/") || type.Length == 0))
                 return new Raw(uri, "", type, embeddable, $"这个链接不是网页（{type}），读不了");
             var bytes = await ReadCappedAsync(await resp.Content.ReadAsStreamAsync(ct), 3 * 1024 * 1024, ct);
@@ -312,6 +328,31 @@ public class WebFetcher(IHttpClientFactory http)
             return (bytes, type);
         }
         return null;
+    }
+
+    /// <summary>PDF 抽文字（按页、按阅读顺序）。最多读前 60 页；扫描件没有文字层，读不出来就明说。</summary>
+    public static class PdfText
+    {
+        public static (string Text, string? Note) Extract(byte[] bytes, int maxPages = 60)
+        {
+            try
+            {
+                using var doc = UglyToad.PdfPig.PdfDocument.Open(bytes);
+                var sb = new StringBuilder();
+                var n = 0;
+                foreach (var page in doc.GetPages())
+                {
+                    if (++n > maxPages) { sb.AppendLine($"（后面还有 {doc.NumberOfPages - maxPages} 页没读）"); break; }
+                    sb.AppendLine(UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor.ContentOrderTextExtractor.GetText(page));
+                }
+                var text = sb.ToString().Trim();
+                return text.Length < 200 ? ("", "这个 PDF 读不出文字（可能是扫描件）；可以下载后作为附件上传，系统会做文字识别") : (text, null);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return ("", "这个 PDF 打不开（文件损坏或加密）");
+            }
+        }
     }
 
     private static async Task<byte[]> ReadCappedAsync(Stream s, int cap, CancellationToken ct)

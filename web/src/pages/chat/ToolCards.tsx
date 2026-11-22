@@ -260,7 +260,7 @@ function LitCard({ a }: { a: Extract<ToolArtifact, { kind: 'lit' }> }) {
             <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
               <span><span className={'lit-kind' + (it.kind === '专利' ? ' pat' : '')}>{it.kind}</span>
                 <a href={it.url} target="_blank" rel="noopener noreferrer" className="lit-t">{it.title}</a></span>
-              <span className="hint">{it.meta}</span>
+              <span className="hint">{it.meta}{it.fullText && <> · <a className="lit-ft" href={it.fullText} target="_blank" rel="noopener noreferrer">开放全文 ↗</a></>}</span>
               {it.abstract && (open === it.n
                 ? <span className="lit-abs">{it.abstract}</span>
                 : <button type="button" className="tool-link" style={{ marginLeft: 0, alignSelf: 'flex-start' }} onClick={() => setOpen(it.n)}>看摘要 ▾</button>)}

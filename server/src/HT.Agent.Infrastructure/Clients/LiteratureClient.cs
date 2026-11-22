@@ -9,13 +9,16 @@ namespace HT.Agent.Infrastructure.Clients;
 /// 专利：欧洲专利局 OPS（免费，需在 developers.epo.org 注册拿一对密钥；含中国专利）。没配密钥就只查论文。</summary>
 public class LiteratureClient(IHttpClientFactory http)
 {
-    public record Item(string Kind, string Title, string Meta, string Abstract, string Url);
+    /// <summary>FullText：开放获取的全文地址（PDF 或出版社全文页），没有就是 null。</summary>
+    public record Item(string Kind, string Title, string Meta, string Abstract, string Url, string? FullText = null);
 
     // ── 论文 ──────────────────────────────────────────
-    public async Task<IReadOnlyList<Item>> PapersAsync(string query, int take, string? mailto, CancellationToken ct)
+    /// <summary>fullTextOnly：只要有开放全文的（要读具体实验条件时用）。</summary>
+    public async Task<IReadOnlyList<Item>> PapersAsync(string query, int take, string? mailto, CancellationToken ct, bool fullTextOnly = false)
     {
         var url = $"https://api.openalex.org/works?search={Uri.EscapeDataString(query)}&per-page={take}"
-                  + "&select=id,doi,display_name,publication_year,cited_by_count,primary_location,abstract_inverted_index"
+                  + (fullTextOnly ? "&filter=is_oa:true" : "")
+                  + "&select=id,doi,display_name,publication_year,cited_by_count,primary_location,abstract_inverted_index,open_access,best_oa_location"
                   + (string.IsNullOrWhiteSpace(mailto) ? "" : $"&mailto={Uri.EscapeDataString(mailto)}");
         using var doc = JsonDocument.Parse(await http.CreateClient("tools").GetStringAsync(url, ct));
         var list = new List<Item>();
@@ -31,9 +34,23 @@ public class LiteratureClient(IHttpClientFactory http)
             var doi = Str(w, "doi");
             var link = doi ?? Str(w, "id") ?? "";
             var meta = string.Join(" · ", new[] { venue, year, cited > 0 ? $"被引 {cited}" : null }.Where(s => !string.IsNullOrEmpty(s)));
-            list.Add(new Item("论文", title, meta, Abstract(w), link));
+            list.Add(new Item("论文", title, meta, Abstract(w), link, FullTextUrl(w)));
         }
         return list;
+    }
+
+    /// <summary>开放获取的全文：优先 PDF，其次出版社的全文页；不是开放获取就没有。</summary>
+    internal static string? FullTextUrl(JsonElement w)
+    {
+        if (w.TryGetProperty("best_oa_location", out var b) && b.ValueKind == JsonValueKind.Object)
+        {
+            var u = Str(b, "pdf_url") ?? Str(b, "landing_page_url");
+            if (!string.IsNullOrWhiteSpace(u)) return u;
+        }
+        if (w.TryGetProperty("open_access", out var oa) && oa.ValueKind == JsonValueKind.Object
+            && oa.TryGetProperty("is_oa", out var io) && io.ValueKind == JsonValueKind.True)
+            return Str(oa, "oa_url");
+        return null;
     }
 
     /// <summary>OpenAlex 的摘要是「词 → 位置」倒排表，拼回原文。</summary>

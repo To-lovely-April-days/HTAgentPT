@@ -19,7 +19,7 @@ public static class SkillFiles
     ];
 
     /// <summary>回答组件里带下划线的名字（show_block 的 kind），正文里提到它们不算未知工具。</summary>
-    public static readonly string[] KnownWords = ["fault_tree", "risk_matrix", "signal_to", "drawing_no"];
+    public static readonly string[] KnownWords = ["fault_tree", "risk_matrix", "signal_to", "drawing_no", "full_text_only"];
 
     /// <summary>允许导入的许可证（可商用、可修改）。没声明的不让导入。</summary>
     public static readonly string[] OpenLicenses = ["apache-2.0", "apache 2.0", "mit", "bsd-2-clause", "bsd-3-clause", "isc", "cc-by-4.0", "cc0-1.0", "mpl-2.0", "unlicense"];

@@ -599,11 +599,12 @@ public sealed class AssistantService(
                 Obj(new() { ["query"] = Str("要查的内容，如「液压试验压力」「GB 150 开孔补强」") }, "query")));
         if (enabled.Contains("search_literature"))
             list.Add(new ToolSpec("search_literature",
-                "检索论文（OpenAlex）和专利（欧洲专利局，含中国专利）。关键词用英文效果最好；返回标题、出处、年份、摘要和链接。",
+                "检索论文（OpenAlex，每次最多 10 篇）和专利（欧洲专利局，含中国专利）。关键词用英文效果最好；返回标题、出处、年份、摘要和链接，开放获取的论文还给全文地址（用 fetch_url 读，PDF 也能读）。",
                 Obj(new()
                 {
                     ["query"] = Str("关键词，建议英文，如 nylon 66 continuous polycondensation"),
                     ["kind"] = new Dictionary<string, object> { ["type"] = "string", ["enum"] = new[] { "both", "paper", "patent" }, ["description"] = "查论文、专利还是都查（默认都查）" },
+                    ["full_text_only"] = new Dictionary<string, object> { ["type"] = "boolean", ["description"] = "只要有开放全文的论文（要读具体实验条件时用；默认 false）" },
                 }, "query")));
         if (enabled.Contains("view_image"))
         {
@@ -842,7 +843,7 @@ public sealed class AssistantService(
                 Obj(new() { ["query"] = Str("搜索词") }, "query")));
         if (enabled.Contains("fetch_url"))
             list.Add(new ToolSpec("fetch_url",
-                "打开一个公开网页读正文（用户给的链接，或搜索结果里的链接）。返回和关注点最相关的几段。",
+                "打开一个公开网页读正文（用户给的链接、搜索结果里的链接、论文的开放全文；PDF 也能读，扫描件除外）。返回和关注点最相关的几段，focus 写清要找什么（如 反应温度 压力 催化剂用量 收率）。",
                 Obj(new() { ["url"] = Str("网址，http 或 https"), ["focus"] = Str("想在页面里找什么（可选）") }, "url")));
         if (enabled.Contains("compare_documents") && (canDocs || hasAttachments))
             list.Add(new ToolSpec("compare_documents",
@@ -1332,7 +1333,7 @@ public sealed class AssistantService(
                 var items = new List<Clients.LiteratureClient.Item>();
                 var notes = new List<string>();
                 if (kind is "both" or "paper")
-                    try { items.AddRange(await literature.PapersAsync(q, 6, await config.GetStringAsync(ConfigKeys.OpenAlexMailto, "", ct), ct)); }
+                    try { items.AddRange(await literature.PapersAsync(q, 10, await config.GetStringAsync(ConfigKeys.OpenAlexMailto, "", ct), ct, a["full_text_only"]?.ToString() is "true" or "True")); }
                     catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException) { notes.Add("论文库这次没连上"); }
                 if (kind is "both" or "patent")
                 {
@@ -1352,9 +1353,10 @@ public sealed class AssistantService(
                 {
                     var text = $"{it.Title}\n{it.Meta}\n{it.Abstract}".Trim();
                     var e = run.Add($"lit:{it.Url}", n => new EvidenceItem(n, "web", $"{it.Kind}：{it.Title}", text, Url: it.Url, Classification: "Public"));
-                    sb.AppendLine($"[{e.N}] {it.Kind}｜{it.Title}（{it.Meta}）\n{Clip(it.Abstract, 500)}\n");
+                    sb.AppendLine($"[{e.N}] {it.Kind}｜{it.Title}（{it.Meta}）\n{Clip(it.Abstract, 500)}\n"
+                        + (it.FullText is null ? "" : $"开放全文：{it.FullText}（要具体条件时用 fetch_url 打开读全文）\n"));
                     compact.AppendLine($"[{e.N}] {it.Kind}｜{it.Title}");
-                    cardItems.Add(new { n = e.N, kind = it.Kind, title = it.Title, meta = it.Meta, @abstract = Clip(it.Abstract, 300), url = it.Url });
+                    cardItems.Add(new { n = e.N, kind = it.Kind, title = it.Title, meta = it.Meta, @abstract = Clip(it.Abstract, 300), url = it.Url, fullText = it.FullText });
                 }
                 var card = new { kind = "lit", query = q, items = cardItems, patents = items.Count(i => i.Kind == "专利"), papers = items.Count(i => i.Kind == "论文"), notes };
                 run.Artifacts.Add(card);
@@ -1543,7 +1545,7 @@ public sealed class AssistantService(
                 if (page.Note is not null) return new ToolOutcome(page.Note, page.Note, label, url, "读不了");
                 var focus = S("focus") ?? req.Question;
                 var pieces = WebText.Pieces(page.Text);
-                var picked = RankPieces(pieces, focus, 4);
+                var picked = RankPieces(pieces, focus, page.Title.StartsWith("PDF：") ? 6 : 4);   // 论文全文这类 PDF 多给几段
                 if (picked.Count == 0) return new ToolOutcome("网页里没有读到正文。", "没有正文", label, page.Title, "没有正文");
                 var sb = new StringBuilder($"网页《{page.Title}》（{page.Url}）：\n");
                 var compact = new StringBuilder();
