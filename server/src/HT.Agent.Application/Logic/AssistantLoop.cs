@@ -172,6 +172,7 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         "browser_open" => "打开网页",
         "browser_read" => "读页面",
         "browser_act" => "操作网页",
+        "browser_look" => "看网页画面",
         _ => name
     };
 

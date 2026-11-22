@@ -95,6 +95,8 @@ public static class DependencyInjection
         services.AddHttpClient("tools", c => c.Timeout = TimeSpan.FromSeconds(60));
         // 运行代码（最长 120 秒）和检查做好的文件（LibreOffice 转一遍）要更久，另起一个
         services.AddHttpClient("sandbox", c => c.Timeout = TimeSpan.FromSeconds(240));
+        // 内置浏览器的实时画面：一直开着的流，不设超时（员工关掉面板就断）
+        services.AddHttpClient("browser-stream", c => c.Timeout = Timeout.InfiniteTimeSpan);
         services.AddHttpClient("webfetch", c => c.Timeout = TimeSpan.FromSeconds(15))
             .ConfigurePrimaryHttpMessageHandler(WebFetcher.CreateHandler);
         services.AddSingleton<SandboxClient>();

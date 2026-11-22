@@ -633,7 +633,8 @@ function Composer({ placeholder, big, attach, children, busy = false }: {
     </>
   );
   const input = (
-    <ComposerPrimitive.Input className="composer-input" rows={big ? 3 : 1} autoFocus
+    // 滚到底时不抢焦点：右边「可操作」的网页画面上打字时，字要留在网页里
+    <ComposerPrimitive.Input className="composer-input" rows={big ? 3 : 1} autoFocus unstable_focusOnScrollToBottom={false}
       aria-label="输入你的问题或任务" placeholder={placeholder} />
   );
   return (

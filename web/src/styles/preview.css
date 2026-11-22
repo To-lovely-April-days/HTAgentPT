@@ -262,3 +262,9 @@ button.sess-file:hover { background: #ebebe8; color: var(--ink); }
 .lv-view.focus img { box-shadow: 0 0 0 2px #2f6fd6, 0 1px 6px rgba(16,24,40,.12); }
 .lv-view.busy img { cursor: not-allowed; }
 .lv-tip { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); padding: 4px 10px; border-radius: 999px; background: rgba(20,20,20,.72); color: #fff; font-size: 11.5px; pointer-events: none; white-space: nowrap; }
+.lv-badge { position: absolute; right: 18px; top: 18px; padding: 2px 8px; border-radius: 999px; background: rgba(47,111,214,.9); color: #fff; font-size: 11px; pointer-events: none; }
+/* 网页下载的文件：放不放进对话附件由员工定 */
+.wb-dl { display: flex; align-items: center; gap: 8px; padding: 7px 14px; font-size: 12.5px; background: #f6f8fc; border-bottom: 1px solid #e3e9f5; color: var(--ink); }
+.wb-dl svg { color: #2a4a85; flex: 0 0 auto; }
+.wb-dl-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-dl button { height: 26px; padding: 0 10px; font-size: 12px; }

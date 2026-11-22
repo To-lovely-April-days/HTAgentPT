@@ -474,6 +474,24 @@ PY
 
 然后到后台「系统设置 · 助手工具」，「外部数据」里的「内置浏览器」状态应是「浏览器服务正常」。员工要用的内部系统（如 ERP），在它的「设置」里加进「允许打开的内网地址」。同时开几个浏览器、每个对话最多几个网页、闲置多久关，在 compose.env 里用 BROWSER_MAX_SESSIONS、BROWSER_MAX_TABS、BROWSER_IDLE_MINUTES 改，默认 4、8、15。
 
+## 11. 升级：内置浏览器第二步（实时画面、下载进附件、看截图）+ 代码解释器修复
+
+这次要重建 browser 和 sandbox 两个容器：
+- browser：画面实时推过来（有人在看才推）；网页下载的文件先留在浏览器里，员工在面板上点「放进对话附件」才收进对话。
+- sandbox：修了一个问题——后端发给代码解释器的请求以前不带长度（分块发送），代码解释器读到的是空的，「运行计算」「做文件」会没有结果。后端和代码解释器两边都改了，重建后才生效。
+
+```bash
+cd /srv/htagent/app
+docker compose --env-file /srv/htagent/config/compose.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.tools.yml build browser sandbox
+docker compose --env-file /srv/htagent/config/compose.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.tools.yml up -d browser sandbox
+```
+
+验证：在对话里让助手「用 Python 算一下 3.14*0.25^2/4」，「查了几步」里「运行计算」应该有输出（0.049…）。
+
+「看网页画面」要模型能看图：后台「系统设置 · 模型与运行参数」的「图片理解」里打开，并且模型服务启动命令去掉 `--language-model-only`（会多占一些显存），或者另配一个看图模型的地址。不开也不影响其他功能，助手只是看不了截图。
+
 ## 排错所需信息
 
 出现问题时，提供 GPU 型号/驱动版本、失败命令、错误日志尾部即可。不要发送 compose.env、管理员密码或 API key。

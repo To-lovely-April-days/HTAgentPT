@@ -3,12 +3,16 @@
 后端（只有后端）调这里：开网页、读页面（正文、表格、编了号的可操作元素）、按编号点 / 填 / 选、截图、
 转发员工在画面上的点击和打字。规矩（哪些要先问、哪些不做）在后端判，这里只管执行和拦内网：
 - 内网、本机、保留地址一律拦（不然从这台服务器上的浏览器能摸到数据库、模型服务），后端给的白名单除外；
-- 不下载文件，弹窗一律取消；
+- 弹窗一律取消；网页下载的文件先存在这里（20MB 以内），员工在面板上点「放进对话附件」才交给后端；
+- 「实时画面」用 Chromium 的 screencast：有人在看才开，按帧推给后端（MJPEG），没人看就停；
 - 闲置太久的浏览器环境关掉；同时开的数量有上限。
 所有浏览器操作都在一个线程里做（Playwright 的对象不能跨线程用），HTTP 请求排队交给它。
 """
+import base64
 import ipaddress
 import json
+import shutil
+import tempfile
 import os
 import queue
 import re
@@ -26,6 +30,13 @@ MAX_TABS = int(os.environ.get("MAX_TABS", "8"))
 IDLE = int(os.environ.get("IDLE_MINUTES", "15")) * 60
 CHROMIUM = os.environ.get("CHROMIUM_PATH", "/usr/bin/chromium")
 VIEW = {"width": 1280, "height": 800}
+MAX_DOWNLOAD = 20 * 1024 * 1024
+DL_DIR = tempfile.mkdtemp(prefix="dl-")
+
+# 实时画面：每个标签最新的一帧（HTTP 线程读、浏览器线程写）
+FRAMES = {}            # (sid, tid) -> (序号, jpeg bytes)
+WATCHERS = {}          # (sid, tid) -> 在看的人数
+FRAME_COND = threading.Condition()
 
 SNAPSHOT_JS = r"""
 () => {
@@ -91,6 +102,8 @@ class Tab:
         self.id = uuid.uuid4().hex[:8]
         self.page = page
         self.rev = 0
+        self.cdp = None          # 开着 screencast 时的 CDP 会话
+        self.idle_since = None   # 没人看了从什么时候开始
 
 
 class Session:
@@ -100,6 +113,8 @@ class Session:
         self.tabs = {}
         self.allow = []
         self.used = time.time()
+        self.downloads = []      # [{id, name, size, path, ok, note, tab, at}]
+        self.pending = []        # 还没存好的 Download 对象（在浏览器线程的循环里存）
 
 
 class Engine:
@@ -129,8 +144,9 @@ class Engine:
             self.ready.set()
             last_sweep = time.time()
             while True:
+                casting = any(t.cdp for s in self.sessions.values() for t in s.tabs.values())
                 try:
-                    fn, args, box, done = self.jobs.get(timeout=5)
+                    fn, args, box, done = self.jobs.get(timeout=0.03 if casting else 2)
                     try:
                         box["value"] = fn(*args)
                     except Exception as e:  # noqa: BLE001 - 交回给请求方
@@ -138,7 +154,14 @@ class Engine:
                     finally:
                         done.set()
                 except queue.Empty:
-                    pass
+                    if casting:      # 有人在看实时画面：让浏览器把画面帧送过来
+                        page = next(t.page for s in self.sessions.values() for t in s.tabs.values() if t.cdp)
+                        try:
+                            page.wait_for_timeout(30)
+                        except PwError:
+                            pass
+                self._screencasts()
+                self._save_downloads()
                 if time.time() - last_sweep > 30:
                     last_sweep = time.time()
                     for sid in [s for s, v in self.sessions.items() if time.time() - v.used > IDLE]:
@@ -152,7 +175,7 @@ class Engine:
                 raise KeyError("这个对话的浏览器已经关了（闲置太久），重新打开网页就行")
             if len(self.sessions) >= MAX_SESSIONS:
                 raise OverflowError(f"同时开着的浏览器到上限了（{MAX_SESSIONS} 个），等别人用完或关掉一个")
-            ctx = self.browser.new_context(viewport=VIEW, locale="zh-CN", accept_downloads=False,
+            ctx = self.browser.new_context(viewport=VIEW, locale="zh-CN", accept_downloads=True,
                                            user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 HTLAB-Assistant")
             s = Session(sid, ctx)
             ctx.route("**/*", lambda route: self._guard(s, route))
@@ -181,6 +204,7 @@ class Engine:
             page.close()
             return
         page.on("dialog", lambda d: d.dismiss())
+        page.on("download", lambda d: s.pending.append((d, page)))
         t = Tab(page)
         s.tabs[t.id] = t
 
@@ -306,6 +330,97 @@ class Engine:
         t = self._tab(s, tid)
         return t.page.screenshot(type="jpeg", quality=70), t.rev
 
+    # ── 实时画面 ──────────────────────────────────
+    def _screencasts(self):
+        """有人在看的标签开 screencast，没人看超过 5 秒的停掉。"""
+        for s in list(self.sessions.values()):
+            for t in list(s.tabs.values()):
+                with FRAME_COND:
+                    n = WATCHERS.get((s.sid, t.id), 0)
+                if n > 0 and t.cdp is None and not t.page.is_closed():
+                    try:
+                        cdp = s.context.new_cdp_session(t.page)
+                        key = (s.sid, t.id)
+
+                        def on_frame(ev, cdp=cdp, key=key):
+                            with FRAME_COND:
+                                seq = FRAMES.get(key, (0, b""))[0] + 1
+                                FRAMES[key] = (seq, base64.b64decode(ev["data"]))
+                                FRAME_COND.notify_all()
+                            try:
+                                cdp.send("Page.screencastFrameAck", {"sessionId": ev["sessionId"]})
+                            except PwError:
+                                pass
+
+                        cdp.on("Page.screencastFrame", on_frame)
+                        cdp.send("Page.startScreencast", {"format": "jpeg", "quality": 60, "maxWidth": VIEW["width"], "maxHeight": VIEW["height"], "everyNthFrame": 2})
+                        t.cdp = cdp
+                        t.idle_since = None
+                        # 静止的页面不重画就不出帧：先放一张截图，刚打开画面就有东西看
+                        shot = t.page.screenshot(type="jpeg", quality=60)
+                        with FRAME_COND:
+                            seq = FRAMES.get(key, (0, b""))[0] + 1
+                            FRAMES[key] = (seq, shot)
+                            FRAME_COND.notify_all()
+                    except PwError:
+                        t.cdp = None
+                elif n == 0 and t.cdp is not None:
+                    t.idle_since = t.idle_since or time.time()
+                    if time.time() - t.idle_since > 5:
+                        try:
+                            t.cdp.send("Page.stopScreencast")
+                            t.cdp.detach()
+                        except PwError:
+                            pass
+                        t.cdp = None
+
+    # ── 下载 ───────────────────────────────────
+    def _save_downloads(self):
+        for s in list(self.sessions.values()):
+            while s.pending:
+                d, page = s.pending.pop(0)
+                name = os.path.basename(d.suggested_filename or "download")[:120]
+                item = {"id": uuid.uuid4().hex[:8], "name": name, "size": 0, "ok": False, "note": None, "at": time.time(),
+                        "tab": next((t.id for t in s.tabs.values() if t.page is page), None), "path": None}
+                try:
+                    path = os.path.join(DL_DIR, item["id"])
+                    d.save_as(path)
+                    item["size"] = os.path.getsize(path)
+                    if item["size"] > MAX_DOWNLOAD:
+                        os.remove(path)
+                        item["note"] = "超过 20MB，没收"
+                    else:
+                        item["path"], item["ok"] = path, True
+                except PwError as e:
+                    item["note"] = "没下载成：" + str(e).split("\n")[0][:80]
+                s.downloads.append(item)
+                s.downloads = s.downloads[-20:]
+                for t in s.tabs.values():
+                    if t.page is page:
+                        t.rev += 1
+
+    def downloads(self, sid):
+        s = self.sessions.get(sid)
+        if s is None:
+            return {"downloads": []}
+        return {"downloads": [{k: v for k, v in d.items() if k != "path"} for d in s.downloads]}
+
+    def take_download(self, sid, did):
+        s = self._session(sid)
+        d = next((x for x in s.downloads if x["id"] == did), None)
+        if d is None or not d["ok"] or not d["path"]:
+            raise KeyError("这个下载的文件已经没了")
+        with open(d["path"], "rb") as f:
+            return d["name"], f.read()
+
+    def drop_download(self, sid, did):
+        s = self._session(sid)
+        for d in [x for x in s.downloads if x["id"] == did]:
+            if d.get("path") and os.path.exists(d["path"]):
+                os.remove(d["path"])
+            s.downloads.remove(d)
+        return {"ok": True}
+
     def close_tab(self, sid, tid):
         s = self._session(sid)
         t = s.tabs.pop(tid, None)
@@ -316,6 +431,9 @@ class Engine:
     def _close(self, sid):
         s = self.sessions.pop(sid, None)
         if s:
+            for d in s.downloads:
+                if d.get("path") and os.path.exists(d["path"]):
+                    os.remove(d["path"])
             try:
                 s.context.close()
             except PwError:
@@ -328,6 +446,26 @@ class Engine:
 
 ENGINE = None
 ROUTE = re.compile(r"^/s/([A-Za-z0-9-]{8,64})(?:/t/([a-f0-9]{8})(?:/(\w+))?|/(\w+))?$")
+DL_ROUTE = re.compile(r"^/s/([A-Za-z0-9-]{8,64})/downloads/([a-f0-9]{8})$")
+
+
+def read_body(handler, limit):
+    """读请求体：带 Content-Length 的按长度读；分块发来的（Transfer-Encoding: chunked）逐块拼起来。超过 limit 返回 None。"""
+    if (handler.headers.get("Transfer-Encoding") or "").lower() == "chunked":
+        out = bytearray()
+        while True:
+            size = int(handler.rfile.readline().strip().split(b";")[0] or b"0", 16)
+            if size == 0:
+                handler.rfile.readline()
+                return bytes(out)
+            out += handler.rfile.read(size)
+            handler.rfile.readline()
+            if len(out) > limit:
+                return None
+    n = int(handler.headers.get("Content-Length") or 0)
+    if n > limit:
+        return None
+    return handler.rfile.read(n) if n else b""
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -343,10 +481,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _body(self):
-        n = int(self.headers.get("Content-Length") or 0)
-        if n > 100_000:
+        raw = read_body(self, 100_000)
+        if raw is None:
             raise ValueError("请求太大")
-        return json.loads(self.rfile.read(n) or b"{}") if n else {}
+        return json.loads(raw) if raw else {}
 
     def _run(self, fn, *args):
         try:
@@ -362,13 +500,60 @@ class Handler(BaseHTTPRequestHandler):
         except (PwError, TimeoutError) as e:
             return 502, {"error": str(e).split("\n")[0][:200]}
 
+    def _stream(self, sid, tid):
+        """实时画面：multipart/x-mixed-replace 的 JPEG 帧（浏览器的 <img> 直接能放）。最长 15 分钟，断了前端会重连。"""
+        key = (sid, tid)
+        with FRAME_COND:
+            WATCHERS[key] = WATCHERS.get(key, 0) + 1
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            # 每一帧后面紧跟下一段的分隔线：浏览器看到分隔线才知道这一帧完了，不然第一帧要等第二帧来了才显示
+            self.wfile.write(b"--frame\r\n")
+            last, started = -1, time.time()
+            while time.time() - started < 900:
+                with FRAME_COND:
+                    FRAME_COND.wait_for(lambda: FRAMES.get(key, (0, b""))[0] != last, timeout=10)
+                    seq, img = FRAMES.get(key, (0, b""))
+                if seq == last or not img:
+                    if (sid not in ENGINE.sessions) or tid not in ENGINE.sessions[sid].tabs:
+                        break
+                    continue
+                last = seq
+                self.wfile.write(b"Content-Type: image/jpeg\r\nContent-Length: " + str(len(img)).encode() + b"\r\n\r\n" + img + b"\r\n--frame\r\n")
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        finally:
+            with FRAME_COND:
+                WATCHERS[key] = max(0, WATCHERS.get(key, 1) - 1)
+
     def do_GET(self):
         if self.path == "/health":
             return self._json(200, {"ok": True, "sessions": len(ENGINE.sessions)})
+        dm = DL_ROUTE.match(self.path)
+        if dm:
+            try:
+                name, data = ENGINE.call(ENGINE.take_download, *dm.groups())
+            except KeyError as e:
+                return self._json(404, {"error": str(e).strip("'\"")})
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("X-File-Name", base64.b64encode(name.encode()).decode())
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         m = ROUTE.match(self.path)
         if not m:
             return self._json(404, {"error": "not found"})
         sid, tid, sub, op = m.groups()
+        if tid and sub == "stream":
+            return self._stream(sid, tid)
+        if not tid and op == "downloads":
+            return self._json(*self._run(ENGINE.downloads, sid))
         if tid and sub == "shot":
             try:
                 img, rev = ENGINE.call(ENGINE.shot, sid, tid)
@@ -407,6 +592,9 @@ class Handler(BaseHTTPRequestHandler):
         self._json(404, {"error": "not found"})
 
     def do_DELETE(self):
+        dm = DL_ROUTE.match(self.path)
+        if dm:
+            return self._json(*self._run(ENGINE.drop_download, *dm.groups()))
         m = ROUTE.match(self.path)
         if not m:
             return self._json(404, {"error": "not found"})

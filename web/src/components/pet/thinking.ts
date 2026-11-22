@@ -27,7 +27,7 @@ const TOOL_ACT: Record<string, Act> = {
   web_search: 'web', fetch_url: 'web', chemical_info: 'web',
   ask_user: 'ask', inquiry_form: 'ask',
   use_skill: 'read',
-  browser_open: 'web', browser_read: 'web', browser_act: 'web',
+  browser_open: 'web', browser_read: 'web', browser_act: 'web', browser_look: 'mag',
 };
 
 /** 这个工具对应小人的哪个动作（分头查里子代理的小人也用这个）。 */

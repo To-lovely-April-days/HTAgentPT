@@ -5,7 +5,7 @@
 // 「可操作」：服务器上跑的真浏览器（内置浏览器），助手和你都能点、能填；标签上的像素小人表示谁在操作。
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, del, fetchBlobUrl, get, post } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { Perm } from '../../../lib/types';
@@ -22,7 +22,8 @@ import { LiveView } from './LiveView';
 export interface WebTab { url: string; title?: string; label?: string; quotes?: string[]; live?: string }
 
 interface LiveTab { tab: string; url: string; title: string; rev: number; who: number | null; live: boolean; done: boolean; label: string | null }
-interface LiveState { alive: boolean; stopped: boolean; tabs: LiveTab[] }
+interface LiveDownload { id: string; name: string; size: number; ok: boolean; note: string | null; tab: string | null; accepted: boolean }
+interface LiveState { alive: boolean; stopped: boolean; tabs: LiveTab[]; downloads?: LiveDownload[] }
 type Mode = 'reader' | 'original' | 'live';
 
 interface Block { type: string; text?: string | null; level?: number | null; rows?: string[][] | null; src?: string | null }
@@ -139,6 +140,7 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
   onAdopt: (tabs: WebTab[]) => void; onClose: () => void;
 }) {
   const caps = useCaps();
+  const qc = useQueryClient();
   const { profile } = useAuth();
   const canSave = profile?.permissions.includes(Perm.CorpusUpload) ?? false;
   const tab = tabs[Math.min(active, tabs.length - 1)];
@@ -238,6 +240,19 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
     try { await post(`/api/browser/${sessionId}/stop`, {}); void state.refetch(); flash('助手停下了，现在由你操作'); }
     catch (e) { flash(e instanceof ApiError ? e.message : '没停下'); }
   };
+  // 网页下载的文件：员工决定要不要放进这个对话的附件（放进来助手就能读）
+  const keep = async (d: LiveDownload) => {
+    try {
+      await post(`/api/browser/${sessionId}/downloads/${d.id}/keep`, {});
+      void qc.invalidateQueries({ queryKey: ['chat-files', sessionId] });
+      void state.refetch();
+      flash(`《${d.name}》已放进这个对话的附件，助手能读了`);
+    } catch (e) { flash(e instanceof ApiError ? e.message : '没放进去'); }
+  };
+  const drop = async (d: LiveDownload) => {
+    try { await del(`/api/browser/${sessionId}/downloads/${d.id}`); void state.refetch(); } catch { /* 已经没了 */ }
+  };
+  const downloads = state.data?.downloads ?? [];
   const addrValue = addr?.for === keyOf(tab) ? addr.value : url;
   const many = tabs.length > 4;
 
@@ -323,6 +338,14 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
       {mode === 'live' && !live?.live && tab.live && (
         <div className="wb-strip me"><span>你在操作 · 直接在画面上点、打字；问助手「这页」它能看到</span></div>
       )}
+      {downloads.map((d) => (
+        <div key={d.id} className="wb-dl">
+          <Icon name="file" size={14} />
+          <span className="wb-dl-t">网页下载了《{d.name}》{d.ok ? `（${(d.size / 1048576).toFixed(1)}MB）` : `：${d.note ?? '没下载成'}`}{d.ok && !d.accepted ? '，这种文件放不进对话' : ''}</span>
+          {d.ok && d.accepted && <button type="button" className="pbtn" onClick={() => void keep(d)}>放进对话附件</button>}
+          <button type="button" className="gbtn" onClick={() => void drop(d)}>{d.ok && d.accepted ? '不要' : '知道了'}</button>
+        </div>
+      ))}
       {msg && <div className="wb-msg">{msg}</div>}
       {mode === 'reader' && sentences.length > 0 && data?.ok && (
         <div className="wb-cite">

@@ -29,7 +29,9 @@ public class SandboxClient(IHttpClientFactory http)
             code, timeout = timeoutSeconds,
             inputs = (inputs ?? []).Select(f => new { name = f.Name, data = Convert.ToBase64String(f.Data) }).ToList()
         };
-        using var resp = await client.PostAsJsonAsync($"{baseUrl.TrimEnd('/')}/run", body, cts.Token);
+        // 一定要带 Content-Length：PostAsJsonAsync 会分块发（不带长度），沙箱用的 Python http.server 读到的就是空的
+        using var content = new StringContent(JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json");
+        using var resp = await client.PostAsync($"{baseUrl.TrimEnd('/')}/run", content, cts.Token);
         resp.EnsureSuccessStatusCode();
         using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(cts.Token), cancellationToken: cts.Token);
         var r = doc.RootElement;

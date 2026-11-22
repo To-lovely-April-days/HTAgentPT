@@ -15,7 +15,8 @@ namespace HT.Agent.Api.Controllers;
 [ApiController]
 [Route("api/browser/{sessionId:guid}")]
 [Authorize]
-public class BrowserController(AppDbContext db, ICurrentUser me, IRuntimeConfig config, BrowserClient browser, BrowserActivity activity, IAuditWriter audit) : ControllerBase
+public class BrowserController(AppDbContext db, ICurrentUser me, IRuntimeConfig config, BrowserClient browser, BrowserActivity activity, IAuditWriter audit,
+    IChatAttachmentService attachments) : ControllerBase
 {
     private async Task<IActionResult?> GuardAsync(Guid sessionId, CancellationToken ct)
     {
@@ -39,9 +40,12 @@ public class BrowserController(AppDbContext db, ICurrentUser me, IRuntimeConfig 
         {
             var (alive, tabs) = await browser.TabsAsync(Sid(sessionId), ct);
             var marks = activity.Of(Sid(sessionId));
+            var downloads = alive ? await browser.DownloadsAsync(Sid(sessionId), ct) : [];
             return Ok(new
             {
                 alive, stopped = activity.Stopped(Sid(sessionId)),
+                downloads = downloads.Select(d => new { d.Id, d.Name, d.Size, d.Ok, d.Note, d.Tab,
+                    accepted = AttachmentLimits.Extensions.Contains(Path.GetExtension(d.Name).ToLowerInvariant()) }),
                 tabs = tabs.Select(t => new
                 {
                     t.Tab, t.Url, t.Title, t.Rev,
@@ -115,6 +119,78 @@ public class BrowserController(AppDbContext db, ICurrentUser me, IRuntimeConfig 
         if (await GuardAsync(sessionId, ct) is { } g) return g;
         try { await browser.CloseTabAsync(Sid(sessionId), tab, ct); }
         catch (BrowserClient.BrowserException) { /* 已经关了 */ }
+        return NoContent();
+    }
+
+    /// <summary>实时画面的票：画面用 &lt;img&gt; 放，带不了登录头，先换一张 2 分钟内有效的票。</summary>
+    [HttpPost("t/{tab}/ticket")]
+    public async Task<IActionResult> Ticket(Guid sessionId, string tab, CancellationToken ct)
+    {
+        if (await GuardAsync(sessionId, ct) is { } g) return g;
+        var t = activity.Ticket(Sid(sessionId), tab, me.UserId);
+        return Ok(new { url = $"/api/browser/stream?ticket={t}" });
+    }
+
+    /// <summary>实时画面（MJPEG）：拿票取流，原样转过去；员工关掉面板就断。</summary>
+    [HttpGet("~/api/browser/stream")]
+    [AllowAnonymous]
+    public async Task Stream([FromQuery] string ticket, CancellationToken ct)
+    {
+        var t = activity.Redeem(ticket);
+        if (t is null) { Response.StatusCode = 403; return; }
+        using var up = await browser.StreamAsync(t.Value.Sid, t.Value.Tab, ct);
+        if (up is null) { Response.StatusCode = 404; return; }
+        Response.ContentType = up.Content.Headers.ContentType?.ToString() ?? "multipart/x-mixed-replace; boundary=frame";
+        Response.Headers.CacheControl = "no-store";
+        Response.Headers["X-Accel-Buffering"] = "no";          // 前面有 nginx 时别攒着
+        try
+        {
+            await using var s = await up.Content.ReadAsStreamAsync(ct);
+            var buf = new byte[64 * 1024];
+            int n;
+            while ((n = await s.ReadAsync(buf, ct)) > 0)
+            {
+                await Response.Body.WriteAsync(buf.AsMemory(0, n), ct);
+                await Response.Body.FlushAsync(ct);
+            }
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or IOException) { /* 员工关掉了 */ }
+    }
+
+    /// <summary>网页下载的文件：员工点「放进对话附件」才收进来，和自己上传的一样排队解析，助手就能读了。</summary>
+    [HttpPost("downloads/{id}/keep")]
+    public async Task<IActionResult> Keep(Guid sessionId, string id, CancellationToken ct)
+    {
+        if (await GuardAsync(sessionId, ct) is { } g) return g;
+        try
+        {
+            var (name, data) = await browser.TakeDownloadAsync(Sid(sessionId), id, ct);
+            var ext = Path.GetExtension(name).ToLowerInvariant();
+            if (!AttachmentLimits.Extensions.Contains(ext))
+                return UnprocessableEntity(new { code = "ATTACH_FORMAT", message = $"「{name}」这种文件放不进对话（只收 Word、Excel、PowerPoint、PDF）" });
+            var type = ext switch
+            {
+                ".pdf" => "application/pdf",
+                ".docx" or ".docm" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ".xlsx" or ".xlsm" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                _ => "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            };
+            var view = await attachments.UploadAsync(new MemoryStream(data), name, type, data.Length, ct);
+            await attachments.BindAsync(sessionId, [view.Id], ct);
+            await browser.DropDownloadAsync(Sid(sessionId), id, ct);
+            await audit.WriteAsync(new AuditEntry("browser.download.keep", AuditResult.Success, UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+                TargetType: "qa_session", TargetId: sessionId.ToString(), Detail: new { name, size = data.Length }), ct);
+            return Ok(view);
+        }
+        catch (BrowserClient.BrowserException ex) { return Fail(ex); }
+    }
+
+    [HttpDelete("downloads/{id}")]
+    public async Task<IActionResult> Drop(Guid sessionId, string id, CancellationToken ct)
+    {
+        if (await GuardAsync(sessionId, ct) is { } g) return g;
+        try { await browser.DropDownloadAsync(Sid(sessionId), id, ct); }
+        catch (BrowserClient.BrowserException) { /* 已经没了 */ }
         return NoContent();
     }
 

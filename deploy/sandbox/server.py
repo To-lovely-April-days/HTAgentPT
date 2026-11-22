@@ -114,6 +114,25 @@ def run(code, timeout, inputs=()):
         shutil.rmtree(work, ignore_errors=True)
 
 
+def read_body(handler, limit):
+    """读请求体：带 Content-Length 的按长度读；分块发来的（Transfer-Encoding: chunked）逐块拼起来。超过 limit 返回 None。"""
+    if (handler.headers.get("Transfer-Encoding") or "").lower() == "chunked":
+        out = bytearray()
+        while True:
+            size = int(handler.rfile.readline().strip().split(b";")[0] or b"0", 16)
+            if size == 0:
+                handler.rfile.readline()
+                return bytes(out)
+            out += handler.rfile.read(size)
+            handler.rfile.readline()
+            if len(out) > limit:
+                return None
+    n = int(handler.headers.get("Content-Length") or 0)
+    if n > limit:
+        return None
+    return handler.rfile.read(n) if n else b""
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send(self, code, body):
         data = json.dumps(body, ensure_ascii=False).encode()
@@ -132,11 +151,11 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path != "/run":
             return self._send(404, {"error": "not found"})
-        length = int(self.headers.get("Content-Length") or 0)
-        if length > MAX_BODY:
+        raw = read_body(self, MAX_BODY)
+        if raw is None:
             return self._send(413, {"error": "代码和附件太大"})
         try:
-            body = json.loads(self.rfile.read(length) or b"{}")
+            body = json.loads(raw or b"{}")
         except json.JSONDecodeError:
             return self._send(400, {"error": "不是 JSON"})
         code = str(body.get("code") or "")
