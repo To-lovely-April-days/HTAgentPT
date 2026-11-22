@@ -51,6 +51,7 @@ public static class Delegation
         if (files.Count > 0) sb.AppendLine($"这件事要用的附件：{string.Join("、", files.Select(f => $"《{f}》"))}。");
         sb.AppendLine("要求：");
         sb.AppendLine("- 只做这一件事；资料不够就写进「没查到」，不要编。");
+        sb.AppendLine("- 不知道或拿不准的先查，不凭记忆答：先查公司资料，没有的外部公开信息（别家产品、材料、标准、行业动态）有联网搜索就搜。");
         sb.AppendLine("- 引用资料写工具返回的编号，如 [3]；数字写单位和出处。");
         sb.AppendLine($"- 交回不超过 {MaxAnswer} 字，按这个格式：");
         sb.AppendLine("结论：一两句话");

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""助手准确率测试：拿一批真实问题去问助手，按「查得准」「答得全」「该问才问」打分，并和上一次比。
+"""助手准确率测试：拿一批真实问题去问助手，按「查得准」「答得全」「该问才问」「查对地方」「没推脱」打分，并和上一次比。
 
 用法（在服务器上）：
     export HT_EVAL_URL=http://localhost:8080      # 公司站点地址
     export HT_EVAL_USER=eval_tester               # 专门建一个测试账号，别用自己的（登录会把同账号别处的会话挤掉）
     export HT_EVAL_PASS='……'
     python3 deploy/eval/run_eval.py /srv/htagent/eval/questions.jsonl
+    python3 deploy/eval/run_eval.py deploy/eval/questions.intent.jsonl   # 听不听得懂人话、不知道会不会自己去查（只用公开信息，可以直接用）
 
 题目文件一行一题（JSON），字段见 questions.example.jsonl：
     id            题号，自己起，后面比较靠它对齐
@@ -14,6 +15,10 @@
     expect_projects 应该查到的项目号，可多个
     expect_points 答案要点；一条里用 | 隔开表示「任意一种说法都算」
     expect_ask    这题是不是应该先问用户（默认 false）
+    expect_tools  应该去查的地方（工具名），每条都要查到；一条里用 | 隔开表示「查了其中一个就算」，
+                  如 ["web_search"]、["search_documents|list_catalog"]
+    forbid_tools  不该用的工具（寒暄、单位换算这类不用联网搜）
+    no_dodge      true：回答里不许出现「我不知道」「没有这方面的信息」「请您自行查询」这类推脱的话
 
 结果写在题目文件旁边的 runs/ 目录下（每次一个 JSON），终端里打印汇总和变好 / 变差的题。
 只用 Python 标准库，不用装别的包。题目和结果里可能有客户信息，不要提交到代码仓库。
@@ -28,6 +33,11 @@ import urllib.error
 import urllib.request
 from datetime import datetime
 from pathlib import Path
+
+
+# 推脱的说法：不知道就该去查，不该把问题推回给用户
+DODGE = ["我不知道", "我不清楚", "没有这方面的信息", "没有相关信息", "无法访问互联网", "无法联网", "无法实时", "我的知识截止",
+         "请您自行", "建议您自行", "您可以自行", "自行查阅", "自行搜索", "无法提供该产品"]
 
 
 def norm(s):
@@ -49,7 +59,7 @@ def http(url, body=None, token=None, stream=False, timeout=300):
 def ask(base, token, question):
     """问一题，收齐流式事件：回答正文、依据、是否反问、出错信息。"""
     resp = http(f"{base}/api/chat/completions", {"question": question}, token, stream=True)
-    answer, evidence, asked, error, event = "", {"used": [], "other": []}, None, None, None
+    answer, evidence, asked, error, event, tools = "", {"used": [], "other": []}, None, None, None, []
     for raw in resp:
         line = raw.decode("utf-8").rstrip("\n")
         if line.startswith("event: "):
@@ -67,12 +77,14 @@ def ask(base, token, question):
                 evidence = p
             elif event == "ask":
                 asked = p.get("question", "")
+            elif event == "step" and p.get("status") != "running" and p.get("tool"):
+                tools.append(p["tool"])
             elif event == "error":
                 error = p.get("message", "出错")
-    return answer, evidence, asked, error
+    return answer, evidence, asked, error, tools
 
 
-def score(item, answer, evidence, asked):
+def score(item, answer, evidence, asked, tools=()):
     cards = (evidence.get("used") or []) + (evidence.get("other") or [])
     used = evidence.get("used") or []
 
@@ -97,7 +109,21 @@ def score(item, answer, evidence, asked):
 
     should_ask = bool(item.get("expect_ask", False))
     ask_ok = (asked is not None) == should_ask
-    return hit, cover, ask_ok
+
+    # 查对地方：该查的都查了，不该用的没用
+    called = set(tools)
+    want = item.get("expect_tools", [])
+    forbid = [t for t in item.get("forbid_tools", []) if t in called]
+    tool = None
+    if want or item.get("forbid_tools"):
+        got_t = [any(x.strip() in called for x in w.split("|")) for w in want]
+        tool = {"total": len(want), "got": sum(got_t), "missing": [w for w, g in zip(want, got_t) if not g],
+                "forbidden": forbid, "called": sorted(called)}
+
+    dodge = None
+    if item.get("no_dodge"):
+        dodge = [d for d in DODGE if norm(d) in a]
+    return hit, cover, ask_ok, tool, dodge
 
 
 def main():
@@ -121,17 +147,26 @@ def main():
     for i, item in enumerate(items, 1):
         t0 = time.time()
         try:
-            answer, evidence, asked, error = ask(base, token, item["q"])
+            answer, evidence, asked, error, tools = ask(base, token, item["q"])
         except Exception as e:  # 网络、超时：记下来接着跑
-            answer, evidence, asked, error = "", {"used": [], "other": []}, None, str(e)
-        hit, cover, ask_ok = score(item, answer, evidence, asked)
+            answer, evidence, asked, error, tools = "", {"used": [], "other": []}, None, str(e), []
+        hit, cover, ask_ok, tool, dodge = score(item, answer, evidence, asked, tools)
         r = {"id": item.get("id", str(i)), "q": item["q"], "seconds": round(time.time() - t0, 1), "error": error,
-             "asked": asked, "ask_ok": ask_ok, "hit": hit, "cover": cover, "answer": answer[:2000],
+             "asked": asked, "ask_ok": ask_ok, "hit": hit, "cover": cover, "tool": tool, "dodge": dodge, "answer": answer[:2000],
              "evidence": [{"n": c.get("n"), "title": c.get("title"), "fileName": c.get("fileName"), "projectNo": c.get("projectNo")}
                           for c in (evidence.get("used") or [])]}
         results.append(r)
-        flag = "出错" if error else ("✓" if (not hit or hit["found"] == hit["total"]) and (not cover or cover["got"] == cover["total"]) and ask_ok else "✕")
-        print(f"[{i}/{len(items)}] {flag} {r['id']} {item['q'][:40]}（{r['seconds']} 秒）")
+        tool_ok = not tool or (tool["got"] == tool["total"] and not tool["forbidden"])
+        ok = (not hit or hit["found"] == hit["total"]) and (not cover or cover["got"] == cover["total"]) and ask_ok and tool_ok and not dodge
+        flag = "出错" if error else ("✓" if ok else "✕")
+        why = []
+        if tool and tool["missing"]:
+            why.append("没查：" + "、".join(tool["missing"]))
+        if tool and tool["forbidden"]:
+            why.append("不该用：" + "、".join(tool["forbidden"]))
+        if dodge:
+            why.append("推脱：" + "、".join(dodge[:2]))
+        print(f"[{i}/{len(items)}] {flag} {r['id']} {item['q'][:40]}（{r['seconds']} 秒）" + (f"｜{'；'.join(why)}" if why else ""))
 
     def rate(key, part, whole):
         rows = [r[key] for r in results if r[key]]
@@ -142,6 +177,9 @@ def main():
         "查到且用上": rate("hit", "used", "total"),
         "答得全": rate("cover", "got", "total"),
         "该问才问": sum(1 for r in results if r["ask_ok"]) / max(1, len(results)),
+        "查对地方": rate("tool", "got", "total"),
+        "没多查": (sum(1 for r in results if r["tool"] and not r["tool"]["forbidden"]) / max(1, sum(1 for r in results if r["tool"]))) if any(r["tool"] for r in results) else None,
+        "没推脱": (sum(1 for r in results if r["dodge"] == []) / max(1, sum(1 for r in results if r["dodge"] is not None))) if any(r["dodge"] is not None for r in results) else None,
         "出错": sum(1 for r in results if r["error"]),
     }
     runs = qfile.parent / "runs"
@@ -163,7 +201,9 @@ def main():
             if not o:
                 continue
             def pts(x):
-                return (x["hit"]["found"] if x["hit"] else 0) + (x["cover"]["got"] if x["cover"] else 0) + (1 if x["ask_ok"] else 0)
+                t = x.get("tool")
+                return ((x["hit"]["found"] if x["hit"] else 0) + (x["cover"]["got"] if x["cover"] else 0) + (1 if x["ask_ok"] else 0)
+                        + (t["got"] - len(t["forbidden"]) if t else 0) + (0 if x.get("dodge") else 1))
             if pts(r) > pts(o):
                 better.append(r)
             elif pts(r) < pts(o):

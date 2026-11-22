@@ -1,0 +1,33 @@
+// 听不听得懂人话、不知道会不会自己去查。题目只用公开的产品、材料、标准，没有客户信息，可以放进代码仓库。
+// 用法：python3 deploy/eval/run_eval.py deploy/eval/questions.intent.jsonl（账号、地址的环境变量见 run_eval.py 开头）
+// 联网搜索在后台关着时，W 开头的题会大面积「没查」——先打开再测。
+// A 别家的产品：「你知道 X 吗」= 介绍 X，内部资料没有就联网搜，不许答「不知道」
+{"id": "W01", "q": "你知道 Parr 的 4560 小型反应釜吗", "expect_tools": ["web_search|fetch_url|browser_open"], "expect_points": ["Parr|帕尔"], "no_dodge": true}
+{"id": "W02", "q": "听说过梅特勒的 EasyMax 吗", "expect_tools": ["web_search|fetch_url|browser_open"], "expect_points": ["EasyMax"], "no_dodge": true}
+{"id": "W03", "q": "Büchi 的 kiloclave 是个啥", "expect_tools": ["web_search|fetch_url|browser_open"], "expect_points": ["kiloclave"], "no_dodge": true}
+{"id": "W04", "q": "Syrris 的 Asia 流动化学系统你了解吗", "expect_tools": ["web_search|fetch_url|browser_open"], "expect_points": ["Syrris"], "no_dodge": true}
+{"id": "W05", "q": "Chemspeed 是做什么的公司", "expect_tools": ["web_search|fetch_url|browser_open"], "expect_points": ["Chemspeed"], "no_dodge": true}
+{"id": "W06", "q": "知道 Amar Equipment 这家吗，他们做哪些釜", "expect_tools": ["web_search|fetch_url|browser_open"], "expect_points": ["Amar"], "no_dodge": true}
+// B 别家的东西 + 我们的产品：两边都要查
+{"id": "W07", "q": "客户问世伟洛克的卡套接头能不能装在我们 30 MPa 的釜上", "expect_tools": ["web_search|fetch_url|browser_open", "search_documents|list_catalog|read_document"], "expect_points": ["30 MPa|30MPa"], "no_dodge": true}
+{"id": "W08", "q": "客户拿安东帕的微波合成仪跟我们比，我们差在哪", "expect_tools": ["web_search|fetch_url|browser_open", "search_documents|list_catalog|read_document"], "no_dodge": true}
+// C 材料、介质：可能过时或记不准，要查
+{"id": "W09", "q": "哈氏 C-276 和 C-22 哪个更扛氯离子", "expect_tools": ["web_search|search_documents|fetch_url|chemical_info"], "expect_points": ["C-276|C276", "C-22|C22"], "no_dodge": true}
+{"id": "W10", "q": "TA2 钛材能不能泡浓硫酸", "expect_tools": ["web_search|search_documents|fetch_url|chemical_info"], "expect_points": ["TA2|钛"], "no_dodge": true}
+{"id": "W11", "q": "PEEK 衬里最高能用到多少度", "expect_tools": ["web_search|search_documents|fetch_url"], "expect_points": ["℃|度"], "no_dodge": true}
+{"id": "W12", "q": "你知道 DMF 吗，能在我们的釜里用吗", "expect_tools": ["chemical_info|web_search|hazard_lookup", "search_documents|list_catalog|read_document"], "expect_points": ["DMF|二甲基甲酰胺"], "no_dodge": true}
+// D 标准、行情、动态：要查最新的
+{"id": "W13", "q": "GB 150 现在用的是哪一版", "expect_tools": ["search_standards|web_search"], "expect_points": ["GB/T 150|GB 150|GB150"], "no_dodge": true}
+{"id": "W14", "q": "固定式压力容器现在按哪个监察规程", "expect_tools": ["search_standards|web_search"], "expect_points": ["TSG"], "no_dodge": true}
+{"id": "W15", "q": "最近镍价走势怎么样，对 316L 有影响吗", "expect_tools": ["web_search|search_prices"], "expect_points": ["镍"], "no_dodge": true}
+{"id": "W16", "q": "实验室反应釜这两年有啥新趋势", "expect_tools": ["web_search|search_literature|fetch_url"], "no_dodge": true}
+// E 我们自己的产品：「你知道我们有没有……」= 去产品目录和资料里查
+{"id": "I01", "q": "你知道我们有没有 100L 的高压釜", "expect_tools": ["list_catalog|search_documents"], "no_dodge": true}
+{"id": "I02", "q": "我们的磁力搅拌最高能做到多少压力", "expect_tools": ["search_documents|list_catalog|read_document"], "no_dodge": true}
+{"id": "I03", "q": "316L 的釜能不能做含氯离子的反应", "expect_tools": ["search_documents|list_catalog|web_search|read_document"], "expect_points": ["氯离子|Cl"], "no_dodge": true}
+{"id": "I04", "q": "我们做过加氢的项目吗", "expect_tools": ["query_projects|search_documents"], "no_dodge": true}
+// F 不该多查的：寒暄、单位换算、基础概念，不用联网搜
+{"id": "N01", "q": "你好", "forbid_tools": ["web_search", "search_documents", "query_projects", "list_catalog"]}
+{"id": "N02", "q": "1 MPa 等于多少 bar", "forbid_tools": ["web_search", "query_projects"], "expect_points": ["10 bar|10bar|10 巴"]}
+{"id": "N03", "q": "设计压力和工作压力有什么区别", "forbid_tools": ["web_search", "query_projects"]}
+{"id": "N04", "q": "你能帮我干什么", "forbid_tools": ["web_search", "query_projects"]}
