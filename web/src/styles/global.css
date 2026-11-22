@@ -1481,6 +1481,7 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 
 /* 系统设置 · 思考档位 */
 .lv-card { padding: 14px 16px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; }
+.tl-pins { display: flex; flex-wrap: wrap; gap: 6px; }
 .lv-hd { display: flex; flex-direction: column; gap: 3px; }
 .lv-hd b { font-size: 12.5px; font-weight: 600; }
 .lv-t { border-collapse: collapse; width: 100%; font-size: 12.5px; }

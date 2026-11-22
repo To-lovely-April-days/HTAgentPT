@@ -49,7 +49,7 @@ public class ConfigController(IRuntimeConfig config, ICurrentUser me, IAuditWrit
         ConfigKeys.AssistantContextChars, ConfigKeys.AssistantSearchTopK, ConfigKeys.ChatContextTokens, ConfigKeys.FileKeepDays,
         ConfigKeys.DelegateMaxTasks, ConfigKeys.DelegateParallel, ConfigKeys.DelegateRounds,
         ConfigKeys.LevelFastRounds, ConfigKeys.LevelFastMaxTokens, ConfigKeys.LevelFastTemperature, ConfigKeys.LevelStandardRounds, ConfigKeys.LevelStandardMaxTokens, ConfigKeys.LevelStandardTemperature, ConfigKeys.LevelDeepRounds, ConfigKeys.LevelDeepMaxTokens, ConfigKeys.LevelDeepTemperature,
-        ConfigKeys.SandboxTimeout, ConfigKeys.MemoryMax, ConfigKeys.PriceStaleMonths
+        ConfigKeys.SandboxTimeout, ConfigKeys.MemoryMax, ConfigKeys.PriceStaleMonths, ConfigKeys.ToolPreloadScore
     };
 
     private static readonly Dictionary<string, string[]> Choices = new()
@@ -58,6 +58,7 @@ public class ConfigController(IRuntimeConfig config, ICurrentUser me, IAuditWrit
         [ConfigKeys.LevelStandardEffort] = HT.Agent.Application.Logic.ThinkLevels.Efforts,
         [ConfigKeys.LevelDeepEffort] = HT.Agent.Application.Logic.ThinkLevels.Efforts,
         [ConfigKeys.AssistantLevelDefault] = ["auto", "fast", "standard", "deep"],
+        [ConfigKeys.ToolLoading] = ["on_demand", "all"],
         [ConfigKeys.AssistantLevelUserChoice] = ["true", "false"],
         [ConfigKeys.Delegate] = ["on", "off"],
     };

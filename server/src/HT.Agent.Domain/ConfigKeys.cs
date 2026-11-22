@@ -124,6 +124,14 @@ public static class ConfigKeys
     /// <summary>子代理最多查几轮，超过算没查完。</summary>
     public const string DelegateRounds = "assistant.delegate.rounds";
 
+    // ── 工具按需加载：常用工具每次都带，流程模拟、做 PPT、浏览器这类专用工具用得上才把完整说明交给模型 ──
+    /// <summary>on_demand（按需加载）/ all（全部都带，和以前一样）。</summary>
+    public const string ToolLoading = "assistant.tool_loading";
+    /// <summary>常驻的专用工具：逗号分隔的组名（show_block、make_ppt…），每次都带。</summary>
+    public const string ToolsPinned = "assistant.tools_pinned";
+    /// <summary>问题和工具用途的相似度到多少就提前加载（0.3–0.95）。</summary>
+    public const string ToolPreloadScore = "assistant.tool_preload_score";
+
     // ── 内置浏览器（服务器上的 Chromium，助手能读、能点、能填）──
     public const string ToolBrowser = "assistant.tool.browser";
     public const string ToolBrowserRoles = "assistant.tool.browser.roles";

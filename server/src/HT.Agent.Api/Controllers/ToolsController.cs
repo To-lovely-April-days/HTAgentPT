@@ -65,7 +65,9 @@ public class ToolsController(AppDbContext db, IRuntimeConfig config, SandboxClie
             files,
             @delegate = new { runs = dels.Count, avgTasks = dels.Count == 0 ? 0 : Math.Round((double)dTasks / dels.Count, 1), failedPct = dTasks == 0 ? 0 : (int)Math.Round(100.0 * dFailed / dTasks) },
             tools = byTool.Select(kv => new { tool = kv.Key, calls = kv.Value.N, failed = kv.Value.Failed, avgMs = kv.Value.N == 0 ? 0 : kv.Value.Ms / kv.Value.N })
-                .OrderByDescending(x => x.calls).ToList()
+                .OrderByDescending(x => x.calls).ToList(),
+            // 工具按需加载：专用工具目录（后台选常驻用）
+            catalog = ToolCatalog.Groups.Select(g => new { code = g.Code, label = g.Label, tools = g.Tools, summary = g.Summary }).ToList()
         });
     }
 

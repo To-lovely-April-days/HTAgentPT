@@ -47,7 +47,8 @@ public sealed class AssistantService(
     IFileStorage storage,
     ITranslationService translation,
     IPriceService prices,
-    PptTemplateService pptTemplates) : IAssistantService
+    PptTemplateService pptTemplates,
+    IEmbeddingClient embeddings) : IAssistantService
 {
     /// <summary>同时在跑的模型请求上限（vLLM 开了 8 路并发；留余量给别的功能）。</summary>
     private static readonly SemaphoreSlim Slots = new(6, 6);
@@ -147,6 +148,13 @@ public sealed class AssistantService(
         public readonly HashSet<string> SeenDownloads = [];
         /// <summary>子代理同时跑时，工具一个一个执行（共用依据编号和数据库连接）。</summary>
         public readonly SemaphoreSlim ToolLock = new(1, 1);
+        /// <summary>工具按需加载：这个人这次能用的全部工具、正交给模型的那些（回合循环拿着同一个列表，加载了下一轮就看得到）、加载了哪几组专用工具。</summary>
+        public List<ToolSpec> AllTools = [];
+        public readonly List<ToolSpec> LiveTools = [];
+        public readonly HashSet<string> Loaded = [];
+        public bool OnDemand;
+        /// <summary>系统先挑时各组和问题的相似度（留痕，后台调门槛用）。</summary>
+        public Dictionary<string, double>? Similarity;
 
         public RunState ToState() => new(Evidence.Values.OrderBy(e => e.N).ToList(), new(Keys),
             DocRefs.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value), [.. Computed], [.. Searches], NextN);
@@ -229,6 +237,35 @@ public sealed class AssistantService(
             ((HashSet<string>)enabled).Add("delegate");
         var tools = BuildTools(canDocs, canProjects, attachmentFiles.Count > 0, enabled, fileKinds, delegateMax);
         if (enabled.Contains("make_ppt")) tools.Add(MakePptTool());
+        // 工具按需加载：常用的每次都带，专用的先挑出用得上的（后台可改回「全部都带」）
+        var allTools = tools;
+        var onDemand = !(await config.GetStringAsync(ConfigKeys.ToolLoading, "on_demand", ct)).Trim().Equals("all", StringComparison.OrdinalIgnoreCase);
+        var loaded = new HashSet<string>();
+        Dictionary<string, double>? similarity = null;
+        if (onDemand)
+        {
+            var avail = ToolCatalog.Available(allTools);
+            var forced = new List<string>();
+            if (req.PptTemplate is not null) forced.Add("make_ppt");                         // 输入框选了 PPT 模板
+            if (!string.IsNullOrWhiteSpace(req.BrowserTab)) forced.Add("browser");           // 右边开着网页
+            if (attachmentFiles.Any(x => IsImageName(x.FileName))) forced.Add("image");      // 附件里有图片
+            var pickedSkill = req.SkillTest is { On: true } st ? st.Code : req.Skill;          // 点名要用的技能：它提到的工具先加载
+            if (!string.IsNullOrEmpty(pickedSkill))
+            {
+                var body = await db.AssistantSkills.AsNoTracking().Where(x => x.CompanyId == me.CompanyId && x.Code == pickedSkill).Select(x => x.Body).FirstOrDefaultAsync(ct);
+                forced.AddRange(ToolCatalog.Mentioned(body ?? "", avail));
+            }
+            var pinned = (await config.GetStringAsync(ConfigKeys.ToolsPinned, "", ct)).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            similarity = await ToolSimilarityAsync(req.Question, avail, ct);
+            var minSim = await ToolPreloadScoreAsync(ct);
+            loaded = ToolCatalog.Preload(avail, req.Question, similarity, minSim, 2, await ToolsUsedBeforeAsync(session.Id, ct), forced, pinned);
+            tools = ToolCatalog.Live(allTools, loaded);
+        }
+        // 提示词里的用法说明只写交给了模型的工具；没交的在「专用工具」目录里一行带过
+        IReadOnlySet<string> promptTools = onDemand
+            ? enabled.Where(t => ToolCatalog.GroupOf(t) is not { } g || loaded.Contains(g.Code)).ToHashSet()
+            : enabled;
+        var catalogPrompt = onDemand ? ToolCatalog.CatalogPrompt(ToolCatalog.Available(allTools).Where(g => !loaded.Contains(g.Code))) : "";
         List<AgentMessage> messages;
         // 上一轮在等用户确认：这句话就是回答，接着上次的现场跑——前面查到的不重来，编号也接着用
         var pending = await PendingAsync(session.Id, ct);
@@ -248,7 +285,8 @@ public sealed class AssistantService(
         {
             for (var i = 0; i < mems.Count; i++) run.MemoryRefs[$"M{i + 1}"] = mems[i].Id;
             var hints = QuestionHints.Build(req.Question, await TermEntriesAsync(ct));
-            messages = [new("system", await SystemPromptAsync(req, attachmentFiles.Select(a => a.FileName).ToList(), enabled, mems, hints, ct) + SkillsPrompt(skills, req.SkillTest, req.Skill) + PptPrompt(pptList, req.PptTemplate)
+            messages = [new("system", await SystemPromptAsync(req, attachmentFiles.Select(a => a.FileName).ToList(), promptTools, mems, hints, ct) + SkillsPrompt(skills, req.SkillTest, req.Skill)
+                + (!onDemand || loaded.Contains("make_ppt") ? PptPrompt(pptList, req.PptTemplate) : "") + catalogPrompt
                 + await CurrentPageAsync(req, session.Id, enabled, run, ct) + await ProjectPromptAsync(session, ct))];
             messages.AddRange(await HistoryAsync(session.Id, ct));
             messages.Add(new AgentMessage("user", req.Question));
@@ -259,6 +297,12 @@ public sealed class AssistantService(
         run.FileKinds = fileKinds;
         run.PptTemplates = pptList;
         run.PptChosen = req.PptTemplate;
+        run.AllTools = allTools;
+        run.OnDemand = onDemand;
+        run.Loaded.UnionWith(loaded);
+        run.LiveTools.AddRange(tools);
+        run.Similarity = similarity;
+        tools = run.LiveTools;   // 回合循环拿这个列表：中途加载了专用工具，下一轮就带上
         await emit(new QaEvent("meta", new { sessionId = session.Id, intent = "assistant", mode = "assistant" }));
         // 开始的留痕等模型真的接手了再写：模型端不支持工具调用会退回原问答，那边自己记，不重复计数
         var startLogged = false;
@@ -269,7 +313,8 @@ public sealed class AssistantService(
             await audit.WriteAsync(new AuditEntry("qa.assistant.start", AuditResult.Success,
                 UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
                 TargetType: "qa_session", TargetId: session.Id.ToString(),
-                Detail: new { question = Clip(req.Question, 300), tools = tools.Select(t => t.Name).ToArray(), attachments = attachmentFiles.Count }), ct);
+                Detail: new { question = Clip(req.Question, 300), tools = tools.Select(t => t.Name).ToArray(), attachments = attachmentFiles.Count,
+                    preloaded = run.Loaded.ToArray(), similarity = run.Similarity?.OrderByDescending(kv => kv.Value).Take(4).ToDictionary(kv => kv.Key, kv => Math.Round(kv.Value, 3)) }), ct);
         }
 
         var options = new AssistantLoopOptions(
@@ -354,7 +399,7 @@ public sealed class AssistantService(
                 message.Answer = ask.Question + "\n" + string.Join("\n", ask.Options.Select(o => $"· {o.Label}"));
                 message.Payload = JsonSerializer.Serialize(new
                 {
-                    kind = "assistant", rounds = result.Rounds, steps = askSteps, artifacts = run.Artifacts, level = levelCode, agents = run.Agents, plan = run.Plan.Items.Count > 0 ? run.Plan.State() : null,
+                    kind = "assistant", rounds = result.Rounds, steps = askSteps, toolsLoaded = run.Loaded.ToArray(), artifacts = run.Artifacts, level = levelCode, agents = run.Agents, plan = run.Plan.Items.Count > 0 ? run.Plan.State() : null,
                     ask = new { question = ask.Question, options = ask.Options, multiple = ask.Multiple },
                     pending = new PendingState(messages, result.PausedCallId, run.ToState(), run.PendingBrowser)
                 }, Json);
@@ -395,7 +440,7 @@ public sealed class AssistantService(
             message.Payload = JsonSerializer.Serialize(new
             {
                 kind = "assistant", rounds = result.Rounds, seconds = Math.Round((DateTimeOffset.UtcNow - started).TotalSeconds, 1),
-                steps = stepRows, evidence = new { used, other }, verify, artifacts = run.Artifacts, searches = run.SearchLog,
+                steps = stepRows, toolsLoaded = run.Loaded.ToArray(), evidence = new { used, other }, verify, artifacts = run.Artifacts, searches = run.SearchLog,
                 level = levelCode, truncated = result.Truncated, agents = run.Agents, plan = run.Plan.Items.Count > 0 ? run.Plan.State() : null
             }, Json);
             // 查过资料却一条都没用上：记成「没答上来」，进语料缺口清单
@@ -434,6 +479,23 @@ public sealed class AssistantService(
     }
 
     // ── 给模型的说明 ─────────────────────────────────────
+    /// <summary>回答组件的用法：开始就加载了就进系统提示词，中途加载的随 find_tools 的结果交给模型。</summary>
+    private const string ShowBlockGuide = """
+                - 内容适合用组件表达时用 show_block，和文字、表格混排；用哪个、用几个你看内容决定，普通问题只写文字就行。组件里的数值写来源编号 ref。
+                  常用的：metrics 关键数字；callout 结论 / 提示 / 注意 / 危险（安全相关的危险提示放在回答最前面）；chart 图表；steps 操作或排查步骤；
+                  timeline 时间线；checklist 检查清单；options 方案对比卡；formula 计算过程；flow 流程图；quote 逐字引用原文；
+                  datasheet 设备数据表；deviation 技术偏离表；window 操作窗口；fault_tree 故障诊断树；risk_matrix 风险矩阵；bom BOM 结构；
+                  properties 物性数据；clause 规范条款；match 选型匹配；followups 跟进事项；gantt 交付计划。
+                  quote、clause 的原文要逐字照抄查到的依据，系统会核对；formula 的 result.expr 系统会重算核对。
+                  化工：pfd 工艺流程图（附物流表，系统核对物料衡算）；pid 管道仪表图（附仪表清单）；molecule 分子结构；reaction 反应方程式（系统核对配平）；
+                  equipment 设备简图和管口表；interlock 联锁因果表。PFD、PID 只是示意，回答里提醒正式图纸以设计出图为准；联锁以 HAZOP / SIL 评估为准。
+                """;
+
+    /// <summary>询价缺项单的用法：开始就加载了就进系统提示词，中途加载的随 find_tools 的结果交给模型。</summary>
+    private const string InquiryGuide = """
+                - 客户询价或需求信息不全、需要回头找客户确认时，用 inquiry_form 生成缺项单：列出已知项和缺的项，缺哪些由你根据需求判断，每项写一句为什么要问。
+                """;
+
     private async Task<string> SystemPromptAsync(QaRequest req, IReadOnlyList<string> attachments, IReadOnlySet<string> enabled,
         IReadOnlyList<MemoryRow> mems, string hints, CancellationToken ct)
     {
@@ -504,9 +566,7 @@ public sealed class AssistantService(
                 """);
         }
         if (enabled.Contains("inquiry_form"))
-            sb.AppendLine("""
-                - 客户询价或需求信息不全、需要回头找客户确认时，用 inquiry_form 生成缺项单：列出已知项和缺的项，缺哪些由你根据需求判断，每项写一句为什么要问。
-                """);
+            sb.AppendLine(InquiryGuide);
         if (enabled.Contains("search_prices"))
             sb.AppendLine("""
                 - 问到材料、零件的价格，或设备的材料成本时，用 search_prices 查公司价格库（采购进价，属于内部机密，不要建议发给客户）。
@@ -521,16 +581,7 @@ public sealed class AssistantService(
                   每列标类型（金额 money、数量 number、涨跌 delta、状态 status、项目号 project、来源编号 ref…）。两三行的小表可以直接写 Markdown 表格。
                 """);
         if (enabled.Contains("show_block"))
-            sb.AppendLine("""
-                - 内容适合用组件表达时用 show_block，和文字、表格混排；用哪个、用几个你看内容决定，普通问题只写文字就行。组件里的数值写来源编号 ref。
-                  常用的：metrics 关键数字；callout 结论 / 提示 / 注意 / 危险（安全相关的危险提示放在回答最前面）；chart 图表；steps 操作或排查步骤；
-                  timeline 时间线；checklist 检查清单；options 方案对比卡；formula 计算过程；flow 流程图；quote 逐字引用原文；
-                  datasheet 设备数据表；deviation 技术偏离表；window 操作窗口；fault_tree 故障诊断树；risk_matrix 风险矩阵；bom BOM 结构；
-                  properties 物性数据；clause 规范条款；match 选型匹配；followups 跟进事项；gantt 交付计划。
-                  quote、clause 的原文要逐字照抄查到的依据，系统会核对；formula 的 result.expr 系统会重算核对。
-                  化工：pfd 工艺流程图（附物流表，系统核对物料衡算）；pid 管道仪表图（附仪表清单）；molecule 分子结构；reaction 反应方程式（系统核对配平）；
-                  equipment 设备简图和管口表；interlock 联锁因果表。PFD、PID 只是示意，回答里提醒正式图纸以设计出图为准；联锁以 HAZOP / SIL 评估为准。
-                """);
+            sb.AppendLine(ShowBlockGuide);
         sb.AppendLine("""
             - 界面会把代码块直接展示成能看、能用的样子：```html 是可以预览的网页（写完整、能直接运行的单个 HTML，样式和脚本写在里面；可用 React 18、Vue 3、ECharts、Tailwind 的常用 CDN 地址，系统换成内网副本）；
               ```mermaid 流程图 / 时序图 / 甘特图；```svg 矢量图；```csv 表格数据；```json；```echarts 是 ECharts 的 option（纯 JSON）；```smiles 分子结构。公式用 LaTeX：行内 $…$，单独一行 $$…$$。需要时用，普通问题照常写文字。
@@ -1018,6 +1069,10 @@ public sealed class AssistantService(
         IReadOnlyList<(Guid Id, string FileName, string? Chunks)> attachments, int topK, IReadOnlySet<string> enabled,
         Func<QaEvent, Task> emit, CancellationToken ct, int agent = 0)
     {
+        if (call.Name == ToolCatalog.FindTools) return await FindToolsAsync(call, run, ct);
+        // 没先加载就直接调了目录里的专用工具：照样执行，顺手加载上（后面几轮带完整说明）
+        if (run.OnDemand && ToolCatalog.GroupOf(call.Name) is { } callGroup && !run.Loaded.Contains(callGroup.Code) && run.AllTools.Any(t => t.Name == call.Name))
+            LoadGroups(run, [callGroup.Code]);
         if (call.Name is "ask_user" or "plan" or "make_ppt" or "run_python" or "chemical_info" or "hazard_lookup" or "process_sim" or "web_search" or "fetch_url" or "compare_documents"
             or "search_literature" or "view_image" or "ocr_image" or "translate_file" or "inquiry_form" or "remember" or "forget"
             or "search_prices" or "cost_estimate" or "show_table" or "show_block" or "browser_open" or "browser_read" or "browser_act" or "browser_look"
@@ -1025,8 +1080,17 @@ public sealed class AssistantService(
                 "browser_open" or "browser_read" or "browser_act" => "browser", _ => call.Name }))
             return new ToolOutcome("这个工具现在没有开启。", "未开启", AssistantLoop.ToolLabel(call.Name), "", "未开启");
         JsonObject a;
-        try { a = JsonNode.Parse(string.IsNullOrWhiteSpace(call.ArgumentsJson) ? "{}" : call.ArgumentsJson) as JsonObject ?? new JsonObject(); }
-        catch (JsonException) { a = new JsonObject(); }
+        // 参数检查：JSON 坏了、必填的没填，告诉模型哪里不对、该怎么填，让它改了重调（不再悄悄当空参数执行）
+        if (run.AllTools.FirstOrDefault(t => t.Name == call.Name) is { } argSpec)
+        {
+            if (ToolCatalog.CheckArgs(argSpec, call.ArgumentsJson, out a) is { } bad)
+                return new ToolOutcome(bad, "参数不对", AssistantLoop.ToolLabel(call.Name), Clip(call.ArgumentsJson, 80), "参数不对", Failed: true);
+        }
+        else
+        {
+            try { a = JsonNode.Parse(string.IsNullOrWhiteSpace(call.ArgumentsJson) ? "{}" : call.ArgumentsJson) as JsonObject ?? new JsonObject(); }
+            catch (JsonException) { a = new JsonObject(); }
+        }
         string? S(string k) { var v = a[k]?.ToString()?.Trim(); return string.IsNullOrEmpty(v) ? null : v; }
         int? I(string k) => a[k] is JsonValue v && (v.TryGetValue<int>(out var i) || (v.TryGetValue<double>(out var d) && (i = (int)d) == i) || (int.TryParse(v.ToString(), out i))) ? i : null;
         double? D(string k) => a[k] is JsonValue v && (v.TryGetValue<double>(out var d) || double.TryParse(v.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out d)) ? d : null;
@@ -1387,6 +1451,10 @@ public sealed class AssistantService(
                     if (refs.Count > 0)
                         sb.AppendLine("这个技能附带的参考资料（需要时用 read_document 打开）：" + string.Join("；", refs.Select(d => $"《{d.Title}》（{run.RefOf(d.Id)}）")));
                 }
+                // 技能里写了要用的专用工具：翻开技能时一起加载上
+                var skillTools = LoadGroups(run, ToolCatalog.Mentioned(row.Body, ToolCatalog.Available(run.AllTools)));
+                if (skillTools.Count > 0)
+                    sb.AppendLine($"（这个技能要用的工具已加载，可以直接调用：{string.Join("、", skillTools.SelectMany(g => g.Tools).Where(t => run.AllTools.Any(x => x.Name == t)))}）" + GroupGuides(run, skillTools));
                 if (run.MessageId != Guid.Empty)
                     db.SkillUses.Add(new SkillUse { SkillId = sk.Id, CompanyId = me.CompanyId, MessageId = run.MessageId, UserId = me.UserId, Version = row.Version, At = DateTimeOffset.UtcNow });
                 return new ToolOutcome(sb.ToString(), $"（较早翻看过技能「{sk.Name}」，要点：）\n{Clip(row.Body, 900)}", label, $"{sk.Name} v{row.Version}", "已翻看");
@@ -2257,6 +2325,133 @@ public sealed class AssistantService(
     }
 
     /// <summary>系统提示里的「做 PPT」说明：能用哪些模板、用户选了哪一套。</summary>
+    // ── 工具按需加载 ─────────────────────────────────────
+    private static bool IsImageName(string name) => Path.GetExtension(name).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".webp" or ".gif" or ".bmp";
+
+    /// <summary>把几组专用工具加进交给模型的工具清单（回合循环拿的是同一个列表，下一轮就带上）。返回这次新加载的组。</summary>
+    private static List<ToolGroup> LoadGroups(Run run, IEnumerable<string> codes)
+    {
+        if (!run.OnDemand) return [];
+        var avail = ToolCatalog.Available(run.AllTools);
+        var added = new List<ToolGroup>();
+        foreach (var c in codes)
+            if (avail.FirstOrDefault(g => g.Code == c) is { } g && run.Loaded.Add(g.Code)) added.Add(g);
+        if (added.Count > 0)
+        {
+            var live = ToolCatalog.Live(run.AllTools, run.Loaded);
+            run.LiveTools.Clear();
+            run.LiveTools.AddRange(live);
+        }
+        return added;
+    }
+
+    /// <summary>中途加载的工具要配的用法（开始就加载了的写在系统提示词里）。</summary>
+    private static string GroupGuides(Run run, IEnumerable<ToolGroup> groups)
+    {
+        var sb = new StringBuilder();
+        foreach (var g in groups)
+        {
+            if (g.Code == "show_block") sb.Append('\n').Append(ShowBlockGuide.TrimEnd());
+            if (g.Code == "inquiry_form") sb.Append('\n').Append(InquiryGuide.TrimEnd());
+            if (g.Code == "make_ppt") sb.Append(PptPrompt(run.PptTemplates, run.PptChosen).TrimEnd());
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>find_tools：按工具名或要做的事找出专用工具，加载上，告诉模型下一步可以直接调用。</summary>
+    private async Task<ToolOutcome> FindToolsAsync(ToolCall call, Run run, CancellationToken ct)
+    {
+        const string label = "加载工具";
+        JsonObject a;
+        try { a = JsonNode.Parse(string.IsNullOrWhiteSpace(call.ArgumentsJson) ? "{}" : call.ArgumentsJson) as JsonObject ?? new JsonObject(); }
+        catch (JsonException) { a = new JsonObject(); }
+        var names = a["names"] switch
+        {
+            JsonArray arr => arr.Select(x => x?.ToString() ?? "").Where(x => x.Length > 0).ToList(),
+            JsonValue v when v.TryGetValue<string>(out var one) => one.Split([',', '，', '、', ' '], StringSplitOptions.RemoveEmptyEntries).ToList(),
+            _ => [],
+        };
+        var need = a["need"]?.ToString();
+        var detail = string.Join("、", names.Append(need ?? "").Where(x => x.Length > 0));
+        var avail = ToolCatalog.Available(run.AllTools);
+        if (!run.OnDemand)
+            return new ToolOutcome("所有工具都已经带着了，直接调用就行。", "都带着", label, detail, "都带着");
+        // 已经加载过的，直接告诉它能用
+        var already = avail.Where(g => run.Loaded.Contains(g.Code) && names.Any(n => g.Code.Equals(n, StringComparison.OrdinalIgnoreCase) || g.Tools.Contains(n))).ToList();
+        var rest = avail.Where(g => !run.Loaded.Contains(g.Code)).ToList();
+        Dictionary<string, double>? sim = null;
+        if (!string.IsNullOrWhiteSpace(need) && rest.Count > 0 && await ToolSimilarityAsync(need, rest, ct) is { } raw)
+        {
+            var min = await ToolPreloadScoreAsync(ct);
+            sim = raw.ToDictionary(kv => kv.Key, kv => Math.Max(0, kv.Value - min) * 3);   // 过了门槛才加分
+        }
+        var added = LoadGroups(run, ToolCatalog.Match(rest, names, need, sim));
+        if (added.Count == 0 && already.Count == 0)
+            return new ToolOutcome("没找到对得上的专用工具。能加载的：\n" + string.Join("\n", rest.Select(g => $"- {string.Join(" / ", g.Tools)}：{g.Summary}"))
+                + "\n都用不上就用常用工具接着做。", "没找到", label, detail, "没找到");
+        var sb = new StringBuilder();
+        if (added.Count > 0)
+        {
+            sb.AppendLine("已加载，下一步可以直接调用：");
+            foreach (var g in added) sb.AppendLine($"- {string.Join(" / ", g.Tools.Where(t => run.AllTools.Any(x => x.Name == t)))}：{g.Summary}");
+            sb.Append(GroupGuides(run, added));
+        }
+        if (already.Count > 0) sb.AppendLine($"\n{string.Join("、", already.SelectMany(g => g.Tools))} 之前已经加载过了，直接调用。");
+        var loadedNames = added.Concat(already).SelectMany(g => g.Tools).Where(t => run.AllTools.Any(x => x.Name == t)).ToList();
+        return new ToolOutcome(sb.ToString().Trim(), $"（加载了工具：{string.Join("、", loadedNames)}）", label, detail, string.Join("、", loadedNames));
+    }
+
+    /// <summary>专用工具各组的用途向量（按向量模型标签缓存，模型换了自然重算）。</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, float[]> GroupVectors = new();
+
+    /// <summary>问题和各组专用工具用途的相似度；向量服务不通或太慢（3 秒）就不算，只靠常见说法和之前用过的。</summary>
+    private async Task<Dictionary<string, double>?> ToolSimilarityAsync(string text, IReadOnlyList<ToolGroup> groups, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(text) || groups.Count == 0) return null;
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(3));
+            var tag = await embeddings.CurrentTagAsync(cts.Token);
+            var missing = groups.Where(g => !GroupVectors.ContainsKey($"{tag}|{g.Code}")).ToList();
+            var batch = await embeddings.EmbedAsync([Clip(text, 500), .. missing.Select(ToolCatalog.MatchText)], cts.Token);
+            if (batch.Vectors.Count != missing.Count + 1) return null;
+            for (var i = 0; i < missing.Count; i++) GroupVectors[$"{tag}|{missing[i].Code}"] = batch.Vectors[i + 1];
+            var q = batch.Vectors[0];
+            return groups.ToDictionary(g => g.Code, g => GroupVectors.TryGetValue($"{tag}|{g.Code}", out var v) ? ToolCatalog.Cosine(q, v) : 0);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested && ex is not OutOfMemoryException)
+        {
+            return null;
+        }
+    }
+
+    private async Task<double> ToolPreloadScoreAsync(CancellationToken ct)
+        => double.TryParse(await config.GetStringAsync(ConfigKeys.ToolPreloadScore, "0.6", ct), NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? Math.Clamp(v, 0.3, 0.95) : 0.6;
+
+    /// <summary>这个对话最近几问用过、加载过的工具：接着聊同一件事时不用再找一遍。</summary>
+    private async Task<List<string>> ToolsUsedBeforeAsync(Guid sessionId, CancellationToken ct)
+    {
+        var payloads = await db.QaMessages.AsNoTracking().Where(m => m.SessionId == sessionId && m.Payload != null)
+            .OrderByDescending(m => m.At).Take(3).Select(m => m.Payload!).ToListAsync(ct);
+        var used = new List<string>();
+        foreach (var p in payloads)
+        {
+            try
+            {
+                using var d = JsonDocument.Parse(p);
+                if (d.RootElement.TryGetProperty("toolsLoaded", out var tl) && tl.ValueKind == JsonValueKind.Array)
+                    used.AddRange(tl.EnumerateArray().Select(x => x.GetString() ?? ""));
+                if (d.RootElement.TryGetProperty("steps", out var st) && st.ValueKind == JsonValueKind.Array)
+                    used.AddRange(st.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.Object && x.TryGetProperty("tool", out _)
+                            && !(x.TryGetProperty("status", out var s) && s.GetString() == "error"))
+                        .Select(x => x.GetProperty("tool").GetString() ?? ""));
+            }
+            catch (JsonException) { }
+        }
+        return used.Where(x => x.Length > 0).Distinct().ToList();
+    }
+
     private static string PptPrompt(IReadOnlyList<(Guid Id, string Name, string Tags)> list, Guid? chosen)
     {
         if (list.Count == 0) return "";

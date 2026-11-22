@@ -38,9 +38,9 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         var stepNo = 0;
         var reasoning = new System.Text.StringBuilder();
         var thinkSeconds = 0.0;
-        var toolChars = ToolChars(tools);
         for (var round = 1; ; round++)
         {
+            var toolChars = ToolChars(tools);   // 工具按需加载：中途加载了专用工具，下一轮的工具清单就变长了
             var allowTools = round <= options.MaxRounds && tools.Count > 0;
             var streamed = false;
             var result = await client.RunRoundAsync(messages, tools,
@@ -154,6 +154,7 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         "hazard_lookup" => "查危险工艺和危化品",
         "process_sim" => "流程模拟",
         "make_ppt" => "做 PPT",
+        "find_tools" => "加载工具",
         "plan" => "列计划",
         "web_search" => "联网搜索",
         "fetch_url" => "打开网页",
@@ -187,6 +188,8 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         {
             var node = JsonNode.Parse(string.IsNullOrWhiteSpace(call.ArgumentsJson) ? "{}" : call.ArgumentsJson) as JsonObject;
             if (node is null) return "";
+            if (call.Name == "find_tools")
+                return string.Join("、", new[] { node["names"] is JsonArray ns ? string.Join("、", ns.Select(x => x?.ToString())) : node["names"]?.ToString(), node["need"]?.ToString() }.Where(x => !string.IsNullOrEmpty(x)));
             if (call.Name == "delegate") return node["tasks"] is JsonArray ts ? $"{ts.Count} 个子任务，同时进行" : "分头查";
             if (call.Name == "make_ppt")
                 return string.Join(" · ", new[] { node["file_name"]?.ToString(), node["pages"] is JsonArray ps ? $"{ps.Count} 页" : node["redo"] is not null ? $"重做《{node["redo"]}》" : null,
