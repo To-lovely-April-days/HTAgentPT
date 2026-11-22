@@ -27,7 +27,7 @@ description: 客户说了工艺或介质，问是不是重点监管工艺、是�
 - 实验室小釜也照搬生产装置的全部要求而不说明
 
 ## 该查什么
-hazard_lookup · chemical_info · search_documents（产品资料、以往项目的安全配置）· show_block（interlock、checklist）
+hazard_lookup · chemical_info · search_documents（产品资料、以往项目的安全配置；「CSB 事故调查」里同类工艺的真实事故，说明为什么要配这些控制）· show_block（interlock、checklist）
 
 ## 回答怎么写
 结论（属于哪类重点监管工艺、哪些介质是危化品）→ 监管要求原文（引用编号）→ 介质危险性 → 对照我们的配置（标配 / 选配 / 待确认）→ 提醒「最终以安全评价和设计为准」

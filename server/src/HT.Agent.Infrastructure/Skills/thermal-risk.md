@@ -35,6 +35,7 @@ description: 问某个反应在釜里安不安全、冷却失效会怎样、绝�
 
 ## 该查什么
 show_block（thermal、formula）· run_python（thermo、CoolProp）· chemical_info · hazard_lookup（是不是重点监管工艺）· search_literature（反应热文献）
+· search_documents（「CSB 事故调查」：同类反应失控的真实事故，讲后果和教训时引用，写明是美国化学品安全委员会的公开报告）
 
 ## 回答怎么写
 结论（几级、主要风险）→ thermal 组件 → 输入数据和来源（哪些是假设）→ 按等级给的措施 → 提醒「估算结果，正式评估要做反应量热和 DSC」

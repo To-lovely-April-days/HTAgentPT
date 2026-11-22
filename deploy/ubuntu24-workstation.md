@@ -602,6 +602,28 @@ docker compose --env-file /srv/htagent/config/compose.env \
 - 回答里的图表、流程图这类组件如果明显变少，在卡片里把「回答组件」设成常驻。
 - 验证：跑 `python3 deploy/eval/run_eval.py deploy/eval/questions.intent.jsonl`，和上次比「查对地方」「没推脱」；对话里问「苯加氢中试算一下物料衡算」，思考过程里应能看到「流程模拟」（系统先挑上）或「加载工具」一步。
 
+## 17. 导入：CSB 事故调查报告（反应失控、聚合失控）
+
+美国化学品安全委员会（CSB）的公开报告，导进知识库「安全事故案例（公开资料）」，助手讲反应风险、讲为什么要配联锁和泄放时引用。报告是公有领域，可以放心用。PDF 不在 git 里，脚本从 csb.gov 下载。
+
+1. 在服务器上（用有「资料管理」「知识库管理」权限的管理员账号；登录会把这个账号在浏览器上的登录挤掉，跑完重新登录）：
+
+```bash
+cd /srv/htagent/app && git pull
+```
+
+```bash
+export HT_URL=http://localhost:8080 HT_USER=管理员账号 HT_PASS='密码'
+```
+
+```bash
+python3 deploy/safety-corpus/import_csb.py
+```
+
+2. 后台「资料管理」里看解析进度（英文报告，每份几十页，几分钟到十几分钟）。
+3. 服务器上不了 csb.gov 时：在能上的电脑上按 `deploy/safety-corpus/csb_reports.json` 里的地址下载（文件名照 `file`），拷到服务器某个目录，再运行 `python3 deploy/safety-corpus/import_csb.py --dir 那个目录`。重跑不会重复导入。
+4. 验证：对话里问「丙烯酸聚合放大时冷凝器能力不够会怎样，有没有真实事故」，回答里应引用 CSB 报告。
+
 ## 排错所需信息
 
 出现问题时，提供 GPU 型号/驱动版本、失败命令、错误日志尾部即可。不要发送 compose.env、管理员密码或 API key。
