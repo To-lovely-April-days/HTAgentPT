@@ -1609,3 +1609,44 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .sim-tab { height: 28px; padding: 0 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); font: inherit; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
 .sim-tab:hover { border-color: var(--line-strong); }
 .sim-tab.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+/* 回答里的任务清单（PlanCard） */
+.pl { border: 1px solid var(--line); border-radius: 12px; background: #fff; overflow: hidden; margin-bottom: 10px; }
+.pl-hd { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-bottom: 1px solid #f0f0ee; font-size: 13px; flex-wrap: wrap; }
+.pl-hd b { font-weight: 600; }
+.pl-hd .pl-r { margin-left: auto; font-variant-numeric: tabular-nums; }
+.pl-bar { height: 3px; background: #f1f1ef; }
+.pl-bar i { display: block; height: 3px; background: #1c6b45; transition: width .3s; }
+.pl-it { display: flex; align-items: flex-start; gap: 10px; padding: 7px 14px; font-size: 13px; line-height: 1.55; }
+.pl-it svg { flex: 0 0 auto; margin-top: 1px; }
+.pl-t { flex: 1; min-width: 0; }
+.pl-t small { display: block; font-size: 11.5px; color: #8a8a8a; }
+.pl-s { font-family: var(--mono, ui-monospace, monospace); font-size: 11px; color: #9a9a9a; white-space: nowrap; min-width: 34px; text-align: right; }
+.pl-n { border: 0; background: none; padding: 0 2px; font-size: 11.5px; color: #8a8a8a; cursor: pointer; white-space: nowrap; }
+.pl-n:hover { color: #141414; }
+.pl-it.done .pl-t { color: #6b6b6b; }
+.pl-it.now { background: #fafaf9; }
+.pl-it.now .pl-t { font-weight: 600; color: #141414; }
+.pl-it.todo .pl-t, .pl-it.skip .pl-t { color: #9a9a9a; }
+.pl-sub { margin: 0 14px 6px 42px; border-left: 2px solid #f0f0ee; padding-left: 10px; display: flex; flex-direction: column; gap: 3px; }
+.pl-sub > div { display: flex; gap: 8px; font-size: 11.5px; color: #6b6b6b; min-width: 0; }
+.pl-sub > div.err { color: var(--cls-conf, #b42318); }
+.pl-sub b { font-weight: 500; color: #4a4a4a; flex: 0 0 auto; }
+.pl-sub .v { font-family: var(--mono, ui-monospace, monospace); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-sub > div > span:last-child { flex: 0 0 auto; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-note { margin: 6px 14px 4px; padding: 7px 10px; border-radius: 8px; background: #fdf4e3; color: #7a4f00; font-size: 12px; line-height: 1.6; }
+.pl-live { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-top: 1px solid #f0f0ee; font-size: 12.5px; color: #4a4a4a; background: #fcfcfb; min-width: 0; }
+.pl-live > span:nth-child(2) { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-pet { position: relative; flex: 0 0 auto; display: inline-block; line-height: 0; }
+.pl-tm { font-family: var(--mono, ui-monospace, monospace); font-size: 11.5px; color: #8a8a8a; }
+.pl-one { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; margin-bottom: 10px; border: 1px solid #ececea; border-radius: 10px; font: inherit; font-size: 12.5px; background: #fff; cursor: pointer; text-align: left; color: inherit; }
+.pl-one b { font-weight: 600; font-size: 12.5px; }
+.pl-one:hover { border-color: #d6d6d3; }
+.pl-spin { animation: pl-spin .9s linear infinite; }
+@keyframes pl-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .pl-spin { animation: none; } }
+@media (max-width: 560px) {
+  .pl-it { gap: 8px; padding: 7px 10px; }
+  .pl-s { display: none; }
+  .pl-sub { margin-left: 30px; margin-right: 10px; }
+}

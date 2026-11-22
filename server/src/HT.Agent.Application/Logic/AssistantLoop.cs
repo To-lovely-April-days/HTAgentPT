@@ -153,6 +153,7 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         "chemical_info" => "化学品数据",
         "hazard_lookup" => "查危险工艺和危化品",
         "process_sim" => "流程模拟",
+        "plan" => "列计划",
         "web_search" => "联网搜索",
         "fetch_url" => "打开网页",
         "compare_documents" => "文件对比",

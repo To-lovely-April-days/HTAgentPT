@@ -21,9 +21,10 @@ import { Perm, unwrapLedgerTable } from '../../lib/types';
 import type {
   CaseDetailData, CaseRow, ChatAttachment, GenChatPayload, GenChatTurnResult, KbRow, LedgerTable, QaSessionRow, VocabRow,
   QaTemplateRec, QaTimeline, SessionRowT, SessionView, Source, TextTranslationResult, TicketRow,
-  AssistantStep, EvidenceCard as EvidenceRef, VerifyReport, AskSpec, ToolArtifact, AgentsCardData,
+  AssistantStep, EvidenceCard as EvidenceRef, VerifyReport, AskSpec, ToolArtifact, AgentsCardData, PlanState,
 } from '../../lib/types';
 import { AgentsCard } from './AgentsCard';
+import { PlanCard } from './PlanCard';
 import { RefPanel, StepsCard, VerifyBar } from './AssistantParts';
 import { ArtifactCards, AskCard, ExportBar } from './ToolCards';
 import { SideSlotCtx } from '../../Shell';
@@ -88,6 +89,7 @@ interface Msg {
   level?: string;                // 这一轮用的思考档位（fast / standard / deep）
   truncated?: boolean;           // 写到「回答最长」停了
   agents?: AgentsCardData[];     // 分头查：每次一张，子代理的进度和结论
+  plan?: PlanState | null;       // 多步任务的任务清单
 }
 
 const MsgCtx = createContext<{
@@ -295,6 +297,9 @@ export default function ChatPage() {
             }));
             break;
           }
+          case 'plan':
+            patch(id, { plan: ev.payload as PlanState });
+            break;
           case 'ask':
             patch(id, { ask: ev.payload as AskSpec });
             break;
@@ -814,6 +819,8 @@ function AssistantMessage() {
 
   // 正在回答：小人跳进这条回答里干活（左边的头像先空着，免得两个小人）
   const staging = !!m.streaming && !m.agentSteps;
+  // 「列计划」这一步不算查了几步
+  const plainSteps = (m.steps ?? []).filter((s) => s.tool !== 'plan');
   return (
     <MessagePrimitive.Root className={'chat-assistant' + (staging ? ' staging' : '')}>
       <BrandMark />
@@ -823,8 +830,12 @@ function AssistantMessage() {
         )}
         {m.notice && <div className="hint" style={{ marginBottom: 7 }}>{m.notice}</div>}
         {m.agentSteps && <AgentProgressCard steps={m.agentSteps} streaming={m.streaming} />}
-        {staging && <ThinkingStage steps={m.steps ?? []} hasText={!!m.text} />}
-        {m.steps && !staging && <StepsCard steps={m.steps} streaming={m.streaming} seconds={m.seconds} />}
+        {m.plan && m.plan.items.length > 0
+          ? <PlanCard plan={m.plan} steps={m.steps ?? []} streaming={!!m.streaming} seconds={m.seconds} />
+          : <>
+            {staging && <ThinkingStage steps={plainSteps} hasText={!!m.text} />}
+            {m.steps && !staging && <StepsCard steps={plainSteps} streaming={m.streaming} seconds={m.seconds} />}
+          </>}
         {m.agents?.map((c) => <AgentsCard key={c.id} card={c} live={!!m.streaming} />)}
         {m.artifacts && m.artifacts.length > 0 && <ArtifactCards items={m.artifacts} onSend={active ? sendText : undefined} />}
         {m.text && <Prose text={m.text} live={m.streaming}
@@ -959,10 +970,10 @@ function restore(raw: string | null | undefined): Partial<Msg> {
       }
       case 'assistant': {
         const a = parsed as unknown as { steps?: AssistantStep[]; evidence?: Msg['evidence']; verify?: VerifyReport; seconds?: number;
-          ask?: AskSpec; answered?: string; artifacts?: ToolArtifact[]; level?: string; truncated?: boolean; agents?: AgentsCardData[] };
+          ask?: AskSpec; answered?: string; artifacts?: ToolArtifact[]; level?: string; truncated?: boolean; agents?: AgentsCardData[]; plan?: PlanState | null };
         return {
           steps: a.steps ?? [], evidence: a.evidence, verify: a.verify, seconds: a.seconds ?? null, artifacts: a.artifacts,
-          level: a.level, truncated: a.truncated, agents: a.agents,
+          level: a.level, truncated: a.truncated, agents: a.agents, plan: a.plan,
           ...(a.ask ? { ask: { ...a.ask, answered: a.answered ?? null }, text: '' } : {}),
         };
       }

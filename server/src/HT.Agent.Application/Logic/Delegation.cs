@@ -16,7 +16,7 @@ public static class Delegation
 {
     /// <summary>子代理用不了的工具：不能再拆、不能停下来问人、不能做文件、不往界面上直接放组件、不改记忆。</summary>
     public static readonly string[] SubAgentDrops =
-        ["delegate", "ask_user", "inquiry_form", "show_table", "show_block", "remember", "forget", "translate_file", "note_correction"];
+        ["delegate", "ask_user", "plan", "inquiry_form", "show_table", "show_block", "remember", "forget", "translate_file", "note_correction"];
 
     /// <summary>子代理交回的结论最长多少字（再长主助手的上下文装不下）。</summary>
     public const int MaxAnswer = 1500;

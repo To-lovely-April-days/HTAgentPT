@@ -21,6 +21,7 @@ const GROUPS: { title: string; note: string; tools: ToolDef[] }[] = [
     { key: 'query_projects', name: '查项目台账', ic: '台', tone: 'in', desc: '做过的项目；金额只给有「机密」密级的人', fixed: true },
     { key: 'search_standards', name: '查标准规范', ic: '标', tone: 'in', desc: '只在「标准规范」类资料里搜，回答写清标准号和条款；上传规范时类别选「标准规范」', fixed: true },
     { key: 'ask_user', name: '请用户确认', ic: '选', tone: 'in', desc: '有歧义或查到多个候选时，给选项让人点' },
+    { key: 'plan', name: '列计划（任务清单）', ic: '划', tone: 'in', tag: '免费', desc: '要好几步的任务先列计划，做完一步打勾、正在做的转圈，每步下面挂着调过的工具；答完收成一行。简单问题不列' },
     { key: 'inquiry_form', name: '询价缺项单', ic: '单', tone: 'in', desc: '需求不全时列出已知项和缺的项，可当场填、导出发给客户' },
     { key: 'search_prices', name: '查价格 · 材料成本估算', ic: '价', tone: 'in', desc: '在价格库里查采购价，按用量估材料成本（不含人工和利润）；还要有「查看采购价格」权限' },
     { key: 'hazard_lookup', name: '查危险工艺和危化品', ic: '监', tone: 'in', tag: '本地数据', desc: '国家公布的重点监管危险化工工艺（18 类）、危险化学品目录（2015 版）及分类信息表、易制爆、易制毒；引用原文。数据在「国家目录」里看和改' },

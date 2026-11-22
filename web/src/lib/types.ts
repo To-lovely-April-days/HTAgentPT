@@ -433,6 +433,12 @@ export interface AssistantStep {
   more?: string | null;
 }
 
+/** 回答里的任务清单（多步任务时模型列的计划）。status：todo 没开始、now 正在做、done 做完、skip 没做。steps 是这一步里调过的工具（AssistantStep 的 id）。 */
+export interface PlanState {
+  items: { title: string; status: 'todo' | 'now' | 'done' | 'skip'; note?: string | null; started?: string | null; ended?: string | null; steps: string[] }[];
+  revisions: number; reasons: string[]; started?: string | null; finished: boolean;
+}
+
 /** 通用助手的一份依据：资料切块、台账记录或附件片段。n 与回答里的 [n] 对应。 */
 export interface EvidenceCard {
   n: number; kind: 'doc' | 'ledger' | 'attachment' | 'web' | 'price' | 'reg'; title: string; url?: string | null; priceId?: number | null;

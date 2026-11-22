@@ -128,6 +128,8 @@ public sealed class AssistantService(
         public readonly Dictionary<string, int> FileFails = new();
         /// <summary>流程模拟这一轮没算成的次数：到 3 次就让模型停下来问人。</summary>
         public int SimFails;
+        /// <summary>回答里的任务清单（模型用 plan 列、系统兜底）。</summary>
+        public readonly TaskPlan Plan = new();
         /// <summary>分头查：子代理照主助手的参数跑（轮数另算）；能不能查资料、查项目和主助手一样。</summary>
         public AssistantLoopOptions LoopOptions = new();
         public bool CanDocs, CanProjects;
@@ -300,6 +302,15 @@ public sealed class AssistantService(
                     await LogStartAsync();
                     if (e.Kind == "delta" && e.Payload.GetType().GetProperty("text")?.GetValue(e.Payload) is string t) answerSoFar.Append(t);
                     if (e.Kind == "replace") { answerSoFar.Clear(); if (e.Payload.GetType().GetProperty("text")?.GetValue(e.Payload) is string r) answerSoFar.Append(r); }
+                    // 工具开始时挂到计划里正在做的那一步
+                    if (e.Kind == "step" && run.Plan.Items.Count > 0 && e.Payload.GetType().GetProperty("status")?.GetValue(e.Payload) as string == "running"
+                        && e.Payload.GetType().GetProperty("id")?.GetValue(e.Payload) is string sid && e.Payload.GetType().GetProperty("tool")?.GetValue(e.Payload) is string stool)
+                    {
+                        run.Plan.OnStep(sid, stool);
+                        await emit(e);
+                        await emit(new QaEvent("plan", run.Plan.State()));
+                        return;
+                    }
                     await emit(e);
                 }, ct);
             }
@@ -328,7 +339,7 @@ public sealed class AssistantService(
                 message.Answer = ask.Question + "\n" + string.Join("\n", ask.Options.Select(o => $"· {o.Label}"));
                 message.Payload = JsonSerializer.Serialize(new
                 {
-                    kind = "assistant", rounds = result.Rounds, steps = askSteps, artifacts = run.Artifacts, level = levelCode, agents = run.Agents,
+                    kind = "assistant", rounds = result.Rounds, steps = askSteps, artifacts = run.Artifacts, level = levelCode, agents = run.Agents, plan = run.Plan.Items.Count > 0 ? run.Plan.State() : null,
                     ask = new { question = ask.Question, options = ask.Options, multiple = ask.Multiple },
                     pending = new PendingState(messages, result.PausedCallId, run.ToState(), run.PendingBrowser)
                 }, Json);
@@ -359,13 +370,18 @@ public sealed class AssistantService(
             await emit(new QaEvent("verify", verify));
 
             message.Answer = answer;
+            if (run.Plan.Items.Count > 0)
+            {
+                run.Plan.Finish(DateTimeOffset.UtcNow);
+                await emit(new QaEvent("plan", run.Plan.State()));
+            }
             // 写到「回答最长」停了：界面出黄条，可以换深度再答一遍
             if (result.Truncated) await emit(new QaEvent("truncated", new { level = levelCode }));
             message.Payload = JsonSerializer.Serialize(new
             {
                 kind = "assistant", rounds = result.Rounds, seconds = Math.Round((DateTimeOffset.UtcNow - started).TotalSeconds, 1),
                 steps = stepRows, evidence = new { used, other }, verify, artifacts = run.Artifacts, searches = run.SearchLog,
-                level = levelCode, truncated = result.Truncated, agents = run.Agents
+                level = levelCode, truncated = result.Truncated, agents = run.Agents, plan = run.Plan.Items.Count > 0 ? run.Plan.State() : null
             }, Json);
             // 查过资料却一条都没用上：记成「没答上来」，进语料缺口清单
             var searched = run.Searches.Count > 0;
@@ -500,6 +516,12 @@ public sealed class AssistantService(
             sb.AppendLine("""
             - 问到标准、规范、条款（如 GB 150、HG、ASME）时优先用 search_standards，回答写清标准号、版本和条款号。
             """);
+        if (enabled.Contains("plan"))
+            sb.AppendLine("""
+                - 任务要 3 步以上（文献调研、流程模拟、出外形图、做文件、对照协议、多处资料汇总……）时，先用 plan 列出要做的步骤（最多 7 步，每步一句话说做什么），
+                  再一步步做：开始一步就把它标 now，做完标 done，同时把下一步标 now；计划变了就整个重列并在 reason 里说为什么；写最终回答之前把做完的都标 done，没做的标 skip 并写 note。
+                  一两步就能答的问题不要列计划。
+                """);
         if (enabled.Contains("ask_user"))
             sb.AppendLine("""
                 - 问题里关键信息有歧义、或者查到好几个都对得上，而不同理解会导致答案明显不同时，先把候选查清楚，再请用户确认（给 2–6 个选项，每个附一句区别）。不影响结论的小歧义不要问，直接按最合理的理解回答并写明「按 XX 理解」。一个问题尽量只问一次。
@@ -546,6 +568,28 @@ public sealed class AssistantService(
             list.Add(new ToolSpec("use_skill",
                 "翻看一项技能的全文：公司技术骨干写的这类问题的答题指南（先确认什么、怎么判断、常见的坑、该查什么、回答怎么写）。问题和技能清单里的某一项对上了，先翻看再查资料、回答；对上几项就翻几项。",
                 Obj(new() { ["name"] = Str("技能名称，照技能清单里写") }, "name")));
+        if (enabled.Contains("plan"))
+            list.Add(new ToolSpec("plan",
+                "列出或更新这次任务的计划（任务清单，用户能看到进度）。每次都给整张清单：items 按顺序，每步 title（一句话）、status（todo 没开始 / now 正在做 / done 做完 / skip 不做了）、note（可选，如为什么不做）。同一时间只有一步是 now。计划变了时 reason 写为什么。",
+                Obj(new()
+                {
+                    ["items"] = new Dictionary<string, object>
+                    {
+                        ["type"] = "array", ["maxItems"] = 7,
+                        ["items"] = new Dictionary<string, object>
+                        {
+                            ["type"] = "object",
+                            ["properties"] = new Dictionary<string, object>
+                            {
+                                ["title"] = Str("这一步做什么"),
+                                ["status"] = new Dictionary<string, object> { ["type"] = "string", ["enum"] = new[] { "todo", "now", "done", "skip" } },
+                                ["note"] = Str("补充说明，可省略"),
+                            },
+                            ["required"] = new[] { "title", "status" },
+                        },
+                    },
+                    ["reason"] = Str("计划变了时写为什么，没变就省略"),
+                }, "items")));
         if (enabled.Contains("ask_user"))
             list.Add(new ToolSpec("ask_user",
                 "请用户确认或选择：问题有歧义、或查到多个候选且会影响答案时用。给出问题和 2–6 个选项（每个附一句区别），用户可以点选，也可以自己补充。调用后等用户回答再继续。",
@@ -940,7 +984,7 @@ public sealed class AssistantService(
         IReadOnlyList<(Guid Id, string FileName, string? Chunks)> attachments, int topK, IReadOnlySet<string> enabled,
         Func<QaEvent, Task> emit, CancellationToken ct, int agent = 0)
     {
-        if (call.Name is "ask_user" or "run_python" or "chemical_info" or "hazard_lookup" or "process_sim" or "web_search" or "fetch_url" or "compare_documents"
+        if (call.Name is "ask_user" or "plan" or "run_python" or "chemical_info" or "hazard_lookup" or "process_sim" or "web_search" or "fetch_url" or "compare_documents"
             or "search_literature" or "view_image" or "ocr_image" or "translate_file" or "inquiry_form" or "remember" or "forget"
             or "search_prices" or "cost_estimate" or "show_table" or "show_block" or "browser_open" or "browser_read" or "browser_act" or "browser_look"
             && !enabled.Contains(call.Name switch { "ocr_image" => "view_image", "forget" => "remember", "cost_estimate" => "search_prices",
@@ -1538,6 +1582,17 @@ public sealed class AssistantService(
                 return await HazardLookupAsync(a, run, emit, label, ct);
             case "process_sim":
                 return await ProcessSimAsync(a, run, emit, label, ct);
+            case "plan":
+            {
+                if (agent > 0) return new ToolOutcome("子任务不用列计划，直接做。", "不用列计划", label, "", "不用列计划");
+                var bad = run.Plan.Update(a["items"] as JsonArray, a["reason"]?.ToString(), DateTimeOffset.UtcNow);
+                if (bad is not null) return new ToolOutcome(bad, "计划格式不对", label, "", "格式不对", Failed: true);
+                await emit(new QaEvent("plan", run.Plan.State()));
+                var cur = run.Plan.Current;
+                var done = run.Plan.Items.Count(i => i.Status == "done");
+                return new ToolOutcome($"计划已更新（{run.Plan.Items.Count} 步，做完 {done} 步）。" + (cur is null ? "" : $"现在做：{cur.Title}"),
+                    $"（计划：{string.Join(" → ", run.Plan.Items.Select(i => $"{i.Title}[{i.Status}]"))}）", label, cur?.Title ?? "", $"{done}/{run.Plan.Items.Count}");
+            }
             case "web_search":
             {
                 var raw = S("query") ?? req.Question;
@@ -1665,7 +1720,7 @@ public sealed class AssistantService(
         };
     }
 
-    private static readonly string[] OptionalTools = ["ask_user", "run_python", "chemical_info", "hazard_lookup", "process_sim", "web_search", "fetch_url", "compare_documents", "browser",
+    private static readonly string[] OptionalTools = ["ask_user", "plan", "run_python", "chemical_info", "hazard_lookup", "process_sim", "web_search", "fetch_url", "compare_documents", "browser",
         "search_literature", "view_image", "translate_file", "inquiry_form", "search_prices", "show_table", "show_block"];
 
     /// <summary>这次能用哪些可选工具：系统设置里开着的、角色在允许名单里的。外部客户只给「请用户确认」。</summary>
