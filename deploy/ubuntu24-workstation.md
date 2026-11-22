@@ -561,6 +561,38 @@ docker compose --env-file /srv/htagent/config/compose.env \
 - 对话里问「30L 加氢釜，内径 300、直边 420、夹套，顶部 5 个接管、底部放料，出外形图和三维模型」：回答里有两个文件卡（.dxf、.step），下载后 CAD 能打开
 - 问「苯加氢 3 MPa、氢苯比 3.5，180 到 350 ℃ 的平衡转化率」：350 ℃ 约 91.7%
 
+## 15. 升级：PPT 模板库（按模板做 PPT）
+
+这次要重建两个工具容器：代码解释器（sandbox）多了套模板的小工具 htppt；office 容器多了 poppler（PPT 每页转图）和几款开源英文字体。
+数据库会自动加一张表（PptTemplates）。30 套开源模板（SlidesCarnival，CC BY 4.0，约 100 MB）**不在 git 里**——模板许可不许把模板文件原样转发，
+仓库里只有清单（deploy/ppt-templates/templates.json）。先把开发机上的模板文件拷到服务器同一个目录：
+
+```bash
+# 在开发机上（项目目录里）执行；用户名、服务器地址换成自己的
+scp deploy/ppt-templates/*.pptx 用户名@服务器地址:/srv/htagent/app/deploy/ppt-templates/
+```
+
+后端启动约 1.5 分钟后自动导入（每套分析每页、转缩略图，30 套要几分钟）。
+
+```bash
+cd /srv/htagent/app
+git pull
+docker compose --env-file /srv/htagent/config/compose.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.tools.yml build sandbox office
+docker compose --env-file /srv/htagent/config/compose.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.tools.yml up -d --build
+```
+
+然后：
+- 后台「工具」里打开「PPT 方案汇报」（默认关着），按需设可用角色
+- 后台「PPT 模板」：等「系统自带 30 / 30 已导入」；没导入完、或「用不了」里写着沙箱 / office 连不上，等容器起来后点「现在导入」或「重新分析」
+- 看着缩略图不好看的模板直接关掉，员工就选不到了
+
+验证：
+- 对话里点「＋ → PPT 模板」能看到模板网格，选一套
+- 问「按 30L 加氢釜方案做一份给客户讲的 PPT，10 分钟」：回答里有 PPT 文件卡，一排每页的预览图，下面写着检查结果；下载后 PowerPoint、WPS 能打开，最后一页右下角有一行模板署名
+- 文件卡上点「换个风格」选另一套：内容不变，换成新模板
+
 ## 排错所需信息
 
 出现问题时，提供 GPU 型号/驱动版本、失败命令、错误日志尾部即可。不要发送 compose.env、管理员密码或 API key。

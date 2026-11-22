@@ -1,0 +1,4 @@
+# 模板文件本身不进 git：SlidesCarnival 的许可不许把模板文件原样转发（只许用它做出自己的 PPT）。
+# 部署时从本机拷到服务器（见 deploy/ubuntu24-workstation.md 第 15 节）。
+*.pptx
+previews/

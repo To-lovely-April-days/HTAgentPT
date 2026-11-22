@@ -21,7 +21,7 @@ import { Perm, unwrapLedgerTable } from '../../lib/types';
 import type {
   CaseDetailData, CaseRow, ChatAttachment, GenChatPayload, GenChatTurnResult, KbRow, LedgerTable, QaSessionRow, VocabRow,
   QaTemplateRec, QaTimeline, SessionRowT, SessionView, Source, TextTranslationResult, TicketRow,
-  AssistantStep, EvidenceCard as EvidenceRef, VerifyReport, AskSpec, ToolArtifact, AgentsCardData, PlanState,
+  AssistantStep, EvidenceCard as EvidenceRef, VerifyReport, AskSpec, ToolArtifact, AgentsCardData, PlanState, PptTemplateRow,
 } from '../../lib/types';
 import { AgentsCard } from './AgentsCard';
 import { PlanCard } from './PlanCard';
@@ -48,6 +48,8 @@ import type { Panel } from './preview/PreviewPanel';
 import type { WebTab } from './preview/WebBrowser';
 import { PreviewCtx, htmlBlocks } from '../../components/code/preview';
 import { PlusMenu } from './PlusMenu';
+import { PptPicker } from './PptTemplates';
+import { usePptTemplates } from './pptUtil';
 import type { PlusProps } from './PlusMenu';
 import { projectColor, scopeLabel } from './composerUtil';
 import type { ProjectRow, Scope, ScopeOptions, SkillRow } from './composerUtil';
@@ -186,6 +188,10 @@ export default function ChatPage() {
   // 「＋」里点名的技能：只管下一问，发出去就清掉
   const [skill, setSkill] = useState<SkillRow | null>(null);
   const skills = useQuery({ queryKey: ['chat-skills'], staleTime: 300_000, queryFn: () => get<SkillRow[]>('/api/chat/skills') });
+  // 「＋ → PPT 模板」选的模板：这次对话做 PPT 都用它，开新对话清掉
+  const [ppt, setPpt] = useState<PptTemplateRow | null>(null);
+  const [pptPick, setPptPick] = useState(false);
+  const pptList = usePptTemplates();
   // 项目：这条对话在哪个项目里（新对话就是要建在哪个项目里）。对话还没开始、又在项目里时，显示项目首页
   const [projectId, setProjectId] = useState<string | null>(null);
   // 'new' = 侧栏点的新建（建好进项目首页）；'here' = 「＋」菜单里点的新建（建好把这条对话放进去）
@@ -238,7 +244,7 @@ export default function ChatPage() {
         level: levelOverride ?? (level === 'auto' ? null : level),
         // 右边开着可操作的网页：助手自动读这一页
         browserTab: panel?.kind === 'web' ? webTabs[Math.min(webActive, webTabs.length - 1)]?.live ?? null : null,
-        projectId, skill: skill?.code ?? null,
+        projectId, skill: skill?.code ?? null, pptTemplate: ppt?.id ?? null,
       })) {
         const p = ev.payload as Record<string, unknown>;
         switch (ev.kind) {
@@ -359,7 +365,7 @@ export default function ChatPage() {
     } catch (err) {
       patch(id, { streaming: false, error: err instanceof ApiError ? err.message : '连接中断，本轮未完成' });
     }
-  }, [qaSessionId, scope, level, panel, webTabs, webActive, openPreview, projectId, skill]);
+  }, [qaSessionId, scope, level, panel, webTabs, webActive, openPreview, projectId, skill, ppt]);
 
   // ── 方案生成的一轮：会话已开时，这条对话就由它接着走 ──────────
   const runGenTurn = useCallback(async (sessionId: string, body: Record<string, unknown>) => {
@@ -444,7 +450,7 @@ export default function ChatPage() {
       });
       setMsgs(rebuilt);
       setQaSessionId(id);
-      setLevel('auto'); setSkill(null);
+      setLevel('auto'); setSkill(null); setPpt(null);
       setProjectId(inProject !== undefined ? inProject : sessions.data?.find((x) => x.id === id)?.projectId ?? null);
       // 还没生成完的那一份接着填；已经生成完的就只是历史，不把人拉回填写态
       setGenSessionId(tl.resume?.sessionId ?? null);
@@ -462,7 +468,7 @@ export default function ChatPage() {
   const newChat = useCallback((inProject: string | null = null) => {
     if (busy) return;
     setMsgs([]); setQaSessionId(null); setGenSessionId(null); setGenTitle(null); setFocusSource(null); setMode('auto'); setRefs(null); setLevel('auto');
-    setSkill(null); setProjectId(inProject);
+    setSkill(null); setPpt(null); setProjectId(inProject);
     setPanel(null); setWebTabs([]);
     att.clear();
   }, [busy, att]);
@@ -526,6 +532,7 @@ export default function ChatPage() {
     skills: skills.data?.length ? { list: skills.data, value: skill, onChange: setSkill } : undefined,
     scope: canScope ? { value: scope, options: scopeOptions, onChange: setScope } : undefined,
     project: { list: projects.data ?? [], value: projectId, onChange: (pid) => void moveProject(pid), onNew: () => setProjectDlg('here') },
+    ppt: pptList.data?.length ? { value: ppt?.name ?? null, onOpen: () => setPptPick(true) } : undefined,
   };
   const chips = (
     <>
@@ -533,6 +540,11 @@ export default function ChatPage() {
       {skill && (
         <span className="chipx dark"><i>技能</i><span className="chipx-n">{skill.name}</span>
           <button type="button" aria-label={`不用技能「${skill.name}」`} onClick={() => setSkill(null)}><Icon name="x" size={12} stroke={2.2} /></button>
+        </span>
+      )}
+      {ppt && (
+        <span className="chipx"><i>PPT 模板</i><span className="chipx-n">{ppt.name}</span>
+          <button type="button" aria-label={`不用模板「${ppt.name}」`} onClick={() => setPpt(null)}><Icon name="x" size={12} stroke={2.2} /></button>
         </span>
       )}
       {narrowed && (
@@ -663,6 +675,7 @@ export default function ChatPage() {
             onFocus={(n) => setRefs({ msgId: refs.msgId, focus: n })} onClose={() => setRefs(null)}
             onOpenWeb={(n) => { const it = webItem(refMsg.evidence!.used, n); if (it) openPreview(it); }} />
         )}
+        {pptPick && <PptPicker value={ppt} onPick={setPpt} onClose={() => setPptPick(false)} />}
         {projectDlg && (
           <ProjectDialog edit={typeof projectDlg === 'string' ? null : projectDlg} onClose={() => setProjectDlg(null)}
             onDone={(pid) => {

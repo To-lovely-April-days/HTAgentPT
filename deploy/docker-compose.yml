@@ -55,6 +55,8 @@ services:
       Seed__Config__sync.token: ${SYNC_TOKEN:-htagent-sync-token-compose-default}
     volumes:
       - company-files:/app/data
+      # 内置 PPT 模板（30 套开源模板，后台「PPT 模板」第一次打开时导入）
+      - ./ppt-templates:/app/ppt-templates:ro
     # 容器内访问宿主机上的本地模型服务（如本地部署的对话模型）用 host.docker.internal
     extra_hosts:
       - "host.docker.internal:host-gateway"

@@ -56,7 +56,9 @@ public record QaRequest(Guid? SessionId, string Question, RetrievalRequest Retri
     /// <summary>新对话开在哪个项目里（已有对话按它自己的项目）。</summary>
     Guid? ProjectId = null,
     /// <summary>用户在「＋ → 用技能」里点名的技能代号：这一问先按它答。</summary>
-    string? Skill = null);
+    string? Skill = null,
+    /// <summary>用户在「＋ → PPT 模板」里选的模板：这次对话做 PPT 用它。</summary>
+    Guid? PptTemplate = null);
 
 /// <summary>试技能：Code 是技能代号；On=true 只开这一个并要求先翻看，On=false 不开任何技能。</summary>
 public record SkillTest(string Code, bool On);

@@ -107,6 +107,7 @@ public static class DependencyInjection
         services.AddScoped<ProcessSimRunner>();
         services.AddSingleton<BrowserActivity>();
         services.AddScoped<HazardCatalog>();
+        services.AddScoped<PptTemplateService>();
         services.AddSingleton<PubChemClient>();
         services.AddSingleton<SearxClient>();
         services.AddSingleton<WebFetcher>();
@@ -120,6 +121,7 @@ public static class DependencyInjection
         services.AddHostedService<AttachmentParseWorker>();
         services.AddHostedService<BackupWorker>();
         services.AddHostedService<MadeFileCleanupWorker>();
+        services.AddHostedService<PptTemplateImportWorker>();
         return services;
     }
 }

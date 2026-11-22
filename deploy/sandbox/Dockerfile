@@ -20,9 +20,9 @@ RUN pip install --no-cache-dir -i ${PIP_INDEX} cantera==3.1.0 ezdxf==1.4.2 cadqu
 # 做文件：Excel、Word、PPT、PDF（都是开源库：openpyxl MIT、python-docx MIT、python-pptx MIT、pypdf BSD、reportlab BSD）
 RUN pip install --no-cache-dir -i ${PIP_INDEX} openpyxl==3.1.5 python-docx==1.2.0 python-pptx==1.0.2 pypdf==5.4.0 reportlab==4.4.1 \
  && python -c "import openpyxl, docx, pptx, pypdf, reportlab; print('file libs ok')"
-# Word 修订 / 批注、PDF 水印的小工具，装进 site-packages（沙箱用 python -I 跑，不认 PYTHONPATH）
-COPY htfiles.py htcad.py /tmp/
-RUN SP="$(python -c 'import site; print(site.getsitepackages()[0])')" && cp /tmp/htfiles.py /tmp/htcad.py "$SP/" && python -c "import htfiles, htcad"
+# Word 修订 / 批注、PDF 水印、外形图、按模板做 PPT 的小工具，装进 site-packages（沙箱用 python -I 跑，不认 PYTHONPATH）
+COPY htfiles.py htcad.py htppt.py /tmp/
+RUN SP="$(python -c 'import site; print(site.getsitepackages()[0])')" && cp /tmp/htfiles.py /tmp/htcad.py /tmp/htppt.py "$SP/" && python -c "import htfiles, htcad, htppt"
 
 RUN useradd -m -u 10001 runner
 COPY server.py /srv/server.py

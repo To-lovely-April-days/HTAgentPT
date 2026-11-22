@@ -15,11 +15,11 @@ public static class SkillFiles
         "use_skill", "ask_user", "remember", "forget", "inquiry_form", "search_standards", "search_literature", "view_image", "ocr_image",
         "translate_file", "search_prices", "cost_estimate", "show_table", "note_correction", "show_block", "run_python", "chemical_info",
         "web_search", "fetch_url", "compare_documents", "search_documents", "read_document", "query_projects", "list_catalog",
-        "read_attachments", "calculate", "convert_unit", "hazard_lookup", "process_sim",
+        "read_attachments", "calculate", "convert_unit", "hazard_lookup", "process_sim", "make_ppt",
     ];
 
     /// <summary>回答组件里带下划线的名字（show_block 的 kind），正文里提到它们不算未知工具。</summary>
-    public static readonly string[] KnownWords = ["fault_tree", "risk_matrix", "signal_to", "drawing_no", "full_text_only"];
+    public static readonly string[] KnownWords = ["fault_tree", "risk_matrix", "signal_to", "drawing_no", "full_text_only", "file_name"];
 
     /// <summary>允许导入的许可证（可商用、可修改）。没声明的不让导入。</summary>
     public static readonly string[] OpenLicenses = ["apache-2.0", "apache 2.0", "mit", "bsd-2-clause", "bsd-3-clause", "isc", "cc-by-4.0", "cc0-1.0", "mpl-2.0", "unlicense"];

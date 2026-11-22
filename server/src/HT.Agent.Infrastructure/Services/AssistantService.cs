@@ -46,7 +46,8 @@ public sealed class AssistantService(
     Vision.ImageDescriber visionSwitch,
     IFileStorage storage,
     ITranslationService translation,
-    IPriceService prices) : IAssistantService
+    IPriceService prices,
+    PptTemplateService pptTemplates) : IAssistantService
 {
     /// <summary>同时在跑的模型请求上限（vLLM 开了 8 路并发；留余量给别的功能）。</summary>
     private static readonly SemaphoreSlim Slots = new(6, 6);
@@ -128,6 +129,9 @@ public sealed class AssistantService(
         public readonly Dictionary<string, int> FileFails = new();
         /// <summary>流程模拟这一轮没算成的次数：到 3 次就让模型停下来问人。</summary>
         public int SimFails;
+        /// <summary>能选的 PPT 模板（编号、名字、风格标签）和用户在输入框选的那一套。</summary>
+        public List<(Guid Id, string Name, string Tags)> PptTemplates = [];
+        public Guid? PptChosen;
         /// <summary>回答里的任务清单（模型用 plan 列、系统兜底）。</summary>
         public readonly TaskPlan Plan = new();
         /// <summary>分头查：子代理照主助手的参数跑（轮数另算）；能不能查资料、查项目和主助手一样。</summary>
@@ -202,6 +206,14 @@ public sealed class AssistantService(
         // 做文件：运行代码开着时，再看这个人能做哪几种（后台每种一个开关和可用角色）
         var fileKinds = enabled.Contains("run_python") ? await FileKindsAsync(config, me, ct) : new HashSet<string>();
         var skills = await SkillsForAsync(req, fileKinds, ct);
+        // 做 PPT：PPT 文件开着、模板库里有可用的模板，才给「做 PPT」工具
+        var pptList = new List<(Guid Id, string Name, string Tags)>();
+        if (fileKinds.Contains("pptx"))
+        {
+            pptList = (await db.PptTemplates.AsNoTracking().Where(t => t.Enabled && t.Status == "ready").OrderBy(t => t.Name)
+                .Select(t => new { t.Id, t.Name, t.Tags }).ToListAsync(ct)).Select(t => (t.Id, t.Name, t.Tags)).ToList();
+            if (pptList.Count > 0) ((HashSet<string>)enabled).Add("make_ppt");
+        }
         if (skills.Count > 0) ((HashSet<string>)enabled).Add("use_skill");
         // 思考档位：输入框里选的（或自动判断的）那一档，决定思考强度、查几轮、回答最长、温度
         var levels = await LevelConfig.LoadAsync(config, ct);
@@ -216,6 +228,7 @@ public sealed class AssistantService(
             && (await config.GetStringAsync(ConfigKeys.Delegate, "on", ct)).Trim().Equals("on", StringComparison.OrdinalIgnoreCase))
             ((HashSet<string>)enabled).Add("delegate");
         var tools = BuildTools(canDocs, canProjects, attachmentFiles.Count > 0, enabled, fileKinds, delegateMax);
+        if (enabled.Contains("make_ppt")) tools.Add(MakePptTool());
         List<AgentMessage> messages;
         // 上一轮在等用户确认：这句话就是回答，接着上次的现场跑——前面查到的不重来，编号也接着用
         var pending = await PendingAsync(session.Id, ct);
@@ -235,7 +248,7 @@ public sealed class AssistantService(
         {
             for (var i = 0; i < mems.Count; i++) run.MemoryRefs[$"M{i + 1}"] = mems[i].Id;
             var hints = QuestionHints.Build(req.Question, await TermEntriesAsync(ct));
-            messages = [new("system", await SystemPromptAsync(req, attachmentFiles.Select(a => a.FileName).ToList(), enabled, mems, hints, ct) + SkillsPrompt(skills, req.SkillTest, req.Skill)
+            messages = [new("system", await SystemPromptAsync(req, attachmentFiles.Select(a => a.FileName).ToList(), enabled, mems, hints, ct) + SkillsPrompt(skills, req.SkillTest, req.Skill) + PptPrompt(pptList, req.PptTemplate)
                 + await CurrentPageAsync(req, session.Id, enabled, run, ct) + await ProjectPromptAsync(session, ct))];
             messages.AddRange(await HistoryAsync(session.Id, ct));
             messages.Add(new AgentMessage("user", req.Question));
@@ -244,6 +257,8 @@ public sealed class AssistantService(
         run.Skills.AddRange(skills);
         run.SessionId = session.Id;
         run.FileKinds = fileKinds;
+        run.PptTemplates = pptList;
+        run.PptChosen = req.PptTemplate;
         await emit(new QaEvent("meta", new { sessionId = session.Id, intent = "assistant", mode = "assistant" }));
         // 开始的留痕等模型真的接手了再写：模型端不支持工具调用会退回原问答，那边自己记，不重复计数
         var startLogged = false;
@@ -984,7 +999,7 @@ public sealed class AssistantService(
         IReadOnlyList<(Guid Id, string FileName, string? Chunks)> attachments, int topK, IReadOnlySet<string> enabled,
         Func<QaEvent, Task> emit, CancellationToken ct, int agent = 0)
     {
-        if (call.Name is "ask_user" or "plan" or "run_python" or "chemical_info" or "hazard_lookup" or "process_sim" or "web_search" or "fetch_url" or "compare_documents"
+        if (call.Name is "ask_user" or "plan" or "make_ppt" or "run_python" or "chemical_info" or "hazard_lookup" or "process_sim" or "web_search" or "fetch_url" or "compare_documents"
             or "search_literature" or "view_image" or "ocr_image" or "translate_file" or "inquiry_form" or "remember" or "forget"
             or "search_prices" or "cost_estimate" or "show_table" or "show_block" or "browser_open" or "browser_read" or "browser_act" or "browser_look"
             && !enabled.Contains(call.Name switch { "ocr_image" => "view_image", "forget" => "remember", "cost_estimate" => "search_prices",
@@ -1580,6 +1595,8 @@ public sealed class AssistantService(
             }
             case "hazard_lookup":
                 return await HazardLookupAsync(a, run, emit, label, ct);
+            case "make_ppt":
+                return await MakePptAsync(a, run, attachments, emit, label, ct);
             case "process_sim":
                 return await ProcessSimAsync(a, run, emit, label, ct);
             case "plan":
@@ -2168,6 +2185,179 @@ public sealed class AssistantService(
         var nos = await db.Projects.AsNoTracking().Where(p => p.CompanyId == me.CompanyId).Select(p => p.ProjectNo).Take(5000).ToListAsync(ct);
         var pattern = await config.GetStringAsync(ConfigKeys.IntentProjectNoPattern, "", ct);
         return Redactor.Redact(q, names.Distinct(), nos, pattern);
+    }
+
+    /// <summary>「做 PPT」工具：每页写好内容交过来，系统从模板库里挑样页套上去。</summary>
+    private static ToolSpec MakePptTool()
+    {
+        var page = new Dictionary<string, object>
+        {
+            ["type"] = "object",
+            ["properties"] = new Dictionary<string, object>
+            {
+                ["type"] = new Dictionary<string, object> { ["type"] = "string", ["enum"] = PptPages.Types },
+                ["title"] = Str("这一页的标题，12 个字以内"),
+                ["subtitle"] = Str("副标题（封面、过渡页、结尾用）"),
+                ["bullets"] = new Dictionary<string, object> { ["type"] = "array", ["items"] = Str("一条要点，30 字以内"), ["maxItems"] = 7 },
+                ["items"] = new Dictionary<string, object>
+                {
+                    ["type"] = "array", ["maxItems"] = 8,
+                    ["items"] = new Dictionary<string, object>
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new Dictionary<string, object> { ["title"] = Str("小标题，8 字以内"), ["text"] = Str("说明，30 字以内") },
+                    },
+                },
+                ["numbers"] = new Dictionary<string, object>
+                {
+                    ["type"] = "array", ["maxItems"] = 6,
+                    ["items"] = new Dictionary<string, object>
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new Dictionary<string, object> { ["value"] = Str("数字带单位，如 10 MPa"), ["label"] = Str("这是什么，如 设计压力") },
+                    },
+                },
+                ["rows"] = new Dictionary<string, object> { ["type"] = "array", ["items"] = new Dictionary<string, object> { ["type"] = "array", ["items"] = Str("单元格") } },
+                ["image"] = Str("图文页放的图：对话附件的文件名（可省略，用模板自带的图）"),
+            },
+            ["required"] = new[] { "type" },
+        };
+        return new ToolSpec("make_ppt",
+            "按模板库里的模板做一份 PPT 文件（.pptx），检查过才交给用户，文件卡上能看每一页。先把内容查清楚、数字有出处，再一页一页写好交过来。"
+            + "页面类型：cover 封面（title、subtitle）；toc 目录（items 只写 title）；section 过渡页（title、subtitle）；list 要点（bullets）；"
+            + "items 几栏（items 2–6 栏，每栏 title + text）；num 大数字（numbers 2–4 个）；table 表格（rows，第一行表头，最多 8 行 5 列）；"
+            + "img 图文（bullets，可选 image）；end 结尾（title 默认「谢谢」，subtitle 写公司名）。"
+            + "换模板重做：redo 写上一份的文件名、template 写新模板，pages 不用再给。",
+            Obj(new()
+            {
+                ["file_name"] = Str("文件名，如「30L加氢釜方案」"),
+                ["template"] = Str("模板名字（系统提示里列的那些）；不写就用用户选的，或按场景挑"),
+                ["pages"] = new Dictionary<string, object> { ["type"] = "array", ["items"] = page, ["maxItems"] = PptPages.MaxPages },
+                ["redo"] = Str("换模板重做时：上一份 PPT 的文件名"),
+            }));
+    }
+
+    /// <summary>系统提示里的「做 PPT」说明：能用哪些模板、用户选了哪一套。</summary>
+    private static string PptPrompt(IReadOnlyList<(Guid Id, string Name, string Tags)> list, Guid? chosen)
+    {
+        if (list.Count == 0) return "";
+        var sb = new StringBuilder("\n做 PPT 文件：用 make_ppt（不要用 run_python 写 python-pptx）。10 分钟的汇报 8–12 页，一页一个意思；标题 12 字以内，要点每条 30 字以内；"
+            + "数字、参数、案例都要先查到出处，价格和承诺类内容提醒员工发给客户前核对。");
+        sb.Append("模板（名字：风格）：").Append(string.Join("；", list.Select(t => $"{t.Name}：{t.Tags.Replace(",", "、")}"))).AppendLine("。");
+        if (chosen is { } c && list.FirstOrDefault(t => t.Id == c) is { Name: not null } pick)
+            sb.AppendLine($"用户在输入框选了模板「{pick.Name}」：这次做 PPT 就用它。");
+        else
+            sb.AppendLine("用户没指定模板就按场景挑：给客户的方案、报价用商务或工业类，内部汇报用简约类，技术交流用科技类。");
+        sb.AppendLine("用户说「换个风格」「换成某某模板」重做时：make_ppt 的 redo 写上一份的文件名、template 写新模板，内容不变、不要重写。");
+        return sb.ToString();
+    }
+
+    /// <summary>做 PPT：查每页内容 → 挑模板 → 沙箱里套模板 → office 检查能不能打开 → 每页转图 → 文件卡。
+    /// 放不下、模板里没有的页面类型，原话交给模型（它可以拆页再做一次）。</summary>
+    private async Task<ToolOutcome> MakePptAsync(JsonObject a, Run run, IReadOnlyList<(Guid Id, string FileName, string? Chunks)> attachments,
+        Func<QaEvent, Task> emit, string label, CancellationToken ct)
+    {
+        string? S(string k) { var v = a[k]?.ToString()?.Trim(); return string.IsNullOrEmpty(v) ? null : v; }
+        if (!run.FileKinds.Contains("pptx") || run.PptTemplates.Count == 0)
+            return new ToolOutcome("现在不能做 PPT 文件（后台没开 PPT，或模板库里没有可用的模板）。在回答里直接给每页内容。", "不能做 PPT", label, "", "不能做", Failed: true);
+        if (run.FileFails.GetValueOrDefault("pptx") >= 3)
+            return new ToolOutcome("PPT 已经做了 3 次都没过检查，不要再试了：在回答里说明，并直接给每页内容。", "不再试", label, "", "不再试", Failed: true);
+        JsonNode? pagesNode = a["pages"];
+        var fileName = S("file_name");
+        if ((pagesNode is not JsonArray { Count: > 0 }) && S("redo") is { } redo)
+        {
+            var redoName = redo.EndsWith(".pptx", StringComparison.OrdinalIgnoreCase) ? redo : redo + ".pptx";
+            var prev = await db.MadeFiles.AsNoTracking()
+                .Where(f => f.SessionId == run.SessionId && f.UserId == me.UserId && f.Kind == "pptx" && f.Ok && f.Info != null)
+                .OrderByDescending(f => f.CreatedAt).ToListAsync(ct);
+            var hit = prev.FirstOrDefault(f => f.FileName == redoName) ?? prev.FirstOrDefault(f => f.FileName.Contains(redo.Replace(".pptx", ""))) ?? prev.FirstOrDefault();
+            if (hit?.Info is not null) pagesNode = JsonNode.Parse(hit.Info)?["spec"]?["pages"]?.DeepClone();
+            if (pagesNode is null)
+                return new ToolOutcome($"这个对话里找不到上一份 PPT《{redo}》的内容：把每页内容写在 pages 里再做。", "找不到上一份", label, redo, "找不到", Failed: true);
+            fileName ??= hit!.FileName;
+        }
+        var (pages, errors) = PptPages.Validate(pagesNode);
+        if (pages is null)
+            return new ToolOutcome("每页内容有问题，改好再调 make_ppt：\n- " + string.Join("\n- ", errors), "内容有问题", label, fileName ?? "", "内容有问题", Failed: true);
+        var pick = PptPages.Pick(run.PptTemplates, t => t, S("template"), run.PptChosen);
+        var tpl = await db.PptTemplates.AsNoTracking().FirstOrDefaultAsync(t => t.Id == pick.Id, ct);
+        if (tpl?.FileKey is null) return new ToolOutcome("模板找不到了，换一套模板再做。", "模板找不到", label, pick.Name, "模板找不到", Failed: true);
+        fileName = PptPages.SafeFileName(fileName ?? pages[0]?["title"]?.ToString(), "方案");
+
+        // 图文页引用的附件：放进 in/
+        var images = new List<Clients.SandboxClient.InFile>();
+        foreach (var p in pages.OfType<JsonObject>())
+        {
+            if (p["image"]?.ToString() is not { Length: > 0 } imgName) continue;
+            var att = images.Count < 2 ? await AttachmentAsync(imgName, attachments, ct) : null;
+            if (att is null || !(att.ContentType.StartsWith("image/") || Regex.IsMatch(att.FileName, @"\.(png|jpe?g|webp|bmp)$", RegexOptions.IgnoreCase)))
+            { p.Remove("image"); continue; }
+            await using var st = await storage.OpenAsync(att.FileKey, ct);
+            using var ms = new MemoryStream();
+            await st.CopyToAsync(ms, ct);
+            var safe = $"img{images.Count + 1}{Path.GetExtension(att.FileName).ToLowerInvariant()}";
+            images.Add(new(safe, ms.ToArray()));
+            p["image"] = "in/" + safe;
+        }
+
+        var r = await pptTemplates.BuildAsync(tpl, pages, fileName, images, ct);
+        if (r.File is null)
+            return r.Unavailable
+                ? new ToolOutcome("计算环境连不上，这次没法做 PPT：在回答里直接给每页内容。", "计算环境不可用", label, fileName, "计算环境不可用", Failed: true)
+                : new ToolOutcome($"{r.Error}\n检查每页内容（太长的拆页），或换一套模板再试。", "没做出来", label, fileName, "没做出来", Failed: true);
+
+        var data = r.File;
+        var problems = MadeFiles.BasicProblems(data, "pptx");
+        JsonElement? info = null;
+        if (problems.Count == 0 && await officeCheck.CheckAsync(fileName, data, ct) is { } chk) { info = chk.Info; problems.AddRange(chk.Problems); }
+        var slides = r.Report?["slides"]?.GetValue<int>() ?? 0;
+        var keepDays = Math.Clamp(await config.GetIntAsync(ConfigKeys.FileKeepDays, 7, ct), 1, 90);
+        var meta = new JsonObject
+        {
+            ["slides"] = slides,
+            ["template"] = new JsonObject { ["id"] = tpl.Id.ToString(), ["name"] = tpl.Name, ["license"] = tpl.License, ["credit"] = tpl.Credit },
+            ["spec"] = new JsonObject { ["pages"] = pages.DeepClone() },
+            ["check"] = info is { } ie ? JsonNode.Parse(ie.GetRawText()) : null,
+        };
+        var row = new MadeFile
+        {
+            Id = Guid.NewGuid(), CompanyId = me.CompanyId, UserId = me.UserId, SessionId = run.SessionId, MessageId = run.MessageId,
+            FileName = fileName, Kind = "pptx", Size = data.Length, Ok = problems.Count == 0,
+            Problems = problems.Count > 0 ? string.Join("\n", problems) : null, Info = meta.ToJsonString(),
+            CreatedAt = DateTimeOffset.UtcNow, ExpiresAt = DateTimeOffset.UtcNow.AddDays(keepDays),
+        };
+        if (problems.Count > 0)
+        {
+            db.MadeFiles.Add(row);
+            await db.SaveChangesAsync(ct);
+            var n = run.FileFails["pptx"] = run.FileFails.GetValueOrDefault("pptx") + 1;
+            return new ToolOutcome(MadeFiles.ForModelAfterFail(fileName, problems, n), "检查没过", label, fileName, "检查没过", Failed: true);
+        }
+        row.FileKey = await storage.SaveAsync(new MemoryStream(data), $"made/{row.Id:N}.pptx", ct);
+        db.MadeFiles.Add(row);
+        await db.SaveChangesAsync(ct);
+        // 每页转图：文件卡上那一排预览（转不出来就只给下载）
+        var shots = new List<string>();
+        if (await pptTemplates.RenderPagesAsync(data, ct) is { } pv)
+            for (var i = 0; i < pv.Pages.Count; i++)
+            {
+                await storage.SaveAsync(new MemoryStream(pv.Pages[i]), $"made/{row.Id:N}-p{i + 1}.jpg", ct);
+                shots.Add($"/api/chat/made-files/{row.Id}/pages/{i + 1}");
+            }
+        var (forModel, checks) = PptPages.Report(r.Report, tpl.Name, tpl.Credit is not null);
+        var card = new
+        {
+            kind = "file", title = row.FileName, url = $"/api/chat/made-files/{row.Id}", detail = $"{slides} 页 · 模板「{tpl.Name}」", ok = true,
+            pages = shots, template = new { id = tpl.Id, name = tpl.Name, license = tpl.License, source = tpl.Source }, checks,
+        };
+        run.Artifacts.Add(card);
+        await emit(new QaEvent("artifact", card));
+        await audit.WriteAsync(new AuditEntry("qa.file.made", AuditResult.Success, UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+            TargetType: "made_file", TargetId: row.Id.ToString(), Detail: new { kind = "pptx", name = row.FileName, size = row.Size, template = tpl.Name, slides }), ct);
+        var text = $"《{row.FileName}》已做好并检查通过：{slides} 页，模板「{tpl.Name}」，用户可以在文件卡上看每一页、下载。"
+                   + "回答里一行一页说每页讲什么，说明哪些数字要员工核对；不要把整份内容再贴一遍。\n" + forModel;
+        return new ToolOutcome(text, $"（较早做的 PPT：《{row.FileName}》{slides} 页，模板「{tpl.Name}」）", label,
+            $"{row.FileName} · 模板「{tpl.Name}」", checks.Count > 1 && checks[1].Contains("放不下") ? $"{slides} 页 · {checks[1]}" : $"{slides} 页 · 检查通过");
     }
 
     /// <summary>流程模拟（DWSIM）：校验流程描述 → 跑 → 出流程图（我们的组件）和结果卡（物流表、设备、DWSIM 原图、可下载的 DWSIM 文件）。

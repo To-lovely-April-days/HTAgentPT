@@ -40,7 +40,7 @@ const GROUPS: { title: string; note: string; tools: ToolDef[] }[] = [
   { title: '助手做文件', note: '在代码解释器里写代码做文件，检查过了才交出来；先开 Excel、Word，PPT、PDF 用测试题跑过再开', tools: [
     { key: 'file_xlsx', file: 'xlsx', name: 'Excel 报价单、计算表、对比表', ic: 'X', tone: 'calc', desc: '合计、税额都写成公式，改数会重算；交出前用 LibreOffice 重算一遍查错' },
     { key: 'file_docx', file: 'docx', name: 'Word 修订、批注、复杂排版', ic: 'W', tone: 'calc', desc: '在客户发来的 Word 上直接改：改动用修订标出来、理由写批注，原格式不动' },
-    { key: 'file_pptx', file: 'pptx', name: 'PPT 方案汇报', ic: 'P', tone: 'calc', desc: '按提纲做 16:9 汇报，一页一个意思', defOff: true },
+    { key: 'file_pptx', file: 'pptx', name: 'PPT 方案汇报', ic: 'P', tone: 'calc', desc: '按模板库里的模板做（后台「PPT 模板」，自带 30 套开源模板）：一页一个意思，文件卡上看每一页、能换个风格', defOff: true },
     { key: 'file_pdf', file: 'pdf', name: 'PDF 合并、拆分、水印', ic: 'F', tone: 'calc', desc: '把员工传的 PDF 合并、拆分、旋转、加「霍桐仪器」水印', defOff: true },
   ] },
   { title: '外部数据', note: '会访问外网；发出去的内容先过滤', tools: [

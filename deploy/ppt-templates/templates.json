@@ -1,0 +1,591 @@
+{
+ "version": 1,
+ "downloaded": "2026-11-22",
+ "templates": [
+  {
+   "id": "aemelia-free-presentation-template",
+   "name": "蓝色图标",
+   "tags": [
+    "商务"
+   ],
+   "file": "aemelia-free-presentation-template.pptx",
+   "preview": "previews/aemelia-free-presentation-template.png",
+   "slides": 39,
+   "fonts": [
+    "Montserrat",
+    "Roboto"
+   ],
+   "sizeMb": 1.7,
+   "originalTitle": "Blue Corporate. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/aemelia-free-presentation-template/825",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "annual-report-presentation",
+   "name": "年度报告",
+   "tags": [
+    "商务",
+    "简约"
+   ],
+   "file": "annual-report-presentation.pptx",
+   "preview": "previews/annual-report-presentation.png",
+   "slides": 12,
+   "fonts": [
+    "Arimo",
+    "Be Vietnam Pro",
+    "Be Vietnam Pro Medium",
+    "Frank Ruhl Libre",
+    "Frank Ruhl Libre Medium"
+   ],
+   "sizeMb": 2.6,
+   "originalTitle": "Annual Report. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/annual-report-presentation/343099",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "antonio-free-presentation-template",
+   "name": "简约白蓝",
+   "tags": [
+    "简约"
+   ],
+   "file": "antonio-free-presentation-template.pptx",
+   "preview": "previews/antonio-free-presentation-template.png",
+   "slides": 39,
+   "fonts": [
+    "Lato",
+    "Lato Light",
+    "Montserrat",
+    "Raleway"
+   ],
+   "sizeMb": 1.8,
+   "originalTitle": "Simple Corporate. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/antonio-free-presentation-template/84",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "blue-connections",
+   "name": "深蓝网络",
+   "tags": [
+    "科技",
+    "深色"
+   ],
+   "file": "blue-connections.pptx",
+   "preview": "previews/blue-connections.png",
+   "slides": 26,
+   "fonts": [
+    "Josefin Sans",
+    "Josefin Sans SemiBold"
+   ],
+   "sizeMb": 4.6,
+   "originalTitle": "Illustrated Blue Connections. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/blue-connections/44667",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "business-market-analysis-slides",
+   "name": "黑白波纹",
+   "tags": [
+    "简约"
+   ],
+   "file": "business-market-analysis-slides.pptx",
+   "preview": "previews/business-market-analysis-slides.png",
+   "slides": 20,
+   "fonts": [
+    "Bebas Neue",
+    "Montserrat"
+   ],
+   "sizeMb": 2.6,
+   "originalTitle": "Business Market Analysis. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/business-market-analysis-slides/213262",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "company-onboarding-plan-for-new-hires",
+   "name": "绿色清新",
+   "tags": [
+    "商务"
+   ],
+   "file": "company-onboarding-plan-for-new-hires.pptx",
+   "preview": "previews/company-onboarding-plan-for-new-hires.png",
+   "slides": 21,
+   "fonts": [
+    "Alata",
+    "Lato"
+   ],
+   "sizeMb": 2.6,
+   "originalTitle": "Company Onboarding Plan for New Hires. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/company-onboarding-plan-for-new-hires/151543",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "consumer-electronics-brand",
+   "name": "黑色电子",
+   "tags": [
+    "科技",
+    "深色"
+   ],
+   "file": "consumer-electronics-brand.pptx",
+   "preview": "previews/consumer-electronics-brand.png",
+   "slides": 21,
+   "fonts": [
+    "Inter"
+   ],
+   "sizeMb": 3.5,
+   "originalTitle": "Consumer Electronics Brand. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/consumer-electronics-brand/154101",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "corporate-sales-pitch-slides-2",
+   "name": "浅蓝企业",
+   "tags": [
+    "商务"
+   ],
+   "file": "corporate-sales-pitch-slides-2.pptx",
+   "preview": "previews/corporate-sales-pitch-slides-2.png",
+   "slides": 15,
+   "fonts": [
+    "Inter",
+    "Inter Light",
+    "Inter SemiBold"
+   ],
+   "sizeMb": 3.0,
+   "originalTitle": "Corporate Sales Pitch. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/corporate-sales-pitch-slides-2/341223",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "electrical-proposal-slides",
+   "name": "电气方案",
+   "tags": [
+    "工业",
+    "科技"
+   ],
+   "file": "electrical-proposal-slides.pptx",
+   "preview": "previews/electrical-proposal-slides.png",
+   "slides": 20,
+   "fonts": [
+    "Fira Sans",
+    "Fira Sans SemiBold",
+    "Open Sans"
+   ],
+   "sizeMb": 4.5,
+   "originalTitle": "Electrical Proposal . Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/electrical-proposal-slides/198900",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "engineering-project-proposal-2",
+   "name": "深色工程",
+   "tags": [
+    "科技",
+    "深色"
+   ],
+   "file": "engineering-project-proposal-2.pptx",
+   "preview": "previews/engineering-project-proposal-2.png",
+   "slides": 20,
+   "fonts": [
+    "Montserrat"
+   ],
+   "sizeMb": 2.3,
+   "originalTitle": "Engineering Project Proposal. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/engineering-project-proposal-2/156166",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "engineering-project-proposal",
+   "name": "黑白建筑",
+   "tags": [
+    "简约",
+    "工业"
+   ],
+   "file": "engineering-project-proposal.pptx",
+   "preview": "previews/engineering-project-proposal.png",
+   "slides": 19,
+   "fonts": [
+    "Inter",
+    "Inter SemiBold"
+   ],
+   "sizeMb": 4.5,
+   "originalTitle": "Engineering Project Proposal. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/engineering-project-proposal/146946",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "ergonomics-in-industrial-engineering-slides",
+   "name": "工业青绿",
+   "tags": [
+    "工业"
+   ],
+   "file": "ergonomics-in-industrial-engineering-slides.pptx",
+   "preview": "previews/ergonomics-in-industrial-engineering-slides.png",
+   "slides": 19,
+   "fonts": [
+    "Cabin",
+    "Nanum Gothic"
+   ],
+   "sizeMb": 6.0,
+   "originalTitle": "Ergonomics In Industrial Engineering . Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/ergonomics-in-industrial-engineering-slides/190396",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "industrial-revolution-slides",
+   "name": "工业米色",
+   "tags": [
+    "工业"
+   ],
+   "file": "industrial-revolution-slides.pptx",
+   "preview": "previews/industrial-revolution-slides.png",
+   "slides": 19,
+   "fonts": [
+    "Alfa Slab One",
+    "Lora"
+   ],
+   "sizeMb": 4.6,
+   "originalTitle": "Industrial Revolution . Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/industrial-revolution-slides/190388",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "it-software-sales-proposal-slides",
+   "name": "紫色科技",
+   "tags": [
+    "科技",
+    "深色"
+   ],
+   "file": "it-software-sales-proposal-slides.pptx",
+   "preview": "previews/it-software-sales-proposal-slides.png",
+   "slides": 14,
+   "fonts": [
+    "Inclusive Sans",
+    "Merriweather Sans Light"
+   ],
+   "sizeMb": 1.7,
+   "originalTitle": "IT Software Sales Proposal. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/it-software-sales-proposal-slides/341665",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "jessica-free-presentation-template",
+   "name": "蓝灰城市",
+   "tags": [
+    "商务"
+   ],
+   "file": "jessica-free-presentation-template.pptx",
+   "preview": "previews/jessica-free-presentation-template.png",
+   "slides": 39,
+   "fonts": [
+    "Montserrat",
+    "News Cycle",
+    "Oswald"
+   ],
+   "sizeMb": 1.8,
+   "originalTitle": "Geometric Corporate. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/jessica-free-presentation-template/14605",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "market-trend-analysis-slides",
+   "name": "墨绿趋势",
+   "tags": [
+    "深色"
+   ],
+   "file": "market-trend-analysis-slides.pptx",
+   "preview": "previews/market-trend-analysis-slides.png",
+   "slides": 20,
+   "fonts": [
+    "Montserrat"
+   ],
+   "sizeMb": 2.0,
+   "originalTitle": "Market Trend Analysis. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/market-trend-analysis-slides/213260",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "marketing-annual-report",
+   "name": "灰调年报",
+   "tags": [
+    "商务"
+   ],
+   "file": "marketing-annual-report.pptx",
+   "preview": "previews/marketing-annual-report.png",
+   "slides": 20,
+   "fonts": [
+    "Playfair Display",
+    "Playfair Display SemiBold",
+    "Six Caps"
+   ],
+   "sizeMb": 4.1,
+   "originalTitle": "Marketing Annual Report. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/marketing-annual-report/149910",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "minimal-corporate",
+   "name": "极简企业",
+   "tags": [
+    "简约"
+   ],
+   "file": "minimal-corporate.pptx",
+   "preview": "previews/minimal-corporate.png",
+   "slides": 22,
+   "fonts": [
+    "Archivo Black",
+    "Noto Sans"
+   ],
+   "sizeMb": 4.6,
+   "originalTitle": "Minimal Corporate Branding Kit. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/minimal-corporate/38093",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "minimalist-grayscale-pitch-deck",
+   "name": "黑白灰",
+   "tags": [
+    "简约"
+   ],
+   "file": "minimalist-grayscale-pitch-deck.pptx",
+   "preview": "previews/minimalist-grayscale-pitch-deck.png",
+   "slides": 22,
+   "fonts": [
+    "Ledger"
+   ],
+   "sizeMb": 5.6,
+   "originalTitle": "Minimalist Grayscale Pitch Deck. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/minimalist-grayscale-pitch-deck/149906",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "minimalist-white-slides",
+   "name": "极简白",
+   "tags": [
+    "简约"
+   ],
+   "file": "minimalist-white-slides.pptx",
+   "preview": "previews/minimalist-white-slides.png",
+   "slides": 21,
+   "fonts": [
+    "DM Serif Display"
+   ],
+   "sizeMb": 4.2,
+   "originalTitle": "Minimalist White. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/minimalist-white-slides/237932",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "monthly-client-report",
+   "name": "深色月报",
+   "tags": [
+    "商务",
+    "深色"
+   ],
+   "file": "monthly-client-report.pptx",
+   "preview": "previews/monthly-client-report.png",
+   "slides": 15,
+   "fonts": [
+    "Poppins"
+   ],
+   "sizeMb": 2.0,
+   "originalTitle": "Monthly Client Report. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/monthly-client-report/343010",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "project-debrief-report",
+   "name": "深色复盘",
+   "tags": [
+    "深色"
+   ],
+   "file": "project-debrief-report.pptx",
+   "preview": "previews/project-debrief-report.png",
+   "slides": 14,
+   "fonts": [
+    "Cabin"
+   ],
+   "sizeMb": 2.1,
+   "originalTitle": "Project Debrief Report. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/project-debrief-report/343093",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "project-status-report-executive-summary-slides",
+   "name": "项目进展",
+   "tags": [
+    "商务"
+   ],
+   "file": "project-status-report-executive-summary-slides.pptx",
+   "preview": "previews/project-status-report-executive-summary-slides.png",
+   "slides": 7,
+   "fonts": [
+    "David Libre",
+    "David Libre Medium"
+   ],
+   "sizeMb": 0.8,
+   "originalTitle": "Project Status Report Executive Summary . Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/project-status-report-executive-summary-slides/167852",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "rutland-free-presentation-template",
+   "name": "城市夜景",
+   "tags": [
+    "深色"
+   ],
+   "file": "rutland-free-presentation-template.pptx",
+   "preview": "previews/rutland-free-presentation-template.png",
+   "slides": 39,
+   "fonts": [
+    "Montserrat",
+    "Raleway",
+    "Red Hat Display Black"
+   ],
+   "sizeMb": 2.6,
+   "originalTitle": "Photographic Corporate. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/rutland-free-presentation-template/10137",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "saas-sales-proposal-slides",
+   "name": "黑白科技",
+   "tags": [
+    "科技",
+    "简约"
+   ],
+   "file": "saas-sales-proposal-slides.pptx",
+   "preview": "previews/saas-sales-proposal-slides.png",
+   "slides": 14,
+   "fonts": [
+    "Bungee",
+    "Inter",
+    "Inter Medium"
+   ],
+   "sizeMb": 3.8,
+   "originalTitle": "SaaS Sales Proposal. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/saas-sales-proposal-slides/341699",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "simple-business-proposal-slides",
+   "name": "淡紫简约",
+   "tags": [
+    "简约"
+   ],
+   "file": "simple-business-proposal-slides.pptx",
+   "preview": "previews/simple-business-proposal-slides.png",
+   "slides": 17,
+   "fonts": [
+    "Alata",
+    "Anton"
+   ],
+   "sizeMb": 2.4,
+   "originalTitle": "Simple Business Proposal. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/simple-business-proposal-slides/208909",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "simple-professional-brainstorm-presentation",
+   "name": "蓝色建筑",
+   "tags": [
+    "商务"
+   ],
+   "file": "simple-professional-brainstorm-presentation.pptx",
+   "preview": "previews/simple-professional-brainstorm-presentation.png",
+   "slides": 17,
+   "fonts": [
+    "Poppins"
+   ],
+   "sizeMb": 2.9,
+   "originalTitle": "Simple Professional Brainstorm . Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/simple-professional-brainstorm-presentation/160759",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "solar-energy-sales-pitch-slides",
+   "name": "新能源",
+   "tags": [
+    "工业",
+    "深色"
+   ],
+   "file": "solar-energy-sales-pitch-slides.pptx",
+   "preview": "previews/solar-energy-sales-pitch-slides.png",
+   "slides": 14,
+   "fonts": [
+    "Space Mono",
+    "Work Sans",
+    "Work Sans Medium"
+   ],
+   "sizeMb": 4.4,
+   "originalTitle": "Solar Energy Sales Pitch. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/solar-energy-sales-pitch-slides/341191",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "stocks-trading-business-plan",
+   "name": "深色商业计划",
+   "tags": [
+    "商务",
+    "深色"
+   ],
+   "file": "stocks-trading-business-plan.pptx",
+   "preview": "previews/stocks-trading-business-plan.png",
+   "slides": 17,
+   "fonts": [
+    "Roboto",
+    "Roboto Black"
+   ],
+   "sizeMb": 4.2,
+   "originalTitle": "Stocks Trading Business Plan. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/stocks-trading-business-plan/162836",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  },
+  {
+   "id": "white-and-gold-project-proposal",
+   "name": "黑金典雅",
+   "tags": [
+    "深色"
+   ],
+   "file": "white-and-gold-project-proposal.pptx",
+   "preview": "previews/white-and-gold-project-proposal.png",
+   "slides": 21,
+   "fonts": [
+    "Bebas Neue",
+    "Fira Code"
+   ],
+   "sizeMb": 7.2,
+   "originalTitle": "Elegant Minimal White and Gold Project Proposal. Free PPT & Google Slides Template — SlidesCarnival",
+   "source": "https://www.slidescarnival.com/template/white-and-gold-project-proposal/69611",
+   "license": "CC BY 4.0",
+   "credit": "Presentation template by SlidesCarnival (slidescarnival.com)"
+  }
+ ]
+}

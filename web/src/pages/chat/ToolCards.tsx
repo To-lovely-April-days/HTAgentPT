@@ -5,6 +5,7 @@ import type { AskSpec, EvidenceCard, HazardChemCard, HazardProcessCard, ToolArti
 import { EstimateCard, TableCard } from './DataCards';
 import { BlockCard } from './blocks/BlockCard';
 import { SimCard } from './SimCard';
+import { PptPages, Restyle } from './PptTemplates';
 import { usePreview } from '../../components/code/preview';
 import { Icon } from '../../components/Icons';
 
@@ -330,7 +331,7 @@ const FILE_TONE: Record<string, [string, string]> = {
   DXF: ['#f1f1ef', '#4a4a4a'], STEP: ['#f1f1ef', '#4a4a4a'], XLSX: ['#e6f2ec', '#1d6f42'], CSV: ['#e6f2ec', '#1d6f42'], DOCX: ['#e8eef8', '#2a4a85'], PPTX: ['#fbece4', '#b34a17'], PDF: ['#fde8ea', '#a00d25'],
 };
 
-function FileCard({ a }: { a: Extract<ToolArtifact, { kind: 'file' }> }) {
+function FileCard({ a, onSend }: { a: Extract<ToolArtifact, { kind: 'file' }>; onSend?: (text: string) => void }) {
   const [msg, setMsg] = useState<string | null>(null);
   const open = usePreview();
   const ext = (a.title.split('.').pop() ?? '').toUpperCase().slice(0, 4) || 'DOCX';
@@ -338,6 +339,7 @@ function FileCard({ a }: { a: Extract<ToolArtifact, { kind: 'file' }> }) {
   const tone = FILE_TONE[ext] ?? FILE_TONE.DOCX;
   // CAD 文件（DXF、STEP）浏览器里看不了，只给下载
   const canPreview = !!open && !['DXF', 'STEP', 'STP'].includes(ext);
+  if (a.pages?.length || a.template) return <PptFileCard a={a} onSend={onSend} />;
   return (
     <section className="tool-card file-card">
       <span className="refs-ext" style={{ background: tone[0], color: tone[1] }} aria-hidden="true">{ext}</span>
@@ -348,6 +350,34 @@ function FileCard({ a }: { a: Extract<ToolArtifact, { kind: 'file' }> }) {
       {canPreview && <button type="button" className="gbtn" style={{ marginLeft: 'auto' }} onClick={() => open!({ kind: 'file', src: a.url, fileName: a.title })}>预览</button>}
       <button type="button" className="pbtn" style={canPreview ? undefined : { marginLeft: 'auto' }}
         onClick={() => void download(a.url, a.title).catch((e) => setMsg(e instanceof ApiError ? e.message : '下载失败'))}>下载</button>
+    </section>
+  );
+}
+
+/** 按模板做的 PPT：一排每页的图、检查结果、用的模板、换个风格。 */
+function PptFileCard({ a, onSend }: { a: Extract<ToolArtifact, { kind: 'file' }>; onSend?: (text: string) => void }) {
+  const [msg, setMsg] = useState<string | null>(null);
+  const tone = FILE_TONE.PPTX;
+  return (
+    <section className="tool-card file-card ppt-card">
+      <div className="ppt-card-hd">
+        <span className="refs-ext" style={{ background: tone[0], color: tone[1] }} aria-hidden="true">PPTX</span>
+        <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <b>{a.title}</b>
+          <span className="hint">{msg ?? a.detail}{a.template?.license ? `（${a.template.license}）` : ''}</span>
+        </span>
+        <span className="ppt-card-act">
+          {onSend && <Restyle current={a.template} fileName={a.title} onSend={onSend} />}
+          <button type="button" className="pbtn" onClick={() => void download(a.url, a.title).catch((e) => setMsg(e instanceof ApiError ? e.message : '下载失败'))}>下载</button>
+        </span>
+      </div>
+      {!!a.pages?.length && <PptPages pages={a.pages} title={a.title} />}
+      {!!a.checks?.length && (
+        <div className={'ppt-checks' + (a.checks.some((c) => c.includes('放不下')) ? ' warn' : '')}>
+          <Icon name={a.checks.some((c) => c.includes('放不下')) ? 'warn' : 'check'} size={13} stroke={2.2} />
+          <span>检查过：{a.checks.join(' · ')}</span>
+        </div>
+      )}
     </section>
   );
 }
@@ -366,7 +396,7 @@ export function ArtifactCards({ items, onSend }: { items: ToolArtifact[]; onSend
           case 'lit': return <LitCard key={i} a={a} />;
           case 'image': return <ImageCard key={i} a={a} />;
           case 'ocr': return <OcrCard key={i} a={a} />;
-          case 'file': return <FileCard key={i} a={a} />;
+          case 'file': return <FileCard key={i} a={a} onSend={onSend} />;
           case 'estimate': return <EstimateCard key={i} a={a} />;
           case 'table': return <TableCard key={i} a={a} />;
           case 'block': return <BlockCard key={i} a={a} />;

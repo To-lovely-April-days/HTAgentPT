@@ -10,11 +10,13 @@ export interface PlusProps {
   skills?: { list: SkillRow[]; value: SkillRow | null; onChange: (s: SkillRow | null) => void };
   scope?: { value: Scope; options: ScopeOptions; onChange: (s: Scope) => void };
   project?: { list: ProjectRow[]; value: string | null; onChange: (id: string | null) => void; onNew: () => void };
+  /** PPT 模板：点了打开选择窗（网格看封面，菜单里放不下） */
+  ppt?: { value: string | null; onOpen: () => void };
 }
 
 type View = 'main' | 'skill' | 'scope' | 'project';
 
-export function PlusMenu({ onUpload, skills, scope, project }: PlusProps) {
+export function PlusMenu({ onUpload, skills, scope, project, ppt }: PlusProps) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<View>('main');
   const [q, setQ] = useState('');
@@ -38,7 +40,7 @@ export function PlusMenu({ onUpload, skills, scope, project }: PlusProps) {
     return [...m.entries()];
   }, [skills?.list, q]);
 
-  if (!onUpload && !skills?.list.length && !scope && !project) return null;
+  if (!onUpload && !skills?.list.length && !scope && !project && !ppt) return null;
   const cur = project?.list.find((p) => p.id === project.value);
   const back = (title: string) => (
     <button type="button" className="pm-back" onClick={() => setView('main')}><Icon name="left" size={14} />{title}</button>
@@ -62,6 +64,11 @@ export function PlusMenu({ onUpload, skills, scope, project }: PlusProps) {
               {!!skills?.list.length && (
                 <button type="button" role="menuitem" className="pm-i" onClick={() => setView('skill')}>
                   <Icon name="book" size={15} /><span className="pm-t">用技能{skills.value && <small>{skills.value.name}</small>}</span><Icon name="right" size={13} className="pm-r" />
+                </button>
+              )}
+              {ppt && (
+                <button type="button" role="menuitem" className="pm-i" onClick={() => { done(); ppt.onOpen(); }}>
+                  <Icon name="slides" size={15} /><span className="pm-t">PPT 模板<small>{ppt.value ?? '助手按场景挑'}</small></span><Icon name="right" size={13} className="pm-r" />
                 </button>
               )}
               {scope && (

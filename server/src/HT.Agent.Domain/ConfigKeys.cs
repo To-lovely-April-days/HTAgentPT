@@ -219,6 +219,10 @@ public static class ConfigKeys
     public const string TicketNoPrefix = "ticket.no_prefix";
     /// <summary>docx→PDF 转换服务地址（FR-5.14）。空 = 未接入，预览走标色 HTML。</summary>
     public const string PdfConverterUrl = "pdf.converter_url";
+    /// <summary>内置 PPT 模板所在目录（容器里挂载 deploy/ppt-templates）。</summary>
+    public const string PptTemplateDir = "ppt.template_dir";
+    /// <summary>不许放进模板库的网站（模板许可不许转发、不许放进数据库），逗号隔开；上传时来源网址含这些就拦下。</summary>
+    public const string PptBlockedSources = "ppt.blocked_sources";
     // ── 备份（FR-9.3/9.4）────────────────────────────
     public const string BackupDir = "backup.dir";
     /// <summary>异地目标目录（挂载的远端卷/同步盘）。空 = 未配置，异地任务如实标注不执行。</summary>

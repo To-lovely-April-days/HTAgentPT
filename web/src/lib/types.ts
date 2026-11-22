@@ -514,7 +514,9 @@ export type ToolArtifact =
       items: { n: number; kind: string; title: string; meta: string; abstract: string; url: string; fullText?: string | null }[] }
   | { kind: 'image'; file: string; question: string; answer: string; thumb: string | null }
   | { kind: 'ocr'; file: string; text: string; note: string }
-  | { kind: 'file'; title: string; url: string; detail: string; ok?: boolean }
+  | { kind: 'file'; title: string; url: string; detail: string; ok?: boolean;
+      /** 助手按模板做的 PPT：每页的预览图、用的模板、检查结果 */
+      pages?: string[]; template?: { id: string; name: string; license?: string; source?: string }; checks?: string[] }
   | { kind: 'estimate'; title: string; subtitle: string; priced: number; count: number; oldest: string | null; stale: boolean;
       total: { taxLow: number; taxHigh: number; netLow: number; netHigh: number };
       groups: { name: string; subLow: number; subHigh: number; lines: EstimateLine[] }[] }
@@ -557,3 +559,6 @@ export interface PricePreview {
 /** 个人中心 › 我的记忆。 */
 export interface MemoryRow { id: string; kind: string; text: string; source: 'chat' | 'manual'; createdAt: string; updatedAt: string }
 export interface MemoryState { globalOn: boolean; enabled: boolean; max: number; items: MemoryRow[] }
+
+/** PPT 模板库里能选的一套（输入框「＋ → PPT 模板」）。 */
+export interface PptTemplateRow { id: string; name: string; tags: string[]; slides: number; types: string[]; previews: number; license: string }

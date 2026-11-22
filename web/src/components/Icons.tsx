@@ -25,6 +25,8 @@ const PATHS: Record<string, ReactElement> = {
   thumbUp: <path d="M7 10v10H4.5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1zM7 10l3.6-6.3a1.8 1.8 0 0 1 3.3 1.2L13.3 9H19a2 2 0 0 1 2 2.3l-1.2 6.9A2.2 2.2 0 0 1 17.6 20H7" />,
   thumbDown: <g transform="rotate(180 12 12)"><path d="M7 10v10H4.5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1zM7 10l3.6-6.3a1.8 1.8 0 0 1 3.3 1.2L13.3 9H19a2 2 0 0 1 2 2.3l-1.2 6.9A2.2 2.2 0 0 1 17.6 20H7" /></g>,
   refresh: <path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" />,
+  eye: <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>,
+  slides: <><rect x="3" y="4" width="18" height="12" rx="1.5" /><path d="M12 16v4M8 20h8M7 8h6M7 11h4" /></>,
   play: <path d="M8 5.5l11 6.5-11 6.5z" fill="currentColor" />,
   boxOff: <rect x="3.5" y="3.5" width="17" height="17" rx="4" />,
   boxOn: <><rect x="3.5" y="3.5" width="17" height="17" rx="4" fill="currentColor" /><path d="M8 12.3l2.8 2.8L16.3 9" stroke="#fff" /></>,

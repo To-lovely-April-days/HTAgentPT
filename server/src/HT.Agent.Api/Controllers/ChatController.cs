@@ -50,6 +50,20 @@ public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, 
         return File(st, type, f.FileName);
     }
 
+    /// <summary>助手做的 PPT 每页的预览图（文件卡上那一排）。</summary>
+    [HttpGet("made-files/{id:guid}/pages/{n:int}")]
+    public async Task<IActionResult> MadeFilePage(Guid id, int n, CancellationToken ct)
+    {
+        var f = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            db.MadeFiles, x => x.Id == id && x.UserId == me.UserId && x.CompanyId == me.CompanyId && x.Ok, ct);
+        if (f is null || n < 1 || n > 60) return NotFound(new { code = "NOT_FOUND", message = "找不到这一页" });
+        var key = $"made/{f.Id:N}-p{n}.jpg";
+        if (f.FileKey is null || f.ExpiresAt < DateTimeOffset.UtcNow || !await storage.ExistsAsync(key, ct))
+            return StatusCode(410, new { code = "EXPIRED", message = "预览图已经过了保留期" });
+        Response.Headers.CacheControl = "private, max-age=86400";
+        return File(await storage.OpenAsync(key, ct), "image/jpeg");
+    }
+
     /// <summary>输入框里的「思考」：默认档位、能不能自己选、深度档开没开（模型服务上下文到 32K 才开）。</summary>
     [HttpGet("levels")]
     public async Task<IActionResult> Levels(CancellationToken ct)
@@ -66,7 +80,7 @@ public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, 
 
     public record AskBody(Guid? SessionId, string Question, RetrievalRequest? Filters, string? ForcedIntent,
         List<Guid>? AttachmentIds = null, SkillTest? SkillTest = null, string? Level = null, string? BrowserTab = null,
-        Guid? ProjectId = null, string? Skill = null);
+        Guid? ProjectId = null, string? Skill = null, Guid? PptTemplate = null);
 
     /// <summary>问答（表 8-1 POST /api/chat/completions）：SSE 流式。
     /// 事件：meta（改写与命中）→ delta*（增量）→ sources → done；或 meta → no_result。</summary>
@@ -91,7 +105,7 @@ public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, 
         var retrieval = (body.Filters ?? new RetrievalRequest(body.Question)) with { Query = body.Question };
         try
         {
-            await foreach (var ev in qa.AskStreamAsync(new QaRequest(body.SessionId, body.Question, retrieval, body.ForcedIntent, body.AttachmentIds, body.SkillTest, body.Level, BrowserTab: body.BrowserTab, ProjectId: body.ProjectId, Skill: body.Skill), ct))
+            await foreach (var ev in qa.AskStreamAsync(new QaRequest(body.SessionId, body.Question, retrieval, body.ForcedIntent, body.AttachmentIds, body.SkillTest, body.Level, BrowserTab: body.BrowserTab, ProjectId: body.ProjectId, Skill: body.Skill, PptTemplate: body.PptTemplate), ct))
             {
                 await Response.WriteAsync($"event: {ev.Kind}\n", ct);
                 await Response.WriteAsync($"data: {JsonSerializer.Serialize(ev.Payload, JsonOpts)}\n\n", ct);

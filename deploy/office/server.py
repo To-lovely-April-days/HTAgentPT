@@ -1,5 +1,7 @@
 """Word → PDF 转换服务。POST /convert（multipart 字段 file）→ 返回 PDF；GET /health。
 POST /check（multipart 字段 file）→ 检查助手做的文件能不能用：能不能打开、Excel 公式重算后有没有错、Word 修订批注各几处、几页。
+POST /render?width=480&max=40（multipart 字段 file，PPT / Word / PDF）→ 每页转一张 JPEG：{"pages": [base64...], "total": 总页数}。
+PPT 模板库的缩略图、助手做的 PPT 在文件卡上的每页预览都用它。
 
 每次转换用独立的临时目录和 LibreOffice 用户配置，跑完删掉；同一时间只转一份（LibreOffice 不适合并发）。
 只在容器网络里可见，不对外开端口。
@@ -131,6 +133,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == "/check":
             return self._check()
+        if self.path.startswith("/render"):
+            return self._render()
         if self.path != "/convert":
             return self._send(404, b'{"error":"not found"}')
         length = int(self.headers.get("Content-Length") or 0)
@@ -187,6 +191,46 @@ class Handler(BaseHTTPRequestHandler):
             if fixed and not problems:
                 body["recalculated"] = base64.b64encode(fixed).decode()
             self._send(200, json.dumps(body, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+        except subprocess.TimeoutExpired:
+            self._send(504, b'{"error":"timeout"}')
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+
+
+    def _render(self):
+        from urllib.parse import parse_qs, urlparse
+        q = parse_qs(urlparse(self.path).query)
+        width = max(120, min(int((q.get("width") or ["480"])[0]), 1600))
+        most = max(1, min(int((q.get("max") or ["40"])[0]), 80))
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0 or length > MAX_IN:
+            return self._send(413, b'{"error":"file too large"}')
+        form = cgi.FieldStorage(fp=self.rfile, headers=self.headers,
+                                environ={"REQUEST_METHOD": "POST", "CONTENT_TYPE": self.headers.get("Content-Type", "")})
+        if "file" not in form or not getattr(form["file"], "file", None):
+            return self._send(400, b'{"error":"missing file"}')
+        ext = os.path.splitext(form["file"].filename or "")[1].lower()
+        if ext not in (".pptx", ".docx", ".pdf"):
+            return self._send(400, b'{"error":"only pptx/docx/pdf"}')
+        work = tempfile.mkdtemp(prefix="ren-")
+        try:
+            src = os.path.join(work, "input" + ext)
+            with open(src, "wb") as f:
+                shutil.copyfileobj(form["file"].file, f)
+            pdf = src if ext == ".pdf" else soffice(src, work, "pdf", os.path.join(work, "pdf"))
+            if pdf is None:
+                return self._send(500, b'{"error":"convert failed"}')
+            total = pdf_pages(pdf)
+            outdir = os.path.join(work, "img")
+            os.makedirs(outdir)
+            subprocess.run(["pdftoppm", "-jpeg", "-jpegopt", "quality=80", "-scale-to-x", str(width), "-scale-to-y", "-1",
+                            "-f", "1", "-l", str(min(total, most)), pdf, os.path.join(outdir, "p")], capture_output=True, timeout=120)
+            pages = []
+            for name in sorted(os.listdir(outdir), key=lambda n: int(re.sub(r"\D", "", n) or 0)):
+                with open(os.path.join(outdir, name), "rb") as f:
+                    pages.append(base64.b64encode(f.read()).decode())
+            body = {"pages": pages, "total": total}
+            self._send(200, json.dumps(body).encode(), "application/json; charset=utf-8")
         except subprocess.TimeoutExpired:
             self._send(504, b'{"error":"timeout"}')
         finally:

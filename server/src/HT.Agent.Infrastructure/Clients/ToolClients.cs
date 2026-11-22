@@ -92,6 +92,29 @@ public class OfficeCheckClient(IHttpClientFactory http, HT.Agent.Application.Abs
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or UriFormatException or JsonException) { return null; }
     }
+
+    /// <summary>每页转一张 JPEG（office 容器的 /render）：PPT 模板缩略图、助手做的 PPT 每页预览。连不上返回 null。</summary>
+    public async Task<(List<byte[]> Pages, int Total)?> RenderAsync(string fileName, byte[] data, int width, int max, CancellationToken ct)
+    {
+        var conv = (await config.GetStringAsync(HT.Agent.Domain.ConfigKeys.PdfConverterUrl, "", ct)).Trim();
+        if (conv.Length == 0) conv = "http://office:3000/convert";
+        try
+        {
+            var url = new Uri(new Uri(conv), $"/render?width={width}&max={max}");
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(200));
+            using var form = new MultipartFormDataContent { { new ByteArrayContent(data), "file", fileName } };
+            using var resp = await http.CreateClient("sandbox").PostAsync(url, form, cts.Token);
+            if (!resp.IsSuccessStatusCode) return null;
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(cts.Token));
+            var r = doc.RootElement;
+            var pages = r.TryGetProperty("pages", out var p) && p.ValueKind == JsonValueKind.Array
+                ? p.EnumerateArray().Select(x => Convert.FromBase64String(x.GetString() ?? "")).Where(x => x.Length > 0).ToList() : [];
+            var total = r.TryGetProperty("total", out var t) && t.TryGetInt32(out var n) ? n : pages.Count;
+            return (pages, total);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or UriFormatException or JsonException or FormatException) { return null; }
+    }
 }
 
 /// <summary>化学品数据：PubChem（美国国家医学图书馆的公开化学数据库，免费、不用注册）。名称要用英文名或 CAS 号。</summary>

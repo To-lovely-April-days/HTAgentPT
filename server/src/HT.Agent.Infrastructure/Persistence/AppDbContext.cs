@@ -64,6 +64,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
     public DbSet<AssistantSkillVersion> AssistantSkillVersions => Set<AssistantSkillVersion>();
     public DbSet<SkillUse> SkillUses => Set<SkillUse>();
     public DbSet<MadeFile> MadeFiles => Set<MadeFile>();
+    public DbSet<PptTemplate> PptTemplates => Set<PptTemplate>();
     public DbSet<ChatProject> ChatProjects => Set<ChatProject>();
     public DbSet<HazardProcess> HazardProcesses => Set<HazardProcess>();
     public DbSet<HazardChemical> HazardChemicals => Set<HazardChemical>();
@@ -351,6 +352,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
             e.Property(x => x.Name).HasMaxLength(80);
             e.Property(x => x.LedgerNo).HasMaxLength(64);
             e.HasIndex(x => new { x.OwnerId, x.UpdatedAt });
+        });
+        b.Entity<PptTemplate>(e =>
+        {
+            e.Property(x => x.Slug).HasMaxLength(120);
+            e.Property(x => x.Name).HasMaxLength(60);
+            e.Property(x => x.Tags).HasMaxLength(120);
+            e.Property(x => x.Source).HasMaxLength(500);
+            e.Property(x => x.License).HasMaxLength(60);
+            e.Property(x => x.Credit).HasMaxLength(200);
+            e.Property(x => x.PageTypes).HasMaxLength(200);
+            e.Property(x => x.Status).HasMaxLength(16);
+            e.Property(x => x.Analysis).HasColumnType("jsonb");
+            e.HasIndex(x => x.Slug).IsUnique();
         });
         b.Entity<MadeFile>(e =>
         {

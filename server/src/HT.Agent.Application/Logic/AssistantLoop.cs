@@ -153,6 +153,7 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         "chemical_info" => "化学品数据",
         "hazard_lookup" => "查危险工艺和危化品",
         "process_sim" => "流程模拟",
+        "make_ppt" => "做 PPT",
         "plan" => "列计划",
         "web_search" => "联网搜索",
         "fetch_url" => "打开网页",
@@ -187,6 +188,9 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
             var node = JsonNode.Parse(string.IsNullOrWhiteSpace(call.ArgumentsJson) ? "{}" : call.ArgumentsJson) as JsonObject;
             if (node is null) return "";
             if (call.Name == "delegate") return node["tasks"] is JsonArray ts ? $"{ts.Count} 个子任务，同时进行" : "分头查";
+            if (call.Name == "make_ppt")
+                return string.Join(" · ", new[] { node["file_name"]?.ToString(), node["pages"] is JsonArray ps ? $"{ps.Count} 页" : node["redo"] is not null ? $"重做《{node["redo"]}》" : null,
+                    node["template"] is { } tp ? $"模板「{tp}」" : null }.Where(x => !string.IsNullOrEmpty(x)));
             var parts = node.Where(kv => kv.Value is not null && kv.Value.ToString().Length > 0)
                 .Select(kv => kv.Key is "query" or "expression" or "keyword" || call.Name == "use_skill" ? kv.Value!.ToString() : $"{kv.Key}={kv.Value}");
             var s = string.Join("，", parts);

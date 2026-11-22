@@ -1650,3 +1650,77 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
   .pl-s { display: none; }
   .pl-sub { margin-left: 30px; margin-right: 10px; }
 }
+
+/* PPT 模板库：选择窗、文件卡上的每页预览、换个风格 */
+.ppt-th { display: block; aspect-ratio: 16 / 9; background: #f1f1ef; border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 1px rgba(0,0,0,.06); }
+.ppt-th img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ppt-th .hint { display: flex; height: 100%; align-items: center; justify-content: center; font-size: 11px; }
+.modal-box.ppt-pick { width: min(1040px, calc(100vw - 32px)); max-height: calc(100vh - 48px); display: flex; flex-direction: column; gap: 12px; padding: 16px; overflow: hidden; }
+.ppt-pick-hd { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ppt-pick-hd b { font-size: 15px; }
+.ppt-x { border: 0; background: none; padding: 4px; border-radius: 6px; cursor: pointer; color: #6b6b6b; display: inline-flex; }
+.ppt-x:hover { background: #f1f1ef; color: #141414; }
+.ppt-flt { display: flex; gap: 6px; flex-wrap: wrap; }
+.ppt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; overflow: auto; padding: 2px; }
+.ppt-tile { position: relative; border: 1px solid #ececea; border-radius: 10px; background: #fff; }
+.ppt-tile.on { border-color: #141414; box-shadow: 0 0 0 1px #141414; }
+.ppt-tile-b { display: flex; flex-direction: column; gap: 5px; width: 100%; padding: 8px; border: 0; background: none; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.ppt-tile-n { display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; }
+.ppt-eye { position: absolute; right: 12px; top: 12px; width: 26px; height: 26px; border-radius: 13px; border: 0; background: rgba(255,255,255,.92); box-shadow: 0 1px 4px rgba(0,0,0,.18);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: #141414; opacity: 0; transition: opacity .15s; }
+.ppt-tile:hover .ppt-eye, .ppt-eye:focus-visible { opacity: 1; }
+@media (hover: none) { .ppt-eye { opacity: 1; } }
+.ppt-peek { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.ppt-peek-hd { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ppt-peek-g { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; overflow: auto; max-height: 60vh; }
+.ppt-pick-ft { line-height: 1.6; }
+.ppt-card { flex-direction: column; align-items: stretch !important; gap: 10px; }
+.ppt-card-hd { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.ppt-card-act { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.ppt-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.ppt-pg { display: flex; flex-direction: column; gap: 3px; padding: 0; border: 0; background: none; cursor: zoom-in; text-align: left; font: inherit; }
+.ppt-pg span:last-child { font-size: 10.5px; color: #9a9a9a; font-family: var(--mono); }
+.ppt-pg-i { position: relative; display: block; }
+.ppt-more { position: absolute; inset: 0; border-radius: 4px; background: rgba(20,20,20,.55); color: #fff; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+.ppt-checks { display: flex; align-items: center; gap: 7px; padding: 7px 10px; border-radius: 8px; background: #e6f2ec; color: #1c6b45; font-size: 12px; line-height: 1.5; }
+.ppt-checks.warn { background: #fdf4e3; color: #7a4f00; }
+.ppt-big { width: min(1100px, calc(100vw - 32px)); background: #fff; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.ppt-big-ft { display: flex; align-items: center; gap: 10px; }
+.ppt-rs { position: relative; display: inline-flex; }
+.ppt-rs .gbtn { display: inline-flex; align-items: center; gap: 4px; }
+.ppt-rs-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; width: 420px; max-width: calc(100vw - 40px); background: #fff; border: 1px solid #e4e4e1;
+  border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.12); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.ppt-rs-g { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.ppt-rs-i { display: flex; flex-direction: column; gap: 4px; padding: 4px; border: 1px solid #ececea; border-radius: 8px; background: #fff; cursor: pointer; font: inherit; font-size: 12px; text-align: center; }
+.ppt-rs-i:hover { border-color: #141414; }
+@media (max-width: 560px) {
+  .ppt-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ppt-card-hd { flex-wrap: wrap; }
+  .ppt-card-act { margin-left: 0; }
+  .ppt-rs-pop { right: auto; left: 0; }
+  .ppt-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* 后台「PPT 模板」 */
+.pt-imp { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 9px 12px; border-radius: 8px; background: #fdf4e3; color: #7a4f00; font-size: 12.5px; }
+.pt-wrap { display: flex; gap: 16px; align-items: flex-start; }
+.pt-main { flex: 1; min-width: 0; overflow-x: auto; }
+.pt-tbl td { vertical-align: middle; }
+.pt-tbl tr.off td { opacity: .55; }
+.pt-tbl .ppt-th { width: 112px; }
+.pt-ty { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; margin: 2px 3px 2px 0; border-radius: 5px; font-size: 11px; background: #eef2fa; color: #2a4a85; white-space: nowrap; }
+.pt-ty.no { background: #f1f1ef; color: #9a9a9a; text-decoration: line-through; }
+.pt-lic { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; margin-top: 3px; border-radius: 5px; font-size: 10.5px; background: #e6f2ec; color: #1c6b45; white-space: nowrap; }
+.pt-src a { color: inherit; }
+.pt-bad { margin-top: 4px; font-size: 11.5px; color: var(--cls-conf, #a00d25); }
+.pt-ops { white-space: nowrap; }
+.pt-ops .hm-link + .hm-link { margin-left: 8px; }
+.pt-up { flex: 0 0 300px; border: 1px solid #e4e4e1; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: #fff; }
+.pt-f { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+.pt-f span { color: #8a8a8a; font-size: 11.5px; }
+.pt-f input, .pt-f select { height: 30px; border: 1px solid #dedeDB; border-radius: 7px; padding: 0 9px; font: inherit; font-size: 12.5px; background: #fff; }
+.pt-f input[type=file] { padding: 4px; height: auto; }
+.pt-warn { display: flex; gap: 7px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: #fdf4e3; color: #7a4f00; font-size: 11.5px; line-height: 1.6; }
+.pt-warn svg { flex: 0 0 auto; margin-top: 2px; }
+@media (max-width: 900px) { .pt-wrap { flex-direction: column; } .pt-up { flex: none; width: 100%; box-sizing: border-box; } }
+.pt-tbl td:nth-child(2) { min-width: 130px; }
+.pt-tbl td:nth-child(3) { min-width: 140px; }

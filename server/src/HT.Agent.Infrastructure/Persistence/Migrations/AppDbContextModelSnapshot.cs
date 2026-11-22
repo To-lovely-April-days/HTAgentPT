@@ -2021,6 +2021,110 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                     b.ToTable("parse_job");
                 });
 
+            modelBuilder.Entity("HT.Agent.Domain.Entities.PptTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Analysis")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("analysis");
+
+                    b.Property<bool>("BuiltIn")
+                        .HasColumnType("boolean")
+                        .HasColumnName("built_in");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_id");
+
+                    b.Property<string>("Credit")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("credit");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<string>("FileKey")
+                        .HasColumnType("text")
+                        .HasColumnName("file_key");
+
+                    b.Property<string>("License")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("license");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("PageTypes")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("page_types");
+
+                    b.Property<int>("Previews")
+                        .HasColumnType("integer")
+                        .HasColumnName("previews");
+
+                    b.Property<string>("Problem")
+                        .HasColumnType("text")
+                        .HasColumnName("problem");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size");
+
+                    b.Property<int>("Slides")
+                        .HasColumnType("integer")
+                        .HasColumnName("slides");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("slug");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Tags")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("tags");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ppt_template");
+
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("ix_ppt_template_slug");
+
+                    b.ToTable("ppt_template");
+                });
+
             modelBuilder.Entity("HT.Agent.Domain.Entities.PriceItem", b =>
                 {
                     b.Property<long>("Id")
