@@ -1584,3 +1584,28 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 @media (max-width: 640px) { .hzd-edit-chem { grid-template-columns: 1fr; } }
 .lit-ft { color: #1c6b45; text-decoration: none; font-weight: 500; }
 .lit-ft:hover { text-decoration: underline; }
+
+/* 流程模拟（DWSIM）结果卡 */
+.sim-ok { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 6px; background: #e6f2ec; color: #1c6b45; font-size: 12px; font-weight: 500; }
+.sim-tabs { display: flex; gap: 6px; padding: 10px 16px 0; flex-wrap: wrap; }
+.sim-tw { overflow-x: auto; }
+.sim-t { border-collapse: collapse; font-size: 12.5px; min-width: 100%; }
+.sim-t th, .sim-t td { padding: 6px 10px; border-bottom: 1px solid var(--line-soft); text-align: right; white-space: nowrap; font-family: var(--mono); font-size: 12px; }
+.sim-t th:first-child, .sim-t td:first-child { text-align: left; font-family: var(--font); color: var(--ink-2); position: sticky; left: 0; background: var(--panel); }
+.sim-t th { font-weight: 500; color: var(--ink-3); border-bottom: 1px solid var(--line); vertical-align: bottom; }
+.sim-t th small { display: block; font-family: var(--font); font-size: 11px; color: var(--ink-4); font-weight: 400; }
+.sim-t tr.sub td { color: var(--ink-4); font-size: 11px; }
+.sim-sn { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 4px; transform: rotate(0deg); border: 1.3px solid #1d4a94; color: #1d4a94; font-size: 11px; }
+.sim-units { display: flex; flex-direction: column; }
+.sim-unit { padding: 8px 0; border-bottom: 1px solid var(--line-soft); display: flex; flex-direction: column; gap: 4px; }
+.sim-unit:last-child { border-bottom: none; }
+.sim-unit-hd { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.sim-unit-hd > b { font-family: var(--mono); }
+.sim-duty { margin-left: auto; font-size: 12.5px; color: var(--ink-2); }
+.sim-duty b { font-family: var(--mono); }
+.sim-props { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--ink-3); }
+.sim-img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line-soft); border-radius: 8px; background: #fff; }
+.sim-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sim-tab { height: 28px; padding: 0 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); font: inherit; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
+.sim-tab:hover { border-color: var(--line-strong); }
+.sim-tab.on { background: var(--ink); border-color: var(--ink); color: #fff; }

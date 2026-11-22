@@ -37,6 +37,7 @@ public sealed class AssistantService(
     Clients.BrowserActivity browserActivity,
     Clients.PubChemClient pubchem,
     HazardCatalog hazards,
+    ProcessSimRunner processSim,
     Clients.SearxClient searx,
     Clients.WebFetcher fetcher,
     Clients.LiteratureClient literature,
@@ -125,6 +126,8 @@ public sealed class AssistantService(
         public IReadOnlySet<string> FileKinds = new HashSet<string>();
         /// <summary>每种文件检查没过了几次：到 3 次就不让再做了。</summary>
         public readonly Dictionary<string, int> FileFails = new();
+        /// <summary>流程模拟这一轮没算成的次数：到 3 次就让模型停下来问人。</summary>
+        public int SimFails;
         /// <summary>分头查：子代理照主助手的参数跑（轮数另算）；能不能查资料、查项目和主助手一样。</summary>
         public AssistantLoopOptions LoopOptions = new();
         public bool CanDocs, CanProjects;
@@ -837,6 +840,29 @@ public sealed class AssistantService(
                     ["chemicals"] = new Dictionary<string, object> { ["type"] = "array", ["maxItems"] = 10, ["items"] = new Dictionary<string, object> { ["type"] = "string" },
                         ["description"] = "介质的中文名、别名或 CAS 号（如 氢气、甲醇、75-09-2），不查就省略" },
                 })));
+        if (enabled.Contains("process_sim"))
+            list.Add(new ToolSpec("process_sim",
+                """
+                用 DWSIM 做稳态流程模拟（物料和热量衡算、闪蒸、反应器出口、换热负荷、泵和压缩机功率）。先用 use_skill 翻看「流程模拟（DWSIM）」。
+                每次都整个流程重算（改条件就改描述再调一次）。单位：温度 ℃、压力 MPa（表压）、质量流量 kg/h、摩尔流量 kmol/h、热负荷 kW、压降 MPa。
+                compounds 用 DWSIM 的英文名（Water、Methanol、Ethanol、Hydrogen、Nitrogen、Oxygen、Carbon dioxide、Benzene、Toluene、Cyclohexane、Methane、Acetone……）。
+                feeds：[{id:"1", label:"苯进料", T:25, P:3.0, mass:10（或 mole:0.448）, comp:{"Benzene":1}（质量分率）}]
+                units：[{id:"R-101", type, label, in:["物流号"], out:["物流号"], 设定}]，type 和设定：
+                  Mixer（in 2–6 股）· Splitter（out 2–3 股，ratio:[0.3,0.7]）· Heater / Cooler（T_out 或 duty 或 vf_out，可加 dP）
+                  Pump / Compressor（P_out 或 dP，可加 efficiency %）· Valve（P_out 或 dP）· Vessel 闪蒸罐（out 第 1 股气相、第 2 股液相）
+                  ConversionReactor 转化反应器（T_out，或 mode:"adiabatic"/"isothermal"；out 第 1 股气相、第 2 股液相）
+                reactions（有转化反应器时）：[{name, stoich:{"Benzene":-1,"Hydrogen":-3,"Cyclohexane":1}, base:"Benzene", conversion:99, phase:"Mixture"}]
+                不支持循环（回流、循环气）和精馏塔。
+                """,
+                Obj(new()
+                {
+                    ["title"] = Str("流程名，如「苯加氢中试」"),
+                    ["compounds"] = new Dictionary<string, object> { ["type"] = "array", ["items"] = new Dictionary<string, object> { ["type"] = "string" } },
+                    ["package"] = Str("物性方法：Peng-Robinson (PR)、Soave-Redlich-Kwong (SRK)、NRTL、UNIQUAC、Raoult's Law、Steam Tables (IAPWS-IF97)"),
+                    ["feeds"] = new Dictionary<string, object> { ["type"] = "array", ["items"] = new Dictionary<string, object> { ["type"] = "object" } },
+                    ["units"] = new Dictionary<string, object> { ["type"] = "array", ["items"] = new Dictionary<string, object> { ["type"] = "object" } },
+                    ["reactions"] = new Dictionary<string, object> { ["type"] = "array", ["items"] = new Dictionary<string, object> { ["type"] = "object" } },
+                }, "compounds", "package", "feeds", "units")));
         if (enabled.Contains("web_search"))
             list.Add(new ToolSpec("web_search",
                 "联网搜索公开信息（行业资料、材料性能、标准、产品信息）。只用于查公开知识，不要带客户名、项目编号、金额（系统也会自动拦掉）。返回标题、链接、摘要；需要细节再用打开网页。",
@@ -913,7 +939,7 @@ public sealed class AssistantService(
         IReadOnlyList<(Guid Id, string FileName, string? Chunks)> attachments, int topK, IReadOnlySet<string> enabled,
         Func<QaEvent, Task> emit, CancellationToken ct, int agent = 0)
     {
-        if (call.Name is "ask_user" or "run_python" or "chemical_info" or "hazard_lookup" or "web_search" or "fetch_url" or "compare_documents"
+        if (call.Name is "ask_user" or "run_python" or "chemical_info" or "hazard_lookup" or "process_sim" or "web_search" or "fetch_url" or "compare_documents"
             or "search_literature" or "view_image" or "ocr_image" or "translate_file" or "inquiry_form" or "remember" or "forget"
             or "search_prices" or "cost_estimate" or "show_table" or "show_block" or "browser_open" or "browser_read" or "browser_act" or "browser_look"
             && !enabled.Contains(call.Name switch { "ocr_image" => "view_image", "forget" => "remember", "cost_estimate" => "search_prices",
@@ -1509,6 +1535,8 @@ public sealed class AssistantService(
             }
             case "hazard_lookup":
                 return await HazardLookupAsync(a, run, emit, label, ct);
+            case "process_sim":
+                return await ProcessSimAsync(a, run, emit, label, ct);
             case "web_search":
             {
                 var raw = S("query") ?? req.Question;
@@ -1636,7 +1664,7 @@ public sealed class AssistantService(
         };
     }
 
-    private static readonly string[] OptionalTools = ["ask_user", "run_python", "chemical_info", "hazard_lookup", "web_search", "fetch_url", "compare_documents", "browser",
+    private static readonly string[] OptionalTools = ["ask_user", "run_python", "chemical_info", "hazard_lookup", "process_sim", "web_search", "fetch_url", "compare_documents", "browser",
         "search_literature", "view_image", "translate_file", "inquiry_form", "search_prices", "show_table", "show_block"];
 
     /// <summary>这次能用哪些可选工具：系统设置里开着的、角色在允许名单里的。外部客户只给「请用户确认」。</summary>
@@ -2084,6 +2112,60 @@ public sealed class AssistantService(
         var nos = await db.Projects.AsNoTracking().Where(p => p.CompanyId == me.CompanyId).Select(p => p.ProjectNo).Take(5000).ToListAsync(ct);
         var pattern = await config.GetStringAsync(ConfigKeys.IntentProjectNoPattern, "", ct);
         return Redactor.Redact(q, names.Distinct(), nos, pattern);
+    }
+
+    /// <summary>流程模拟（DWSIM）：校验流程描述 → 跑 → 出流程图（我们的组件）和结果卡（物流表、设备、DWSIM 原图、可下载的 DWSIM 文件）。
+    /// 描述有问题、没收敛：原话交给模型改；改了 3 次还不行就让它停下来问人。</summary>
+    private async Task<ToolOutcome> ProcessSimAsync(JsonObject a, Run run, Func<QaEvent, Task> emit, string label, CancellationToken ct)
+    {
+        var (spec, errors) = ProcessSim.Parse(a);
+        var title = spec?.Title ?? a["title"]?.ToString() ?? "流程模拟";
+        string Again() => ++run.SimFails >= 3
+            ? "已经改了 3 次还没算出来，不要再试了：告诉用户卡在哪、缺什么数据或需要怎么简化。"
+            : "按上面的问题改好流程描述，再调一次 process_sim。";
+        if (spec is null)
+            return new ToolOutcome("流程描述有问题：\n- " + string.Join("\n- ", errors) + "\n" + Again(), "流程描述有问题", label, title, "描述有问题", Failed: true);
+        var r = await processSim.RunAsync(spec, ct);
+        if (!r.Ok)
+            return r.Unavailable
+                ? new ToolOutcome($"{r.Problem}。这次没法做流程模拟，用估算回答并说明没能模拟。", "服务连不上", label, title, "服务连不上", Failed: true)
+                : new ToolOutcome($"DWSIM 没算出来：{r.Problem}\n{Again()}", "没算出来", label, title, "没算出来", Failed: true);
+
+        var card = r.Card!;
+        var keepDays = Math.Clamp(await config.GetIntAsync(ConfigKeys.FileKeepDays, 7, ct), 1, 90);
+        async Task<string?> Keep(byte[]? data, string ext)
+        {
+            if (data is null || data.Length == 0) return null;
+            var name = string.Concat(title.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch));
+            var row = new MadeFile
+            {
+                Id = Guid.NewGuid(), CompanyId = me.CompanyId, UserId = me.UserId, SessionId = run.SessionId, MessageId = run.MessageId,
+                FileName = $"{(name.Length > 60 ? name[..60] : name)}.{ext}", Kind = ext, Size = data.Length, Ok = true,
+                CreatedAt = DateTimeOffset.UtcNow, ExpiresAt = DateTimeOffset.UtcNow.AddDays(keepDays),
+            };
+            row.FileKey = await storage.SaveAsync(new MemoryStream(data), $"made/{row.Id:N}.{ext}", ct);
+            db.MadeFiles.Add(row);
+            await db.SaveChangesAsync(ct);
+            return $"/api/chat/made-files/{row.Id}";
+        }
+        card["fileUrl"] = await Keep(r.File, "dwxmz");
+        card["imageUrl"] = await Keep(r.Image, "png");
+
+        // 我们自己的流程图（标准图例、物料衡算照旧核对），和 DWSIM 的原图一起给
+        var pfd = r.Pfd!;
+        var checks = new List<string>();
+        ChemChecks("pfd", pfd, checks);
+        var block = new { kind = "block", block = "pfd", title = Clip(title, 60), note = $"DWSIM 计算 · 物性方法 {spec.Package}", data = JsonNode.Parse(pfd.ToJsonString()) };
+        run.Artifacts.Add(block);
+        await emit(new QaEvent("artifact", block));
+        run.Artifacts.Add(card);
+        await emit(new QaEvent("artifact", card));
+        run.Computed.AddRange(r.Numbers);
+        run.SimFails = 0;
+        await audit.WriteAsync(new AuditEntry("qa.process_sim", AuditResult.Success, UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId,
+            TargetType: "qa_session", TargetId: run.SessionId.ToString(), Detail: new { title, units = spec.Units.Count, streams = card["streams"]!.AsArray().Count }), ct);
+        return new ToolOutcome(r.Text, $"（较早做过流程模拟「{title}」，结果已显示给用户）", label, $"{title} · {spec.Units.Count} 台设备",
+            $"收敛 · {card["seconds"]} 秒");
     }
 
     /// <summary>查国家公布的目录：重点监管危险化工工艺、危险化学品目录（含分类信息表）、易制爆、易制毒。

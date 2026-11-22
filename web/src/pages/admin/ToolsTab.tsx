@@ -9,7 +9,7 @@ import { KbMultiSelect } from '../../components/KbMultiSelect';
 import { Icon } from '../../components/Icons';
 
 interface Stats { total: number; asks: number; tools: { tool: string; calls: number; failed: number; avgMs: number }[]; files?: { kind: string; made: number; failed: number }[] }
-interface Health { sandbox: boolean; search: boolean; hazchem: boolean; office: boolean; epo: boolean; vision: boolean; browser?: boolean; memory: { users: number; total: number } }
+interface Health { sandbox: boolean; search: boolean; hazchem: boolean; office: boolean; epo: boolean; vision: boolean; browser?: boolean; dwsim?: boolean; memory: { users: number; total: number } }
 
 interface ToolDef { key: string; name: string; ic: string; tone: 'in' | 'calc' | 'ext'; tag?: string; desc: string; fixed?: boolean; settings?: Panel;
   /** 开关用的配置键（默认 assistant.tool.{key}）；noRoles：不按角色分配。 */ cfgKey?: string; noRoles?: boolean;
@@ -28,6 +28,7 @@ const GROUPS: { title: string; note: string; tools: ToolDef[] }[] = [
   ] },
   { title: '计算与文件', note: '在服务器上运行，不出公司', tools: [
     { key: 'run_python', name: '代码解释器', ic: '算', tone: 'calc', tag: '免费', desc: '隔离环境里跑 Python：工程计算、数据分析、作图；含物性计算（CoolProp）', settings: 'sandbox' },
+    { key: 'process_sim', name: '流程模拟（DWSIM）', ic: '模', tone: 'calc', tag: '开源', desc: '物料和热量衡算、闪蒸、反应器、换热和泵功率；结果出流程图、物流表，可下载 DWSIM 文件。要起 dwsim 容器（DWSIM 官方无界面版，GPL-3）' },
     { key: 'compare_documents', name: '文件对比', ic: '比', tone: 'calc', tag: '免费', desc: '两份文件逐条对照：需求书对方案，找没满足的' },
     { key: 'view_image', name: '看图 · 识别文字', ic: '图', tone: 'calc', desc: '看上传的图纸、照片、截图；把扫描件和手写单的文字读出来（用看图模型）' },
     { key: 'translate_file', name: '整份翻译', ic: '译', tone: 'calc', desc: '上传的 Word 整份翻译，保留版式、套用已审定术语；需要「翻译」权限' },
@@ -88,6 +89,7 @@ export default function ToolsTab() {
     if (t.key === 'browser') return h.browser ? ['浏览器服务正常', 'ok'] : ['浏览器服务连不上（browser 容器没起来？）', 'warn'];
     if (t.key === 'run_python') return health.data ? (health.data.sandbox ? ['运行环境正常', 'ok'] : ['运行环境连不上（sandbox 容器没起来？）', 'warn']) : ['检查中…', 'off'];
     if (t.key === 'web_search') return health.data ? (health.data.search ? ['搜索服务正常', 'ok'] : ['搜索服务连不上（searxng 容器没起来？）', 'warn']) : ['检查中…', 'off'];
+    if (t.key === 'process_sim') return health.data ? (health.data.dwsim ? ['DWSIM 服务正常', 'ok'] : ['DWSIM 服务连不上（dwsim 容器没起来，或口令不一致？）', 'warn']) : ['检查中…', 'off'];
     if (t.key === 'hazard_lookup') return health.data ? (health.data.hazchem ? ['目录已导入', 'ok'] : ['目录还没导入（重启后端会自动导入）', 'warn']) : ['检查中…', 'off'];
     if (t.key === 'chemical_info') return health.data ? (health.data.hazchem ? ['正常', 'ok'] : ['正常 · 本地危化品目录还没导入（重启后端会自动导入）', 'warn']) : ['检查中…', 'off'];
     return ['正常', 'ok'];

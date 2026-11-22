@@ -43,7 +43,7 @@ public class ToolsController(AppDbContext db, IRuntimeConfig config, SandboxClie
         }
         var asks = await db.AuditLogs.AsNoTracking().CountAsync(a => a.At >= from && a.Action == "qa.assistant.ask", ct);
         // 助手做的文件：每种做了几份、几份检查没过
-        var files = await db.MadeFiles.AsNoTracking().Where(f => f.CreatedAt >= from)
+        var files = await db.MadeFiles.AsNoTracking().Where(f => f.CreatedAt >= from && f.Kind != "dwxmz" && f.Kind != "png")
             .GroupBy(f => f.Kind == "csv" ? "xlsx" : f.Kind).Select(g => new { kind = g.Key, made = g.Count(x => x.Ok), failed = g.Count(x => !x.Ok) }).ToListAsync(ct);
         // 分头查：拆了几次、平均几个子任务、几成没查完
         var dels = await db.AuditLogs.AsNoTracking().Where(a => a.At >= from && a.Action == "qa.delegate").Select(a => a.Detail).ToListAsync(ct);
@@ -103,6 +103,7 @@ public class ToolsController(AppDbContext db, IRuntimeConfig config, SandboxClie
         return Ok(new
         {
             sandbox = sb, search, hazchem, office, epo = epoSet,
+            dwsim = await HttpContext.RequestServices.GetRequiredService<HT.Agent.Infrastructure.Clients.DwsimClient>().HealthyAsync(ct),
             browser = await HttpContext.RequestServices.GetRequiredService<HT.Agent.Infrastructure.Clients.BrowserClient>().HealthyAsync(ct),
             vision = await vision.EnabledAsync(ct),
             memory = new { users = memUsers, total = memTotal } // 只给条数，不给内容

@@ -41,6 +41,7 @@ public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, 
             "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
             "pdf" => "application/pdf",
             "csv" => "text/csv",
+            "png" => "image/png",
             _ => "application/octet-stream"
         };
         var st = await storage.OpenAsync(f.FileKey, ct);

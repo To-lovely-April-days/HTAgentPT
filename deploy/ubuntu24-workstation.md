@@ -515,6 +515,35 @@ docker compose --env-file /srv/htagent/config/compose.env \
 
 目录以后更新了，在「国家目录」里改对应条目；改过的条目系统更新不会覆盖，工艺可以「恢复原文」。
 
+## 13. 升级：流程模拟（DWSIM）
+
+这次多一个工具容器 dwsim：DWSIM 官方的无界面版（dwsim-mcp 10.2.16，开源 GPL-3），只给后端用，不对外开端口。约 350 MB 镜像、1–2 GB 内存。
+
+1. 在 `/srv/htagent/config/compose.env` 里加一个口令（随便一串字母数字，后端和 dwsim 用同一个）：
+
+```bash
+echo "DWSIM_TOKEN=$(openssl rand -hex 16)" >> /srv/htagent/config/compose.env
+```
+
+镜像在 ghcr.io 上，国内拉不动时在 compose.env 里加 `DWSIM_IMAGE=` 换成可用的镜像地址（同一个版本 10.2.16）。
+
+2. 更新并启动：
+
+```bash
+cd /srv/htagent/app
+git pull
+docker compose --env-file /srv/htagent/config/compose.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.tools.yml up -d --build
+```
+
+3. 验证：
+- 后台「系统设置 · 工具管理」里「流程模拟（DWSIM）」显示「DWSIM 服务正常」
+- 对话里问「苯加氢中试：苯 10 kg/h、氢气 0.448 kmol/h，3 MPa、180 ℃ 反应，转化率 99%，出口冷到 40 ℃ 气液分离，算各物流和撤热」：回答里有流程图、物流表；「DWSIM 原图」能看到 DWSIM 画的图；能下载 .dwxmz 文件，用 DWSIM 桌面版打开
+
+说明：
+- 模拟文件经 dwsim-files 卷交给后端（两个容器都挂在 /dwsim-files）；后端取走后会删，删不掉的（权限不同）每份约 50 KB，可以不管
+- 第一版能算：混合器、分流器、加热器、冷却器、泵、压缩机、阀、闪蒸罐、转化反应器。精馏塔、循环流程以后再开
+
 ## 排错所需信息
 
 出现问题时，提供 GPU 型号/驱动版本、失败命令、错误日志尾部即可。不要发送 compose.env、管理员密码或 API key。

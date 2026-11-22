@@ -4,6 +4,7 @@ import { ApiError, download, postDownload } from '../../lib/api';
 import type { AskSpec, EvidenceCard, HazardChemCard, HazardProcessCard, ToolArtifact } from '../../lib/types';
 import { EstimateCard, TableCard } from './DataCards';
 import { BlockCard } from './blocks/BlockCard';
+import { SimCard } from './SimCard';
 import { usePreview } from '../../components/code/preview';
 import { Icon } from '../../components/Icons';
 
@@ -128,7 +129,7 @@ function HzChem({ c }: { c: HazardChemCard }) {
         {c.listed ? <span className="hz r">危险化学品{c.seq ? ` · 第 ${c.seq} 号` : ''}</span> : <span className="hz g">不在危化品目录</span>}
         {c.toxic && <span className="hz r">剧毒</span>}
         {c.controlled?.map((x) => <span key={x} className="hz o">{x}</span>)}
-        {c.classes?.map((x) => <span key={x} className={'hz ' + hzTone(x)}>{x}</span>)}
+        {c.classes?.map((x, i) => <span key={i} className={'hz ' + hzTone(x)}>{x}</span>)}
       </span>
       {c.cas && <span className="hint hz-cas">CAS {c.cas}</span>}
       {!!c.variants?.length && <span className="hint hz-var">{c.variants.map((v) => `${v.name}：${v.classes || '—'}`).join('；')}</span>}
@@ -357,6 +358,7 @@ export function ArtifactCards({ items, onSend }: { items: ToolArtifact[]; onSend
           case 'calc': return <CalcCard key={i} a={a} />;
           case 'chem': return <ChemCard key={i} a={a} />;
           case 'hazard': return <HazardCard key={i} a={a} />;
+          case 'sim': return <SimCard key={i} a={a} />;
           case 'memory': return <MemoryPill key={i} a={a} />;
           case 'form': return <FormCard key={i} a={a} onSend={onSend} />;
           case 'lit': return <LitCard key={i} a={a} />;

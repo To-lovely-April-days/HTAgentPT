@@ -499,6 +499,9 @@ export type ToolArtifact =
       props: Record<string, string[]>; hazards: string[]; pictograms: string[]; hazchem: boolean | null; url: string }
   | { kind: 'memory'; saved: string[]; removed: string[] }
   | { kind: 'hazard'; processes: HazardProcessCard[]; chemicals: HazardChemCard[] }
+  | { kind: 'sim'; title: string; package: string; compounds: string[]; seconds: number; notes: string; fileUrl: string | null; imageUrl: string | null;
+      streams: { id: string; label: string; from: string | null; to: string | null; T: number; P: number; mass: number; mole: number; vf: number; comp: Record<string, number> }[];
+      units: { id: string; type: string; typeName: string; label: string; duty: number | null; dutyKind: string; props: { name: string; value: string; units: string }[] }[] }
   | { kind: 'form'; title: string; known: number; missing: number;
       groups: { name: string; items: { field: string; value: string; status: 'known' | 'must' | 'should'; why: string }[] }[] }
   | { kind: 'lit'; query: string; patents: number; papers: number; notes: string[];

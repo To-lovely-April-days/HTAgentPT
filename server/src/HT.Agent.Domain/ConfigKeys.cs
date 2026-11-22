@@ -149,6 +149,10 @@ public static class ConfigKeys
     public const string ToolCompareRoles = "assistant.tool.compare_documents.roles";
     /// <summary>代码解释器服务地址（deploy/docker-compose.tools.yml 里的 sandbox 容器）。</summary>
     public const string SandboxUrl = "assistant.sandbox_url";
+    /// <summary>流程模拟（DWSIM 官方无界面服务 dwsim-mcp）的地址；访问口令走环境变量 DWSIM_TOKEN，不进数据库。</summary>
+    public const string DwsimUrl = "assistant.dwsim_url";
+    /// <summary>DWSIM 服务和后端共用的目录（两边挂同一个卷、同一个路径），模拟文件存在这里交给后端。</summary>
+    public const string DwsimFilesDir = "assistant.dwsim_files_dir";
     /// <summary>每次运行最长秒数。</summary>
     public const string SandboxTimeout = "assistant.sandbox_timeout";
     /// <summary>联网搜索服务地址（自建 SearXNG）。</summary>

@@ -120,7 +120,7 @@ function ChemRow({ c, onSaved }: { c: Chem; onSaved: () => void }) {
       <td className="m">{c.sub ? '' : c.seq}</td>
       <td><b>{c.name}</b>{c.aliases && <span className="hint"> · {c.aliases}</span>}{c.edited && <span className="pill p-n" style={{ marginLeft: 6 }}>公司改过</span>}</td>
       <td className="m">{c.cas ?? ''}</td>
-      <td>{c.classes.split('\n').filter(Boolean).map((x) => <span key={x} className="hzd-cls">{x}</span>)}</td>
+      <td>{c.classes.split('\n').filter(Boolean).map((x, i) => <span key={i} className="hzd-cls">{x}</span>)}</td>
       <td>{c.toxic && <span className="hzd-cls bad">剧毒</span>}{c.controlled.map((x) => <span key={x} className="hzd-cls warn">{x}</span>)}</td>
       <td><button type="button" className="hm-link" onClick={() => setEdit(true)}>改</button></td>
     </tr>

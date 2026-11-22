@@ -78,6 +78,8 @@ public class RuntimeConfig(IServiceScopeFactory scopeFactory, IMemoryCache cache
         [ConfigKeys.ToolFetchUrl] = "on",
         [ConfigKeys.ToolCompare] = "on",
         [ConfigKeys.SandboxUrl] = "http://sandbox:8000",
+        [ConfigKeys.DwsimUrl] = "http://dwsim:5901",
+        [ConfigKeys.DwsimFilesDir] = "/dwsim-files",
         [ConfigKeys.SandboxTimeout] = "30",
         [ConfigKeys.SearxUrl] = "http://searxng:8080",
         [ConfigKeys.SearxEngines] = "bing,baidu,sogou",
