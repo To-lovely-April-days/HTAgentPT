@@ -52,7 +52,11 @@ public record QaRequest(Guid? SessionId, string Question, RetrievalRequest Retri
     /// <summary>跑测试题时按指定档位跑，不管员工能不能自己选。</summary>
     bool LevelForced = false,
     /// <summary>用户在右边面板里开着的网页（内置浏览器的标签号）：助手自动读它。</summary>
-    string? BrowserTab = null);
+    string? BrowserTab = null,
+    /// <summary>新对话开在哪个项目里（已有对话按它自己的项目）。</summary>
+    Guid? ProjectId = null,
+    /// <summary>用户在「＋ → 用技能」里点名的技能代号：这一问先按它答。</summary>
+    string? Skill = null);
 
 /// <summary>试技能：Code 是技能代号；On=true 只开这一个并要求先翻看，On=false 不开任何技能。</summary>
 public record SkillTest(string Code, bool On);

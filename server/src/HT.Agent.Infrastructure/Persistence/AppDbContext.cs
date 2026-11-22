@@ -64,6 +64,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
     public DbSet<AssistantSkillVersion> AssistantSkillVersions => Set<AssistantSkillVersion>();
     public DbSet<SkillUse> SkillUses => Set<SkillUse>();
     public DbSet<MadeFile> MadeFiles => Set<MadeFile>();
+    public DbSet<ChatProject> ChatProjects => Set<ChatProject>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -264,6 +265,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
             e.Property(x => x.Chunks).HasColumnType("jsonb");
             e.HasIndex(x => x.QaSessionId);
             e.HasIndex(x => new { x.UploaderId, x.QaSessionId });
+            e.HasIndex(x => x.ProjectId);
         });
 
         b.Entity<GenChatMessage>(e =>
@@ -276,6 +278,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
         b.Entity<QaSession>(e =>
         {
             e.HasIndex(x => new { x.UserId, x.UpdatedAt });
+            e.HasIndex(x => x.ProjectId);
             e.HasMany(x => x.Messages).WithOne(m => m.Session!).OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -319,6 +322,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
             e.HasIndex(x => new { x.SkillId, x.At });
             e.HasIndex(x => x.MessageId);
             e.HasOne<AssistantSkill>().WithMany().HasForeignKey(x => x.SkillId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<ChatProject>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(80);
+            e.Property(x => x.LedgerNo).HasMaxLength(64);
+            e.HasIndex(x => new { x.OwnerId, x.UpdatedAt });
         });
         b.Entity<MadeFile>(e =>
         {

@@ -1,5 +1,7 @@
 /* ── 输入框上的 8-bit 小人 ─────────────────────────── */
 .composer.has-pet { overflow: visible; }
+/* 首页的大输入框：宽 720，居中 */
+.hm > .composer.big { max-width: 720px; align-self: center; }
 .chat-composer { padding-top: 40px; }
 .pet { position: absolute; bottom: calc(100% - 2px); z-index: 3; width: var(--pet-w); pointer-events: none; }
 .pet.glide { transition: left .6s cubic-bezier(.3,.8,.4,1); }

@@ -12,6 +12,19 @@ namespace HT.Agent.Api.Controllers;
 public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, IRuntimeConfig config, ILogger<ChatController> logger,
     HT.Agent.Infrastructure.Persistence.AppDbContext db, IFileStorage storage) : ControllerBase
 {
+    /// <summary>「＋ → 用技能」的清单：已启用、这个人的角色能用的技能，按分类。</summary>
+    [HttpGet("skills")]
+    public async Task<IActionResult> Skills(CancellationToken ct)
+    {
+        var rows = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
+            db.AssistantSkills.Where(s => s.CompanyId == me.CompanyId && s.Status == HT.Agent.Domain.Entities.SkillStatus.Enabled)
+                .OrderBy(s => s.Category).ThenBy(s => s.Name)
+                .Select(s => new { s.Code, s.Name, s.Category, s.Description, s.Roles }), ct);
+        var internalUser = me.Permissions.Contains(PermissionKeys.QaInternal);
+        return Ok(rows.Where(r => r.Roles.Count == 0 ? internalUser : r.Roles.Contains(me.RoleCode, StringComparer.OrdinalIgnoreCase))
+            .Select(r => new { r.Code, r.Name, r.Category, r.Description }));
+    }
+
     /// <summary>下载助手做的文件（Excel、Word……）。只有让助手做文件的那个人能下；过了保留期文件就删了。</summary>
     [HttpGet("made-files/{id:guid}")]
     public async Task<IActionResult> MadeFile(Guid id, CancellationToken ct)
@@ -49,7 +62,8 @@ public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, 
     };
 
     public record AskBody(Guid? SessionId, string Question, RetrievalRequest? Filters, string? ForcedIntent,
-        List<Guid>? AttachmentIds = null, SkillTest? SkillTest = null, string? Level = null, string? BrowserTab = null);
+        List<Guid>? AttachmentIds = null, SkillTest? SkillTest = null, string? Level = null, string? BrowserTab = null,
+        Guid? ProjectId = null, string? Skill = null);
 
     /// <summary>问答（表 8-1 POST /api/chat/completions）：SSE 流式。
     /// 事件：meta（改写与命中）→ delta*（增量）→ sources → done；或 meta → no_result。</summary>
@@ -74,7 +88,7 @@ public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, 
         var retrieval = (body.Filters ?? new RetrievalRequest(body.Question)) with { Query = body.Question };
         try
         {
-            await foreach (var ev in qa.AskStreamAsync(new QaRequest(body.SessionId, body.Question, retrieval, body.ForcedIntent, body.AttachmentIds, body.SkillTest, body.Level, BrowserTab: body.BrowserTab), ct))
+            await foreach (var ev in qa.AskStreamAsync(new QaRequest(body.SessionId, body.Question, retrieval, body.ForcedIntent, body.AttachmentIds, body.SkillTest, body.Level, BrowserTab: body.BrowserTab, ProjectId: body.ProjectId, Skill: body.Skill), ct))
             {
                 await Response.WriteAsync($"event: {ev.Kind}\n", ct);
                 await Response.WriteAsync($"data: {JsonSerializer.Serialize(ev.Payload, JsonOpts)}\n\n", ct);

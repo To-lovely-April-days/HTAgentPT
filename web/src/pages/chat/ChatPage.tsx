@@ -15,7 +15,7 @@ import {
   AssistantRuntimeProvider, ComposerPrimitive, MessagePrimitive,
   ThreadPrimitive, useAuiState, useExternalStoreRuntime,
 } from '@assistant-ui/react';
-import { ApiError, download, get, post, sse } from '../../lib/api';
+import { ApiError, download, get, post, put, sse } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { Perm, unwrapLedgerTable } from '../../lib/types';
 import type {
@@ -46,6 +46,12 @@ import { PreviewPanel } from './preview/PreviewPanel';
 import type { Panel } from './preview/PreviewPanel';
 import type { WebTab } from './preview/WebBrowser';
 import { PreviewCtx, htmlBlocks } from '../../components/code/preview';
+import { PlusMenu } from './PlusMenu';
+import type { PlusProps } from './PlusMenu';
+import { projectColor, scopeLabel } from './composerUtil';
+import type { ProjectRow, Scope, ScopeOptions, SkillRow } from './composerUtil';
+import { ProjectDialog, ProjectHome } from './ProjectHome';
+import type { ProjectEdit } from './ProjectHome';
 import type { PreviewItem } from '../../components/code/preview';
 
 /** 对话里的一条消息。text 是正文，其余字段是这一轮长出来的结果件。 */
@@ -66,6 +72,7 @@ interface Msg {
   templates?: QaTemplateRec[] | null;
   gen?: GenChatPayload;          // 方案生成的一轮
   files?: string[];              // 用户这句话带的文件（只显示文件名）
+  skill?: string;                // 用户这一问点名用的技能
   genSessionId?: string;
   // 通用助手这一轮：过程、依据（用到的 / 没用上的）、核对结果、用时、提示
   steps?: AssistantStep[];
@@ -174,6 +181,15 @@ export default function ChatPage() {
   // 资料范围：全部 / 某个知识库 / 某一类文档。对一条对话一直生效，随检索条件下发（服务端检索本来就支持）
   const [scope, setScope] = useState<Scope>(ALL_SCOPE);
   const canScope = has(Perm.QaInternal);
+  // 「＋」里点名的技能：只管下一问，发出去就清掉
+  const [skill, setSkill] = useState<SkillRow | null>(null);
+  const skills = useQuery({ queryKey: ['chat-skills'], staleTime: 300_000, queryFn: () => get<SkillRow[]>('/api/chat/skills') });
+  // 项目：这条对话在哪个项目里（新对话就是要建在哪个项目里）。对话还没开始、又在项目里时，显示项目首页
+  const [projectId, setProjectId] = useState<string | null>(null);
+  // 'new' = 侧栏点的新建（建好进项目首页）；'here' = 「＋」菜单里点的新建（建好把这条对话放进去）
+  const [projectDlg, setProjectDlg] = useState<ProjectEdit | 'new' | 'here' | null>(null);
+  const [allProjects, setAllProjects] = useState(false);
+  const projects = useQuery({ queryKey: ['chat-projects'], queryFn: () => get<ProjectRow[]>('/api/chat-projects') });
   // 思考档位：自动 / 快速 / 标准 / 深度。只管这一个对话，开新对话回到自动
   const [level, setLevel] = useState<Level>('auto');
   const levels = useQuery({ queryKey: ['chat-levels'], staleTime: 60_000, queryFn: () => get<LevelsInfo>('/api/chat/levels') });
@@ -220,6 +236,7 @@ export default function ChatPage() {
         level: levelOverride ?? (level === 'auto' ? null : level),
         // 右边开着可操作的网页：助手自动读这一页
         browserTab: panel?.kind === 'web' ? webTabs[Math.min(webActive, webTabs.length - 1)]?.live ?? null : null,
+        projectId, skill: skill?.code ?? null,
       })) {
         const p = ev.payload as Record<string, unknown>;
         switch (ev.kind) {
@@ -337,7 +354,7 @@ export default function ChatPage() {
     } catch (err) {
       patch(id, { streaming: false, error: err instanceof ApiError ? err.message : '连接中断，本轮未完成' });
     }
-  }, [qaSessionId, scope, level, panel, webTabs, webActive, openPreview]);
+  }, [qaSessionId, scope, level, panel, webTabs, webActive, openPreview, projectId, skill]);
 
   // ── 方案生成的一轮：会话已开时，这条对话就由它接着走 ──────────
   const runGenTurn = useCallback(async (sessionId: string, body: Record<string, unknown>) => {
@@ -359,7 +376,9 @@ export default function ChatPage() {
     if (!text.trim() || busy) return;
     setBusy(true);
     const withFiles = canAttach && !genSessionId && att.files.some((f) => f.state !== 'error');
-    push({ id: newId(), role: 'user', text,
+    const picked = !genSessionId && skill ? skill.name : undefined;
+    if (picked) setSkill(null);      // 技能只管这一问（askQa 这一轮还拿着它）
+    push({ id: newId(), role: 'user', text, skill: picked,
       files: withFiles ? att.files.filter((f) => f.state !== 'error').map((f) => f.name) : undefined });
     try {
       if (genSessionId) await runGenTurn(genSessionId, { message: text });
@@ -371,8 +390,9 @@ export default function ChatPage() {
       setMode('auto');
       void qc.invalidateQueries({ queryKey: ['qa-sessions'] });
       void qc.invalidateQueries({ queryKey: ['chat-files'] });
+      if (projectId) { void qc.invalidateQueries({ queryKey: ['chat-projects'] }); void qc.invalidateQueries({ queryKey: ['chat-project', projectId] }); }
     } finally { setBusy(false); }
-  }, [busy, genSessionId, askQa, runGenTurn, qc, mode, canAttach, att]);
+  }, [busy, genSessionId, askQa, runGenTurn, qc, mode, canAttach, att, skill, projectId]);
 
   // 选中模板：就地建会话并开场，此后这条对话交给它
   const pickTemplate = useCallback(async (t: QaTemplateRec) => {
@@ -400,7 +420,7 @@ export default function ChatPage() {
 
   // 打开一条历史对话：问答的轮次与这条对话里起过的生成会话的轮次一起取回来，
   // 按时间并成一串——不并的话，选完模板之后填了什么全看不见。
-  const openSession = useCallback(async (id: string) => {
+  const openSession = useCallback(async (id: string, inProject?: string | null) => {
     if (busy) return;
     setBusy(true);
     try {
@@ -419,7 +439,8 @@ export default function ChatPage() {
       });
       setMsgs(rebuilt);
       setQaSessionId(id);
-      setLevel('auto');
+      setLevel('auto'); setSkill(null);
+      setProjectId(inProject !== undefined ? inProject : sessions.data?.find((x) => x.id === id)?.projectId ?? null);
       // 还没生成完的那一份接着填；已经生成完的就只是历史，不把人拉回填写态
       setGenSessionId(tl.resume?.sessionId ?? null);
       setGenTitle(tl.resume?.templateName ?? null);
@@ -430,11 +451,13 @@ export default function ChatPage() {
     } catch (err) {
       push({ id: newId(), role: 'assistant', text: '', error: err instanceof ApiError ? err.message : '这条对话打不开' });
     } finally { setBusy(false); }
-  }, [busy]);
+  }, [busy, sessions.data]);
 
-  const newChat = useCallback(() => {
+  /** 开新对话；带项目 id 就是在这个项目里开（先显示项目首页）。 */
+  const newChat = useCallback((inProject: string | null = null) => {
     if (busy) return;
     setMsgs([]); setQaSessionId(null); setGenSessionId(null); setGenTitle(null); setFocusSource(null); setMode('auto'); setRefs(null); setLevel('auto');
+    setSkill(null); setProjectId(inProject);
     setPanel(null); setWebTabs([]);
     att.clear();
   }, [busy, att]);
@@ -480,6 +503,42 @@ export default function ChatPage() {
     deepOk, deepAgain: (q: string) => void send(q, 'deep'),
   }), [byId, busy, focusSource, pickTemplate, genTurn, correctIntent, genSessionId, refs, showRefs, send, openPreview, deepOk]);
   const thinkPicker = canPickLevel ? <ThinkPicker value={level} onChange={setLevel} deepOk={deepOk} /> : null;
+
+  // 放进项目 / 移出项目：对话已经有了就马上改；还没开始就记着，第一问建对话时带上
+  const moveProject = useCallback(async (pid: string | null) => {
+    if (qaSessionId) {
+      try { await put(`/api/qa-sessions/${qaSessionId}/project`, { projectId: pid }); }
+      catch (err) { push({ id: newId(), role: 'assistant', text: '', error: err instanceof ApiError ? err.message : '没能放进项目' }); return; }
+      void qc.invalidateQueries({ queryKey: ['qa-sessions'] });
+      void qc.invalidateQueries({ queryKey: ['chat-projects'] });
+      void qc.invalidateQueries({ queryKey: ['chat-project'] });
+    }
+    setProjectId(pid);
+  }, [qaSessionId, qc]);
+  const project = projects.data?.find((p) => p.id === projectId) ?? null;
+  const narrowed = scopeLabel(scope, scopeOptions);
+  const plus: PlusProps = {
+    skills: skills.data?.length ? { list: skills.data, value: skill, onChange: setSkill } : undefined,
+    scope: canScope ? { value: scope, options: scopeOptions, onChange: setScope } : undefined,
+    project: { list: projects.data ?? [], value: projectId, onChange: (pid) => void moveProject(pid), onNew: () => setProjectDlg('here') },
+  };
+  const chips = (
+    <>
+      {project && msgs.length === 0 && <span className="chipx"><i>项目</i><span className="chipx-n">{project.name}</span></span>}
+      {skill && (
+        <span className="chipx dark"><i>技能</i><span className="chipx-n">{skill.name}</span>
+          <button type="button" aria-label={`不用技能「${skill.name}」`} onClick={() => setSkill(null)}><Icon name="x" size={12} stroke={2.2} /></button>
+        </span>
+      )}
+      {narrowed && (
+        <span className="chipx"><i>资料</i><span className="chipx-n">{narrowed}</span>
+          <button type="button" aria-label="资料范围改回全部" onClick={() => setScope(ALL_SCOPE)}><Icon name="x" size={12} stroke={2.2} /></button>
+        </span>
+      )}
+    </>
+  );
+  const attachProps = canAttach ? { files: att.files, onAdd: att.add, onRemove: att.remove } : undefined;
+  const crumbTitle = sessions.data?.find((x) => x.id === qaSessionId)?.title ?? msgs.find((m) => m.role === 'user')?.text.slice(0, 30) ?? '';
   const refMsg = refs ? byId.get(refs.msgId) : undefined;
   // 这条对话里写过的所有网页（每次改都是新的一版）
   const htmlVersions = useMemo(() => msgs.filter((m) => m.role === 'assistant' && !m.streaming).flatMap((m) => htmlBlocks(m.text)), [msgs]);
@@ -492,6 +551,24 @@ export default function ChatPage() {
         {/* 最近的对话放进外框侧栏（导航下面），状态仍在这一页 */}
         {sideSlot && createPortal(
           <>
+            <div className="side-grp side-grp-act">项目
+              <button type="button" aria-label="新建项目" title="新建项目" onClick={() => setProjectDlg('new')}><Icon name="plus" size={13} /></button>
+            </div>
+            {(projects.data ?? []).slice(0, allProjects ? undefined : 5).map((p) => (
+              <button key={p.id} type="button" className={'side-pj' + (p.id === projectId ? ' on' : '')} disabled={busy}
+                title={p.ledgerNo ? `${p.name}（台账 ${p.ledgerNo}）` : p.name} onClick={() => newChat(p.id)}>
+                <span className="pj-ic" style={{ background: projectColor(p.id) }}>{p.name.slice(0, 1)}</span>
+                <span className="n">{p.name}</span><span className="c">{p.count || ''}</span>
+              </button>
+            ))}
+            {(projects.data?.length ?? 0) > 5 && (
+              <button type="button" className="side-more" onClick={() => setAllProjects(!allProjects)}>
+                {allProjects ? '收起' : `全部项目 ${projects.data!.length} 个`}<Icon name={allProjects ? 'down' : 'right'} size={12} />
+              </button>
+            )}
+            {projects.data?.length === 0 && (
+              <button type="button" className="side-more" onClick={() => setProjectDlg('new')}>把一个客户、一台设备的对话和资料放在一起</button>
+            )}
             <div className="side-grp">最近</div>
             {sessions.data?.length === 0 && <div className="hint" style={{ padding: '0 14px' }}>还没有对话记录。</div>}
             {sessions.data?.map((x) => (
@@ -503,6 +580,14 @@ export default function ChatPage() {
           </>, sideSlot)}
 
         <div className="chat-page">
+          {project && msgs.length > 0 && (
+            <div className="chat-crumb">
+              <Icon name="box" size={13} />
+              <button type="button" onClick={() => newChat(project.id)} disabled={busy} title="回项目首页">{project.name}</button>
+              <Icon name="right" size={12} style={{ color: 'var(--ink-4)' }} />
+              <b>{crumbTitle}</b>
+            </div>
+          )}
           {genSessionId && (
             <div className="chat-mode">
               <span className="chat-mode-t">{genTitle}</span>
@@ -517,10 +602,22 @@ export default function ChatPage() {
           <ThreadPrimitive.Root className="chat-root">
             <ThreadPrimitive.Viewport className="chat-view sc" autoScroll={msgs.length > 0}>
               <ThreadPrimitive.Empty>
-                <Welcome has={has} name={profile?.displayName ?? ''}
-                  attach={canAttach ? { files: att.files, onAdd: att.add, onRemove: att.remove } : undefined}
-                  scopePicker={<>{canScope && <ScopePicker value={scope} options={scopeOptions} onChange={setScope} />}{thinkPicker}</>}
-                  onPick={(q) => void send(q)} onOpenDoc={(id) => nav(`/generate?session=${id}`)} />
+                {projectId ? (
+                  <ProjectHome id={projectId} busy={busy} onOpenSession={(sid) => void openSession(sid, projectId)}
+                    onEdit={(p) => setProjectDlg(p)} onGone={() => { newChat(); void qc.invalidateQueries({ queryKey: ['chat-projects'] }); }}
+                    onPreview={(f) => openPreview({ kind: 'file', src: `/api/chat/attachments/${f.id}/file`, fileName: f.fileName })}
+                    composer={(
+                      <Composer big busy={busy} attach={attachProps} plus={plus} chips={chips}
+                        placeholder={`在「${project?.name ?? '这个项目'}」里问点什么`}>{thinkPicker}</Composer>
+                    )} />
+                ) : (
+                  <Welcome has={has} name={profile?.displayName ?? ''}
+                    composer={(
+                      <Composer big attach={attachProps} plus={plus} chips={chips}
+                        placeholder={attachProps ? '问点什么，或把客户文件拖进来' : '问点什么'}>{thinkPicker}</Composer>
+                    )}
+                    onPick={(q) => void send(q)} onOpenDoc={(id) => nav(`/generate?session=${id}`)} />
+                )}
               </ThreadPrimitive.Empty>
               <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
             </ThreadPrimitive.Viewport>
@@ -539,8 +636,7 @@ export default function ChatPage() {
                   </div>
                 )}
                 <Composer busy={busy} placeholder={genSessionId ? '接着说这份文档的内容，或问我别的' : '接着问，或说下一件要做的事'}
-                  attach={canAttach && !genSessionId ? { files: att.files, onAdd: att.add, onRemove: att.remove } : undefined}>
-                  {canScope && !genSessionId && <ScopePicker value={scope} options={scopeOptions} onChange={setScope} />}
+                  attach={!genSessionId ? attachProps : undefined} plus={genSessionId ? undefined : plus} chips={genSessionId ? undefined : chips}>
                   {!genSessionId && thinkPicker}
                 </Composer>
               </div>
@@ -562,6 +658,18 @@ export default function ChatPage() {
             onFocus={(n) => setRefs({ msgId: refs.msgId, focus: n })} onClose={() => setRefs(null)}
             onOpenWeb={(n) => { const it = webItem(refMsg.evidence!.used, n); if (it) openPreview(it); }} />
         )}
+        {projectDlg && (
+          <ProjectDialog edit={typeof projectDlg === 'string' ? null : projectDlg} onClose={() => setProjectDlg(null)}
+            onDone={(pid) => {
+              const how = projectDlg;
+              setProjectDlg(null);
+              void qc.invalidateQueries({ queryKey: ['chat-projects'] });
+              void qc.invalidateQueries({ queryKey: ['chat-project', pid] });
+              // 「＋」里新建的：这条对话已经开了就放进去；其余新建的都进项目首页
+              if (how === 'here' && qaSessionId) void moveProject(pid);
+              else if (how === 'new' || how === 'here') newChat(pid);
+            }} />
+        )}
         </div>
         </PreviewCtx.Provider>
       </MsgCtx.Provider>
@@ -571,72 +679,25 @@ export default function ChatPage() {
 
 type Mode = 'auto' | 'knowledge' | 'ledger' | 'generate';
 
-/** 资料范围：二选一——限定一个知识库，或限定一类文档；都空就是全部。 */
-interface Scope { kbId: string | null; docCategory: string | null }
-interface ScopeOptions { kbs: { id: string; name: string }[]; cats: string[] }
 const ALL_SCOPE: Scope = { kbId: null, docCategory: null };
-
-/** 资料范围下拉：原生 select（键盘、读屏都现成），外观做成输入框里的一枚小按钮。 */
-function ScopePicker({ value, options, onChange }: { value: Scope; options: ScopeOptions; onChange: (s: Scope) => void }) {
-  const current = value.kbId ? `kb:${value.kbId}` : value.docCategory ? `cat:${value.docCategory}` : 'all';
-  const narrowed = current !== 'all';
-  return (
-    <label className={'scope' + (narrowed ? ' on' : '')} title="只在选定的资料里找答案">
-      <span className="scope-cap">资料范围</span>
-      <select className="scope-sel" value={current} aria-label="资料范围"
-        onChange={(e) => {
-          const v = e.target.value;
-          onChange(v.startsWith('kb:') ? { kbId: v.slice(3), docCategory: null }
-            : v.startsWith('cat:') ? { kbId: null, docCategory: v.slice(4) } : ALL_SCOPE);
-        }}>
-        <option value="all">全部资料</option>
-        {options.kbs.length > 0 && (
-          <optgroup label="知识库">
-            {options.kbs.map((k) => <option key={k.id} value={`kb:${k.id}`}>{k.name}</option>)}
-          </optgroup>
-        )}
-        {options.cats.length > 0 && (
-          <optgroup label="文档类别">
-            {options.cats.map((c) => <option key={c} value={`cat:${c}`}>{c}</option>)}
-          </optgroup>
-        )}
-      </select>
-    </label>
-  );
-}
-
 
 interface AttachProps { files: PendingFile[]; onAdd: (f: FileList | File[]) => void; onRemove: (key: string) => void }
 
-/** 输入框：首页是居中的大框（输入在上、处理方式与发送在下），对话中是底部的一行。
-    能传文件时左边有回形针，也可以把文件直接拖到框上；传上来的文件以小卡片排在输入上方。 */
-function Composer({ placeholder, big, attach, children, busy = false }: {
-  placeholder: string; big?: boolean; attach?: AttachProps; children?: ReactNode;
+/** 输入框：上面是带的文件，中间打字（跟着内容长高，到半屏左右在框里滚），下面一条：左边「＋」和选过的小标签，右边思考档位和发送。
+    首页是大框（默认 3 行）。也可以把文件直接拖到框上。 */
+function Composer({ placeholder, big, attach, plus, chips, children, busy = false }: {
+  placeholder: string; big?: boolean; attach?: AttachProps;
+  /** 「＋」菜单里除了传文件以外的几项 */
+  plus?: Omit<PlusProps, 'onUpload'>;
+  /** 「＋」旁边的小标签：选过的技能、资料范围 */
+  chips?: ReactNode;
+  /** 右边、发送前面：思考档位 */
+  children?: ReactNode;
   /** 助手正在回答：输入框上的小人坐到右端抱着笔记本等 */
   busy?: boolean;
 }) {
   const pick = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
-  const send = (
-    <ComposerPrimitive.Send className="composer-send" aria-label="发送">
-      <Icon name="up" size={18} stroke={2.2} />
-    </ComposerPrimitive.Send>
-  );
-  const clip = attach && (
-    <>
-      <button type="button" className="composer-clip" aria-label="添加文件" title="添加文件（Word、Excel、PowerPoint、PDF，单个不超过 20MB，一次最多 5 个）"
-        onClick={() => pick.current?.click()}>
-        <Icon name="clip" size={18} />
-      </button>
-      <input ref={pick} type="file" multiple accept={ATTACH_ACCEPT} hidden
-        onChange={(e) => { if (e.target.files?.length) attach.onAdd(e.target.files); e.target.value = ''; }} />
-    </>
-  );
-  const input = (
-    // 滚到底时不抢焦点：右边「可操作」的网页画面上打字时，字要留在网页里
-    <ComposerPrimitive.Input className="composer-input" rows={big ? 3 : 1} autoFocus unstable_focusOnScrollToBottom={false}
-      aria-label="输入你的问题或任务" placeholder={placeholder} />
-  );
   return (
     <ComposerPrimitive.Root className={'composer has-pet' + (big ? ' big' : '') + (drag ? ' drag' : '')}
       onDragOver={attach ? (e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDrag(true); } } : undefined}
@@ -661,14 +722,21 @@ function Composer({ placeholder, big, attach, children, busy = false }: {
           ))}
         </div>
       )}
-      {big ? (
-        <>
-          {input}
-          <div className="composer-bar">{clip}{children}{send}</div>
-        </>
-      ) : (
-        <div className="composer-line">{clip}{input}{children}{send}</div>
-      )}
+      {/* 滚到底时不抢焦点：右边「可操作」的网页画面上打字时，字要留在网页里 */}
+      <ComposerPrimitive.Input className="composer-input" minRows={big ? 3 : 1} autoFocus unstable_focusOnScrollToBottom={false}
+        aria-label="输入你的问题或任务" placeholder={placeholder} />
+      <div className="composer-bar">
+        <PlusMenu {...plus} onUpload={attach ? () => pick.current?.click() : undefined} />
+        {attach && (
+          <input ref={pick} type="file" multiple accept={ATTACH_ACCEPT} hidden
+            onChange={(e) => { if (e.target.files?.length) attach.onAdd(e.target.files); e.target.value = ''; }} />
+        )}
+        <span className="composer-chips">{chips}</span>
+        {children}
+        <ComposerPrimitive.Send className="composer-send" aria-label="发送">
+          <Icon name="up" size={18} stroke={2.2} />
+        </ComposerPrimitive.Send>
+      </div>
       {drag && <div className="composer-drop">松开即可添加文件</div>}
       <InputPet busy={busy} size={big ? 40 : 32} />
     </ComposerPrimitive.Root>
@@ -687,9 +755,8 @@ function ago(iso: string): string {
 }
 
 /** 首页（对话还没开始时）：吉祥物 + 今天的台词、大输入框、最要紧的几件正事、歇一会、表情包（见 home/Home）。 */
-function Welcome({ has, name, scopePicker, attach, onPick, onOpenDoc }: {
-  has: (p: string) => boolean; name: string; scopePicker: ReactNode;
-  attach?: AttachProps;
+function Welcome({ has, name, composer, onPick, onOpenDoc }: {
+  has: (p: string) => boolean; name: string; composer: ReactNode;
   onPick: (q: string) => void; onOpenDoc: (sessionId: string) => void;
 }) {
   const docs = useQuery({
@@ -701,12 +768,7 @@ function Welcome({ has, name, scopePicker, attach, onPick, onOpenDoc }: {
   return (
     <Home fallbackName={name} onPick={onPick}
       drafts={open.length} onDrafts={() => { if (open[0]) onOpenDoc(open[0].id); }}
-      composer={(
-        <Composer big attach={attach}
-          placeholder={attach ? '问点什么，或把客户文件拖进来' : '问点什么'}>
-          {scopePicker}
-        </Composer>
-      )}
+      composer={composer}
       resume={recent.length > 0 ? (
         <div className="hm-resume">
           <span>接着上次：</span>
@@ -727,8 +789,10 @@ function UserMessage() {
   const id = useAuiState((s) => s.message.id);
   const { byId } = useContext(MsgCtx);
   const files = byId.get(id)?.files;
+  const skill = byId.get(id)?.skill;
   return (
     <MessagePrimitive.Root className="chat-user">
+      {skill && <span className="sess-file" title="这一问点名用的技能"><Icon name="book" size={13} />技能：{skill}</span>}
       {files && files.length > 0 && (
         <div className="chat-user-files">
           {files.map((n) => <span key={n} className="sess-file"><Icon name="file" size={13} />{n}</span>)}

@@ -19,8 +19,23 @@ public class QaSessionsController(AppDbContext db, ICurrentUser me) : Controller
         => Ok(await db.QaSessions.AsNoTracking()
             .Where(s => s.UserId == me.UserId)
             .OrderByDescending(s => s.UpdatedAt).Take(100)
-            .Select(s => new { s.Id, s.Title, s.CreatedAt, s.UpdatedAt })
+            .Select(s => new { s.Id, s.Title, s.CreatedAt, s.UpdatedAt, s.ProjectId })
             .ToListAsync(ct));
+
+    public record ProjectBody(Guid? ProjectId);
+
+    /// <summary>把对话放进项目、或移出来（ProjectId 为空）。</summary>
+    [HttpPut("{id:guid}/project")]
+    public async Task<IActionResult> SetProject(Guid id, [FromBody] ProjectBody b, CancellationToken ct)
+    {
+        var s = await db.QaSessions.FirstOrDefaultAsync(x => x.Id == id && x.UserId == me.UserId, ct);
+        if (s is null) return NotFound();
+        if (b.ProjectId is { } pid && !await db.ChatProjects.AnyAsync(p => p.Id == pid && p.OwnerId == me.UserId && p.ArchivedAt == null, ct))
+            return NotFound();
+        s.ProjectId = b.ProjectId;
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Messages(Guid id, CancellationToken ct)

@@ -543,6 +543,10 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("parsed_at");
 
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
                     b.Property<Guid?>("QaSessionId")
                         .HasColumnType("uuid")
                         .HasColumnName("qa_session_id");
@@ -567,6 +571,9 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_chat_attachment");
 
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("ix_chat_attachment_project_id");
+
                     b.HasIndex("QaSessionId")
                         .HasDatabaseName("ix_chat_attachment_qa_session_id");
 
@@ -574,6 +581,57 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_chat_attachment_uploader_id_qa_session_id");
 
                     b.ToTable("chat_attachment");
+                });
+
+            modelBuilder.Entity("HT.Agent.Domain.Entities.ChatProject", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("archived_at");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("LedgerNo")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("ledger_no");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_chat_project");
+
+                    b.HasIndex("OwnerId", "UpdatedAt")
+                        .HasDatabaseName("ix_chat_project_owner_id_updated_at");
+
+                    b.ToTable("chat_project");
                 });
 
             modelBuilder.Entity("HT.Agent.Domain.Entities.Chunk", b =>
@@ -2183,6 +2241,10 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasColumnType("text")
@@ -2198,6 +2260,9 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_qa_session");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("ix_qa_session_project_id");
 
                     b.HasIndex("UserId", "UpdatedAt")
                         .HasDatabaseName("ix_qa_session_user_id_updated_at");

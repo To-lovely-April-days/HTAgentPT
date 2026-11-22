@@ -177,8 +177,9 @@ public sealed class AssistantService(
         var canDocs = has(PermissionKeys.QaInternal) || has(PermissionKeys.QaPublic);
         var canProjects = has(PermissionKeys.ProjectSearch);
 
+        // 本对话的附件 + 所在项目的项目资料（项目里的每个对话都能读）
         var attachmentFiles = await db.ChatAttachments.AsNoTracking()
-            .Where(a => a.QaSessionId == session.Id && a.Status == ParseStatus.Parsed)
+            .Where(a => (a.QaSessionId == session.Id || (session.ProjectId != null && a.ProjectId == session.ProjectId)) && a.Status == ParseStatus.Parsed)
             .OrderBy(a => a.CreatedAt).Select(a => new { a.Id, a.FileName, a.Chunks }).ToListAsync(ct);
 
         var enabled = await EnabledToolsAsync(ct);
@@ -228,8 +229,8 @@ public sealed class AssistantService(
         {
             for (var i = 0; i < mems.Count; i++) run.MemoryRefs[$"M{i + 1}"] = mems[i].Id;
             var hints = QuestionHints.Build(req.Question, await TermEntriesAsync(ct));
-            messages = [new("system", await SystemPromptAsync(req, attachmentFiles.Select(a => a.FileName).ToList(), enabled, mems, hints, ct) + SkillsPrompt(skills, req.SkillTest)
-                + await CurrentPageAsync(req, session.Id, enabled, run, ct))];
+            messages = [new("system", await SystemPromptAsync(req, attachmentFiles.Select(a => a.FileName).ToList(), enabled, mems, hints, ct) + SkillsPrompt(skills, req.SkillTest, req.Skill)
+                + await CurrentPageAsync(req, session.Id, enabled, run, ct) + await ProjectPromptAsync(session, ct))];
             messages.AddRange(await HistoryAsync(session.Id, ct));
             messages.Add(new AgentMessage("user", req.Question));
         }
@@ -1638,12 +1639,14 @@ public sealed class AssistantService(
     }
 
     /// <summary>技能清单：每个一行「名称：什么时候用」，正文要用时才翻看。</summary>
-    private static string SkillsPrompt(IReadOnlyList<SkillRef> skills, SkillTest? test)
+    private static string SkillsPrompt(IReadOnlyList<SkillRef> skills, SkillTest? test, string? picked = null)
     {
         if (skills.Count == 0) return "";
         var sb = new StringBuilder("\n可用的技能（公司技术骨干写的答题指南）。问题和某一项对上了，先用 use_skill 翻看全文，照着里面的要求确认、查找和回答；对上几项就翻几项，都对不上就不用翻：\n");
         foreach (var s in skills) sb.AppendLine($"- {s.Name}：{s.Description}");
         if (test is { On: true }) sb.AppendLine($"这次请先用 use_skill 翻看「{skills[0].Name}」，再按它的要求回答。");
+        else if (picked is not null && skills.FirstOrDefault(s => s.Code == picked) is { } p)
+            sb.AppendLine($"这一问用户点名要用技能「{p.Name}」：先用 use_skill 翻看它（代号 {p.Code}），再按它的要求回答。");
         return sb.ToString();
     }
 
@@ -1784,6 +1787,29 @@ public sealed class AssistantService(
                 + "。文件在右边面板里等用户点「放进对话附件」；放进来以后你可以用 read_attachments 读。不要替用户做决定，在回答里提醒一下。";
         }
         catch (Clients.BrowserClient.BrowserException) { return ""; }
+    }
+
+    /// <summary>对话在项目里：项目说明、关联的台账、项目资料清单放进提示词，助手先看这些。</summary>
+    private async Task<string> ProjectPromptAsync(QaSession session, CancellationToken ct)
+    {
+        if (session.ProjectId is not { } pid) return "";
+        var p = await db.ChatProjects.AsNoTracking().FirstOrDefaultAsync(x => x.Id == pid && x.OwnerId == me.UserId, ct);
+        if (p is null) return "";
+        var sb = new StringBuilder($"\n这个对话属于项目「{p.Name}」。");
+        if (!string.IsNullOrWhiteSpace(p.Description)) sb.Append($"项目说明（用户写给你的背景，回答要照顾到）：{p.Description.Trim()}");
+        if (!string.IsNullOrWhiteSpace(p.LedgerNo))
+        {
+            ProjectDetail? d = null;
+            try { d = await projects.GetAsync(p.LedgerNo, ct); }
+            catch (Exception ex) when (ex is not OperationCanceledException) { /* 没有查台账的权限，或台账里没了：不带 */ }
+            if (d is not null)
+                sb.Append($"\n关联台账 {d.Row.ProjectNo}：客户 {d.Row.CustomerName}，{d.Row.Year} 年，设备 {d.Row.DeviceType}{(d.Row.DeviceModel is null ? "" : " " + d.Row.DeviceModel)}"
+                    + $"{(d.Row.SpecParams is null ? "" : "，参数 " + d.Row.SpecParams)}{(d.Row.DeliveryStatus is null ? "" : "，状态 " + d.Row.DeliveryStatus)}{(d.Row.OwnerName is null ? "" : "，负责人 " + d.Row.OwnerName)}。");
+        }
+        var files = await db.ChatAttachments.AsNoTracking().Where(a => a.ProjectId == pid).OrderBy(a => a.CreatedAt).Select(a => new { a.FileName, a.Status }).ToListAsync(ct);
+        if (files.Count > 0)
+            sb.Append($"\n项目资料（和附件一样用 read_attachments 读；找资料先看这些，再搜公司知识库）：{string.Join("、", files.Select(f => $"《{f.FileName}》{(f.Status == ParseStatus.Parsed ? "" : "（还在解析）")}"))}。");
+        return sb.ToString();
     }
 
     /// <summary>用户在右边面板里开着的网页（可操作的那种）：读一下放进提示词，问「这页上有什么」不用贴链接。</summary>

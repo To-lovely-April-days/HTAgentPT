@@ -644,7 +644,9 @@ public class QaService(
             CompanyId = me.CompanyId,
             Title = req.Question.Length <= 40 ? req.Question : req.Question[..40],
             CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
+            UpdatedAt = DateTimeOffset.UtcNow,
+            // 在项目首页里开的新对话：归进那个项目（只认自己的项目）
+            ProjectId = req.ProjectId is { } pid && await db.ChatProjects.AnyAsync(p => p.Id == pid && p.OwnerId == me.UserId, ct) ? pid : null
         };
         db.QaSessions.Add(session);
         await db.SaveChangesAsync(ct);

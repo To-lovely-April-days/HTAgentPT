@@ -22,7 +22,7 @@ export interface LoginResponse {
   supersededOther: boolean;
 }
 
-export interface QaSessionRow { id: string; title: string; createdAt: string; updatedAt: string; }
+export interface QaSessionRow { id: string; title: string; createdAt: string; updatedAt: string; projectId?: string | null }
 
 /** 一条对话的完整时间线：问答的轮次与这条对话里起过的生成会话的轮次，按时间并成一串。 */
 export interface QaTimelineTurn {

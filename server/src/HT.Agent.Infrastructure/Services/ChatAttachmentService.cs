@@ -26,7 +26,7 @@ public class ChatAttachmentService(
         if (size <= 0) throw new DomainRuleException("ATTACH_EMPTY", $"「{name}」是空文件");
         if (size > AttachmentLimits.MaxBytes)
             throw new DomainRuleException("ATTACH_SIZE", $"「{name}」超过 20MB，传不了——可以拆成几份，或只传需要的章节");
-        var pending = await db.ChatAttachments.CountAsync(a => a.UploaderId == me.UserId && a.QaSessionId == null, ct);
+        var pending = await db.ChatAttachments.CountAsync(a => a.UploaderId == me.UserId && a.QaSessionId == null && a.ProjectId == null, ct);
         if (pending >= AttachmentLimits.MaxPerMessage)
             throw new DomainRuleException("ATTACH_COUNT", $"一次最多带 {AttachmentLimits.MaxPerMessage} 个文件，先发出这一轮再传");
 
@@ -89,7 +89,7 @@ public class ChatAttachmentService(
         if (ids.Count == 0) return 0;
         var take = ids.Distinct().Take(AttachmentLimits.MaxPerMessage).ToList();
         var rows = await db.ChatAttachments
-            .Where(a => take.Contains(a.Id) && a.UploaderId == me.UserId && a.QaSessionId == null)
+            .Where(a => take.Contains(a.Id) && a.UploaderId == me.UserId && a.QaSessionId == null && a.ProjectId == null)
             .ToListAsync(ct);
         foreach (var a in rows) a.QaSessionId = qaSessionId;
         if (rows.Count > 0) await db.SaveChangesAsync(ct);

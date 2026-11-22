@@ -96,6 +96,8 @@ public class QaSession
     public required string Title { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+    /// <summary>归在哪个项目里（可空）。</summary>
+    public Guid? ProjectId { get; set; }
     public List<QaMessage> Messages { get; set; } = [];
 }
 
@@ -132,8 +134,10 @@ public class ChatAttachment
     public Guid Id { get; set; }
     public Guid UploaderId { get; set; }
     public Guid CompanyId { get; set; }
-    /// <summary>绑定的对话；null=已上传、还没随问题发出。</summary>
+    /// <summary>绑定的对话；null=已上传、还没随问题发出（或者是项目资料）。</summary>
     public Guid? QaSessionId { get; set; }
+    /// <summary>项目资料：属于哪个项目（项目里的每个对话都能读）。和 QaSessionId 二选一。</summary>
+    public Guid? ProjectId { get; set; }
     public required string FileName { get; set; }
     public string ContentType { get; set; } = "application/octet-stream";
     public long Size { get; set; }
