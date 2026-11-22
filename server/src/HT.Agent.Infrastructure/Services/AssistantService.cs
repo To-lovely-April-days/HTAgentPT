@@ -750,7 +750,8 @@ public sealed class AssistantService(
         {
             var kinds = fileKinds ?? new HashSet<string>();
             var props = new Dictionary<string, object> { ["code"] = Str("完整的 Python 代码") };
-            var desc = "在隔离环境里运行 Python 代码做计算：工程计算、物性、数据统计、作图（matplotlib，图会显示给用户）。可用 numpy、scipy、pandas，以及化工计算库：fluids（管道压降、调节阀 Kv、安全阀 API 520、泵）、ht（换热、LMTD、夹套传热）、CoolProp 和 thermo / chemicals（物性、7 万多种化学品）。不能上网。用 print 输出结果，写明单位。";
+            var desc = "在隔离环境里运行 Python 代码做计算：工程计算、物性、数据统计、作图（matplotlib，图会显示给用户）。可用 numpy、scipy、pandas，以及化工计算库：fluids（管道压降、调节阀 Kv、安全阀 API 520、泵）、ht（换热、LMTD、夹套传热）、CoolProp 和 thermo / chemicals（物性、7 万多种化学品）、cantera（化学平衡、反应）。不能上网。用 print 输出结果，写明单位。"
+                + "\n设备外形图和三维模型：cadquery（三维建模，导出 STEP）、ezdxf（二维 DXF 图纸），文件写到 out/（如 out/30L加氢釜外形图.dxf），先用 use_skill 翻看「外形图和三维模型」。";
             if (kinds.Count > 0)
             {
                 desc += $"\n做文件：能做 {string.Join("、", MadeFiles.Kinds.Where(kinds.Contains).Select(MadeFiles.Label))}"
@@ -2030,7 +2031,7 @@ public sealed class AssistantService(
         {
             var kind = MadeFiles.KindOf(f.Name);
             if (kind is null) continue;
-            if (!run.FileKinds.Contains(MadeFiles.SwitchOf(kind)))
+            if (!MadeFiles.IsCad(kind) && !run.FileKinds.Contains(MadeFiles.SwitchOf(kind)))
             {
                 text.AppendLine($"《{f.Name}》没有交给用户：{MadeFiles.Label(kind)} 文件现在不能做（后台没开，或这个人的角色不能用）。请在回答里直接给内容。");
                 failed.Add(f.Name);
@@ -2040,7 +2041,7 @@ public sealed class AssistantService(
             var problems = MadeFiles.BasicProblems(data, kind);
             JsonElement? info = null;
             var full = false;
-            if (problems.Count == 0 && kind != "csv")
+            if (problems.Count == 0 && kind != "csv" && !MadeFiles.IsCad(kind))
             {
                 var chk = await officeCheck.CheckAsync(f.Name, data, ct);
                 if (chk is not null)

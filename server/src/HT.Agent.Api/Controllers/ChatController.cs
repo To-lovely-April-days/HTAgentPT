@@ -42,6 +42,8 @@ public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, 
             "pdf" => "application/pdf",
             "csv" => "text/csv",
             "png" => "image/png",
+            "dxf" => "application/dxf",
+            "step" => "model/step",
             _ => "application/octet-stream"
         };
         var st = await storage.OpenAsync(f.FileKey, ct);

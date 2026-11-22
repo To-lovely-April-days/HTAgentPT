@@ -59,4 +59,19 @@ public class MadeFileTests
         Assert.Null(MadeFiles.SkillKind("material-selection"));
         Assert.Equal("xlsx", MadeFiles.SwitchOf("csv"));
     }
+
+    [Fact]
+    public void Cad_files_are_recognised_and_checked()
+    {
+        Assert.Equal("dxf", MadeFiles.KindOf("30L加氢釜外形图.dxf"));
+        Assert.Equal("step", MadeFiles.KindOf("model.STP"));
+        Assert.True(MadeFiles.IsCad("step"));
+        Assert.False(MadeFiles.IsCad("xlsx"));
+        var dxf = System.Text.Encoding.ASCII.GetBytes("  0\nSECTION\n  2\nHEADER\n  0\nENDSEC\n  0\nEOF\n");
+        Assert.Empty(MadeFiles.BasicProblems(dxf, "dxf"));
+        Assert.NotEmpty(MadeFiles.BasicProblems(System.Text.Encoding.ASCII.GetBytes("  0\nSECTION\n"), "dxf"));
+        Assert.Empty(MadeFiles.BasicProblems(System.Text.Encoding.ASCII.GetBytes("ISO-10303-21;\nHEADER;\nENDSEC;"), "step"));
+        Assert.NotEmpty(MadeFiles.BasicProblems(System.Text.Encoding.ASCII.GetBytes("hello"), "step"));
+        Assert.Contains("CAD", MadeFiles.Detail("dxf", null, false));
+    }
 }

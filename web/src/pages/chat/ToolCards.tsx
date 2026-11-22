@@ -327,7 +327,7 @@ function WebPageCard({ a }: { a: Extract<ToolArtifact, { kind: 'webpage' }> }) {
 }
 
 const FILE_TONE: Record<string, [string, string]> = {
-  XLSX: ['#e6f2ec', '#1d6f42'], CSV: ['#e6f2ec', '#1d6f42'], DOCX: ['#e8eef8', '#2a4a85'], PPTX: ['#fbece4', '#b34a17'], PDF: ['#fde8ea', '#a00d25'],
+  DXF: ['#f1f1ef', '#4a4a4a'], STEP: ['#f1f1ef', '#4a4a4a'], XLSX: ['#e6f2ec', '#1d6f42'], CSV: ['#e6f2ec', '#1d6f42'], DOCX: ['#e8eef8', '#2a4a85'], PPTX: ['#fbece4', '#b34a17'], PDF: ['#fde8ea', '#a00d25'],
 };
 
 function FileCard({ a }: { a: Extract<ToolArtifact, { kind: 'file' }> }) {
@@ -336,6 +336,8 @@ function FileCard({ a }: { a: Extract<ToolArtifact, { kind: 'file' }> }) {
   const ext = (a.title.split('.').pop() ?? '').toUpperCase().slice(0, 4) || 'DOCX';
   // 文件种类配色：Excel 绿、Word 蓝、PPT 橙、PDF 红
   const tone = FILE_TONE[ext] ?? FILE_TONE.DOCX;
+  // CAD 文件（DXF、STEP）浏览器里看不了，只给下载
+  const canPreview = !!open && !['DXF', 'STEP', 'STP'].includes(ext);
   return (
     <section className="tool-card file-card">
       <span className="refs-ext" style={{ background: tone[0], color: tone[1] }} aria-hidden="true">{ext}</span>
@@ -343,8 +345,8 @@ function FileCard({ a }: { a: Extract<ToolArtifact, { kind: 'file' }> }) {
         <b>{a.title}</b>
         <span className="hint">{a.ok && !msg && <Icon name="check" size={12} stroke={2.4} style={{ verticalAlign: '-2px', marginRight: 3, color: '#1c6b45' }} />}{msg ?? a.detail}</span>
       </span>
-      {open && <button type="button" className="gbtn" style={{ marginLeft: 'auto' }} onClick={() => open({ kind: 'file', src: a.url, fileName: a.title })}>预览</button>}
-      <button type="button" className="pbtn" style={open ? undefined : { marginLeft: 'auto' }}
+      {canPreview && <button type="button" className="gbtn" style={{ marginLeft: 'auto' }} onClick={() => open!({ kind: 'file', src: a.url, fileName: a.title })}>预览</button>}
+      <button type="button" className="pbtn" style={canPreview ? undefined : { marginLeft: 'auto' }}
         onClick={() => void download(a.url, a.title).catch((e) => setMsg(e instanceof ApiError ? e.message : '下载失败'))}>下载</button>
     </section>
   );

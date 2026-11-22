@@ -544,6 +544,23 @@ docker compose --env-file /srv/htagent/config/compose.env \
 - 模拟文件经 dwsim-files 卷交给后端（两个容器都挂在 /dwsim-files）；后端取走后会删，删不掉的（权限不同）每份约 50 KB，可以不管
 - 第一版能算：混合器、分流器、加热器、冷却器、泵、压缩机、阀、闪蒸罐、转化反应器。精馏塔、循环流程以后再开
 
+## 14. 升级：外形图和三维模型、反应平衡、温度控制
+
+这次要重建代码解释器（sandbox）：多装了 CadQuery（三维建模，Apache-2.0）、ezdxf（DXF 图纸，MIT）、Cantera（化学平衡，BSD），镜像大约多 400 MB；还多了一个画外形图的小工具 htcad。另有三个新技能：外形图和三维模型、反应平衡、温度控制与动态模拟。
+
+```bash
+cd /srv/htagent/app
+git pull
+docker compose --env-file /srv/htagent/config/compose.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.tools.yml build sandbox
+docker compose --env-file /srv/htagent/config/compose.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.tools.yml up -d --build
+```
+
+验证：
+- 对话里问「30L 加氢釜，内径 300、直边 420、夹套，顶部 5 个接管、底部放料，出外形图和三维模型」：回答里有两个文件卡（.dxf、.step），下载后 CAD 能打开
+- 问「苯加氢 3 MPa、氢苯比 3.5，180 到 350 ℃ 的平衡转化率」：350 ℃ 约 91.7%
+
 ## 排错所需信息
 
 出现问题时，提供 GPU 型号/驱动版本、失败命令、错误日志尾部即可。不要发送 compose.env、管理员密码或 API key。

@@ -43,7 +43,7 @@ public class ToolsController(AppDbContext db, IRuntimeConfig config, SandboxClie
         }
         var asks = await db.AuditLogs.AsNoTracking().CountAsync(a => a.At >= from && a.Action == "qa.assistant.ask", ct);
         // 助手做的文件：每种做了几份、几份检查没过
-        var files = await db.MadeFiles.AsNoTracking().Where(f => f.CreatedAt >= from && f.Kind != "dwxmz" && f.Kind != "png")
+        var files = await db.MadeFiles.AsNoTracking().Where(f => f.CreatedAt >= from && f.Kind != "dwxmz" && f.Kind != "png" && f.Kind != "dxf" && f.Kind != "step")
             .GroupBy(f => f.Kind == "csv" ? "xlsx" : f.Kind).Select(g => new { kind = g.Key, made = g.Count(x => x.Ok), failed = g.Count(x => !x.Ok) }).ToListAsync(ct);
         // 分头查：拆了几次、平均几个子任务、几成没查完
         var dels = await db.AuditLogs.AsNoTracking().Where(a => a.At >= from && a.Action == "qa.delegate").Select(a => a.Detail).ToListAsync(ct);

@@ -42,7 +42,7 @@ MAX_IMG = 1_500_000
 MAX_FILE = 20 * 1024 * 1024
 MAX_FILES = 3
 MAX_BODY = 90 * 1024 * 1024          # 带 3 个 20MB 附件（base64）也放得下
-FILE_EXT = (".xlsx", ".docx", ".pptx", ".pdf", ".csv")
+FILE_EXT = (".xlsx", ".docx", ".pptx", ".pdf", ".csv", ".dxf", ".step", ".stp")
 
 
 def safe_name(name):
@@ -54,7 +54,7 @@ def safe_name(name):
 def limits(cpu_seconds):
     def apply():
         resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds + 1))
-        resource.setrlimit(resource.RLIMIT_AS, (1536 * 1024 * 1024,) * 2)
+        resource.setrlimit(resource.RLIMIT_AS, (3072 * 1024 * 1024,) * 2)   # 虚拟内存：CadQuery 的几何内核光加载就要 1 GB 多
         resource.setrlimit(resource.RLIMIT_FSIZE, (20 * 1024 * 1024,) * 2)
         resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
         os.setsid()

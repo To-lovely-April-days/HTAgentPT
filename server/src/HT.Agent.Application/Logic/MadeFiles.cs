@@ -10,19 +10,23 @@ public static class MadeFiles
     /// <summary>四种文件，后台各自开关。csv 算在 Excel 里。</summary>
     public static readonly string[] Kinds = ["xlsx", "docx", "pptx", "pdf"];
 
+    /// <summary>CAD 文件（外形图 DXF、三维模型 STEP）：能运行代码就能做，不另设开关，也不过 office 检查。</summary>
+    public static readonly string[] CadKinds = ["dxf", "step"];
+    public static bool IsCad(string kind) => CadKinds.Contains(kind);
+
     /// <summary>重做最多两次：一个回答里同一种文件最多做 3 遍。</summary>
     public const int MaxAttempts = 3;
 
     public static string Label(string kind) => kind switch
     {
-        "xlsx" => "Excel", "docx" => "Word", "pptx" => "PPT", "pdf" => "PDF", "csv" => "CSV", _ => kind
+        "xlsx" => "Excel", "docx" => "Word", "pptx" => "PPT", "pdf" => "PDF", "csv" => "CSV", "dxf" => "DXF 图纸", "step" => "STEP 三维模型", _ => kind
     };
 
     /// <summary>文件名 → 种类（xlsx/docx/pptx/pdf/csv）；不认的返回 null。</summary>
     public static string? KindOf(string fileName)
     {
         var ext = Path.GetExtension(fileName ?? "").TrimStart('.').ToLowerInvariant();
-        return ext is "xlsx" or "docx" or "pptx" or "pdf" or "csv" ? ext : null;
+        return ext is "xlsx" or "docx" or "pptx" or "pdf" or "csv" or "dxf" or "step" ? ext : ext == "stp" ? "step" : null;
     }
 
     /// <summary>做文件的技能对应哪种文件：这种文件没开时，技能也不列给模型。</summary>
@@ -40,6 +44,14 @@ public static class MadeFiles
         var problems = new List<string>();
         if (data.Length == 0) { problems.Add("文件是空的"); return problems; }
         if (kind == "csv") return problems;
+        if (kind is "dxf" or "step")
+        {
+            var head = System.Text.Encoding.ASCII.GetString(data, 0, Math.Min(data.Length, 4096));
+            var tail = System.Text.Encoding.ASCII.GetString(data, Math.Max(0, data.Length - 256), Math.Min(data.Length, 256));
+            if (kind == "dxf" && !(head.Contains("SECTION") && tail.Contains("EOF"))) problems.Add("不是完整的 DXF 文件（缺 SECTION 或 EOF）");
+            if (kind == "step" && !head.TrimStart().StartsWith("ISO-10303-21")) problems.Add("不是 STEP 文件（开头不是 ISO-10303-21）");
+            return problems;
+        }
         if (kind == "pdf")
         {
             if (data.Length < 5 || data[0] != '%' || data[1] != 'P' || data[2] != 'D' || data[3] != 'F') problems.Add("不是 PDF 文件");
@@ -77,6 +89,10 @@ public static class MadeFiles
             case "pdf":
                 if (I("pages") is { } pg) parts.Add($"{pg} 页");
                 break;
+            case "dxf":
+                return "AutoCAD、中望、浩辰等 CAD 软件能打开";
+            case "step":
+                return "SolidWorks、FreeCAD 等三维软件能打开";
         }
         parts.Add(!fullCheck ? "检查服务没连上，只确认了文件能打开"
             : kind == "xlsx" && I("formulas") is > 0 ? "已检查：能打开，公式没有错误" : "已检查：能打开");

@@ -27,7 +27,7 @@ const GROUPS: { title: string; note: string; tools: ToolDef[] }[] = [
     { key: 'memory', name: '长期记忆', ic: '记', tone: 'in', desc: '记住每个人交代的偏好、工作范围、在跟的客户；内容只有本人能看、能删', cfgKey: 'assistant.memory', noRoles: true },
   ] },
   { title: '计算与文件', note: '在服务器上运行，不出公司', tools: [
-    { key: 'run_python', name: '代码解释器', ic: '算', tone: 'calc', tag: '免费', desc: '隔离环境里跑 Python：工程计算、数据分析、作图；含物性计算（CoolProp）', settings: 'sandbox' },
+    { key: 'run_python', name: '代码解释器', ic: '算', tone: 'calc', tag: '免费', desc: '隔离环境里跑 Python：工程计算、数据分析、作图；含物性计算（CoolProp）、化学平衡（Cantera）、设备外形图和三维模型（CadQuery、ezdxf，出 DXF、STEP）', settings: 'sandbox' },
     { key: 'process_sim', name: '流程模拟（DWSIM）', ic: '模', tone: 'calc', tag: '开源', desc: '物料和热量衡算、闪蒸、反应器、换热和泵功率；结果出流程图、物流表，可下载 DWSIM 文件。要起 dwsim 容器（DWSIM 官方无界面版，GPL-3）' },
     { key: 'compare_documents', name: '文件对比', ic: '比', tone: 'calc', tag: '免费', desc: '两份文件逐条对照：需求书对方案，找没满足的' },
     { key: 'view_image', name: '看图 · 识别文字', ic: '图', tone: 'calc', desc: '看上传的图纸、照片、截图；把扫描件和手写单的文字读出来（用看图模型）' },

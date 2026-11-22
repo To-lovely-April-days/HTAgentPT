@@ -77,7 +77,7 @@ public class SkillSeedTests
     public void AllSeedSkillsAreWellFormed()
     {
         var all = All();
-        Assert.Equal(40, all.Count);
+        Assert.Equal(43, all.Count);
         foreach (var (n, p) in all)
         {
             Assert.False(string.IsNullOrWhiteSpace(p.Name), n);
@@ -86,7 +86,7 @@ public class SkillSeedTests
             Assert.True(p.Meta.ContainsKey("title") && p.Meta.ContainsKey("category"), n);
             Assert.True(SkillFiles.Length(p.Body) <= SkillFiles.MaxBody, n);
         }
-        Assert.Equal(40, all.Select(a => a.P.Name).Distinct().Count());
+        Assert.Equal(43, all.Select(a => a.P.Name).Distinct().Count());
     }
 
     [Fact]
