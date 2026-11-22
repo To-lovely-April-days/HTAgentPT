@@ -80,14 +80,14 @@ function groupCards(cards: EvidenceCard[]): Group[] {
   const map = new Map<string, Group>();
   for (const c of cards) {
     const key = c.kind === 'doc' ? `d:${c.docId}` : c.kind === 'ledger' ? 'ledger' : c.kind === 'web' ? `w:${c.url}`
-      : c.kind === 'price' ? `p:${c.title.split(' · ')[0]}` : `a:${c.fileName}`;
+      : c.kind === 'price' ? `p:${c.title.split(' · ')[0]}` : c.kind === 'reg' ? `r:${c.title}` : `a:${c.fileName}`;
     let g = map.get(key);
     if (!g) {
-      const ext = c.kind === 'ledger' ? '台账' : c.kind === 'web' ? '网页' : c.kind === 'price' ? '价格' : (c.fileName?.split('.').pop() ?? '').toUpperCase().slice(0, 4) || '文档';
+      const ext = c.kind === 'ledger' ? '台账' : c.kind === 'web' ? '网页' : c.kind === 'price' ? '价格' : c.kind === 'reg' ? '目录' : (c.fileName?.split('.').pop() ?? '').toUpperCase().slice(0, 4) || '文档';
       g = {
         key, kind: c.kind, ext, first: c, cards: [],
         title: c.kind === 'ledger' ? '项目台账' : c.kind === 'price' ? c.title.split(' · ')[0] : c.title,
-        meta: c.kind === 'ledger' ? '' : c.kind === 'attachment' ? '本对话上传的文件' : c.kind === 'price' ? '价格库 · 采购价'
+        meta: c.kind === 'ledger' ? '' : c.kind === 'attachment' ? '本对话上传的文件' : c.kind === 'price' ? '价格库 · 采购价' : c.kind === 'reg' ? '国家公布的目录（本地数据）'
           : c.kind === 'web' ? (c.url ? new URL(c.url).hostname : '') : [c.docCategory].filter(Boolean).join(' · '),
       };
       map.set(key, g);

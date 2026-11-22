@@ -84,8 +84,7 @@ public class ToolsController(AppDbContext db, IRuntimeConfig config, SandboxClie
             search = resp.IsSuccessStatusCode;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) { search = false; }
-        var hazFile = await config.GetStringAsync(ConfigKeys.HazchemFile, "hazchem.csv", ct);
-        var hazPath = Path.IsPathRooted(hazFile) ? hazFile : Path.Combine("data", hazFile);
+        var hazchem = await db.HazardChemicals.AnyAsync(ct);
         bool office;
         try
         {
@@ -103,7 +102,7 @@ public class ToolsController(AppDbContext db, IRuntimeConfig config, SandboxClie
         var (memUsers, memTotal) = await memory.StatsAsync(ct);
         return Ok(new
         {
-            sandbox = sb, search, hazchem = System.IO.File.Exists(hazPath), office, epo = epoSet,
+            sandbox = sb, search, hazchem, office, epo = epoSet,
             browser = await HttpContext.RequestServices.GetRequiredService<HT.Agent.Infrastructure.Clients.BrowserClient>().HealthyAsync(ct),
             vision = await vision.EnabledAsync(ct),
             memory = new { users = memUsers, total = memTotal } // 只给条数，不给内容

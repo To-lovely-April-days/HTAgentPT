@@ -15,7 +15,7 @@ public static class SkillFiles
         "use_skill", "ask_user", "remember", "forget", "inquiry_form", "search_standards", "search_literature", "view_image", "ocr_image",
         "translate_file", "search_prices", "cost_estimate", "show_table", "note_correction", "show_block", "run_python", "chemical_info",
         "web_search", "fetch_url", "compare_documents", "search_documents", "read_document", "query_projects", "list_catalog",
-        "read_attachments", "calculate", "convert_unit",
+        "read_attachments", "calculate", "convert_unit", "hazard_lookup",
     ];
 
     /// <summary>回答组件里带下划线的名字（show_block 的 kind），正文里提到它们不算未知工具。</summary>

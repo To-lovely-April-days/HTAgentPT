@@ -36,6 +36,7 @@ public sealed class AssistantService(
     Clients.BrowserClient browser,
     Clients.BrowserActivity browserActivity,
     Clients.PubChemClient pubchem,
+    HazardCatalog hazards,
     Clients.SearxClient searx,
     Clients.WebFetcher fetcher,
     Clients.LiteratureClient literature,
@@ -730,6 +731,9 @@ public sealed class AssistantService(
                 equipment 设备简图 {type:vertical_vessel|horizontal_vessel|column|tank|exchanger, diameter:毫米, length:切线长毫米, head:椭圆封头|平盖|锥底, support,
                     nozzles:[{id:"N1", size:"DN50", flange:"PN16 RF", service:"进料", position:top|bottom|side|left|right, at:离下切线或左切线的距离毫米}]}
                 interlock 联锁因果表 {causes:[{id:"C1", tag:"LT-101", condition:"液位 ≥ 85%"}], effects:[{id:"E1", tag:"XV-101", action:"关闭进料阀"}], links:[{cause:"C1", effect:"E1"}], sil}
+                thermal 反应热安全评估 {reaction:"反应名", dH:反应热 kJ/mol, conc:限量反应物浓度 mol/L, density:反应液密度 kg/L, cp:比热 kJ/(kg·K)（或直接给 q:单位质量反应热 kJ/kg）,
+                    Tp:工艺温度 ℃, TD24:℃（没有实测就不写）, MTT:℃（敞口是沸点，密闭是设备允许最高温度）, accumulation:滴加时的最大累积度 0–1（不写就只算一次全投）,
+                    inputs:[{name, value, source:"用户给的|查的|假设"}]}（绝热温升、MTSR、Stoessel 等级由系统算）
                 """,
                 Obj(new()
                 {
@@ -822,6 +826,16 @@ public sealed class AssistantService(
             list.Add(new ToolSpec("chemical_info",
                 "查化学品的公开数据（PubChem）：CAS 号、分子式、沸点、闪点、蒸气压、密度、GHS 危险性说明，并判断是否列入《危险化学品目录》。名称请用英文名或 CAS 号（如 dichloromethane 或 75-09-2）。",
                 Obj(new() { ["name"] = Str("英文名或 CAS 号") }, "name")));
+        if (enabled.Contains("hazard_lookup"))
+            list.Add(new ToolSpec("hazard_lookup",
+                "查国家公布的目录（本地数据，不联网）：① 重点监管危险化工工艺（18 类：加氢、氧化、硝化、聚合……），给出重点监控参数、安全控制的基本要求、宜采用的控制方式原文；"
+                + "② 危险化学品目录（2015 版）及分类信息表：是不是危化品、危险性类别、是否剧毒；③ 易制爆、易制毒。客户说了工艺或介质、问釜要配哪些安全控制时用。只引用查到的原文，查不到就说目录里没有。",
+                Obj(new()
+                {
+                    ["process"] = Str("工艺或反应（如 催化加氢、硝基苯加氢制苯胺、乙烯聚合），不查工艺就省略"),
+                    ["chemicals"] = new Dictionary<string, object> { ["type"] = "array", ["maxItems"] = 10, ["items"] = new Dictionary<string, object> { ["type"] = "string" },
+                        ["description"] = "介质的中文名、别名或 CAS 号（如 氢气、甲醇、75-09-2），不查就省略" },
+                })));
         if (enabled.Contains("web_search"))
             list.Add(new ToolSpec("web_search",
                 "联网搜索公开信息（行业资料、材料性能、标准、产品信息）。只用于查公开知识，不要带客户名、项目编号、金额（系统也会自动拦掉）。返回标题、链接、摘要；需要细节再用打开网页。",
@@ -898,7 +912,7 @@ public sealed class AssistantService(
         IReadOnlyList<(Guid Id, string FileName, string? Chunks)> attachments, int topK, IReadOnlySet<string> enabled,
         Func<QaEvent, Task> emit, CancellationToken ct, int agent = 0)
     {
-        if (call.Name is "ask_user" or "run_python" or "chemical_info" or "web_search" or "fetch_url" or "compare_documents"
+        if (call.Name is "ask_user" or "run_python" or "chemical_info" or "hazard_lookup" or "web_search" or "fetch_url" or "compare_documents"
             or "search_literature" or "view_image" or "ocr_image" or "translate_file" or "inquiry_form" or "remember" or "forget"
             or "search_prices" or "cost_estimate" or "show_table" or "show_block" or "browser_open" or "browser_read" or "browser_act" or "browser_look"
             && !enabled.Contains(call.Name switch { "ocr_image" => "view_image", "forget" => "remember", "cost_estimate" => "search_prices",
@@ -1475,7 +1489,7 @@ public sealed class AssistantService(
                 var name = S("name") ?? "";
                 var info = await pubchem.LookupAsync(name, ct);
                 if (info is null) return new ToolOutcome($"PubChem 里没查到「{name}」。换英文名或 CAS 号再试。", "没查到", label, name, "没查到");
-                var haz = info.Cas is null ? null : await HazchemAsync(info.Cas, ct);
+                var haz = info.Cas is null ? null : await hazards.ListedAsync(info.Cas, ct);
                 var url = $"https://pubchem.ncbi.nlm.nih.gov/compound/{info.Cid}";
                 var lines = new List<string> { $"名称 {info.Title}" };
                 if (info.Cas is not null) lines.Add($"CAS {info.Cas}");
@@ -1491,6 +1505,8 @@ public sealed class AssistantService(
                 await emit(new QaEvent("artifact", card));
                 return new ToolOutcome($"[{e.N}] 来自 PubChem 公开数据库（{url}）：\n{text}", $"[{e.N}] PubChem：{info.Title}", label, name, info.Cas ?? info.Title);
             }
+            case "hazard_lookup":
+                return await HazardLookupAsync(a, run, emit, label, ct);
             case "web_search":
             {
                 var raw = S("query") ?? req.Question;
@@ -1618,7 +1634,7 @@ public sealed class AssistantService(
         };
     }
 
-    private static readonly string[] OptionalTools = ["ask_user", "run_python", "chemical_info", "web_search", "fetch_url", "compare_documents", "browser",
+    private static readonly string[] OptionalTools = ["ask_user", "run_python", "chemical_info", "hazard_lookup", "web_search", "fetch_url", "compare_documents", "browser",
         "search_literature", "view_image", "translate_file", "inquiry_form", "search_prices", "show_table", "show_block"];
 
     /// <summary>这次能用哪些可选工具：系统设置里开着的、角色在允许名单里的。外部客户只给「请用户确认」。</summary>
@@ -2068,29 +2084,78 @@ public sealed class AssistantService(
         return Redactor.Redact(q, names.Distinct(), nos, pattern);
     }
 
-    private static HashSet<string>? _hazchem;
-    private static readonly SemaphoreSlim HazLock = new(1, 1);
-
-    /// <summary>本地《危险化学品目录》里有没有这个 CAS 号。目录文件没导入返回 null。</summary>
-    private async Task<bool?> HazchemAsync(string cas, CancellationToken ct)
+    /// <summary>查国家公布的目录：重点监管危险化工工艺、危险化学品目录（含分类信息表）、易制爆、易制毒。
+    /// 查到的原文进参考资料（可以引用），界面上出一张卡片；查不到就明说，不让模型凭记忆补。</summary>
+    private async Task<ToolOutcome> HazardLookupAsync(JsonObject a, Run run, Func<QaEvent, Task> emit, string label, CancellationToken ct)
     {
-        if (_hazchem is null)
+        var process = a["process"]?.ToString()?.Trim();
+        var names = (a["chemicals"] as JsonArray ?? []).Select(x => x?.ToString()?.Trim() ?? "").Where(x => x.Length > 0).Distinct().Take(10).ToList();
+        if (string.IsNullOrEmpty(process) && names.Count == 0)
+            return new ToolOutcome("要给工艺（process）或介质（chemicals）至少一样。", "没给要查什么", label, "", "没给要查什么");
+        var snap = await hazards.LoadAsync(ct);
+        if (snap.Processes.Count == 0 && snap.Chemicals.Count == 0)
+            return new ToolOutcome("本地目录还没导入（重启后端会自动导入）。回答时说明没能核对国家目录。", "目录没导入", label, process ?? string.Join("、", names), "目录没导入");
+        var sb = new StringBuilder();
+        var procCards = new JsonArray();
+        if (!string.IsNullOrEmpty(process))
         {
-            await HazLock.WaitAsync(ct);
-            try
+            var found = await hazards.FindProcessesAsync(process, ct);
+            if (found.Count == 0)
+                sb.AppendLine($"「{process}」在重点监管危险化工工艺目录（18 类）里没有对得上的。目录里的工艺：{string.Join("、", snap.Processes.Select(p => p.Name))}。"
+                    + "不在目录里就不属于重点监管工艺，但仍要按反应风险评估；如果其实是其中某一类，换个说法再查。");
+            foreach (var p in found)
             {
-                if (_hazchem is null)
+                var text = $"{p.Name}（反应类型：{p.ReactionType}；重点监控单元：{p.MonitorUnits}）\n"
+                    + $"重点监控工艺参数：{p.Params}\n安全控制的基本要求：{p.Requirements}\n宜采用的控制方式：{p.Controls}\n工艺危险特点：{p.Hazards}\n典型工艺：{p.Typical}";
+                var e = run.Add($"hzp{p.No}", n => new EvidenceItem(n, "reg", $"重点监管危险化工工艺 · {p.Name}", text, DocCategory: p.Source, Classification: "Public"));
+                sb.AppendLine($"[{e.N}] 来自《{p.Source}》：\n{text}\n");
+                procCards.Add(new JsonObject
                 {
-                    var file = await config.GetStringAsync(ConfigKeys.HazchemFile, "hazchem.csv", ct);
-                    var path = Path.IsPathRooted(file) ? file : Path.Combine("data", file);
-                    if (!File.Exists(path)) return null;
-                    _hazchem = (await File.ReadAllLinesAsync(path, ct))
-                        .Select(l => Regex.Match(l, @"\d{2,7}-\d{2}-\d")).Where(m => m.Success).Select(m => m.Value).ToHashSet();
-                }
+                    ["n"] = e.N, ["no"] = p.No, ["name"] = p.Name, ["reactionType"] = p.ReactionType, ["monitorUnits"] = p.MonitorUnits,
+                    ["params"] = p.Params, ["requirements"] = p.Requirements, ["controls"] = p.Controls, ["hazards"] = p.Hazards, ["typical"] = p.Typical,
+                    ["source"] = p.Source, ["edited"] = p.UpdatedById is not null,
+                });
             }
-            finally { HazLock.Release(); }
         }
-        return _hazchem.Contains(cas);
+        var chemCards = new JsonArray();
+        foreach (var name in names)
+        {
+            var r = await hazards.FindChemicalAsync(name, ct);
+            var main = r.Rows.FirstOrDefault(x => !x.Sub) ?? r.Rows.FirstOrDefault();
+            var ctl = r.Controlled.Select(c => c.List == "yzb" ? $"易制爆（名录 {c.No}）" : $"易制毒（{c.Category}）").Distinct().ToList();
+            if (main is null && ctl.Count == 0)
+            {
+                sb.AppendLine($"「{name}」：《危险化学品目录（2015版）》里没有这个名称或 CAS 号"
+                    + (r.Suggest.Count > 0 ? $"（名字相近的：{string.Join("、", r.Suggest.Select(x => x.Name))}，确认是不是其中一个）" : "")
+                    + "。没列入不等于没有危险，可以再用化学品数据（PubChem）查 GHS 分类。");
+                chemCards.Add(new JsonObject { ["query"] = name, ["found"] = false, ["suggest"] = new JsonArray(r.Suggest.Select(x => (JsonNode?)JsonValue.Create(x.Name)).ToArray()) });
+                continue;
+            }
+            var rows = r.Rows.Select(x => $"{(x.Sub ? "　" : "")}{x.Seq} {x.Name}{(x.Cas is null ? "" : $"（CAS {x.Cas}）")}：{(x.Classes.Length == 0 ? "—" : x.Classes.Replace("\n", "；"))}{(x.Toxic ? "；剧毒" : "")}").ToList();
+            var body = (rows.Count > 0 ? "列入《危险化学品目录（2015版）》：\n" + string.Join("\n", rows) : "未列入《危险化学品目录（2015版）》")
+                + (ctl.Count > 0 ? $"\n另列入：{string.Join("、", ctl)}" : "") + (main?.Note is { } note ? $"\n调整：{note}" : "");
+            var title = main?.Name ?? r.Controlled[0].Name;
+            var ev = run.Add($"hzc:{main?.Id.ToString() ?? title}", n => new EvidenceItem(n, "reg", $"危险化学品目录 · {title}", body,
+                DocCategory: "危险化学品目录（2015版）及分类信息表；易制爆危险化学品名录（2017年版）；易制毒化学品分类和品种目录", Classification: "Public"));
+            sb.AppendLine($"[{ev.N}] 「{name}」{body}\n");
+            chemCards.Add(new JsonObject
+            {
+                ["query"] = name, ["found"] = true, ["n"] = ev.N, ["name"] = title, ["seq"] = main?.Seq, ["cas"] = main?.Cas ?? r.Controlled.FirstOrDefault()?.Cas,
+                ["aliases"] = main?.Aliases, ["toxic"] = main?.Toxic ?? false, ["listed"] = main is not null,
+                ["classes"] = new JsonArray((main?.Classes ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(x => (JsonNode?)JsonValue.Create(x)).ToArray()),
+                ["variants"] = new JsonArray(r.Rows.Where(x => x.Sub).Select(x => (JsonNode?)new JsonObject { ["name"] = x.Name, ["classes"] = x.Classes.Replace("\n", "；") }).ToArray()),
+                ["controlled"] = new JsonArray(ctl.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray()),
+                ["note"] = main?.Note,
+            });
+        }
+        var card = new JsonObject { ["kind"] = "hazard", ["processes"] = procCards, ["chemicals"] = chemCards };
+        run.Artifacts.Add(card);
+        await emit(new QaEvent("artifact", card));
+        sb.AppendLine("引用时写编号；条文按原文说，不要改写成更宽或更严的要求。我们产品有哪些对应配置，要从公司资料里查，查不到写「待确认」。");
+        var summary = string.Join("、", procCards.Select(p => p!["name"]!.ToString()).Concat(chemCards.Where(c => c!["found"]!.GetValue<bool>()).Select(c => c!["name"]!.ToString())));
+        return new ToolOutcome(sb.ToString(), $"（较早查过国家目录：{summary}）", label,
+            string.Join(" · ", new[] { process ?? "" }.Concat(names).Where(x => x.Length > 0)),
+            $"{procCards.Count} 类工艺 · {chemCards.Count(c => c!["found"]!.GetValue<bool>())}/{names.Count} 种介质");
     }
 
     /// <summary>按字面重合挑最相关的几段（保留原顺序编号）。</summary>
@@ -2187,6 +2252,35 @@ public sealed class AssistantService(
                     checks.Add($"{u.Unit} 物料不平：进 {u.In:0.###}，出 {u.Out:0.###}");
                 break;
             }
+            case "thermal":
+            {
+                // 绝热温升、MTSR、等级都由系统按给的数算，模型写的不算数
+                var dTad = ThermalRisk.AdiabaticRise(Num(data["dH"]), Num(data["conc"]), Num(data["density"]), Num(data["cp"]), Num(data["q"]));
+                var tp = Num(data["Tp"]);
+                if (dTad is null || tp is null)
+                {
+                    data["computed"] = new JsonObject { ["error"] = "缺数据：要 Tp，和 cp 加上 q，或 cp 加上 dH、conc、density" };
+                    checks.Add("反应热评估缺数据（Tp、cp，以及 q 或 dH + conc + density）");
+                    break;
+                }
+                double? mtt = Num(data["MTT"]), td24 = Num(data["TD24"]);
+                var acc = Num(data["accumulation"]);
+                if (acc > 1) acc /= 100;   // 写成了百分数
+                var batch = ThermalRisk.Mtsr(tp.Value, dTad.Value);
+                var c = new JsonObject
+                {
+                    ["dTad"] = Math.Round(dTad.Value, 1),
+                    ["batch"] = new JsonObject { ["mtsr"] = Math.Round(batch, 1), ["class"] = ThermalRisk.Class(batch, mtt, td24), ["text"] = ThermalRisk.Describe(ThermalRisk.Class(batch, mtt, td24)) },
+                };
+                if (acc is { } x && x < 1)
+                {
+                    var semi = ThermalRisk.Mtsr(tp.Value, dTad.Value, x);
+                    c["semi"] = new JsonObject { ["accumulation"] = Math.Round(x, 3), ["mtsr"] = Math.Round(semi, 1), ["class"] = ThermalRisk.Class(semi, mtt, td24), ["text"] = ThermalRisk.Describe(ThermalRisk.Class(semi, mtt, td24)) };
+                }
+                data["computed"] = c;
+                if (td24 is null) checks.Add("没有 TD24：等级分不出来，回答里要写明需要做 DSC / ARC 测分解温度");
+                break;
+            }
         }
     }
 
@@ -2196,7 +2290,7 @@ public sealed class AssistantService(
     [
         "metrics", "callout", "chart", "steps", "timeline", "checklist", "options", "formula", "flow", "quote",
         "datasheet", "deviation", "window", "fault_tree", "risk_matrix", "bom", "properties", "clause", "match", "followups", "gantt",
-        "pfd", "pid", "molecule", "reaction", "equipment", "interlock",
+        "pfd", "pid", "molecule", "reaction", "equipment", "interlock", "thermal",
     ];
 
     /// <summary>逐字引用的核对：去掉空白和常见标点差异后，引文要整段出现在依据原文里。</summary>

@@ -15,7 +15,7 @@ export const ADMIN_NAV: { label: string; items: { to: string; name: string; icon
       { to: '/admin/quality', name: '回答质量', icon: 'check' },
     ],
   },
-  { label: '能力域', items: [{ to: '/admin/templates', name: '模板管理', icon: 'chat' }, { to: '/admin/skills', name: '技能管理', icon: 'book' }] },
+  { label: '能力域', items: [{ to: '/admin/templates', name: '模板管理', icon: 'chat' }, { to: '/admin/skills', name: '技能管理', icon: 'book' }, { to: '/admin/hazard-data', name: '国家目录', icon: 'shield' }] },
   {
     label: '治理域',
     items: [

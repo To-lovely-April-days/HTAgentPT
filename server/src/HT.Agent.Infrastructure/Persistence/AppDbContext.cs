@@ -65,6 +65,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
     public DbSet<SkillUse> SkillUses => Set<SkillUse>();
     public DbSet<MadeFile> MadeFiles => Set<MadeFile>();
     public DbSet<ChatProject> ChatProjects => Set<ChatProject>();
+    public DbSet<HazardProcess> HazardProcesses => Set<HazardProcess>();
+    public DbSet<HazardChemical> HazardChemicals => Set<HazardChemical>();
+    public DbSet<ControlledChemical> ControlledChemicals => Set<ControlledChemical>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -322,6 +325,26 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
             e.HasIndex(x => new { x.SkillId, x.At });
             e.HasIndex(x => x.MessageId);
             e.HasOne<AssistantSkill>().WithMany().HasForeignKey(x => x.SkillId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<HazardProcess>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(40);
+            e.HasIndex(x => x.No).IsUnique();
+        });
+        b.Entity<HazardChemical>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(400);
+            e.Property(x => x.Cas).HasMaxLength(20);
+            e.HasIndex(x => x.Seq);
+            e.HasIndex(x => x.Cas);
+        });
+        b.Entity<ControlledChemical>(e =>
+        {
+            e.Property(x => x.List).HasMaxLength(8);
+            e.Property(x => x.No).HasMaxLength(20);
+            e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.Cas).HasMaxLength(20);
+            e.HasIndex(x => new { x.List, x.No }).IsUnique();
         });
         b.Entity<ChatProject>(e =>
         {

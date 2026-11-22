@@ -5,7 +5,7 @@ import type { D } from './util';
 import { exportXlsx, followupsMail, list, s, strs } from './util';
 import { Callout, Chart, Checklist, Flow, Formula, Metrics, Options, Quote, Steps, Timeline } from './General';
 import { Bom, Clause, Datasheet, Deviation, FaultTree, Followups, Gantt, Match, OpWindow, Properties, RiskMatrix } from './Industry';
-import { Equipment, Interlock, Molecule, Pfd, Pid, Reaction } from './Chem';
+import { Equipment, Interlock, Molecule, Pfd, Pid, Reaction, Thermal } from './Chem';
 import { chemRows } from './chemData';
 import { downloadText, serializeSvg, svgToPng } from '../../../components/code/text';
 
@@ -17,7 +17,7 @@ const META: Record<string, [string, string]> = {
   properties: ['物性数据', 'b-blue'], clause: ['规范条款', 'b-purple'], match: ['选型匹配', 'b-green'], followups: ['跟进事项', 'b-gray'],
   gantt: ['交付计划', 'b-teal'],
   pfd: ['工艺流程图', 'b-blue'], pid: ['管道仪表图', 'b-blue'], molecule: ['分子结构', 'b-purple'], reaction: ['反应方程式', 'b-purple'],
-  equipment: ['设备简图', 'b-teal'], interlock: ['联锁因果表', 'b-red'],
+  equipment: ['设备简图', 'b-teal'], interlock: ['联锁因果表', 'b-red'], thermal: ['反应热安全评估', 'b-red'],
 };
 const PICTURE = new Set(['pfd', 'pid', 'molecule', 'equipment', 'flow', 'chart']);
 
@@ -109,6 +109,7 @@ export function BlockCard({ a }: { a: { block: string; title: string; note: stri
       case 'reaction': return <Reaction d={d} />;
       case 'equipment': return <Equipment d={d} />;
       case 'interlock': return <Interlock d={d} />;
+      case 'thermal': return <Thermal d={d} />;
       default: return <pre className="tool-out">{JSON.stringify(d, null, 2)}</pre>;
     }
   })();

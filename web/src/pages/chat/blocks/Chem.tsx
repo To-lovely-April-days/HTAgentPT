@@ -437,3 +437,62 @@ export function Interlock({ d }: { d: D }) {
   );
 }
 
+
+// ── 反应热安全评估（绝热温升、MTSR、Stoessel 等级由服务端算，写在 data.computed）──
+const CLS_TONE = (c: number | null) => (c == null ? 'na' : c <= 2 ? 'ok' : c === 3 ? 'warn' : 'bad');
+
+export function Thermal({ d }: { d: D }) {
+  const c = (d.computed && typeof d.computed === 'object' ? d.computed : {}) as D;
+  const batch = (c.batch ?? null) as D | null;
+  const semi = (c.semi ?? null) as D | null;
+  const tp = n(d.Tp), mtt = n(d.MTT), td24 = n(d.TD24);
+  if (s(c.error) || !batch || tp == null) return <div className="blk-empty">{s(c.error) || '缺数据，算不了'}</div>;
+  const rows: [string, D][] = [['一次全投（间歇）', batch], ...(semi ? [[`滴加，累积不超过 ${fmt((n(semi.accumulation) ?? 0) * 100)}%`, semi] as [string, D]] : [])];
+  const pick = semi ?? batch;
+  const marks: [string, number, string][] = [['Tp', tp, '#141414'], ...(semi ? [['滴加 MTSR', n(semi.mtsr)!, '#1D4A94'] as [string, number, string]] : []),
+    [semi ? '全投 MTSR' : 'MTSR', n(batch.mtsr)!, '#A00D25'], ...(td24 != null ? [['TD24', td24, '#8A5A00'] as [string, number, string]] : []),
+    ...(mtt != null ? [['MTT', mtt, '#1C6B45'] as [string, number, string]] : [])];
+  const vals = marks.map((m) => m[1]);
+  const lo = Math.floor((Math.min(...vals) - 20) / 50) * 50, hi = Math.ceil((Math.max(...vals) + 20) / 50) * 50;
+  const pos = (t: number) => `${((t - lo) / (hi - lo)) * 100}%`;
+  const sorted = [...marks].sort((a, b) => a[1] - b[1]);
+  return (
+    <div className="thr">
+      {list(d.inputs).length > 0 && (
+        <div className="thr-in">
+          {list(d.inputs).map((x, i) => (
+            <span key={i} className={'thr-chip' + (/假设|估/.test(s(x.source)) ? ' as' : '')} title={s(x.source)}>
+              <i>{s(x.name)}</i>{s(x.value)}{s(x.source) && <em>{s(x.source)}</em>}
+            </span>
+          ))}
+        </div>
+      )}
+      <table className="thr-t">
+        <thead><tr><th>加料方式</th><th>绝热温升</th><th>MTSR</th><th>等级</th></tr></thead>
+        <tbody>
+          {rows.map(([label, r]) => {
+            const cls = typeof r.class === 'number' ? r.class : null;
+            return (
+              <tr key={label} className={r === pick ? 'pick' : undefined}>
+                <td>{label}</td>
+                <td className="num">{Math.round((n(r.accumulation) ?? 1) * (n(c.dTad) ?? 0))} K</td>
+                <td className="num">{Math.round(n(r.mtsr) ?? 0)} ℃</td>
+                <td><span className={'thr-cls ' + CLS_TONE(cls)}>{cls ?? '—'}</span></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div className="thr-ax" aria-label="温度位置">
+        <span className="thr-line" />
+        {Array.from({ length: (hi - lo) / 50 + 1 }, (_, i) => lo + i * 50).map((t) => <span key={t} className="thr-tk" style={{ left: pos(t) }}>{t}</span>)}
+        {sorted.map(([label, t, color], i) => (
+          <span key={label} className="thr-mk" style={{ left: pos(t), top: i % 2 ? 26 : 2 }}>
+            <b style={{ color }}>{label} {Math.round(t)}</b><span style={{ background: color, height: i % 2 ? 14 : 38 }} />
+          </span>
+        ))}
+      </div>
+      <div className={'thr-say ' + CLS_TONE(typeof pick.class === 'number' ? pick.class : null)}>{s(pick.text)}</div>
+    </div>
+  );
+}

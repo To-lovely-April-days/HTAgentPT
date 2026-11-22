@@ -23,6 +23,7 @@ const GROUPS: { title: string; note: string; tools: ToolDef[] }[] = [
     { key: 'ask_user', name: '请用户确认', ic: '选', tone: 'in', desc: '有歧义或查到多个候选时，给选项让人点' },
     { key: 'inquiry_form', name: '询价缺项单', ic: '单', tone: 'in', desc: '需求不全时列出已知项和缺的项，可当场填、导出发给客户' },
     { key: 'search_prices', name: '查价格 · 材料成本估算', ic: '价', tone: 'in', desc: '在价格库里查采购价，按用量估材料成本（不含人工和利润）；还要有「查看采购价格」权限' },
+    { key: 'hazard_lookup', name: '查危险工艺和危化品', ic: '监', tone: 'in', tag: '本地数据', desc: '国家公布的重点监管危险化工工艺（18 类）、危险化学品目录（2015 版）及分类信息表、易制爆、易制毒；引用原文。数据在「国家目录」里看和改' },
     { key: 'memory', name: '长期记忆', ic: '记', tone: 'in', desc: '记住每个人交代的偏好、工作范围、在跟的客户；内容只有本人能看、能删', cfgKey: 'assistant.memory', noRoles: true },
   ] },
   { title: '计算与文件', note: '在服务器上运行，不出公司', tools: [
@@ -31,7 +32,7 @@ const GROUPS: { title: string; note: string; tools: ToolDef[] }[] = [
     { key: 'view_image', name: '看图 · 识别文字', ic: '图', tone: 'calc', desc: '看上传的图纸、照片、截图；把扫描件和手写单的文字读出来（用看图模型）' },
     { key: 'translate_file', name: '整份翻译', ic: '译', tone: 'calc', desc: '上传的 Word 整份翻译，保留版式、套用已审定术语；需要「翻译」权限' },
     { key: 'show_table', name: '按场景排版表格', ic: '表', tone: 'calc', tag: '免费', desc: '比价、涨跌、历史项目、方案对比、参数清单各用各的表格样式，可导出 Excel' },
-    { key: 'show_block', name: '回答里的组件', ic: '件', tone: 'calc', tag: '免费', desc: '关键数字、提示框、图表、步骤、清单、数据表、偏离表、操作窗口、甘特图等 21 种，助手按内容选用' },
+    { key: 'show_block', name: '回答里的组件', ic: '件', tone: 'calc', tag: '免费', desc: '关键数字、提示框、图表、步骤、清单、数据表、偏离表、操作窗口、甘特图等 28 种（含工艺流程图、管道仪表图、反应热安全评估），助手按内容选用' },
     { key: 'export_pdf', name: '导出 PDF / PPT', ic: '出', tone: 'calc', tag: '免费', desc: '回答导出 PDF（服务器上 LibreOffice 转换）和 PPT（浏览器里生成）', fixed: true },
   ] },
   { title: '助手做文件', note: '在代码解释器里写代码做文件，检查过了才交出来；先开 Excel、Word，PPT、PDF 用测试题跑过再开', tools: [
@@ -44,7 +45,7 @@ const GROUPS: { title: string; note: string; tools: ToolDef[] }[] = [
     { key: 'fetch_url', name: '打开网页', ic: '网', tone: 'ext', tag: '免费', desc: '读用户给的链接或搜索结果里的网页全文（只连公网地址）' },
     { key: 'browser', name: '内置浏览器', ic: '浏', tone: 'ext', tag: '免费', desc: '服务器上的真浏览器：助手能打开网页、读、点、填，员工在右边画面上看得到、也能自己点；密码验证码员工自己填，提交类按钮先问员工', settings: 'browser' },
     { key: 'web_search', name: '联网搜索', ic: '搜', tone: 'ext', tag: '试用', desc: '自建 SearXNG 聚合必应、百度、搜狗；偶尔会搜不到', settings: 'search' },
-    { key: 'chemical_info', name: '化学品安全数据', ic: '化', tone: 'ext', tag: '免费', desc: 'PubChem 查 GHS 危险性、闪点等；本地《危险化学品目录》判断是否危化品' },
+    { key: 'chemical_info', name: '化学品安全数据', ic: '化', tone: 'ext', tag: '免费', desc: 'PubChem 查 GHS 危险性、闪点等；对照本地《危险化学品目录》判断是否危化品' },
     { key: 'search_literature', name: '专利 / 论文检索', ic: '献', tone: 'ext', tag: '免费', desc: '论文用 OpenAlex（不用注册）；专利用欧洲专利局 OPS（含中国专利，需填免费密钥）', settings: 'epo' },
   ] },
 ];
@@ -87,7 +88,8 @@ export default function ToolsTab() {
     if (t.key === 'browser') return h.browser ? ['浏览器服务正常', 'ok'] : ['浏览器服务连不上（browser 容器没起来？）', 'warn'];
     if (t.key === 'run_python') return health.data ? (health.data.sandbox ? ['运行环境正常', 'ok'] : ['运行环境连不上（sandbox 容器没起来？）', 'warn']) : ['检查中…', 'off'];
     if (t.key === 'web_search') return health.data ? (health.data.search ? ['搜索服务正常', 'ok'] : ['搜索服务连不上（searxng 容器没起来？）', 'warn']) : ['检查中…', 'off'];
-    if (t.key === 'chemical_info') return health.data ? (health.data.hazchem ? ['正常', 'ok'] : ['正常 · 本地危化品目录未导入（只查 PubChem）', 'warn']) : ['检查中…', 'off'];
+    if (t.key === 'hazard_lookup') return health.data ? (health.data.hazchem ? ['目录已导入', 'ok'] : ['目录还没导入（重启后端会自动导入）', 'warn']) : ['检查中…', 'off'];
+    if (t.key === 'chemical_info') return health.data ? (health.data.hazchem ? ['正常', 'ok'] : ['正常 · 本地危化品目录还没导入（重启后端会自动导入）', 'warn']) : ['检查中…', 'off'];
     return ['正常', 'ok'];
   };
   const roleOptions = (roles.data ?? []).filter((r) => r.code !== 'customer').map((r) => ({ id: r.code, name: r.name }));

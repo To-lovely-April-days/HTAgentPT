@@ -28,6 +28,8 @@
   <ItemGroup>
     <!-- 技能包初稿（SKILL.md 格式），首次启动时放进库里 -->
     <EmbeddedResource Include="Skills\*.md" LogicalName="skills/%(Filename)%(Extension)" />
+    <!-- 国家公布的目录：重点监管危险化工工艺、危险化学品目录 + 分类信息表、易制爆、易制毒（来源见各文件的 source / basis） -->
+    <EmbeddedResource Include="HazardData\*.json" LogicalName="hazard/%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

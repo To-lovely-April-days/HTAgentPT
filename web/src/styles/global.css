@@ -1029,6 +1029,28 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .tool-ic { width: 26px; height: 26px; border-radius: 7px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
 .tool-ic.calc { background: #e8eef8; color: #2a4a85; }
 .tool-ic.chem { background: #fbf0d9; color: #8a5a00; }
+.tool-ic.hz { background: #fde8ea; color: #a00d25; }
+/* 国家目录卡片：工艺原文三段、介质一行一个 */
+.hz-proc { display: flex; flex-direction: column; gap: 8px; }
+.hz-proc + .hz-proc { border-top: 1px solid var(--line-soft); padding-top: 10px; }
+.hz-proc-hd { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.hz-proc-hd b { font-size: 14px; font-weight: 600; }
+.hz-kv { display: grid; grid-template-columns: 128px 1fr; gap: 7px 14px; margin: 0; font-size: 13px; line-height: 1.7; }
+.hz-kv dt { color: var(--ink-3); }
+.hz-kv dd { margin: 0; color: var(--ink); white-space: pre-line; }
+.hz-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.hz-chems { display: flex; flex-direction: column; border-top: 1px solid var(--line-soft); }
+.hz-proc ~ .hz-chems { margin-top: 2px; }
+.tool-card-body > .hz-chems:first-child { border-top: none; }
+.hz-chem { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
+.hz-chem:last-child { border-bottom: none; }
+.hz-chem > b { font-weight: 600; min-width: 64px; }
+.hz-tags { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.hz { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; font-size: 11.5px; font-weight: 500; white-space: nowrap; }
+.hz.r { background: #fde8ea; color: #a00d25; } .hz.o { background: #fdf4e3; color: #8a5a00; } .hz.g { background: #f1f1ef; color: #4a4a4a; }
+.hz-cas { margin-left: auto; font-family: var(--mono); }
+.hz-var { flex-basis: 100%; line-height: 1.6; }
+@media (max-width: 640px) { .hz-kv { grid-template-columns: 1fr; gap: 2px; } .hz-kv dd { margin-bottom: 6px; } .hz-cas { margin-left: 0; } }
 .tool-link { margin-left: auto; border: none; background: none; font: inherit; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
 .tool-flag { font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 8px; background: #f1f1ef; color: var(--ink-2); }
 .tool-flag.bad { background: var(--brand-bg); color: var(--brand-fg); }
@@ -1507,3 +1529,56 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .ag-step b { font-weight: 500; flex: 0 0 60px; color: var(--ink-2); }
 .ag-step span { flex: 1; min-width: 0; color: var(--ink-3); overflow-wrap: anywhere; }
 .ag-step em { font-style: normal; color: var(--ink-4); white-space: nowrap; }
+
+/* 反应热安全评估：输入、两种加料方式对比、温度轴、结论 */
+.thr { display: flex; flex-direction: column; gap: 10px; }
+.thr-in { display: flex; flex-wrap: wrap; gap: 5px; }
+.thr-chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 6px; background: #f4f4f2; font-size: 12px; }
+.thr-chip i { font-style: normal; color: var(--ink-3); }
+.thr-chip em { font-style: normal; font-size: 11px; color: var(--ink-4); }
+.thr-chip.as { background: #fdf4e3; color: #7a4f00; }
+.thr-t { border-collapse: collapse; width: 100%; font-size: 13px; }
+.thr-t th { text-align: left; font-weight: 500; font-size: 12px; color: var(--ink-3); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.thr-t td { padding: 7px 8px; border-bottom: 1px solid var(--line-soft); }
+.thr-t td.num { font-family: var(--mono); font-size: 12.5px; }
+.thr-t tr.pick td { background: #fafaf9; font-weight: 600; }
+.thr-cls { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; font-family: var(--mono); font-weight: 700; font-size: 12px; color: #fff; }
+.thr-cls.ok { background: #1c6b45; } .thr-cls.warn { background: #c26a00; } .thr-cls.bad { background: #a00d25; } .thr-cls.na { background: #d9d9d6; color: var(--ink-2); }
+.thr-ax { position: relative; height: 92px; margin: 4px 10px 0; }
+.thr-line { position: absolute; left: 0; right: 0; top: 58px; height: 2px; background: var(--line-strong); }
+.thr-tk { position: absolute; top: 66px; transform: translateX(-50%); font-family: var(--mono); font-size: 10.5px; color: var(--ink-4); }
+.thr-mk { position: absolute; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px; white-space: nowrap; }
+.thr-mk b { font-family: var(--mono); font-size: 11px; font-weight: 600; }
+.thr-mk span { width: 2px; }
+.thr-say { padding: 9px 11px; border-radius: 8px; font-size: 13px; line-height: 1.65; }
+.thr-say.ok { background: #e6f2ec; color: #1c6b45; } .thr-say.warn { background: #fdf4e3; color: #7a4f00; } .thr-say.bad { background: #fde8ea; color: #8a0b20; } .thr-say.na { background: #f4f4f2; color: var(--ink-2); }
+
+/* 后台「国家目录」 */
+.hzd-src { font-size: 12.5px; color: var(--ink-3); }
+.hzd-src summary { cursor: pointer; }
+.hzd-src ul { margin: 6px 0 0; padding-left: 18px; line-height: 1.8; }
+.hzd-list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); overflow: hidden; }
+.hzd-item + .hzd-item { border-top: 1px solid var(--line-soft); }
+.hzd-hd { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 14px; border: none; background: none; font: inherit; text-align: left; cursor: pointer; flex-wrap: wrap; }
+.hzd-hd:hover, .hzd-item.on .hzd-hd { background: var(--bg-soft); }
+.hzd-hd b { font-weight: 600; }
+.hzd-body, .hzd-edit { padding: 10px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.hzd-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.hzd-edit label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink-2); }
+.hzd-edit textarea, .hzd-edit input:not([type]) , .hzd-search input { border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 13px; line-height: 1.6; color: var(--ink); background: var(--panel); outline: none; resize: vertical; }
+.hzd-edit textarea:focus, .hzd-edit input:focus, .hzd-search input:focus { border-color: var(--ink-3); }
+.hzd-edit-chem { display: grid; grid-template-columns: 1fr 180px; gap: 10px; padding: 8px 0; }
+.hzd-edit-chem .wide { grid-column: 1 / -1; }
+.hzd-edit-chem .chk { flex-direction: row; align-items: center; gap: 6px; }
+.hzd-search { display: flex; align-items: center; gap: 8px; color: var(--ink-4); }
+.hzd-search input { flex: 1; min-width: 0; max-width: 420px; }
+.hzd-tbl-w { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); overflow-x: auto; }
+.hzd-tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
+.hzd-tbl th { text-align: left; font-weight: 500; font-size: 12px; color: var(--ink-3); padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.hzd-tbl td { padding: 7px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+.hzd-tbl tr.sub td { background: #fcfcfb; }
+.hzd-tbl tr.sub td:nth-child(2) { padding-left: 24px; }
+.hzd-tbl td.m { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+.hzd-cls { display: inline-block; margin: 1px 4px 1px 0; padding: 1px 6px; border-radius: 4px; background: #f1f1ef; font-size: 11.5px; color: var(--ink-2); white-space: nowrap; }
+.hzd-cls.bad { background: #fde8ea; color: #a00d25; } .hzd-cls.warn { background: #fdf4e3; color: #8a5a00; }
+@media (max-width: 640px) { .hzd-edit-chem { grid-template-columns: 1fr; } }

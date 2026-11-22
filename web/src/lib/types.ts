@@ -435,7 +435,7 @@ export interface AssistantStep {
 
 /** 通用助手的一份依据：资料切块、台账记录或附件片段。n 与回答里的 [n] 对应。 */
 export interface EvidenceCard {
-  n: number; kind: 'doc' | 'ledger' | 'attachment' | 'web' | 'price'; title: string; url?: string | null; priceId?: number | null;
+  n: number; kind: 'doc' | 'ledger' | 'attachment' | 'web' | 'price' | 'reg'; title: string; url?: string | null; priceId?: number | null;
   docId: string | null; chunkId: number | null; section: string | null; pageNo: number | null;
   docCategory: string | null; fileName: string | null; projectNo: string | null; classification: string | null;
   text: string; highlights: { start: number; length: number }[];
@@ -482,11 +482,23 @@ export interface AgentsCardData {
     steps: { id: string; tool: string; label: string; detail: string; result: string | null; status: string }[] }[];
 }
 
+/** 查国家目录：重点监管危险化工工艺（原文）。 */
+export interface HazardProcessCard {
+  n: number; no: number; name: string; reactionType: string; monitorUnits: string; params: string; requirements: string; controls: string;
+  hazards: string; typical: string; source: string; edited: boolean;
+}
+/** 查国家目录：一种介质（危险化学品目录 + 分类信息表、易制爆、易制毒）。没查到时 found = false。 */
+export interface HazardChemCard {
+  query: string; found: boolean; suggest?: string[]; n?: number; name?: string; seq?: number | null; cas?: string | null; aliases?: string | null;
+  toxic?: boolean; listed?: boolean; classes?: string[]; variants?: { name: string; classes: string }[]; controlled?: string[]; note?: string | null;
+}
+
 export type ToolArtifact =
   | { kind: 'calc'; code: string; stdout: string; error: string | null; images: string[]; seconds: number }
   | { kind: 'chem'; n: number; title: string; cid: number; cas: string | null; formula: string | null; weight: string | null;
       props: Record<string, string[]>; hazards: string[]; pictograms: string[]; hazchem: boolean | null; url: string }
   | { kind: 'memory'; saved: string[]; removed: string[] }
+  | { kind: 'hazard'; processes: HazardProcessCard[]; chemicals: HazardChemCard[] }
   | { kind: 'form'; title: string; known: number; missing: number;
       groups: { name: string; items: { field: string; value: string; status: 'known' | 'must' | 'should'; why: string }[] }[] }
   | { kind: 'lit'; query: string; patents: number; papers: number; notes: string[];

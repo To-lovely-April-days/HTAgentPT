@@ -27,6 +27,7 @@ import KbsPage from './pages/admin/KbsPage'
 import MetaPage from './pages/admin/MetaPage'
 import QualityPage from './pages/admin/quality/QualityPage'
 import SkillsPage from './pages/admin/skills/SkillsPage'
+import HazardDataPage from './pages/admin/HazardDataPage'
 import TemplatesAdminPage from './pages/admin/TemplatesAdminPage'
 import UsersPage from './pages/admin/UsersPage'
 import SettingsPage from './pages/admin/SettingsPage'
@@ -102,6 +103,7 @@ function App() {
           <Route path="quality" element={<QualityPage />} />
           <Route path="templates" element={<TemplatesAdminPage />} />
           <Route path="skills" element={<SkillsPage />} />
+          <Route path="hazard-data" element={<HazardDataPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="audit" element={<StatsPage />} />

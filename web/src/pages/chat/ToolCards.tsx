@@ -1,7 +1,7 @@
 // 助手工具生成的卡片：请你确认（选项）、计算结果（代码/输出/图）、化学品数据，以及回答下面的导出条。
 import { useState } from 'react';
 import { ApiError, download, postDownload } from '../../lib/api';
-import type { AskSpec, EvidenceCard, ToolArtifact } from '../../lib/types';
+import type { AskSpec, EvidenceCard, HazardChemCard, HazardProcessCard, ToolArtifact } from '../../lib/types';
 import { EstimateCard, TableCard } from './DataCards';
 import { BlockCard } from './blocks/BlockCard';
 import { usePreview } from '../../components/code/preview';
@@ -82,6 +82,73 @@ function ChemCard({ a }: { a: Extract<ToolArtifact, { kind: 'chem' }> }) {
         <div className="chem-ghs">{a.hazards.map((h) => <span key={h}>{h}</span>)}</div>
       )}
       <div className="hint" style={{ padding: '0 16px 10px' }}>来自 PubChem 公开数据库（英文原文），用于选型参考前请核实。</div>
+    </section>
+  );
+}
+
+// ── 国家目录：重点监管危险化工工艺、危化品 ─────────────────
+/** 危险性类别的颜色：燃爆类红、毒性腐蚀类橙、其余灰。只是看着醒目，不代表分级。 */
+const hzTone = (c: string) => (/爆炸|易燃|自燃|氧化性|自反应|有机过氧化物|遇水放出/.test(c) ? 'r' : /毒性|腐蚀|致癌|致突变|生殖|致敏|吸入危害/.test(c) ? 'o' : 'g');
+
+function HzProcess({ p }: { p: HazardProcessCard }) {
+  const [more, setMore] = useState(false);
+  return (
+    <div className="hz-proc">
+      <div className="hz-proc-hd">
+        <b>重点监管危险化工工艺 · {p.name}</b><span className="ref-chip">{p.n}</span>
+        <span className="hint">{p.reactionType} · 重点监控单元：{p.monitorUnits}</span>
+      </div>
+      <dl className="hz-kv">
+        <dt>重点监控工艺参数</dt><dd>{p.params}</dd>
+        <dt>安全控制的基本要求</dt><dd>{p.requirements}</dd>
+        <dt>宜采用的控制方式</dt><dd>{p.controls}</dd>
+        {more && <><dt>工艺危险特点</dt><dd>{p.hazards}</dd><dt>典型工艺</dt><dd>{p.typical}</dd></>}
+      </dl>
+      <div className="hz-foot">
+        <button type="button" className="hm-link" onClick={() => setMore(!more)}>{more ? '收起' : '看危险特点、典型工艺'}</button>
+        <span className="hint">来源：{p.source}{p.edited ? '（公司在后台补充过）' : '（原文）'}</span>
+      </div>
+    </div>
+  );
+}
+
+function HzChem({ c }: { c: HazardChemCard }) {
+  if (!c.found) {
+    return (
+      <div className="hz-chem miss">
+        <b>{c.query}</b><span className="hint">《危险化学品目录》里没有这个名称{c.suggest?.length ? `；名字相近的：${c.suggest.join('、')}` : ''}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="hz-chem">
+      <b title={c.aliases ? `别名：${c.aliases}` : undefined}>{c.name}{c.query !== c.name && <span className="hint">（{c.query}）</span>}</b>
+      {c.n != null && <span className="ref-chip">{c.n}</span>}
+      <span className="hz-tags">
+        {c.listed ? <span className="hz r">危险化学品{c.seq ? ` · 第 ${c.seq} 号` : ''}</span> : <span className="hz g">不在危化品目录</span>}
+        {c.toxic && <span className="hz r">剧毒</span>}
+        {c.controlled?.map((x) => <span key={x} className="hz o">{x}</span>)}
+        {c.classes?.map((x) => <span key={x} className={'hz ' + hzTone(x)}>{x}</span>)}
+      </span>
+      {c.cas && <span className="hint hz-cas">CAS {c.cas}</span>}
+      {!!c.variants?.length && <span className="hint hz-var">{c.variants.map((v) => `${v.name}：${v.classes || '—'}`).join('；')}</span>}
+      {c.note && <span className="hint hz-var">{c.note}</span>}
+    </div>
+  );
+}
+
+function HazardCard({ a }: { a: Extract<ToolArtifact, { kind: 'hazard' }> }) {
+  return (
+    <section className="tool-card">
+      <div className="tool-card-hd">
+        <span className="tool-ic hz" aria-hidden="true"><Icon name="shield" size={15} /></span>
+        <b>国家目录</b>
+        <span className="hint">本地数据：重点监管危险化工工艺、危险化学品目录（2015 版）及分类信息表、易制爆、易制毒</span>
+      </div>
+      <div className="tool-card-body">
+        {a.processes.map((p) => <HzProcess key={p.no} p={p} />)}
+        {a.chemicals.length > 0 && <div className="hz-chems">{a.chemicals.map((c) => <HzChem key={c.query} c={c} />)}</div>}
+      </div>
     </section>
   );
 }
@@ -289,6 +356,7 @@ export function ArtifactCards({ items, onSend }: { items: ToolArtifact[]; onSend
         switch (a.kind) {
           case 'calc': return <CalcCard key={i} a={a} />;
           case 'chem': return <ChemCard key={i} a={a} />;
+          case 'hazard': return <HazardCard key={i} a={a} />;
           case 'memory': return <MemoryPill key={i} a={a} />;
           case 'form': return <FormCard key={i} a={a} onSend={onSend} />;
           case 'lit': return <LitCard key={i} a={a} />;

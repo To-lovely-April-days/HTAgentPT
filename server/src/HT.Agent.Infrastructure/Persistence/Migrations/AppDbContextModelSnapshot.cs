@@ -814,6 +814,58 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                     b.ToTable("company");
                 });
 
+            modelBuilder.Entity("HT.Agent.Domain.Entities.ControlledChemical", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Cas")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("cas");
+
+                    b.Property<string>("Category")
+                        .HasColumnType("text")
+                        .HasColumnName("category");
+
+                    b.Property<string>("List")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("list");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("No")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("no");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_controlled_chemical");
+
+                    b.HasIndex("List", "No")
+                        .IsUnique()
+                        .HasDatabaseName("ix_controlled_chemical_list_no");
+
+                    b.ToTable("controlled_chemical");
+                });
+
             modelBuilder.Entity("HT.Agent.Domain.Entities.CustomerDevice", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1630,6 +1682,154 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_generation_session_template_id");
 
                     b.ToTable("generation_session");
+                });
+
+            modelBuilder.Entity("HT.Agent.Domain.Entities.HazardChemical", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Aliases")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("aliases");
+
+                    b.Property<string>("Cas")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("cas");
+
+                    b.Property<string>("Classes")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("classes");
+
+                    b.Property<string>("English")
+                        .HasColumnType("text")
+                        .HasColumnName("english");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("text")
+                        .HasColumnName("note");
+
+                    b.Property<int>("Seq")
+                        .HasColumnType("integer")
+                        .HasColumnName("seq");
+
+                    b.Property<bool>("Sub")
+                        .HasColumnType("boolean")
+                        .HasColumnName("sub");
+
+                    b.Property<bool>("Toxic")
+                        .HasColumnType("boolean")
+                        .HasColumnName("toxic");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_hazard_chemical");
+
+                    b.HasIndex("Cas")
+                        .HasDatabaseName("ix_hazard_chemical_cas");
+
+                    b.HasIndex("Seq")
+                        .HasDatabaseName("ix_hazard_chemical_seq");
+
+                    b.ToTable("hazard_chemical");
+                });
+
+            modelBuilder.Entity("HT.Agent.Domain.Entities.HazardProcess", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Controls")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("controls");
+
+                    b.Property<string>("Hazards")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("hazards");
+
+                    b.Property<string>("Intro")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("intro");
+
+                    b.Property<string>("MonitorUnits")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("monitor_units");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("No")
+                        .HasColumnType("integer")
+                        .HasColumnName("no");
+
+                    b.Property<string>("Params")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("params");
+
+                    b.Property<string>("ReactionType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reaction_type");
+
+                    b.Property<string>("Requirements")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("requirements");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("source");
+
+                    b.Property<string>("Typical")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("typical");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_hazard_process");
+
+                    b.HasIndex("No")
+                        .IsUnique()
+                        .HasDatabaseName("ix_hazard_process_no");
+
+                    b.ToTable("hazard_process");
                 });
 
             modelBuilder.Entity("HT.Agent.Domain.Entities.KnowledgeBase", b =>

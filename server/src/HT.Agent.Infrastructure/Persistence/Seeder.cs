@@ -127,6 +127,7 @@ public static class Seeder
             await EnsurePurchasingAsync(db, ct);
             await EnsureSkillsAsync(db, ct);
             await EnsureProfileAsync(db, ct);
+            await EnsureHazardDataAsync(db, ct);
             return;
         }
 
@@ -259,5 +260,63 @@ public static class Seeder
         await db.SaveChangesAsync(ct);
         await EnsureSkillsAsync(db, ct);
         await EnsureTermsAsync(db, ct);
+        await EnsureHazardDataAsync(db, ct);
+    }
+
+    private static System.Text.Json.JsonElement HazardJson(string name)
+    {
+        using var st = typeof(Seeder).Assembly.GetManifestResourceStream($"hazard/{name}.json")
+                       ?? throw new InvalidOperationException($"缺少内置数据 hazard/{name}.json");
+        using var doc = System.Text.Json.JsonDocument.Parse(st);
+        return doc.RootElement.Clone();
+    }
+
+    /// <summary>国家公布的目录放进库里：没有的条目补上；系统自带、没人改过的条目内容和这版不同就换成这版；后台改过的一律不动。</summary>
+    public static async Task EnsureHazardDataAsync(AppDbContext db, CancellationToken ct)
+    {
+        static string? Str(System.Text.Json.JsonElement e, string k) => e.TryGetProperty(k, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : null;
+        var now = DateTimeOffset.UtcNow;
+
+        var pj = HazardJson("processes");
+        var src = Str(pj, "source") ?? "重点监管危险化工工艺目录";
+        var procs = await db.HazardProcesses.ToDictionaryAsync(x => x.No, ct);
+        foreach (var it in pj.GetProperty("items").EnumerateArray())
+        {
+            var no = it.GetProperty("no").GetInt32();
+            if (!procs.TryGetValue(no, out var p))
+            {
+                p = new HazardProcess { Id = Guid.NewGuid(), No = no, Name = Str(it, "name")!, Source = src };
+                db.HazardProcesses.Add(p);
+            }
+            else if (p.UpdatedById is not null) continue;
+            p.Name = Str(it, "name")!; p.ReactionType = Str(it, "reactionType") ?? ""; p.MonitorUnits = Str(it, "monitorUnits") ?? "";
+            p.Intro = Str(it, "intro") ?? ""; p.Hazards = Str(it, "hazards") ?? ""; p.Typical = Str(it, "typical") ?? "";
+            p.Params = Str(it, "params") ?? ""; p.Requirements = Str(it, "requirements") ?? ""; p.Controls = Str(it, "controls") ?? ""; p.Source = src;
+            if (db.Entry(p).State is EntityState.Added or EntityState.Modified) p.UpdatedAt = now;
+        }
+
+        // 化学品几千条：表是空的才整份导入；以后目录调整走后台修改或新版数据
+        if (!await db.HazardChemicals.AnyAsync(ct))
+        {
+            foreach (var it in HazardJson("chemicals").GetProperty("items").EnumerateArray())
+                db.HazardChemicals.Add(new HazardChemical
+                {
+                    Id = Guid.NewGuid(), Seq = it.GetProperty("seq").GetInt32(), Sub = it.GetProperty("sub").GetBoolean(), Name = Str(it, "name")!,
+                    Aliases = string.Join("；", it.GetProperty("aliases").EnumerateArray().Select(a => a.GetString())),
+                    English = Str(it, "en"), Cas = Str(it, "cas"),
+                    Classes = string.Join("\n", it.GetProperty("classes").EnumerateArray().Select(a => a.GetString())),
+                    Toxic = it.GetProperty("toxic").GetBoolean(), Note = Str(it, "changed"), UpdatedAt = now,
+                });
+        }
+        if (!await db.ControlledChemicals.AnyAsync(ct))
+        {
+            foreach (var it in HazardJson("precursors").GetProperty("items").EnumerateArray())
+                db.ControlledChemicals.Add(new ControlledChemical
+                {
+                    Id = Guid.NewGuid(), List = Str(it, "list")!, No = Str(it, "no")!, Name = Str(it, "name")!, Cas = Str(it, "cas"),
+                    Category = Str(it, "cls"), UpdatedAt = now,
+                });
+        }
+        if (db.ChangeTracker.HasChanges()) await db.SaveChangesAsync(ct);
     }
 }

@@ -103,6 +103,7 @@ public static class DependencyInjection
         services.AddSingleton<OfficeCheckClient>();
         services.AddSingleton<BrowserClient>();
         services.AddSingleton<BrowserActivity>();
+        services.AddScoped<HazardCatalog>();
         services.AddSingleton<PubChemClient>();
         services.AddSingleton<SearxClient>();
         services.AddSingleton<WebFetcher>();
