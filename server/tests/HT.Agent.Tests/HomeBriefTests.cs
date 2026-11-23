@@ -77,4 +77,21 @@ public class HomeBriefTests
         Assert.Contains("不要编造", p);
         Assert.Contains("星期五", p);
     }
+
+    [Fact]
+    public void Picks_come_from_memories_and_need_a_prompt()
+    {
+        const string raw = """{"picks":[{"title":"哈氏合金在含氯介质里的点蚀","why":"你在跟华东理工","prompt":"哈氏 C276 在含氯介质里会点蚀吗？"},{"title":"没有问题的","why":"x"},{"title":"哈氏合金在含氯介质里的点蚀","why":"重复","prompt":"再问"}]}""";
+        var r = HomeBrief.Parse(raw, Ctx());
+        var pick = Assert.Single(r.Picks!);
+        Assert.Equal("哈氏 C276 在含氯介质里会点蚀吗？", pick.Prompt);
+    }
+
+    [Fact]
+    public void No_memories_and_no_history_means_no_picks()
+    {
+        var ctx = new HomeBrief.Context("张工", "售前工程师", null, DateTimeOffset.Now, [], [], [], 0);
+        var r = HomeBrief.Parse("""{"picks":[{"title":"瞎猜的","why":"?","prompt":"问点啥"}]}""", ctx);
+        Assert.Empty(r.Picks!);
+    }
 }

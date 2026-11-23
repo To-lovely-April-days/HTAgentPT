@@ -31,6 +31,7 @@ public class HomeController(HomeService home) : ControllerBase
             },
             work = b.Work.Select(w => new { w.Id, w.Emoji, w.Title, w.Badge, w.Tone, w.Detail, w.Action, w.Prompt }),
             quiet = b.Quiet,
+            picks = (b.Picks ?? []).Select(p => new { p.Title, p.Why, p.Prompt }),
             recent = t.Recent,
             offWork = t.OffWork,
             refreshLeft = t.RefreshLeft,

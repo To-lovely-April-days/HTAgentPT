@@ -23,7 +23,10 @@ public static class HomeBrief
     public record Number(string Value, string Text);
     public record Fun(Knowledge? Knowledge, Quiz? Quiz, History? History, Number? Number);
 
-    public record Result(Dictionary<string, Line> Lines, Fun Fun, List<Work> Work, List<string> Quiet, bool Generated);
+    /// <summary>「猜你感兴趣」：按长期记忆和最近问的推荐的一个话题；Why 说依据，Prompt 是点了替他问的话。</summary>
+    public record Pick(string Title, string Why, string Prompt);
+
+    public record Result(Dictionary<string, Line> Lines, Fun Fun, List<Work> Work, List<string> Quiet, bool Generated, List<Pick>? Picks = null);
 
     public static readonly string[] Slots = ["morning", "noon", "afternoon", "evening", "late", "friday"];
 
@@ -65,9 +68,12 @@ public static class HomeBrief
               "history": {"year": "年份，如 1913", "text": "化工史上的一件事（≤40字）"},
               "number": {"value": "一个数字，如 1.25×、6.022×10²³、1450 ℃", "text": "这个数字是什么（≤40字）"},
               "work": [{"id": "上面的编号", "title": "一句话标题（≤24字）", "detail": "对他的影响或细节（≤36字）", "action": "按钮上的 2–4 个字", "prompt": "点按钮后替他发给助手的完整问题"}],
-              "quiet": ["没有正事时，可以问的 3 个问题（按他的角色和最近的工作写，每个 ≤30 字）"]
+              "quiet": ["没有正事时，可以问的 3 个问题（按他的角色和最近的工作写，每个 ≤30 字）"],
+              "picks": [{"title": "猜他感兴趣的一个话题（≤22字）", "why": "为什么推荐给他（≤20字，点明依据哪条记忆或最近问的）", "prompt": "点了替他发给助手的完整问题"}]
             }
             work 只从上面的编号里挑最要紧的，最多 3 件，没有就给空数组。
+            picks 按他的长期记忆和最近问过的，推荐 3 个他可能想深入了解的话题：他关心的设备、材料、工艺、标准、客户行业里值得一问的东西，要具体，别和最近问过的重复；
+            没有长期记忆也没有最近问过的，picks 给空数组，不要瞎猜。
             """);
         return sb.ToString();
     }
@@ -122,7 +128,17 @@ public static class HomeBrief
             ? new History(Clip(ho["year"]?.ToString(), 8), ht) : null;
         Number? num = o["number"] is JsonObject no && Clip(no["value"]?.ToString(), 16) is { Length: > 0 } nv
             ? new Number(nv, Clip(no["text"]?.ToString(), 70)) : null;
-        return new Result(lines, new Fun(kn, quiz, hist, num), work, quiet.Count > 0 ? quiet : fb.Quiet, true);
+        var picks = new List<Pick>();
+        if (c.Memories.Count > 0 || c.RecentQuestions.Count > 0)
+            foreach (var p in (o["picks"] as JsonArray ?? []).OfType<JsonObject>())
+            {
+                if (picks.Count >= 3) break;
+                var t = Clip(p["title"]?.ToString(), 40);
+                var q = Clip(p["prompt"]?.ToString(), 200);
+                if (t.Length == 0 || q.Length == 0 || picks.Any(x => x.Title == t)) continue;
+                picks.Add(new Pick(t, Clip(p["why"]?.ToString(), 40), q));
+            }
+        return new Result(lines, new Fun(kn, quiz, hist, num), work, quiet.Count > 0 ? quiet : fb.Quiet, true, picks);
     }
 
     /// <summary>模型连不上时：系统写的平实台词，正事按候选顺序取前 3 件。不放假的示例问题。</summary>

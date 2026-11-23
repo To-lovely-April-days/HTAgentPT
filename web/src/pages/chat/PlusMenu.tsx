@@ -12,6 +12,8 @@ export interface PlusProps {
   plugins?: { list: PluginRow[]; off: string[]; onToggle: (code: string) => void };
   /** 管理员：去后台管工具和技能 */
   onManage?: () => void;
+  /** 记忆：助手记住这个人的偏好、在跟的事，首页按它推荐；默认开着，这里一点就关 */
+  memory?: { on: boolean; onToggle: () => void };
   scope?: { value: Scope; options: ScopeOptions; onChange: (s: Scope) => void };
   project?: { list: ProjectRow[]; value: string | null; onChange: (id: string | null) => void; onNew: () => void };
   /** PPT 模板：点了打开选择窗（网格看封面，菜单里放不下） */
@@ -20,7 +22,7 @@ export interface PlusProps {
 
 type View = 'main' | 'plugin' | 'scope' | 'project';
 
-export function PlusMenu({ onUpload, skills, plugins, onManage, scope, project, ppt }: PlusProps) {
+export function PlusMenu({ onUpload, skills, plugins, onManage, memory, scope, project, ppt }: PlusProps) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<View>('main');
   const [q, setQ] = useState('');
@@ -42,7 +44,7 @@ export function PlusMenu({ onUpload, skills, plugins, onManage, scope, project, 
   const hasPlugin = !!skills?.list.length || !!plugins?.list.length;
   const offCount = plugins ? plugins.list.filter((p) => plugins.off.includes(p.code)).length : 0;
 
-  if (!onUpload && !hasPlugin && !scope && !project && !ppt) return null;
+  if (!onUpload && !hasPlugin && !scope && !project && !ppt && !memory) return null;
   const cur = project?.list.find((p) => p.id === project.value);
   const back = (title: string) => (
     <button type="button" className="pm-back" onClick={() => setView('main')}><Icon name="left" size={14} />{title}</button>
@@ -88,6 +90,16 @@ export function PlusMenu({ onUpload, skills, plugins, onManage, scope, project, 
                   <div className="pm-sep" />
                   <button type="button" role="menuitem" className="pm-i" onClick={() => setView('project')}>
                     <Icon name="box" size={15} /><span className="pm-t">放进项目<small>{cur ? cur.name : '现在不在项目里'}</small></span><Icon name="right" size={13} className="pm-r" />
+                  </button>
+                </>
+              )}
+              {memory && (
+                <>
+                  <div className="pm-sep" />
+                  <button type="button" role="menuitemcheckbox" aria-checked={memory.on} className="pm-i" onClick={memory.onToggle}
+                    title="助手记住你的偏好和在跟的事，回答和首页推荐都会参考；在「个人中心」里能看、能改、能删">
+                    <Icon name="brain" size={15} /><span className="pm-t">记忆<small>{memory.on ? '开着 · 首页按它推荐' : '关着'}</small></span>
+                    {memory.on && <Icon name="check" size={15} stroke={2.2} className="pm-r pm-on" />}
                   </button>
                 </>
               )}

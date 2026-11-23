@@ -33,7 +33,10 @@ public class HomeService(AppDbContext db, ICurrentUser me, IRuntimeConfig config
     {
         var now = Now;
         var day = now.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
-        var key = $"home:{me.UserId}:{day}";
+        var user = await db.Users.AsNoTracking().Where(u => u.Id == me.UserId)
+            .Select(u => new { u.DisplayName, u.Department, u.MemoryOff, Role = u.Role != null ? u.Role.Name : null }).FirstOrDefaultAsync(ct);
+        // 记忆开关变了，首页那份（按记忆推荐的）也换一份
+        var key = $"home:{me.UserId}:{day}:{(user?.MemoryOff == true ? "m0" : "m1")}";
         var rkey = $"home-refresh:{me.UserId}:{day}";
         var used = cache.Get<int?>(rkey) ?? 0;
         if (refresh && used < MaxRefresh)
@@ -43,8 +46,6 @@ public class HomeService(AppDbContext db, ICurrentUser me, IRuntimeConfig config
             used++;
         }
 
-        var user = await db.Users.AsNoTracking().Where(u => u.Id == me.UserId)
-            .Select(u => new { u.DisplayName, u.Department, u.MemoryOff, Role = u.Role != null ? u.Role.Name : null }).FirstOrDefaultAsync(ct);
         var name = user?.DisplayName ?? me.Username;
         var drafts = me.Permissions.Contains(PermissionKeys.Generate)
             ? await db.GenerationSessions.CountAsync(x => x.CreatedById == me.UserId && x.Status == GenerationStatus.Draft, ct) : 0;

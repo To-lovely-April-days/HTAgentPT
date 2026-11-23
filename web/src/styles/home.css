@@ -140,3 +140,4 @@
   .hm-title { font-size: 26px; }
 }
 @media (prefers-reduced-motion: reduce) { .hm-skel i { animation: none; } }
+.hm-row + .hm-sec-hd, .hm-quiet + .hm-sec-hd { margin-top: 16px; }

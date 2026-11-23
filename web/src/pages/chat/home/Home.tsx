@@ -17,6 +17,8 @@ export interface HomeToday {
     number: { value: string; text: string } | null;
   };
   work: WorkItem[]; quiet: string[]; recent: string[]; offWork: string; refreshLeft: number; generated: boolean;
+  /** 猜你感兴趣：按记忆和最近问的推荐的话题（记忆关了、什么都没有时为空） */
+  picks?: { title: string; why: string; prompt: string }[];
   /** 模型还在后台写，这次先给的系统台词；过几秒再取 */
   pending: boolean;
 }
@@ -191,6 +193,20 @@ export function Home({ fallbackName, composer, resume, onPick, drafts, onDrafts 
             <span id="hm-work-t">今天没有跟你有关的新变动，可以问问这些：</span>
             {data.quiet.map((x) => <button key={x} type="button" onClick={() => onPick(x)}><Icon name="forward" size={13} className="gi l" />{x}</button>)}
           </div>
+        )}
+        {(data?.picks?.length ?? 0) > 0 && (
+          <>
+            <div className="hm-sec-hd"><b><Icon name="brain" size={14} className="gi l" />猜你感兴趣</b><span>按你的记忆和最近问的推荐</span></div>
+            {data!.picks!.map((p) => (
+              <button key={p.title} type="button" className="hm-row" onClick={() => onPick(p.prompt)}>
+                <span className="hm-row-m">
+                  <span className="hm-row-t"><b>{p.title}</b></span>
+                  {p.why && <span className="hm-row-d">{p.why}</span>}
+                </span>
+                <span className="hm-row-a">问问看</span>
+              </button>
+            ))}
+          </>
         )}
         {drafts > 0 && <button type="button" className="hm-more" onClick={onDrafts}>还有 {drafts} 份文档没填完 · <b>去看看<Icon name="forward" size={13} className="gi" /></b></button>}
         {resume}

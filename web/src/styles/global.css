@@ -221,6 +221,7 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .pm-t small { font-size: 11.5px; color: var(--ink-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pm-k { font-size: 11px; color: var(--ink-4); white-space: nowrap; }
 .pm-r { flex: 0 0 auto; color: var(--ink-4); }
+.pm-r.pm-on { color: #2f6fd6; }
 .pm-sep { height: 1px; margin: 4px 6px; background: var(--line-soft); flex: 0 0 auto; }
 .pm-back { display: flex; align-items: center; gap: 6px; border: none; background: none; padding: 6px 8px; font: inherit; font-size: 12.5px;
   font-weight: 600; color: var(--ink-2); cursor: pointer; border-radius: 6px; align-self: flex-start; }

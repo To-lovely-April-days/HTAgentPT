@@ -236,6 +236,15 @@ export default function ChatPage() {
   const seq = useRef(0);
   const nav = useNavigate();
   const qc = useQueryClient();
+  // 记忆：默认开着；「＋」里一点就关、再点就开，和个人中心的开关是同一个
+  const mem = useQuery({ queryKey: ['my-memories'], staleTime: 60_000, retry: false,
+    queryFn: () => get<{ globalOn: boolean; enabled: boolean }>('/api/profile/memories') });
+  const toggleMemory = useCallback(async () => {
+    if (!mem.data) return;
+    try { await put('/api/profile/memories/enabled', { enabled: !mem.data.enabled }); } catch { /* 下面重取，显示实际状态 */ }
+    void qc.invalidateQueries({ queryKey: ['my-memories'] });
+    void qc.invalidateQueries({ queryKey: ['home-today'] });
+  }, [mem.data, qc]);
   const sessions = useQuery({ queryKey: ['qa-sessions'], queryFn: () => get<QaSessionRow[]>('/api/qa-sessions') });
 
   const newId = () => `m${++seq.current}-${Date.now()}`;
@@ -557,6 +566,7 @@ export default function ChatPage() {
     skills: skills.data?.length ? { list: skills.data, value: skill, onChange: (s) => { setSkill(s); if (s?.ppt && pptList.data?.length) setPptPick(true); } } : undefined,
     plugins: plugins.data?.length ? { list: plugins.data, off, onToggle: toggleOff } : undefined,
     onManage: profile?.roleCode === 'admin' ? () => nav('/admin/skills') : undefined,
+    memory: mem.data?.globalOn ? { on: mem.data.enabled, onToggle: () => void toggleMemory() } : undefined,
     scope: canScope ? { value: scope, options: scopeOptions, onChange: setScope } : undefined,
     project: { list: projects.data ?? [], value: projectId, onChange: (pid) => void moveProject(pid), onNew: () => setProjectDlg('here') },
     ppt: pptList.data?.length ? { value: ppt?.name ?? null, onOpen: () => setPptPick(true) } : undefined,
