@@ -181,6 +181,44 @@ public class AssistantLoopTests
     }
 
     [Fact]
+    public async Task Unfinished_plan_nudges_the_model_to_keep_going()
+    {
+        // 模型做完第一步就说「接下来我将……」想收尾：提醒它一次，它接着调工具做完，再回答
+        var model = new ScriptedModel(
+            new ToolRoundResult("", [new ToolCall("c1", "search_documents", "{}")], "tool_calls"),
+            new ToolRoundResult("接下来我将列大纲。", [], "stop"),
+            new ToolRoundResult("", [new ToolCall("c2", "search_documents", "{}")], "tool_calls"),
+            new ToolRoundResult("都做完了。", [], "stop"));
+        var left = 2;
+        var msgs = new List<AgentMessage> { new("user", "q") };
+        var r = await new AssistantLoop(model, new AssistantLoopOptions()).RunAsync(msgs, Tools,
+            (_, _) => { left--; return Task.FromResult(new ToolOutcome("x", "x", "搜索资料", "", null)); },
+            _ => Task.CompletedTask, CancellationToken.None,
+            continueHint: () => left > 0 ? "还有没做完的" : null);
+        Assert.Equal("都做完了。", r.Answer);
+        Assert.Equal(2, r.Steps.Count);
+        Assert.Contains(msgs, m => m.Role == "user" && m.Content == "还有没做完的");
+    }
+
+    [Theory]
+    [InlineData("<html><title>WTS-WAF拦截详情</title><body><h1>出现该页面的原因：</h1><p>1.你的请求是黑客攻击</p></body></html>", true)]
+    [InlineData("<html><title>反应釜选型</title><body><p>高压反应釜由釜体、搅拌、加热组成，防火墙一词与此无关。</p></body></html>", false)]
+    public void Recognizes_waf_block_pages(string html, bool blocked)
+        => Assert.Equal(blocked, HT.Agent.Infrastructure.Clients.WebFetcher.BlockPage(html));
+
+    [Fact]
+    public async Task Nudges_are_capped()
+    {
+        var model = new ScriptedModel(
+            new ToolRoundResult("a", [], "stop"), new ToolRoundResult("b", [], "stop"), new ToolRoundResult("c", [], "stop"));
+        var r = await new AssistantLoop(model, new AssistantLoopOptions()).RunAsync([new("user", "q")], Tools,
+            (_, _) => Task.FromResult(new ToolOutcome("x", "x", "", "", null)), _ => Task.CompletedTask, CancellationToken.None,
+            continueHint: () => "还有");
+        Assert.Equal("c", r.Answer);
+        Assert.Equal(AssistantLoop.MaxNudges + 1, r.Rounds);
+    }
+
+    [Fact]
     public async Task Tool_errors_go_back_to_the_model_instead_of_failing()
     {
         var model = new ScriptedModel(

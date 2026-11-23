@@ -170,7 +170,8 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
     if (extra.length > 0) onAdopt(extra);
   }, [state.data, tabs, onAdopt]);
 
-  const readUrl = tab && mode === 'reader' ? tab.url : null;
+  // 原网页模式也要这份结果：靠它判断网站让不让嵌入（同一个缓存，不多抓）
+  const readUrl = tab && mode !== 'live' ? tab.url : null;
   const q = useQuery({
     queryKey: ['web-read', readUrl], enabled: !!readUrl && caps.web, staleTime: 10 * 60_000, retry: false,
     queryFn: () => get<ReadResult>(`/api/web/read?url=${encodeURIComponent(readUrl!)}`),
@@ -377,8 +378,12 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
             </div>
           ) : (
             <div className="wb-orig">
-              <div className="pv-note">原网页由你的电脑直接打开（隔离运行）；电脑上不了外网时会是空白，可以切回阅读模式。</div>
-              <iframe title={`原网页：${host}`} src={url} sandbox="allow-scripts allow-forms allow-popups allow-same-origin" referrerPolicy="no-referrer" />
+              <div className="pv-note">原网页由你的电脑直接打开（隔离运行）；空白或被网站拦截（有的网站不让嵌在别的页面里看）时，切回阅读模式，或
+                <button type="button" className="pv-note-link" onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}>新窗口打开</button>。</div>
+              {/* 带上来源（只有本站域名）、允许网站在用户点了之后用自己的 cookie：不少网站防火墙见到无来源、拿不到 cookie 的嵌入请求就当攻击拦掉 */}
+              <iframe title={`原网页：${host}`} src={url}
+                sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-storage-access-by-user-activation"
+                referrerPolicy="strict-origin-when-cross-origin" />
             </div>
           )
         ) : q.isPending ? (

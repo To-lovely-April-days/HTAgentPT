@@ -31,9 +31,14 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         IReadOnlyList<ToolSpec> tools,
         Func<ToolCall, CancellationToken, Task<ToolOutcome>> execute,
         Func<QaEvent, Task> emit,
-        CancellationToken ct)
+        CancellationToken ct,
+        Func<string?>? continueHint = null,
+        Func<int>? bonusRounds = null)
     {
+        // continueHint：模型不调工具、要收尾时问一句「还有没做完的吗」——有就把这句话交回去让它接着做（最多 MaxNudges 次）。
+        // bonusRounds：额外放宽的回合数（列了 N 步计划的，多给 N 回合，免得计划做到一半回合数先用完）。
         var steps = new List<StepRecord>();
+        var nudges = 0;
         var compacts = new Dictionary<int, string>(); // messages 下标 → 短版
         var stepNo = 0;
         var reasoning = new System.Text.StringBuilder();
@@ -41,7 +46,7 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         for (var round = 1; ; round++)
         {
             var toolChars = ToolChars(tools);   // 工具按需加载：中途加载了专用工具，下一轮的工具清单就变长了
-            var allowTools = round <= options.MaxRounds && tools.Count > 0;
+            var allowTools = round <= options.MaxRounds + Math.Max(0, bonusRounds?.Invoke() ?? 0) && tools.Count > 0;
             var streamed = false;
             var result = await client.RunRoundAsync(messages, tools,
                 new ToolRoundOptions(allowTools, options.Think, RoundMaxTokens(messages, allowTools ? toolChars : 0, options), options.Temperature,
@@ -61,6 +66,16 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
                 // 有的解析器在流式下把工具调用原样吐成文字：认出来照样执行
                 var parsed = ToolCallTextParser.Parse(content);
                 if (parsed.Calls.Count > 0) { calls = parsed.Calls; content = parsed.Rest; }
+            }
+
+            if (calls.Count == 0 && allowTools && nudges < MaxNudges && continueHint?.Invoke() is { Length: > 0 } hint)
+            {
+                // 本地模型常见：说一句「接下来我将……」就停了，计划后面几步没做。把它说的留在上下文里，提醒它接着做
+                nudges++;
+                if (streamed) await emit(new QaEvent("replace", new { text = "" }));
+                messages.Add(new AgentMessage("assistant", StripThinking(content)));
+                messages.Add(new AgentMessage("user", hint));
+                continue;
             }
 
             if (calls.Count == 0)
@@ -104,6 +119,9 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
                 return new LoopResult("", round, steps, false, pausedOn, Reasoning: Clip(reasoning.ToString(), MaxReasoning), ThinkSeconds: thinkSeconds);
         }
     }
+
+    /// <summary>模型想收尾、但还有没做完的事时，最多提醒几次。</summary>
+    public const int MaxNudges = 2;
 
     /// <summary>界面上「看思路」最多留多少字。</summary>
     public const int MaxReasoning = 6000;

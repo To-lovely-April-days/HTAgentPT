@@ -308,9 +308,20 @@ public class WebFetcher(IHttpClientFactory http)
             if (!(type.Contains("html") || type.StartsWith("text/") || type.Length == 0))
                 return new Raw(uri, "", type, embeddable, $"这个链接不是网页（{type}），读不了");
             var bytes = await ReadCappedAsync(await resp.Content.ReadAsStreamAsync(ct), 3 * 1024 * 1024, ct);
-            return new Raw(uri, Decode(bytes, resp.Content.Headers.ContentType?.CharSet), type, embeddable, null);
+            var html = Decode(bytes, resp.Content.Headers.ContentType?.CharSet);
+            if (BlockPage(html)) return new Raw(uri, "", type, embeddable, "网站的防火墙把这次访问拦下了（回的是拦截页，不是正文），可以在新窗口打开原网页看");
+            return new Raw(uri, html, type, embeddable, null);
         }
         throw new InvalidOperationException("网页跳转次数太多");
+    }
+
+    /// <summary>网站防火墙的拦截页（状态码常常还是 200）：页面很短、写着拦截。不当正文读，免得把「你的请求是黑客攻击」当网页内容给模型和用户。</summary>
+    public static bool BlockPage(string html)
+    {
+        if (html.Length > 20000) return false;
+        var text = Regex.Replace(html, "<[^>]+>", " ");
+        return Regex.IsMatch(text, @"WAF|防火墙|安全狗|云防护|Web应用防护", RegexOptions.IgnoreCase)
+            && Regex.IsMatch(text, @"拦截|阻断|攻击|访问被拒绝|非法请求");
     }
 
     private static bool Embeddable(HttpResponseMessage resp)

@@ -145,6 +145,13 @@ export default function ChatPage() {
   const [panel, setPanel] = useState<Panel | null>(null);
   const [webTabs, setWebTabs] = useState<WebTab[]>([]);
   const [webActive, setWebActive] = useState(0);
+  // 助手联网时自动开右侧网页；人正在看文件、文档、网页预览之类别的东西时不抢
+  const panelRef = useRef(panel);
+  useEffect(() => { panelRef.current = panel; }, [panel]);
+  const autoWeb = (url: string, title?: string) => {
+    if (panelRef.current && panelRef.current.kind !== 'web') return;
+    openPreview({ kind: 'web', url, title });
+  };
   const openPreview = useCallback((item: PreviewItem) => {
     if (item.kind === 'web') {
       setWebTabs((tabs) => {
@@ -311,6 +318,12 @@ export default function ChatPage() {
             break;
           case 'artifact':
             setMsgs((x) => x.map((m) => (m.id === id ? { ...m, artifacts: [...(m.artifacts ?? []), ev.payload as ToolArtifact] } : m)));
+            // 助手读了网页：右侧跟着打开（阅读模式）
+            if (p.kind === 'webpage' && typeof p.url === 'string') autoWeb(p.url, p.title as string | undefined);
+            break;
+          case 'websearch':
+            // 助手联网搜索了：右侧打开排第一的结果
+            if (typeof p.url === 'string') autoWeb(p.url, p.title as string | undefined);
             break;
           case 'done': {
             patch(id, { seconds: (Date.now() - started) / 1000, ...(typeof p.messageId === 'string' ? { messageId: p.messageId } : {}) });

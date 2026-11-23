@@ -372,7 +372,14 @@ public sealed class AssistantService(
                         return;
                     }
                     await emit(e);
-                }, ct);
+                }, ct,
+                // 列了计划、还有步骤没做完就想收尾：提醒它接着做，或者明确标 skip 说明为什么不做
+                continueHint: () => run.Plan.Items.Count > 0 && !run.Plan.Finished && run.Plan.Items.Where(i => i.Status == "todo").Select(i => i.Title).ToList() is { Count: > 0 } left
+                    ? $"计划里还有没做完的步骤：{string.Join("、", left)}。请接着做下一步（先用 plan 把它标 now 再去做）；"
+                      + (enabled.Contains("ask_user") ? "要用户确认的用 ask_user 问；" : "")
+                      + "确实不用做的，用 plan 标 skip 并在 note 写原因，然后再写最终回答。"
+                    : null,
+                bonusRounds: () => run.Plan.Items.Count);
             }
             catch (ToolCallingUnavailableException)
             {
@@ -1719,6 +1726,8 @@ public sealed class AssistantService(
                     compact.AppendLine($"[{e.N}] {h.Title}（{h.Url}）");
                 }
                 run.Searches.Add(q);
+                // 右侧面板跟着打开排第一的结果（阅读模式），让人看到助手在看什么
+                await emit(new QaEvent("websearch", new { query = q, url = hits[0].Url, title = hits[0].Title }));
                 return new ToolOutcome(sb.ToString(), "（较早的搜索结果）\n" + compact, label, q + (changed ? "（已隐去内部信息）" : ""), $"{hits.Count} 条");
             }
             case "fetch_url":
