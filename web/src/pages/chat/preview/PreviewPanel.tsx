@@ -65,7 +65,7 @@ export function PreviewPanel({ panel, htmlVersions, webTabs, webActive, sessionI
   const [wide, setWide] = useState(false);
   return (
     <aside className={'pv' + (wide ? ' wide' : '')} aria-label="预览">
-      <button type="button" className="pv-grip" title={wide ? '收窄' : '放宽'} aria-label={wide ? '收窄预览' : '放宽预览'} onClick={() => setWide(!wide)}>{wide ? '›' : '‹'}</button>
+      <button type="button" className="pv-grip" title={wide ? '收窄' : '放宽'} aria-label={wide ? '收窄预览' : '放宽预览'} onClick={() => setWide(!wide)}><Icon name={wide ? 'right' : 'left'} size={14} style={{ display: 'block', margin: '0 auto' }} /></button>
       {panel.kind === 'html' && <HtmlPreview code={panel.code} versions={htmlVersions} onPick={(code) => setPanel({ kind: 'html', code })} onClose={onClose} />}
       {panel.kind === 'web' && <WebBrowser tabs={webTabs} active={webActive} sessionId={sessionId} onActivate={setWebActive} onCloseTab={closeWebTab}
         onOpen={openWeb} onSetLive={setLive} onAdopt={adoptTabs} onClose={onClose} />}

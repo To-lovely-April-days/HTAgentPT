@@ -319,8 +319,8 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
       )}
       <div className="wb-bar">
         <span className="wb-nav">
-          <button type="button" className="wb-ib" aria-label="后退" title="后退" disabled={mode !== 'live'} onClick={() => void nav('back')}><Icon name="left" size={17} /></button>
-          <button type="button" className="wb-ib" aria-label="前进" title="前进" disabled={mode !== 'live'} onClick={() => void nav('forward')}><Icon name="right" size={17} /></button>
+          <button type="button" className="wb-ib" aria-label="后退" title="后退" disabled={mode !== 'live'} onClick={() => void nav('back')}><Icon name="back" size={16} /></button>
+          <button type="button" className="wb-ib" aria-label="前进" title="前进" disabled={mode !== 'live'} onClick={() => void nav('forward')}><Icon name="forward" size={16} /></button>
           <button type="button" className="wb-ib" aria-label="刷新" title="刷新" onClick={() => void nav('reload')}><Icon name="refresh" size={15} /></button>
         </span>
         <form className="wb-addr" onSubmit={(e) => { e.preventDefault(); void submitAddr(addrValue); }}>
@@ -371,7 +371,7 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
           {found.length > 0 ? (
             <>
               <b>回答引用了这页 {found.length} 处</b>
-              {found.map((n, i) => <button key={n} type="button" onClick={() => go(n)}>{'①②③④⑤⑥⑦⑧⑨⑩'[i] ?? i + 1} {sentences[n].slice(0, 12)}… ›</button>)}
+              {found.map((n, i) => <button key={n} type="button" onClick={() => go(n)}><i className="wb-cite-n">{i + 1}</i>{sentences[n].slice(0, 12)}…<Icon name="right" size={12} /></button>)}
             </>
           ) : <b>回答用的是搜索摘要，正文里没找到原句</b>}
         </div>
