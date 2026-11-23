@@ -42,6 +42,7 @@ KB_DESC = {
     "设计手册": "设计手册、教材、产品样本、选型手册和软件用户手册。",
     "公司资料": "公司内部流程、标准目录、作业指导等资料。",
 }
+PARSE_BATCH = 50
 SUPPORTED = {".pdf", ".docx", ".docm", ".dotx", ".xlsx", ".xlsm", ".pptx", ".pptm", ".txt", ".md"}
 CUSTOMER = "通用资料"
 
@@ -214,10 +215,11 @@ def main():
             kbs[name] = api(base, "/api/kbs", token, body={"name": name, "tier": "Private", "defaultChunkStrategy": "ByHeading",
                                                            "description": KB_DESC.get(name, "")})["id"]
             print(f"新建知识库「{name}」")
-    have = {name: {d["fileName"] for d in api(base, f"/api/documents?kbId={kb_id}", token)} for name, kb_id in kbs.items()
-            if name in {x["kb"] for x in items}}
+    # 库里已有的：文件名 → (id, 解析状态)。上传了还没提交解析的（上次中途出错）这次补交
+    have = {name: {d["fileName"]: (d["id"], d.get("parseStatus")) for d in api(base, f"/api/documents?kbId={kb_id}", token)}
+            for name, kb_id in kbs.items() if name in {x["kb"] for x in items}}
 
-    total, done, skipped_n, failed, queued = len(items), 0, 0, [], 0
+    total, done, skipped_n, failed, queued, parse_failed = len(items), 0, 0, [], 0, []
     for name, xs in by_folder.items():
         uploaded = []
         for x in xs:
@@ -225,7 +227,12 @@ def main():
             tag = f"[{done}/{total}] {x['path'].name}"
             if x["path"].name in have[x["kb"]]:
                 skipped_n += 1
-                print(f"{tag} 库里已有，跳过")
+                doc_id, status = have[x["kb"]][x["path"].name]
+                if status == "NotParsed":
+                    uploaded.append(doc_id)
+                    print(f"{tag} 库里已有，还没解析，补交解析")
+                else:
+                    print(f"{tag} 库里已有，跳过")
                 continue
             body, ctype = multipart({
                 "kbId": kbs[x["kb"]], "classification": a.classification, "customerName": CUSTOMER, "year": str(x["year"]),
@@ -239,18 +246,27 @@ def main():
                 print(f"{tag} 上传失败：{e}")
                 continue
             uploaded.append(r["docId"])
-            have[x["kb"]].add(x["path"].name)
+            have[x["kb"]][x["path"].name] = (r["docId"], "NotParsed")
             print(f"{tag} 已上传（{x['size'] / 1048576:.1f} MB）→ {x['title']}")
+        n_ok = 0
+        for i in range(0, len(uploaded), PARSE_BATCH):      # 服务器一次最多收 50 份
+            batch = uploaded[i:i + PARSE_BATCH]
+            try:
+                q = api(base, "/api/documents/parse", token, body={"docIds": batch})
+                n_ok += q.get("queued", len(batch)) if isinstance(q, dict) else len(batch)
+            except ApiError as e:
+                parse_failed.append((name, len(batch), str(e)))
         if uploaded:
-            q = api(base, "/api/documents/parse", token, body={"docIds": uploaded})
-            queued += q.get("queued", len(uploaded)) if isinstance(q, dict) else len(uploaded)
-            print(f"—— 「{name}」{len(uploaded)} 份已提交解析")
+            queued += n_ok
+            print(f"—— 「{name}」{n_ok} 份已提交解析")
 
     print(f"\n上传 {done - skipped_n - len(failed)} 份，跳过 {skipped_n} 份（库里已有），失败 {len(failed)} 份；已提交解析 {queued} 份。")
+    for name, n, why in parse_failed:
+        print(f"  「{name}」有 {n} 份提交解析失败{why}；再跑一次会补交，或在后台「资料管理」里勾选后点「解析」")
     print("解析进度在后台「资料管理」里看。扫描件要逐页识别，大文件可能要几十分钟一份。")
     for p, why in failed:
         print(f"  失败 {p}：{why}")
-    if failed:
+    if failed or parse_failed:
         print("失败的可以再跑一次（已导入的会跳过）。")
         sys.exit(1)
 
