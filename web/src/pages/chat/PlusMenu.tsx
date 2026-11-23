@@ -1,22 +1,26 @@
-// 输入框左下角的「＋」：传文件、用技能、资料范围、放进项目都收在这里。
+// 输入框左下角的「＋」：传文件、插件（工具开关 + 技能）、资料范围、放进项目都收在这里。
 // 二级列表就地换掉菜单内容（上面一条「‹ 返回」），窄屏也放得下。选过的技能、资料范围在「＋」旁边以小标签出现（见 Chips）。
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../../components/Icons';
 import { projectColor, scopeLabel } from './composerUtil';
-import type { ProjectRow, Scope, ScopeOptions, SkillRow } from './composerUtil';
+import type { PluginRow, ProjectRow, Scope, ScopeOptions, SkillRow } from './composerUtil';
 
 export interface PlusProps {
   onUpload?: () => void;
   skills?: { list: SkillRow[]; value: SkillRow | null; onChange: (s: SkillRow | null) => void };
+  /** 工具开关：关掉的这个人以后提问都不给助手用（记在这台电脑上） */
+  plugins?: { list: PluginRow[]; off: string[]; onToggle: (code: string) => void };
+  /** 管理员：去后台管工具和技能 */
+  onManage?: () => void;
   scope?: { value: Scope; options: ScopeOptions; onChange: (s: Scope) => void };
   project?: { list: ProjectRow[]; value: string | null; onChange: (id: string | null) => void; onNew: () => void };
   /** PPT 模板：点了打开选择窗（网格看封面，菜单里放不下） */
   ppt?: { value: string | null; onOpen: () => void };
 }
 
-type View = 'main' | 'skill' | 'scope' | 'project';
+type View = 'main' | 'plugin' | 'scope' | 'project';
 
-export function PlusMenu({ onUpload, skills, scope, project, ppt }: PlusProps) {
+export function PlusMenu({ onUpload, skills, plugins, onManage, scope, project, ppt }: PlusProps) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<View>('main');
   const [q, setQ] = useState('');
@@ -32,15 +36,13 @@ export function PlusMenu({ onUpload, skills, scope, project, ppt }: PlusProps) {
   const toggle = () => { setOpen(!open); setView('main'); setQ(''); };
   const done = () => setOpen(false);
 
-  const groups = useMemo(() => {
-    const k = q.trim().toLowerCase();
-    const rows = (skills?.list ?? []).filter((s) => !k || s.name.toLowerCase().includes(k) || s.description.toLowerCase().includes(k) || s.category.toLowerCase().includes(k));
-    const m = new Map<string, SkillRow[]>();
-    for (const s of rows) m.set(s.category || '其他', [...(m.get(s.category || '其他') ?? []), s]);
-    return [...m.entries()];
-  }, [skills?.list, q]);
+  const k = q.trim().toLowerCase();
+  const skillRows = useMemo(() => (skills?.list ?? []).filter((s) => !k || s.name.toLowerCase().includes(k) || s.description.toLowerCase().includes(k) || s.category.toLowerCase().includes(k)), [skills?.list, k]);
+  const toolRows = useMemo(() => (plugins?.list ?? []).filter((p) => !k || p.label.toLowerCase().includes(k) || p.summary.toLowerCase().includes(k)), [plugins?.list, k]);
+  const hasPlugin = !!skills?.list.length || !!plugins?.list.length;
+  const offCount = plugins ? plugins.list.filter((p) => plugins.off.includes(p.code)).length : 0;
 
-  if (!onUpload && !skills?.list.length && !scope && !project && !ppt) return null;
+  if (!onUpload && !hasPlugin && !scope && !project && !ppt) return null;
   const cur = project?.list.find((p) => p.id === project.value);
   const back = (title: string) => (
     <button type="button" className="pm-back" onClick={() => setView('main')}><Icon name="left" size={14} />{title}</button>
@@ -49,11 +51,11 @@ export function PlusMenu({ onUpload, skills, scope, project, ppt }: PlusProps) {
   return (
     <div className="pm" ref={box}>
       <button type="button" className={'pm-btn' + (open ? ' on' : '')} aria-haspopup="menu" aria-expanded={open}
-        aria-label="更多：传文件、用技能、资料范围、放进项目" title="传文件、用技能、资料范围、放进项目" onClick={toggle}>
+        aria-label="更多：传文件、插件、资料范围、放进项目" title="传文件、插件、资料范围、放进项目" onClick={toggle}>
         <Icon name="plus" size={17} stroke={2} />
       </button>
       {open && (
-        <div className={'pm-pop' + (view === 'skill' ? ' wide' : '')} role="menu">
+        <div className={'pm-pop' + (view === 'plugin' ? ' wide' : '')} role="menu">
           {view === 'main' && (
             <>
               {onUpload && (
@@ -61,9 +63,11 @@ export function PlusMenu({ onUpload, skills, scope, project, ppt }: PlusProps) {
                   <Icon name="clip" size={15} /><span className="pm-t">上传文件</span><span className="pm-k">Word Excel PPT PDF</span>
                 </button>
               )}
-              {!!skills?.list.length && (
-                <button type="button" role="menuitem" className="pm-i" onClick={() => setView('skill')}>
-                  <Icon name="book" size={15} /><span className="pm-t">用技能{skills.value && <small>{skills.value.name}</small>}</span><Icon name="right" size={13} className="pm-r" />
+              {hasPlugin && (
+                <button type="button" role="menuitem" className="pm-i" onClick={() => setView('plugin')}>
+                  <Icon name="plug" size={15} />
+                  <span className="pm-t">插件{(skills?.value || offCount > 0) && <small>{[skills?.value?.name, offCount > 0 ? `关了 ${offCount} 个` : null].filter(Boolean).join(' · ')}</small>}</span>
+                  <Icon name="right" size={13} className="pm-r" />
                 </button>
               )}
               {ppt && (
@@ -90,28 +94,41 @@ export function PlusMenu({ onUpload, skills, scope, project, ppt }: PlusProps) {
             </>
           )}
 
-          {view === 'skill' && skills && (
+          {view === 'plugin' && (
             <>
-              {back('用技能')}
+              {back('插件')}
               <label className="pm-search"><Icon name="search" size={13} />
-                <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜技能，比如「选材」「报价」" aria-label="搜技能" />
+                <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜插件" aria-label="搜插件" />
               </label>
               <div className="pm-list sc">
-                {groups.length === 0 && <div className="pm-g">没有对得上的技能</div>}
-                {groups.map(([g, rows]) => (
-                  <div key={g}>
-                    <div className="pm-g">{g}</div>
-                    {rows.map((s) => (
-                      <button key={s.code} type="button" role="menuitemradio" aria-checked={skills.value?.code === s.code}
-                        className={'pm-sk' + (skills.value?.code === s.code ? ' on' : '')}
-                        onClick={() => { skills.onChange(skills.value?.code === s.code ? null : s); done(); }}>
-                        <b>{s.name}</b><span>{s.description}</span>
-                      </button>
-                    ))}
-                  </div>
+                {toolRows.map((p) => {
+                  const on = !plugins!.off.includes(p.code);
+                  return (
+                    <button key={p.code} type="button" role="menuitemcheckbox" aria-checked={on} className="pm-i pm-tool" title={p.summary}
+                      onClick={() => plugins!.onToggle(p.code)}>
+                      <span className="pm-t">{p.label}</span>
+                      <span className={'pm-sw' + (on ? ' on' : '')} aria-hidden="true"><i /></span>
+                    </button>
+                  );
+                })}
+                {toolRows.length > 0 && skillRows.length > 0 && <div className="pm-sep" />}
+                {skillRows.map((s) => (
+                  <button key={s.code} type="button" role="menuitemradio" aria-checked={skills!.value?.code === s.code} className="pm-i" title={s.description}
+                    onClick={() => { skills!.onChange(skills!.value?.code === s.code ? null : s); done(); }}>
+                    <Icon name="book" size={15} /><span className="pm-t">{s.name}</span>
+                    {skills!.value?.code === s.code && <Icon name="check" size={14} stroke={2.4} className="pm-r" />}
+                  </button>
                 ))}
+                {toolRows.length === 0 && skillRows.length === 0 && <div className="pm-g">没有对得上的插件</div>}
               </div>
-              <div className="pm-foot">不选也行：助手会自己判断要不要翻技能。选了只管下一问。</div>
+              {onManage && (
+                <>
+                  <div className="pm-sep" />
+                  <button type="button" role="menuitem" className="pm-i" onClick={() => { done(); onManage(); }}>
+                    <Icon name="settings" size={15} /><span className="pm-t">管理插件</span><Icon name="right" size={13} className="pm-r" />
+                  </button>
+                </>
+              )}
             </>
           )}
 

@@ -4,6 +4,8 @@
 export interface Scope { kbId: string | null; docCategory: string | null }
 export interface ScopeOptions { kbs: { id: string; name: string }[]; cats: string[] }
 export interface SkillRow { code: string; name: string; category: string; description: string }
+/** 「＋ → 插件」里的一个开关：联网搜索或一组专用工具。 */
+export interface PluginRow { code: string; label: string; summary: string }
 export interface ProjectRow { id: string; name: string; ledgerNo: string | null; updatedAt: string; count: number }
 
 export function scopeLabel(v: Scope, o: ScopeOptions): string | null {

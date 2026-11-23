@@ -236,8 +236,12 @@ public sealed class AssistantService(
         if (choice.Level != ThinkLevel.Fast && req.SkillTest is null
             && (await config.GetStringAsync(ConfigKeys.Delegate, "on", ct)).Trim().Equals("on", StringComparison.OrdinalIgnoreCase))
             ((HashSet<string>)enabled).Add("delegate");
+        // 「＋ → 插件」里关掉的：这一问不给助手（提示词里也不提）
+        var offTools = OffTools(req.Off);
+        foreach (var t in offTools) ((HashSet<string>)enabled).Remove(t);
         var tools = BuildTools(canDocs, canProjects, attachmentFiles.Count > 0, enabled, fileKinds, delegateMax);
         if (enabled.Contains("make_ppt")) tools.Add(MakePptTool());
+        tools.RemoveAll(t => offTools.Contains(t.Name));
         // 工具按需加载：常用的每次都带，专用的先挑出用得上的（后台可改回「全部都带」）
         var allTools = tools;
         var onDemand = !(await config.GetStringAsync(ConfigKeys.ToolLoading, "on_demand", ct)).Trim().Equals("all", StringComparison.OrdinalIgnoreCase);
@@ -1864,6 +1868,17 @@ public sealed class AssistantService(
         else if (picked is not null && skills.FirstOrDefault(s => s.Code == picked) is { } p)
             sb.AppendLine($"这一问用户点名要用技能「{p.Name}」：先用 use_skill 翻看它（代号 {p.Code}），再按它的要求回答。");
         return sb.ToString();
+    }
+
+    /// <summary>「插件」开关的代号换成工具名：web 是联网搜索和读网页，其余是专用工具组。</summary>
+    public static HashSet<string> OffTools(IEnumerable<string>? off)
+    {
+        var set = new HashSet<string>();
+        foreach (var code in off ?? [])
+            foreach (var t in code == "web" ? ["web_search", "fetch_url"] : ToolCatalog.Find(code)?.Tools ?? [])
+                set.Add(t);
+        if (set.Contains("browser_open")) set.Add("browser");
+        return set;
     }
 
     private async Task<IReadOnlySet<string>> EnabledToolsAsync(CancellationToken ct)

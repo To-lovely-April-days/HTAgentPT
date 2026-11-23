@@ -12,7 +12,7 @@ namespace HT.Agent.Api.Controllers;
 public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, IRuntimeConfig config, ILogger<ChatController> logger,
     HT.Agent.Infrastructure.Persistence.AppDbContext db, IFileStorage storage) : ControllerBase
 {
-    /// <summary>「＋ → 用技能」的清单：已启用、放进清单的、这个人的角色能用的技能，按分类。</summary>
+    /// <summary>「＋ → 插件」里的技能：已启用、放进清单的、这个人的角色能用的技能，按分类。</summary>
     [HttpGet("skills")]
     public async Task<IActionResult> Skills(CancellationToken ct)
     {
@@ -23,6 +23,27 @@ public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, 
         var internalUser = me.Permissions.Contains(PermissionKeys.QaInternal);
         return Ok(rows.Where(r => r.Roles.Count == 0 ? internalUser : r.Roles.Contains(me.RoleCode, StringComparer.OrdinalIgnoreCase))
             .Select(r => new { r.Code, r.Name, r.Category, r.Description }));
+    }
+
+    /// <summary>「＋ → 插件」里的开关：这个人能用的联网搜索和专用工具组。关掉的随提问带上 off，那一问不给助手。
+    /// 回答组件（图表、流程图这些）是回答的一部分，不算插件。</summary>
+    [HttpGet("plugins")]
+    public async Task<IActionResult> Plugins(CancellationToken ct)
+    {
+        async Task<bool> Can(string t) => await HT.Agent.Infrastructure.Services.AssistantService.ToolAllowedAsync(config, me, t, ct);
+        var list = new List<object>();
+        if (await Can("web_search")) list.Add(new { code = "web", label = "联网搜索", summary = "公司资料里没有、或问的是外面的公开信息时上网查，读网页" });
+        foreach (var g in HT.Agent.Application.Logic.ToolCatalog.Groups)
+        {
+            if (g.Code == "show_block") continue;
+            var ok = false;
+            foreach (var t in g.Tools) if (await Can(t.StartsWith("browser_") ? "browser" : t)) { ok = true; break; } // 浏览器几个工具共用一个开关
+            if (ok && g.Code == "make_ppt")
+                ok = await Can("run_python") && (await HT.Agent.Infrastructure.Services.AssistantService.FileKindsAsync(config, me, ct)).Contains("pptx")
+                    && await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(db.PptTemplates, t => t.Enabled && t.Status == "ready", ct);
+            if (ok) list.Add(new { code = g.Code, label = g.Label, summary = g.Summary });
+        }
+        return Ok(list);
     }
 
     /// <summary>下载助手做的文件（Excel、Word……）。只有让助手做文件的那个人能下；过了保留期文件就删了。</summary>
@@ -81,7 +102,7 @@ public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, 
 
     public record AskBody(Guid? SessionId, string Question, RetrievalRequest? Filters, string? ForcedIntent,
         List<Guid>? AttachmentIds = null, SkillTest? SkillTest = null, string? Level = null, string? BrowserTab = null,
-        Guid? ProjectId = null, string? Skill = null, Guid? PptTemplate = null);
+        Guid? ProjectId = null, string? Skill = null, Guid? PptTemplate = null, List<string>? Off = null);
 
     /// <summary>问答（表 8-1 POST /api/chat/completions）：SSE 流式。
     /// 事件：meta（改写与命中）→ delta*（增量）→ sources → done；或 meta → no_result。</summary>
@@ -106,7 +127,7 @@ public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, 
         var retrieval = (body.Filters ?? new RetrievalRequest(body.Question)) with { Query = body.Question };
         try
         {
-            await foreach (var ev in qa.AskStreamAsync(new QaRequest(body.SessionId, body.Question, retrieval, body.ForcedIntent, body.AttachmentIds, body.SkillTest, body.Level, BrowserTab: body.BrowserTab, ProjectId: body.ProjectId, Skill: body.Skill, PptTemplate: body.PptTemplate), ct))
+            await foreach (var ev in qa.AskStreamAsync(new QaRequest(body.SessionId, body.Question, retrieval, body.ForcedIntent, body.AttachmentIds, body.SkillTest, body.Level, BrowserTab: body.BrowserTab, ProjectId: body.ProjectId, Skill: body.Skill, PptTemplate: body.PptTemplate, Off: body.Off), ct))
             {
                 await Response.WriteAsync($"event: {ev.Kind}\n", ct);
                 await Response.WriteAsync($"data: {JsonSerializer.Serialize(ev.Payload, JsonOpts)}\n\n", ct);

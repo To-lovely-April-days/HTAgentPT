@@ -227,6 +227,18 @@ public class AssistantLoopTests
         Assert.Equal(["/img/fav.ico?v=2", "/apple.png"], HT.Agent.Infrastructure.Clients.WebFetcher.IconLinks(html));
     }
 
+    [Fact]
+    public void Plugin_switches_map_to_tool_names()
+    {
+        var off = HT.Agent.Infrastructure.Services.AssistantService.OffTools(["web", "browser", "nope"]);
+        Assert.Contains("web_search", off);
+        Assert.Contains("fetch_url", off);
+        Assert.Contains("browser_act", off);
+        Assert.Contains("browser", off);
+        Assert.DoesNotContain("search_documents", off);
+        Assert.Empty(HT.Agent.Infrastructure.Services.AssistantService.OffTools(null));
+    }
+
     [Theory]
     [InlineData(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }, "image/png")]
     [InlineData(new byte[] { 0, 0, 1, 0, 1, 0 }, "image/x-icon")]

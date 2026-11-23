@@ -52,7 +52,7 @@ import { PptPicker } from './PptTemplates';
 import { usePptTemplates } from './pptUtil';
 import type { PlusProps } from './PlusMenu';
 import { projectColor, scopeLabel } from './composerUtil';
-import type { ProjectRow, Scope, ScopeOptions, SkillRow } from './composerUtil';
+import type { PluginRow, ProjectRow, Scope, ScopeOptions, SkillRow } from './composerUtil';
 import { ProjectDialog, ProjectHome } from './ProjectHome';
 import type { ProjectEdit } from './ProjectHome';
 import type { PreviewItem } from '../../components/code/preview';
@@ -195,6 +195,16 @@ export default function ChatPage() {
   // 「＋」里点名的技能：只管下一问，发出去就清掉
   const [skill, setSkill] = useState<SkillRow | null>(null);
   const skills = useQuery({ queryKey: ['chat-skills'], staleTime: 300_000, queryFn: () => get<SkillRow[]>('/api/chat/skills') });
+  // 「＋ → 插件」的工具开关：关掉的记在这台电脑上，以后每一问都带上
+  const plugins = useQuery({ queryKey: ['chat-plugins'], staleTime: 300_000, queryFn: () => get<PluginRow[]>('/api/chat/plugins') });
+  const [off, setOff] = useState<string[]>(() => {
+    try { const v = JSON.parse(localStorage.getItem(OFF_KEY) ?? '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []; } catch { return []; }
+  });
+  const toggleOff = useCallback((code: string) => setOff((cur) => {
+    const next = cur.includes(code) ? cur.filter((c) => c !== code) : [...cur, code];
+    try { localStorage.setItem(OFF_KEY, JSON.stringify(next)); } catch { /* 存不了就只管这一页 */ }
+    return next;
+  }), []);
   // 「＋ → PPT 模板」选的模板：这次对话做 PPT 都用它，开新对话清掉
   const [ppt, setPpt] = useState<PptTemplateRow | null>(null);
   const [pptPick, setPptPick] = useState(false);
@@ -252,6 +262,7 @@ export default function ChatPage() {
         // 右边开着可操作的网页：助手自动读这一页
         browserTab: panel?.kind === 'web' ? webTabs[Math.min(webActive, webTabs.length - 1)]?.live ?? null : null,
         projectId, skill: skill?.code ?? null, pptTemplate: ppt?.id ?? null,
+        off: off.length > 0 ? off : null,
       })) {
         const p = ev.payload as Record<string, unknown>;
         switch (ev.kind) {
@@ -378,7 +389,7 @@ export default function ChatPage() {
     } catch (err) {
       patch(id, { streaming: false, error: err instanceof ApiError ? err.message : '连接中断，本轮未完成' });
     }
-  }, [qaSessionId, scope, level, panel, webTabs, webActive, openPreview, projectId, skill, ppt]);
+  }, [qaSessionId, scope, level, panel, webTabs, webActive, openPreview, projectId, skill, ppt, off]);
 
   // ── 方案生成的一轮：会话已开时，这条对话就由它接着走 ──────────
   const runGenTurn = useCallback(async (sessionId: string, body: Record<string, unknown>) => {
@@ -543,6 +554,8 @@ export default function ChatPage() {
   const narrowed = scopeLabel(scope, scopeOptions);
   const plus: PlusProps = {
     skills: skills.data?.length ? { list: skills.data, value: skill, onChange: setSkill } : undefined,
+    plugins: plugins.data?.length ? { list: plugins.data, off, onToggle: toggleOff } : undefined,
+    onManage: profile?.roleCode === 'admin' ? () => nav('/admin/skills') : undefined,
     scope: canScope ? { value: scope, options: scopeOptions, onChange: setScope } : undefined,
     project: { list: projects.data ?? [], value: projectId, onChange: (pid) => void moveProject(pid), onNew: () => setProjectDlg('here') },
     ppt: pptList.data?.length ? { value: ppt?.name ?? null, onOpen: () => setPptPick(true) } : undefined,
@@ -835,6 +848,7 @@ function UserMessage() {
 }
 
 const HIDDEN_STEPS = new Set(['plan', 'use_skill']);
+const OFF_KEY = 'htlab.plugins.off';
 
 /** 助手一条：正文按标记语法排版，后面挂这一轮长出来的结果件。 */
 function AssistantMessage() {
