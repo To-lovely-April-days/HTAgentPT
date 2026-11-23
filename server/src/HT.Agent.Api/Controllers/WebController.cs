@@ -5,6 +5,7 @@ using HT.Agent.Infrastructure.Clients;
 using HT.Agent.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace HT.Agent.Api.Controllers;
 
@@ -24,7 +25,7 @@ public class WebController(IRuntimeConfig config, ICurrentUser me, WebFetcher fe
         browser = await AssistantService.ToolAllowedAsync(config, me, "browser", ct),
     });
 
-    /// <summary>阅读模式：抓网页，拆成标题、段落、表格、图片块。embeddable 告诉前端「原网页」能不能嵌进来显示。</summary>
+    /// <summary>阅读模式：抓网页，拆成标题、段落、表格、图片块。</summary>
     [HttpGet("read")]
     public async Task<IActionResult> Read([FromQuery] string url, CancellationToken ct)
     {
@@ -44,7 +45,7 @@ public class WebController(IRuntimeConfig config, ICurrentUser me, WebFetcher fe
             Detail: new { url = raw.Url.ToString(), blocks = article.Blocks.Count }), ct);
         return Ok(new
         {
-            url = raw.Url.ToString(), ok = article.Blocks.Count > 0, note = article.Blocks.Count == 0 ? "网页里没有读到正文（可能是靠脚本加载的页面），可以切到原网页或新窗口打开" : null,
+            url = raw.Url.ToString(), ok = article.Blocks.Count > 0, note = article.Blocks.Count == 0 ? "网页里没有读到正文（可能是靠脚本加载的页面），可以切到「可操作」或新窗口打开" : null,
             embeddable = raw.Embeddable, title = article.Title, site = article.Site ?? raw.Url.Host, published = article.Published,
             fetchedAt = DateTimeOffset.Now, blocks = article.Blocks,
             markdown = WebReader.ToMarkdown(article, raw.Url.ToString()),
@@ -63,6 +64,26 @@ public class WebController(IRuntimeConfig config, ICurrentUser me, WebFetcher fe
         Response.Headers.CacheControl = "private, max-age=3600";
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         return File(img.Value.Bytes, img.Value.Type);
+    }
+
+    /// <summary>网站图标：服务器代取（用户电脑不一定能上外网），按网站缓存一天，没有的记一小时。</summary>
+    [HttpGet("favicon")]
+    public async Task<IActionResult> Favicon([FromQuery] string host, [FromServices] IMemoryCache cache, CancellationToken ct)
+    {
+        if (!await AssistantService.ToolAllowedAsync(config, me, "fetch_url", ct)) return Forbid();
+        var key = "favicon:" + (host ?? "").Trim().ToLowerInvariant();
+        if (!cache.TryGetValue(key, out (byte[] Bytes, string Type)? icon))
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(8));
+            try { icon = await fetcher.FetchFaviconAsync(host ?? "", cts.Token); }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { icon = null; }
+            cache.Set(key, icon, icon is null ? TimeSpan.FromHours(1) : TimeSpan.FromDays(1));
+        }
+        if (icon is null) return NotFound();
+        Response.Headers.CacheControl = "private, max-age=86400";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(icon.Value.Bytes, icon.Value.Type);
     }
 
     public record PythonBody(string Code);

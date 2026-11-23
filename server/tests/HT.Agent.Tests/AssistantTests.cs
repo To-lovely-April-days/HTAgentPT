@@ -217,6 +217,25 @@ public class AssistantLoopTests
         => Assert.Equal(blocked, HT.Agent.Infrastructure.Clients.WebFetcher.BlockPage(html));
 
     [Fact]
+    public void Finds_site_icons_in_page_head()
+    {
+        const string html = """
+            <head><link rel="apple-touch-icon" href="/apple.png"><link rel="mask-icon" href="/m.svg">
+            <link rel='shortcut icon' href='/img/fav.ico?v=2'><link href="/i.svg" rel="icon" type="image/svg+xml">
+            <link rel="stylesheet" href="/a.css"><link rel=icon href=data:image/png;base64,xx></head>
+            """;
+        Assert.Equal(["/img/fav.ico?v=2", "/apple.png"], HT.Agent.Infrastructure.Clients.WebFetcher.IconLinks(html));
+    }
+
+    [Theory]
+    [InlineData(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }, "image/png")]
+    [InlineData(new byte[] { 0, 0, 1, 0, 1, 0 }, "image/x-icon")]
+    [InlineData(new byte[] { 0xFF, 0xD8, 0xFF, 0xE0 }, "image/jpeg")]
+    [InlineData(new byte[] { (byte)'<', (byte)'h', (byte)'t', (byte)'m', (byte)'l' }, null)]
+    public void Sniffs_icon_format_from_bytes(byte[] bytes, string? type)
+        => Assert.Equal(type, HT.Agent.Infrastructure.Clients.WebFetcher.SniffImage(bytes));
+
+    [Fact]
     public async Task Nudges_are_capped()
     {
         var model = new ScriptedModel(

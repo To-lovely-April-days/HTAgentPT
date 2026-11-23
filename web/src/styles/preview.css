@@ -92,7 +92,6 @@ button.sess-file:hover { background: #ebebe8; color: var(--ink); }
 .pv-seg.small button { padding: 3px 10px; font-size: 12px; }
 .pv-tools { display: flex; align-items: center; gap: 6px; padding: 7px 14px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .pv-note { padding: 7px 14px; font-size: 12px; color: #7a4f00; background: #fffbef; border-bottom: 1px solid #f3ead6; }
-.pv-note-link { border: none; background: none; padding: 0; font: inherit; color: #7a4f00; text-decoration: underline; cursor: pointer; }
 .pv-stage { flex: 1; min-height: 0; display: flex; justify-content: center; background: #fff; }
 .pv-stage.framed { background: #ececea; padding: 16px; }
 .pv-stage iframe { border: none; width: 100%; height: 100%; background: #fff; }
@@ -155,8 +154,6 @@ button.sess-file:hover { background: #ebebe8; color: var(--ink); }
 .wb-img-miss { font-size: 12.5px; color: var(--ink-4); margin: 0 0 12px; }
 .wb-empty { margin: 60px auto; max-width: 420px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; color: var(--ink-2); padding: 0 20px; }
 .wb-empty b { color: var(--ink); font-size: 15px; }
-.wb-orig { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-.wb-orig iframe { flex: 1; border: none; width: 100%; min-height: 400px; background: #fff; }
 
 /* 化工组件 */
 .chem-wrap { overflow: auto; padding: 8px 12px; background: #fff; border-bottom: 1px solid var(--line-soft); }
@@ -224,7 +221,10 @@ button.sess-file:hover { background: #ebebe8; color: var(--ink); }
 
 /* 网页面板顶部：一排标签（谁在操作用像素小人表示）+ 一行工具（前进后退、地址、看法、更多） */
 .wb-tabs { position: relative; }
-.wb-fav { flex: 0 0 16px; height: 16px; border-radius: 4px; color: #fff; font-size: 9.5px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.site-ic { border-radius: 4px; object-fit: contain; display: inline-block; }
+.site-ic.fb { color: #fff; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+/* 来源卡片上的网站图标：跟文件类型角标一样大的白底框 */
+.site-box { width: 30px; height: 34px; border-radius: 6px; background: #f4f4f2; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .wb-tab.mini { max-width: none; }
 .wb-tab.mini .wb-tab-b { padding: 7px 8px; }
 .wb-who { position: relative; flex: 0 0 auto; line-height: 0; }

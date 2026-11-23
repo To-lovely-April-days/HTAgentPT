@@ -336,6 +336,82 @@ public class WebFetcher(IHttpClientFactory http)
         return true;
     }
 
+    /// <summary>网站图标（来源、网页标签上显示）：先试 /favicon.ico，没有再看首页里 &lt;link rel="icon"&gt; 指的那个。
+    /// 按文件头认格式（不少网站给 ico 标错类型），只收 ICO/PNG/GIF/JPEG/WebP，最大 512KB；SVG 不收。</summary>
+    public async Task<(byte[] Bytes, string Type)?> FetchFaviconAsync(string host, CancellationToken ct)
+    {
+        host = (host ?? "").Trim().ToLowerInvariant();
+        if (!Regex.IsMatch(host, @"^[a-z0-9-]+(\.[a-z0-9-]+)+(:\d{1,5})?$")) return null;
+        foreach (var scheme in new[] { "https", "http" })
+        {
+            var root = new Uri($"{scheme}://{host}/");
+            if (await IconAsync(new Uri(root, "/favicon.ico"), ct) is { } ico) return ico;
+            Raw raw;
+            try { raw = await FetchRawAsync(root.ToString(), ct); }
+            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException) { continue; } // https 连不上再试 http
+            if (raw.Note is not null) return null;
+            foreach (var href in IconLinks(raw.Html).Take(3))
+                if (Uri.TryCreate(raw.Url, WebUtility.HtmlDecode(href), out var u) && await IconAsync(u, ct) is { } got) return got;
+            return null;
+        }
+        return null;
+    }
+
+    /// <summary>首页里声明的图标地址：rel 里有 icon 的 link（mask-icon、SVG 跳过），普通图标排在 apple-touch-icon 前面。</summary>
+    public static List<string> IconLinks(string html)
+    {
+        var list = new List<(int Rank, string Href)>();
+        foreach (Match m in Regex.Matches(html, @"<link\b[^>]*>", RegexOptions.IgnoreCase))
+        {
+            var tag = m.Value;
+            var rel = Regex.Match(tag, @"\brel\s*=\s*[""']?([^""'>]+)", RegexOptions.IgnoreCase).Groups[1].Value.ToLowerInvariant();
+            var href = Regex.Match(tag, @"\bhref\s*=\s*(?:""([^""]+)""|'([^']+)'|([^\s>]+))", RegexOptions.IgnoreCase);
+            var h = (href.Groups[1].Success ? href.Groups[1] : href.Groups[2].Success ? href.Groups[2] : href.Groups[3]).Value.Trim();
+            if (!rel.Contains("icon") || rel.Contains("mask") || h.Length == 0 || h.StartsWith("data:", StringComparison.OrdinalIgnoreCase)) continue;
+            if (h.Split('?')[0].EndsWith(".svg", StringComparison.OrdinalIgnoreCase) || tag.Contains("image/svg", StringComparison.OrdinalIgnoreCase)) continue;
+            list.Add((rel.Contains("apple") ? 1 : 0, h));
+        }
+        return list.OrderBy(x => x.Rank).Select(x => x.Href).Distinct().ToList();
+    }
+
+    /// <summary>按文件头认图片格式；认不出返回 null。</summary>
+    public static string? SniffImage(byte[] b)
+    {
+        if (b.Length >= 8 && b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47) return "image/png";
+        if (b.Length >= 4 && b[0] == 0 && b[1] == 0 && b[2] == 1 && b[3] == 0) return "image/x-icon";
+        if (b.Length >= 4 && b[0] == 'G' && b[1] == 'I' && b[2] == 'F' && b[3] == '8') return "image/gif";
+        if (b.Length >= 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF) return "image/jpeg";
+        if (b.Length >= 12 && b[0] == 'R' && b[1] == 'I' && b[2] == 'F' && b[3] == 'F' && b[8] == 'W' && b[9] == 'E' && b[10] == 'B' && b[11] == 'P') return "image/webp";
+        return null;
+    }
+
+    private async Task<(byte[] Bytes, string Type)?> IconAsync(Uri uri, CancellationToken ct)
+    {
+        if (!NetGuard.IsAllowedUrl(uri)) return null;
+        var client = http.CreateClient("webfetch");
+        try
+        {
+            for (var hop = 0; hop < 4; hop++)
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Get, uri);
+                req.Headers.UserAgent.ParseAdd("Mozilla/5.0 (compatible; HTLAB-Assistant/1.0)");
+                req.Headers.Accept.ParseAdd("image/avif,image/webp,image/png,image/x-icon,image/*;q=0.8");
+                using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+                if ((int)resp.StatusCode is >= 300 and < 400 && resp.Headers.Location is { } loc)
+                {
+                    uri = loc.IsAbsoluteUri ? loc : new Uri(uri, loc);
+                    if (!NetGuard.IsAllowedUrl(uri)) return null;
+                    continue;
+                }
+                if (!resp.IsSuccessStatusCode || resp.Content.Headers.ContentLength is > 512 * 1024) return null;
+                var bytes = await ReadCappedAsync(await resp.Content.ReadAsStreamAsync(ct), 512 * 1024, ct);
+                return bytes.Length is > 0 and < 512 * 1024 && SniffImage(bytes) is { } type ? (bytes, type) : null;
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException || (ex is TaskCanceledException && !ct.IsCancellationRequested)) { }
+        return null;
+    }
+
     /// <summary>阅读模式里的图片由服务器代取（用户电脑不一定能上外网）：只收位图，最大 5MB。SVG 不收——它能带脚本。</summary>
     public async Task<(byte[] Bytes, string Type)?> FetchImageAsync(string url, CancellationToken ct)
     {

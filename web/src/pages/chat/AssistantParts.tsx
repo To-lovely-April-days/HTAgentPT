@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import type { AssistantStep, EvidenceCard, VerifyReport } from '../../lib/types';
 import { DocPreviewModal } from './ResultCards';
 import { Icon } from '../../components/Icons';
+import { SiteIcon, hostOf } from '../../components/SiteIcon';
 
 // ── ① 过程 ───────────────────────────────────────────
 export function StepsCard({ steps, streaming, seconds }: { steps: AssistantStep[]; streaming?: boolean; seconds?: number | null }) {
@@ -167,7 +168,9 @@ export function RefPanel({ used, other, focus, onFocus, onClose, onOpenWeb }: {
           return (
             <Fragment key={g.key}>{heading}<section className="refs-file">
               <div className="refs-file-hd">
-                <span className="refs-ext" style={{ background: bg, color: fg }} aria-hidden="true">{g.ext}</span>
+                {g.kind === 'web' && g.first.url
+                  ? <span className="site-box" aria-hidden="true"><SiteIcon host={hostOf(g.first.url)} size={18} /></span>
+                  : <span className="refs-ext" style={{ background: bg, color: fg }} aria-hidden="true">{g.ext}</span>}
                 <span className="refs-file-t">
                   <b title={g.title}>{g.title}</b>
                   {g.meta && <span>{g.meta}</span>}

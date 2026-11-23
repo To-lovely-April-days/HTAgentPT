@@ -8,6 +8,7 @@ import { SimCard } from './SimCard';
 import { PptPages, Restyle } from './PptTemplates';
 import { usePreview } from '../../components/code/preview';
 import { Icon } from '../../components/Icons';
+import { SiteIcon, hostOf } from '../../components/SiteIcon';
 
 // ── 请你确认 ─────────────────────────────────────────
 export function AskCard({ ask, active, onAnswer }: { ask: AskSpec; active: boolean; onAnswer: (text: string) => void }) {
@@ -310,12 +311,12 @@ function OcrCard({ a }: { a: Extract<ToolArtifact, { kind: 'ocr' }> }) {
 }
 
 // ── 生成的文件（整份翻译）───────────────────────────
-/** 助手读过的网页：点开在右侧用阅读模式看。 */
+/** 助手读过的网页：点开在右侧看。 */
 function WebPageCard({ a }: { a: Extract<ToolArtifact, { kind: 'webpage' }> }) {
   const open = usePreview();
   return (
     <section className="tool-card file-card">
-      <span className="refs-ext" style={{ background: '#e8eef8', color: '#2a4a85' }} aria-hidden="true">网页</span>
+      <span className="site-box" aria-hidden="true"><SiteIcon host={a.host || hostOf(a.url)} size={18} /></span>
       <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <b>{a.title}</b><span className="hint">{a.host} · 已读，用了 {a.pieces} 段</span>
       </span>

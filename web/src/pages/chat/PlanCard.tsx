@@ -5,6 +5,9 @@ import type { AssistantStep, PlanState } from '../../lib/types';
 import { PixelSprite } from '../../components/pet/PixelSprite';
 import { ACTS, actOfTool } from '../../components/pet/thinking';
 
+// 列计划、思考、翻看技能不挂在步骤下面给用户看
+const QUIET = new Set(['plan', 'think', 'use_skill']);
+
 /** 每秒走一下的「现在」（只在进行中走）。 */
 function useNow(on: boolean) {
   const [now, set] = useState(() => Date.now());
@@ -39,7 +42,7 @@ export function PlanCard({ plan, steps, streaming, seconds }: { plan: PlanState;
   const done = plan.items.filter((i) => i.status === 'done').length;
   const total = seconds ?? since(now, plan.started);
   const expanded = open ?? live;
-  const running = [...steps].reverse().find((s) => s.status === 'running' && s.tool !== 'think' && s.tool !== 'plan');
+  const running = [...steps].reverse().find((s) => s.status === 'running' && !QUIET.has(s.tool));
   const act = ACTS[running ? actOfTool(running.tool) : 'scratch'];
   // 当前这个工具从什么时候开始（网页这边记，给最下面一行计时）
   const rid = running?.id ?? null;
@@ -67,7 +70,7 @@ export function PlanCard({ plan, steps, streaming, seconds }: { plan: PlanState;
       <div className="pl-bar"><i style={{ width: `${(done / Math.max(1, plan.items.length)) * 100}%` }} /></div>
       {lastReason && live && <div className="pl-note">改了计划：{lastReason}</div>}
       {plan.items.map((it, i) => {
-        const sub = it.steps.map((id) => byId.get(id)).filter((s): s is AssistantStep => !!s && s.tool !== 'plan' && s.tool !== 'think');
+        const sub = it.steps.map((id) => byId.get(id)).filter((s): s is AssistantStep => !!s && !QUIET.has(s.tool));
         const show = peek[i] ?? it.status === 'now';
         const secs = it.started ? since(now, it.started, it.ended) : null;
         return (

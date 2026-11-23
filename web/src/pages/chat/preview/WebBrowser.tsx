@@ -1,8 +1,7 @@
 // 网页浏览：回答里的网上来源、用户贴的网址都在这里打开，多个网页是多个标签页。
-// 默认「阅读模式」：服务器去抓网页，只回正文、标题、表格、图片这些纯数据，这里按块排版——
-// 网站的脚本不会在用户电脑上运行，用户电脑本身上不了外网也能看。回答引用的句子标黄。
-// 「原网页」：网站允许被嵌入才显示原样，否则说明一下，给「新窗口打开」。
-// 「可操作」：服务器上跑的真浏览器（内置浏览器），助手和你都能点、能填；标签上的像素小人表示谁在操作。
+// 有内置浏览器时，打开网页直接进「可操作」：服务器上跑的真浏览器，助手和你都能点、能填；标签上的像素小人表示谁在操作。
+// 「阅读」：服务器去抓网页，只回正文、标题、表格、图片这些纯数据，这里按块排版，回答引用的句子标黄；
+// 没有内置浏览器（或打不开）时就用它。两种都不在用户电脑上跑网站的脚本，用户电脑上不了外网也能看。
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -17,6 +16,7 @@ import { Icon } from '../../../components/Icons';
 import { PixelSprite } from '../../../components/pet/PixelSprite';
 import { tintOf } from '../../../components/pet/tints';
 import { LiveView } from './LiveView';
+import { SiteIcon } from '../../../components/SiteIcon';
 
 /** 一个网页标签。live：内置浏览器里的标签号（「可操作」的网页才有）。 */
 export interface WebTab { url: string; title?: string; label?: string; quotes?: string[]; live?: string }
@@ -24,7 +24,7 @@ export interface WebTab { url: string; title?: string; label?: string; quotes?: 
 interface LiveTab { tab: string; url: string; title: string; rev: number; who: number | null; live: boolean; done: boolean; label: string | null }
 interface LiveDownload { id: string; name: string; size: number; ok: boolean; note: string | null; tab: string | null; accepted: boolean }
 interface LiveState { alive: boolean; stopped: boolean; tabs: LiveTab[]; downloads?: LiveDownload[] }
-type Mode = 'reader' | 'original' | 'live';
+type Mode = 'reader' | 'live';
 
 interface Block { type: string; text?: string | null; level?: number | null; rows?: string[][] | null; src?: string | null }
 interface ReadResult {
@@ -119,8 +119,6 @@ function Reader({ data, sentences }: { data: ReadResult; sentences: string[] }) 
 
 const keyOf = (t: WebTab) => t.live ?? t.url;
 const hostOf = (u: string) => { try { return new URL(u).host; } catch { return u; } };
-const FAV = ['#1F3A5F', '#0E6E5C', '#1D4A94', '#8A2E08', '#5C5C64', '#6A48F6', '#8F3D74', '#0E8A8A'];
-const favColor = (h: string) => FAV[[...h].reduce((a, c) => a + c.charCodeAt(0), 0) % FAV.length];
 
 /** 标签上的小人：谁在操作（主助手红，子代理换颜色），正在动的带蓝点、做完打勾。 */
 function Who({ m }: { m?: LiveTab }) {
@@ -145,7 +143,9 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
   const canSave = profile?.permissions.includes(Perm.CorpusUpload) ?? false;
   const tab = tabs[Math.min(active, tabs.length - 1)];
   const [modes, setModes] = useState<Record<string, Mode>>({});
-  const mode: Mode = tab ? modes[keyOf(tab)] ?? (tab.live ? 'live' : 'reader') : 'reader';
+  const canLive = !!caps.browser && !!sessionId;
+  // 没选过的网页：已在内置浏览器里的、或者能开内置浏览器的，都按「可操作」看
+  const mode: Mode = tab ? modes[keyOf(tab)] ?? (tab.live || canLive ? 'live' : 'reader') : 'reader';
   const [addr, setAddr] = useState<{ for: string; value: string } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
@@ -153,7 +153,6 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
   const [saving, setSaving] = useState<File[] | null>(null);
   const body = useRef<HTMLDivElement>(null);
   const addrInput = useRef<HTMLInputElement>(null);
-  const canLive = !!caps.browser && !!sessionId;
   const anyLive = tabs.some((t) => t.live);
 
   // 内置浏览器的标签、谁在操作：开着可操作的网页时每秒看一次
@@ -170,8 +169,7 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
     if (extra.length > 0) onAdopt(extra);
   }, [state.data, tabs, onAdopt]);
 
-  // 原网页模式也要这份结果：靠它判断网站让不让嵌入（同一个缓存，不多抓）
-  const readUrl = tab && mode !== 'live' ? tab.url : null;
+  const readUrl = tab && mode === 'reader' ? tab.url : null;
   const q = useQuery({
     queryKey: ['web-read', readUrl], enabled: !!readUrl && caps.web, staleTime: 10 * 60_000, retry: false,
     queryFn: () => get<ReadResult>(`/api/web/read?url=${encodeURIComponent(readUrl!)}`),
@@ -191,6 +189,23 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
     return () => clearTimeout(t);
   }, [found, mode, tab?.url]);
 
+  // 进「可操作」的网页还没在内置浏览器里：直接打开（每个网页只试一次，打不开就回阅读）
+  const opening = useRef(new Set<string>());
+  const tabUrl = tab?.url;
+  const needOpen = !!tab && !tab.live && mode === 'live' && canLive;
+  useEffect(() => {
+    if (!needOpen || !tabUrl || opening.current.has(tabUrl)) return;
+    opening.current.add(tabUrl);
+    const i = active;
+    post<{ tab: string; url: string; title: string }>(`/api/browser/${sessionId}/open`, { url: tabUrl })
+      .then((r) => { onSetLive(i, r.tab, r.url, r.title); setModes((x) => ({ ...x, [r.tab]: 'live' })); })
+      .catch((e) => {
+        setModes((x) => ({ ...x, [tabUrl]: 'reader' }));
+        setMsg(`内置浏览器没打开（${e instanceof ApiError ? e.message : '连不上'}），先用阅读模式看`);
+        setTimeout(() => setMsg(null), 2600);
+      });
+  }, [needOpen, tabUrl, active, sessionId, onSetLive]);
+
   if (!tab) return null;
   const live = tab.live ? marks.get(tab.live) : undefined;
   const url = live?.url || tab.url;
@@ -206,6 +221,7 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
   const setMode = async (m: Mode) => {
     setMenu(false);
     if (m === 'live' && !tab.live) {
+      if (opening.current.has(tab.url) && modes[tab.url] !== 'reader') return; // 正在打开
       if (!canLive) { flash(sessionId ? '内置浏览器没开，或你的角色不能用' : '先在对话里问一句，再用「可操作」'); return; }
       try {
         const r = await post<{ tab: string; url: string; title: string }>(`/api/browser/${sessionId}/open`, { url: tab.url });
@@ -269,7 +285,7 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
           return (
             <span key={keyOf(t)} role="tab" aria-selected={on} className={'wb-tab' + (on ? ' on' : '') + (mini ? ' mini' : '')} title={`${title}\n${m?.url || t.url}`}>
               <button type="button" className="wb-tab-b" onClick={() => { onActivate(i); setMenu(false); }}>
-                <span className="wb-fav" style={{ background: favColor(h) }}>{(title.trim()[0] ?? h[0] ?? '·').toUpperCase()}</span>
+                <SiteIcon host={h} />
                 {t.label && !mini && <span className="wb-n">{t.label}</span>}
                 {!mini && <span className="wb-tab-t">{title}</span>}
                 <Who m={m} />
@@ -290,7 +306,7 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
             return (
               <div key={keyOf(t)} className={'wb-drop-r' + (i === active ? ' on' : '')}>
                 <button type="button" onClick={() => { onActivate(i); setAll(false); }}>
-                  <span className="wb-fav" style={{ background: favColor(hostOf(m?.url || t.url)) }}>{(title.trim()[0] ?? '·').toUpperCase()}</span>
+                  <SiteIcon host={hostOf(m?.url || t.url)} />
                   <span className="wb-drop-t">{title}</span>
                   <span className="wb-drop-s">{m?.live ? '在操作' : m?.done ? '做完了' : t.live ? '可操作' : '阅读'}</span>
                   <Who m={m} />
@@ -305,7 +321,7 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
         <span className="wb-nav">
           <button type="button" aria-label="后退" disabled={mode !== 'live'} onClick={() => void nav('back')}>←</button>
           <button type="button" aria-label="前进" disabled={mode !== 'live'} onClick={() => void nav('forward')}>→</button>
-          <button type="button" aria-label="刷新" disabled={mode === 'original'} onClick={() => void nav('reload')}>↻</button>
+          <button type="button" aria-label="刷新" onClick={() => void nav('reload')}>↻</button>
         </span>
         <form className="wb-addr" onSubmit={(e) => { e.preventDefault(); void submitAddr(addrValue); }}>
           <span className={'wb-lock' + (url.startsWith('https') ? ' ok' : '')} aria-hidden="true"><Icon name="dot" size={10} style={{ display: 'block' }} /></span>
@@ -313,9 +329,8 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
             onChange={(e) => setAddr({ for: keyOf(tab), value: e.target.value })} />
         </form>
         <span className="pv-seg small" role="group" aria-label="怎么看这个网页">
-          <button type="button" className={mode === 'reader' ? 'on' : ''} aria-pressed={mode === 'reader'} onClick={() => void setMode('reader')}>阅读</button>
-          <button type="button" className={mode === 'original' ? 'on' : ''} aria-pressed={mode === 'original'} onClick={() => void setMode('original')}>原网页</button>
           {caps.browser && <button type="button" className={mode === 'live' ? 'on' : ''} aria-pressed={mode === 'live'} title="服务器上的真浏览器：助手和你都能点、能填" onClick={() => void setMode('live')}>可操作</button>}
+          <button type="button" className={mode === 'reader' ? 'on' : ''} aria-pressed={mode === 'reader'} title="只看正文，回答引用的句子标黄" onClick={() => void setMode('reader')}>阅读</button>
         </span>
         <span className="wb-more-w">
           <button type="button" className={'wb-more' + (menu ? ' on' : '')} aria-label="更多" aria-expanded={menu} onClick={() => setMenu(!menu)}>···</button>
@@ -362,30 +377,13 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
         {mode === 'live' ? (
           tab.live && sessionId ? (
             <LiveView sessionId={sessionId} tab={tab.live} rev={live?.rev ?? 0} busy={!!live?.live} onMsg={(m) => setMsg(m)} />
-          ) : <div className="wb-empty"><b>这个网页还没在内置浏览器里打开</b></div>
+          ) : <div style={{ padding: 20 }}><Spinner text="正在内置浏览器里打开…" /></div>
         ) : !caps.web ? (
           <div className="wb-empty">
             <b>没有在系统里读网页的权限</b>
             <span>可以直接在新窗口打开这个网页。</span>
             <button type="button" className="pbtn" onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}>新窗口打开</button>
           </div>
-        ) : mode === 'original' ? (
-          data && !data.embeddable ? (
-            <div className="wb-empty">
-              <b>这个网站不让嵌入别的页面里显示</b>
-              <span>很多网站（搜索引擎、问答社区、不少厂家官网）都这样。可以看阅读模式{caps.browser ? '，或者用「可操作」在内置浏览器里打开' : ''}，或者在新窗口打开原网页。</span>
-              <button type="button" className="pbtn" onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}>新窗口打开</button>
-            </div>
-          ) : (
-            <div className="wb-orig">
-              <div className="pv-note">原网页由你的电脑直接打开（隔离运行）；空白或被网站拦截（有的网站不让嵌在别的页面里看）时，切回阅读模式，或
-                <button type="button" className="pv-note-link" onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}>新窗口打开</button>。</div>
-              {/* 带上来源（只有本站域名）、允许网站在用户点了之后用自己的 cookie：不少网站防火墙见到无来源、拿不到 cookie 的嵌入请求就当攻击拦掉 */}
-              <iframe title={`原网页：${host}`} src={url}
-                sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-storage-access-by-user-activation"
-                referrerPolicy="strict-origin-when-cross-origin" />
-            </div>
-          )
         ) : q.isPending ? (
           <div style={{ padding: 20 }}><Spinner text="服务器正在读这个网页…" /></div>
         ) : q.isError ? (

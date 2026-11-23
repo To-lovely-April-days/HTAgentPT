@@ -600,7 +600,7 @@ public sealed class AssistantService(
             """);
         if (enabled.Contains("plan"))
             sb.AppendLine("""
-                - 任务要 3 步以上（文献调研、流程模拟、出外形图、做文件、对照协议、多处资料汇总……）时，先用 plan 列出要做的步骤（最多 7 步，每步一句话说做什么），
+                - 任务要 3 步以上（文献调研、流程模拟、出外形图、做文件、对照协议、多处资料汇总……）时，第一个动作就用 plan 列出要做的步骤（最多 7 步，每步一句话说做什么；在翻看技能、查资料之前列，翻完技能发现步骤要变就重列），
                   再一步步做：开始一步就把它标 now，做完标 done，同时把下一步标 now；计划变了就整个重列并在 reason 里说为什么；写最终回答之前把做完的都标 done，没做的标 skip 并写 note。
                   一两步就能答的问题不要列计划。
                 """);
@@ -1858,7 +1858,7 @@ public sealed class AssistantService(
     private static string SkillsPrompt(IReadOnlyList<SkillRef> skills, SkillTest? test, string? picked = null)
     {
         if (skills.Count == 0) return "";
-        var sb = new StringBuilder("\n可用的技能（公司技术骨干写的答题指南）。问题和某一项对上了，先用 use_skill 翻看全文，照着里面的要求确认、查找和回答；对上几项就翻几项，都对不上就不用翻：\n");
+        var sb = new StringBuilder("\n可用的技能（公司技术骨干写的答题指南）。问题和某一项对上了，先用 use_skill 翻看全文（要列计划的任务先列计划再翻），照着里面的要求确认、查找和回答；对上几项就翻几项，都对不上就不用翻：\n");
         foreach (var s in skills) sb.AppendLine($"- {s.Name}：{s.Description}");
         if (test is { On: true }) sb.AppendLine($"这次请先用 use_skill 翻看「{skills[0].Name}」，再按它的要求回答。");
         else if (picked is not null && skills.FirstOrDefault(s => s.Code == picked) is { } p)

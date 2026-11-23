@@ -834,6 +834,8 @@ function UserMessage() {
   );
 }
 
+const HIDDEN_STEPS = new Set(['plan', 'use_skill']);
+
 /** 助手一条：正文按标记语法排版，后面挂这一轮长出来的结果件。 */
 function AssistantMessage() {
   const id = useAuiState((s) => s.message.id);
@@ -845,8 +847,8 @@ function AssistantMessage() {
 
   // 正在回答：小人跳进这条回答里干活（左边的头像先空着，免得两个小人）
   const staging = !!m.streaming && !m.agentSteps;
-  // 「列计划」这一步不算查了几步
-  const plainSteps = (m.steps ?? []).filter((s) => s.tool !== 'plan');
+  // 「列计划」「翻看技能」不算查了几步，也不摆给用户看（技能是助手自己的答题指南）
+  const plainSteps = (m.steps ?? []).filter((s) => !HIDDEN_STEPS.has(s.tool));
   return (
     <MessagePrimitive.Root className={'chat-assistant' + (staging ? ' staging' : '')}>
       <BrandMark />
