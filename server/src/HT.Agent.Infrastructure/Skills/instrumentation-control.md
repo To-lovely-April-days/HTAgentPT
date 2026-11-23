@@ -2,6 +2,7 @@
 name: instrumentation-control
 title: 仪表与自控
 category: 设计与标准
+menu: hidden
 status: enabled
 source: own
 description: 问仪表位号怎么写、测量方式怎么选、控制回路和联锁怎么设、SIL 是什么时用。

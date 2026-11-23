@@ -25,8 +25,8 @@ public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, 
             .Select(r => new { r.Code, r.Name, r.Category, r.Description }));
     }
 
-    /// <summary>「＋ → 插件」里的开关：这个人能用的联网搜索和专用工具组。关掉的随提问带上 off，那一问不给助手。
-    /// 回答组件（图表、流程图这些）是回答的一部分，不算插件。</summary>
+    /// <summary>「＋ → 插件」里的开关：这个人能用的联网搜索、内置浏览器这类替员工去外面办事的。关掉的随提问带上 off，那一问不给助手。
+    /// 助手答题时自己用的本事（查物性、看图片、列计划……）不摆出来。</summary>
     [HttpGet("plugins")]
     public async Task<IActionResult> Plugins(CancellationToken ct)
     {
@@ -35,12 +35,9 @@ public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, 
         if (await Can("web_search")) list.Add(new { code = "web", label = "联网搜索", summary = "公司资料里没有、或问的是外面的公开信息时上网查，读网页" });
         foreach (var g in HT.Agent.Application.Logic.ToolCatalog.Groups)
         {
-            if (g.Code == "show_block") continue;
+            if (!HT.Agent.Application.Logic.ToolCatalog.UserSwitches.Contains(g.Code)) continue;
             var ok = false;
             foreach (var t in g.Tools) if (await Can(t.StartsWith("browser_") ? "browser" : t)) { ok = true; break; } // 浏览器几个工具共用一个开关
-            if (ok && g.Code == "make_ppt")
-                ok = await Can("run_python") && (await HT.Agent.Infrastructure.Services.AssistantService.FileKindsAsync(config, me, ct)).Contains("pptx")
-                    && await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(db.PptTemplates, t => t.Enabled && t.Status == "ready", ct);
             if (ok) list.Add(new { code = g.Code, label = g.Label, summary = g.Summary });
         }
         return Ok(list);

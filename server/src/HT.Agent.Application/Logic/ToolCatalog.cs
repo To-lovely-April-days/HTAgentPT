@@ -44,6 +44,10 @@ public static class ToolCatalog
             ["缺项", "询价单", "需求不全", "要问客户"]),
     ];
 
+    /// <summary>聊天「＋ → 插件」里给员工开关的：会替员工去外面办事的（另加联网搜索）。
+    /// 查化学品、看图片、估成本这些是助手答题时自己用的本事，不摆出来。</summary>
+    public static readonly string[] UserSwitches = ["browser"];
+
     private static readonly Dictionary<string, ToolGroup> ByTool =
         Groups.SelectMany(g => g.Tools.Select(t => (t, g))).ToDictionary(x => x.t, x => x.g);
 

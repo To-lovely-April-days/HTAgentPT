@@ -2,6 +2,7 @@
 name: material-selection
 title: 选材与耐腐蚀
 category: 设计与标准
+menu: hidden
 status: enabled
 source: own
 description: 客户问某种材料能不能用在某个介质工况、要推荐材质、或问腐蚀速率时用。

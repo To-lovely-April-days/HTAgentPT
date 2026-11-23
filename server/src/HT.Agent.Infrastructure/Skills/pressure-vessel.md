@@ -2,6 +2,7 @@
 name: pressure-vessel
 title: 压力容器基础
 category: 设计与标准
+menu: hidden
 status: enabled
 source: own
 description: 问设计压力、试验压力、壁厚、是不是压力容器、类别划分、监检取证这类问题时用。

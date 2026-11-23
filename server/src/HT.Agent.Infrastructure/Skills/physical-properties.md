@@ -2,6 +2,7 @@
 name: physical-properties
 title: 物性查询
 category: 设计与标准
+menu: hidden
 status: enabled
 source: library
 description: 问某种物质在某温度、压力下的密度、粘度、比热、导热系数、蒸气压、沸点等物性时用。

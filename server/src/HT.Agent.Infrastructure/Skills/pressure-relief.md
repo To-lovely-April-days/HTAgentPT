@@ -2,6 +2,7 @@
 name: pressure-relief
 title: 安全泄放
 category: 设计与标准
+menu: hidden
 status: enabled
 source: library
 description: 问安全阀、爆破片怎么选，泄放量和泄放面积怎么算时用。

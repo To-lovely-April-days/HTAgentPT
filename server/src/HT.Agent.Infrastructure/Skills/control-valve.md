@@ -2,6 +2,7 @@
 name: control-valve
 title: 调节阀选型
 category: 设计与标准
+menu: hidden
 status: enabled
 source: library
 description: 问调节阀的 Kv / Cv 怎么算、口径怎么选、流量特性怎么定时用。

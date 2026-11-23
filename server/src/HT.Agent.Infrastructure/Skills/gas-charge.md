@@ -2,6 +2,7 @@
 name: gas-charge
 title: 高压釜装气量
 category: 设计与标准
+menu: hidden
 status: enabled
 source: own
 description: 问釜里充多少气、充到多少压力、升温或降温后压力是多少、超不超设计压力时用（氢气、氮气、CO2、氧气等）。

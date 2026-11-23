@@ -2,6 +2,7 @@
 name: thermal-risk
 title: 反应热安全评估
 category: 安全与化学
+menu: hidden
 status: enabled
 source: own
 description: 问某个反应在釜里安不安全、冷却失效会怎样、绝热温升、MTSR、危险度几级、要配什么冷却和泄放时用。

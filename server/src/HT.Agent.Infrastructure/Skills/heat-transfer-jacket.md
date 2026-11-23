@@ -2,6 +2,7 @@
 name: heat-transfer-jacket
 title: 换热与夹套
 category: 设计与标准
+menu: hidden
 status: enabled
 source: library
 description: 问夹套、盘管、换热器的换热面积、加热或冷却要多久、热媒怎么选时用。

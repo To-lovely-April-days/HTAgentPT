@@ -2,6 +2,7 @@
 name: explosion-purge
 title: 爆炸极限与惰化置换
 category: 安全与化学
+menu: hidden
 status: enabled
 source: own
 description: 问可燃气或混合气的爆炸极限、会不会进爆炸范围、开车前或开釜前用氮气置换几次、氧含量或可燃气要降到多少时用。

@@ -2,6 +2,7 @@
 name: hazard-process
 title: 危险工艺与危化品
 category: 安全与化学
+menu: hidden
 status: enabled
 source: own
 description: 客户说了工艺或介质，问是不是重点监管工艺、是不是危化品、釜要配哪些安全控制和联锁时用。

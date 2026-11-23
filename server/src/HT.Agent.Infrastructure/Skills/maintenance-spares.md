@@ -2,6 +2,7 @@
 name: maintenance-spares
 title: 维护保养与备件
 category: 售后与运维
+menu: hidden
 status: enabled
 source: own
 description: 问设备怎么保养、多久换一次件、备件型号和库存时用。

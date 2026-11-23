@@ -2,6 +2,7 @@
 name: equipment-selection
 title: 设备选型答复
 category: 售前与客户
+menu: hidden
 status: enabled
 source: own
 description: 客户问反应釜、高压釜、中试装置怎么选、要什么配置、某个工况能不能做时用。

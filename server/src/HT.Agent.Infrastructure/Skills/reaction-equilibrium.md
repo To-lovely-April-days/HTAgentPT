@@ -2,6 +2,7 @@
 name: reaction-equilibrium
 title: 反应平衡
 category: 安全与化学
+menu: hidden
 status: enabled
 source: own
 description: 问某个反应在给定温度压力下最多能转化多少、平衡组成、温度压力怎么影响平衡时用（加氢、脱氢、合成气、氧化等气相反应）。

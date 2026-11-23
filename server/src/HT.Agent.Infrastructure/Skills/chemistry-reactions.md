@@ -2,6 +2,7 @@
 name: chemistry-reactions
 title: 化学与反应
 category: 安全与化学
+menu: hidden
 status: enabled
 source: adapted
 description: 问化学反应方程式、配平、分子结构、反应热、物料配比和化学计量时用。

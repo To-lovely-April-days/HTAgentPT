@@ -2,6 +2,7 @@
 name: flange-gasket-bolt
 title: 法兰垫片紧固件
 category: 设计与标准
+menu: hidden
 status: enabled
 source: own
 description: 问管口的法兰、垫片、螺栓怎么选、压力等级怎么定、规格怎么写时用。

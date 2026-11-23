@@ -2,6 +2,7 @@
 name: reactor-temp-control
 title: 温度控制与动态模拟
 category: 设计与标准
+menu: hidden
 status: enabled
 source: own
 description: 问釜的温度控制会不会超调、PID 参数怎么调、温控单元或冷却停了多久会超温、加什么联锁时用。

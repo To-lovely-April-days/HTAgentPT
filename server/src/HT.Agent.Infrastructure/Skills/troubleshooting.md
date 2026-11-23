@@ -2,6 +2,7 @@
 name: troubleshooting
 title: 故障排查
 category: 售后与运维
+menu: hidden
 status: enabled
 source: own
 description: 设备出了问题（报警、泄漏、异响、温度压力不正常、搅拌不转等），问原因和怎么处理时用。

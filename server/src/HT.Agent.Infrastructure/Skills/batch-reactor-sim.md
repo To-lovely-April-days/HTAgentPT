@@ -2,6 +2,7 @@
 name: batch-reactor-sim
 title: 间歇釜升温与放热模拟
 category: 设计与标准
+menu: hidden
 status: enabled
 source: own
 description: 问釜升温要多久、夹套换热够不够、放热反应滴加多快不会超温、冷却压不压得住时用。

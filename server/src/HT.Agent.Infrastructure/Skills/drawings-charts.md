@@ -2,6 +2,7 @@
 name: drawings-charts
 title: 示意图与图表
 category: 图纸与文档
+menu: hidden
 status: enabled
 source: own
 description: 要画设备外形示意图、接管方位、流程示意、数据曲线、方案对比图时用（画在回答里，可下载）。

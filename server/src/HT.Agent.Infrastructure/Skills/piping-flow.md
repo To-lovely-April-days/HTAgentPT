@@ -2,6 +2,7 @@
 name: piping-flow
 title: 管道与流体
 category: 设计与标准
+menu: hidden
 status: enabled
 source: library
 description: 算管径、流速、管道压降、泵的扬程和功率时用。

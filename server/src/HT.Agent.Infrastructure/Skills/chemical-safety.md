@@ -2,6 +2,7 @@
 name: chemical-safety
 title: 化工安全与危化品
 category: 安全与化学
+menu: hidden
 status: enabled
 source: own
 description: 问题涉及氢气、高压、高温、易燃易爆、有毒或腐蚀性介质的操作、储存、泄漏处置，或问危化品性质时用。

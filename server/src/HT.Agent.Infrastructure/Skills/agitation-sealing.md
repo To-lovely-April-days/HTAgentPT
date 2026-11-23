@@ -2,6 +2,7 @@
 name: agitation-sealing
 title: 搅拌与密封
 category: 设计与标准
+menu: hidden
 status: enabled
 source: own
 description: 问搅拌形式、搅拌功率、电机怎么配、机械密封或磁力耦合怎么选时用。
