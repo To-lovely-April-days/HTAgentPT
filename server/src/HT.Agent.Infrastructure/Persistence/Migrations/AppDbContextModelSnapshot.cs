@@ -1697,8 +1697,8 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                         .HasColumnName("aliases");
 
                     b.Property<string>("Cas")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("cas");
 
                     b.Property<string>("Classes")

@@ -335,7 +335,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IOptions<Persi
         b.Entity<HazardChemical>(e =>
         {
             e.Property(x => x.Name).HasMaxLength(400);
-            e.Property(x => x.Cas).HasMaxLength(20);
+            e.Property(x => x.Cas).HasMaxLength(100);   // 有的条目登记几个 CAS 号，分号隔开
             e.HasIndex(x => x.Seq);
             e.HasIndex(x => x.Cas);
         });

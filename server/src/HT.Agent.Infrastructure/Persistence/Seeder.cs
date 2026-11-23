@@ -127,7 +127,7 @@ public static class Seeder
             await EnsurePurchasingAsync(db, ct);
             await EnsureSkillsAsync(db, ct);
             await EnsureProfileAsync(db, ct);
-            await EnsureHazardDataAsync(db, ct);
+            await TryHazardDataAsync(db, ct);
             return;
         }
 
@@ -260,7 +260,7 @@ public static class Seeder
         await db.SaveChangesAsync(ct);
         await EnsureSkillsAsync(db, ct);
         await EnsureTermsAsync(db, ct);
-        await EnsureHazardDataAsync(db, ct);
+        await TryHazardDataAsync(db, ct);
     }
 
     private static System.Text.Json.JsonElement HazardJson(string name)
@@ -269,6 +269,17 @@ public static class Seeder
                        ?? throw new InvalidOperationException($"缺少内置数据 hazard/{name}.json");
         using var doc = System.Text.Json.JsonDocument.Parse(st);
         return doc.RootElement.Clone();
+    }
+
+    /// <summary>启动时导国家目录：导不进去（数据和表结构对不上之类）只记一条错误，不让整个后端起不来；下次启动会再试。</summary>
+    private static async Task TryHazardDataAsync(AppDbContext db, CancellationToken ct)
+    {
+        try { await EnsureHazardDataAsync(db, ct); }
+        catch (Exception ex) when (ex is DbUpdateException or InvalidOperationException or KeyNotFoundException or System.Text.Json.JsonException)
+        {
+            db.ChangeTracker.Clear();
+            Console.Error.WriteLine($"[seed] 国家目录导入失败，先跳过（后端照常启动）：{ex.GetBaseException().Message}");
+        }
     }
 
     /// <summary>国家公布的目录放进库里：没有的条目补上；系统自带、没人改过的条目内容和这版不同就换成这版；后台改过的一律不动。</summary>
