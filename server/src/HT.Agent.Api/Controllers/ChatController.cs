@@ -12,17 +12,18 @@ namespace HT.Agent.Api.Controllers;
 public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, IRuntimeConfig config, ILogger<ChatController> logger,
     HT.Agent.Infrastructure.Persistence.AppDbContext db, IFileStorage storage) : ControllerBase
 {
-    /// <summary>「＋ → 插件」里的技能：已启用、放进清单的、这个人的角色能用的技能，按分类。</summary>
+    /// <summary>「＋ → 插件」里的技能：已启用、放进清单的、这个人的角色能用的技能，按分类。
+    /// ppt：技能里用到「做 PPT」，选了它就顺手请用户挑模板（可以不挑）。</summary>
     [HttpGet("skills")]
     public async Task<IActionResult> Skills(CancellationToken ct)
     {
         var rows = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
             db.AssistantSkills.Where(s => s.CompanyId == me.CompanyId && s.Status == HT.Agent.Domain.Entities.SkillStatus.Enabled && s.InMenu)
                 .OrderBy(s => s.Category).ThenBy(s => s.Name)
-                .Select(s => new { s.Code, s.Name, s.Category, s.Description, s.Roles }), ct);
+                .Select(s => new { s.Code, s.Name, s.Category, s.Description, s.Roles, Ppt = s.Body.Contains("make_ppt") }), ct);
         var internalUser = me.Permissions.Contains(PermissionKeys.QaInternal);
         return Ok(rows.Where(r => r.Roles.Count == 0 ? internalUser : r.Roles.Contains(me.RoleCode, StringComparer.OrdinalIgnoreCase))
-            .Select(r => new { r.Code, r.Name, r.Category, r.Description }));
+            .Select(r => new { r.Code, r.Name, r.Category, r.Description, r.Ppt }));
     }
 
     /// <summary>「＋ → 插件」里的开关：这个人能用的联网搜索、内置浏览器这类替员工去外面办事的。关掉的随提问带上 off，那一问不给助手。

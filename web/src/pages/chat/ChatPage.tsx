@@ -553,7 +553,8 @@ export default function ChatPage() {
   const project = projects.data?.find((p) => p.id === projectId) ?? null;
   const narrowed = scopeLabel(scope, scopeOptions);
   const plus: PlusProps = {
-    skills: skills.data?.length ? { list: skills.data, value: skill, onChange: setSkill } : undefined,
+    // 选了做 PPT 的技能：顺手弹出模板，挑一套或者让助手挑
+    skills: skills.data?.length ? { list: skills.data, value: skill, onChange: (s) => { setSkill(s); if (s?.ppt && pptList.data?.length) setPptPick(true); } } : undefined,
     plugins: plugins.data?.length ? { list: plugins.data, off, onToggle: toggleOff } : undefined,
     onManage: profile?.roleCode === 'admin' ? () => nav('/admin/skills') : undefined,
     scope: canScope ? { value: scope, options: scopeOptions, onChange: setScope } : undefined,
@@ -701,7 +702,7 @@ export default function ChatPage() {
             onFocus={(n) => setRefs({ msgId: refs.msgId, focus: n })} onClose={() => setRefs(null)}
             onOpenWeb={(n) => { const it = webItem(refMsg.evidence!.used, n); if (it) openPreview(it); }} />
         )}
-        {pptPick && <PptPicker value={ppt} onPick={setPpt} onClose={() => setPptPick(false)} />}
+        {pptPick && <PptPicker value={ppt} onPick={setPpt} onClose={() => setPptPick(false)} skillName={skill?.ppt ? skill.name : undefined} />}
         {projectDlg && (
           <ProjectDialog edit={typeof projectDlg === 'string' ? null : projectDlg} onClose={() => setProjectDlg(null)}
             onDone={(pid) => {

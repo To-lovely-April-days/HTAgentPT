@@ -3,7 +3,8 @@
 /** 资料范围：二选一——限定一个知识库，或限定一类文档；都空就是全部。 */
 export interface Scope { kbId: string | null; docCategory: string | null }
 export interface ScopeOptions { kbs: { id: string; name: string }[]; cats: string[] }
-export interface SkillRow { code: string; name: string; category: string; description: string }
+/** ppt：这个技能要做 PPT，选了它就弹出模板让人挑（可以不挑）。 */
+export interface SkillRow { code: string; name: string; category: string; description: string; ppt?: boolean }
 /** 「＋ → 插件」里的一个开关：联网搜索或一组专用工具。 */
 export interface PluginRow { code: string; label: string; summary: string }
 export interface ProjectRow { id: string; name: string; ledgerNo: string | null; updatedAt: string; count: number }

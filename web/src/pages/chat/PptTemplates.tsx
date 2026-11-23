@@ -31,8 +31,12 @@ export function Thumb({ path, alt, className }: { path: string; alt: string; cla
   );
 }
 
-/** 「＋ → PPT 模板」：看着封面挑；点小眼睛看这套的全部页面；也可以不选，让助手按场景挑。 */
-export function PptPicker({ value, onPick, onClose }: { value: PptTemplateRow | null; onPick: (t: PptTemplateRow | null) => void; onClose: () => void }) {
+/** 「＋ → PPT 模板」或在插件里选了做 PPT 的技能时弹出：看着封面挑；点小眼睛看这套的全部页面；也可以不选，让助手按场景挑。 */
+export function PptPicker({ value, onPick, onClose, skillName }: {
+  value: PptTemplateRow | null; onPick: (t: PptTemplateRow | null) => void; onClose: () => void;
+  /** 从技能进来的：标题下说一句「已选技能，模板可选可不选」 */
+  skillName?: string;
+}) {
   const q = usePptTemplates();
   const [tag, setTag] = useState('全部');
   const [peek, setPeek] = useState<PptTemplateRow | null>(null);
@@ -49,8 +53,8 @@ export function PptPicker({ value, onPick, onClose }: { value: PptTemplateRow | 
       <div className="modal-box ppt-pick" role="dialog" aria-label="选一套 PPT 模板" onClick={(e) => e.stopPropagation()}>
         <div className="ppt-pick-hd">
           <b>选一套 PPT 模板</b>
-          <span className="hint">{list.length} 套 · 都是能商用的开源模板</span>
-          <button type="button" className="gbtn" style={{ marginLeft: 'auto' }} onClick={() => { onPick(null); onClose(); }}>让助手按场景挑</button>
+          <span className="hint">{skillName ? `已选「${skillName}」· 模板可以不选，助手会按内容挑` : `${list.length} 套 · 都是能商用的开源模板`}</span>
+          <button type="button" className="gbtn" style={{ marginLeft: 'auto' }} onClick={() => { onPick(null); onClose(); }}>不选，让助手挑</button>
           <button type="button" className="ppt-x" aria-label="关闭" onClick={onClose}><Icon name="x" size={16} /></button>
         </div>
         <div className="ppt-flt" role="tablist">
