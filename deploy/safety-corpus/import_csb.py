@@ -85,8 +85,11 @@ def fetch_pdf(item, cache: Path, local: Path | None):
                 data = r.read()
             if not data.startswith(b"%PDF"):
                 raise RuntimeError("下载到的不是 PDF（网站可能换了地址）")
-            cache.mkdir(parents=True, exist_ok=True)
-            (cache / name).write_bytes(data)
+            try:
+                cache.mkdir(parents=True, exist_ok=True)
+                (cache / name).write_bytes(data)
+            except OSError as e:   # 缓存目录建不了（比如没权限）：不缓存，照样导入，只是重跑要重新下载
+                print(f"  （缓存不了到 {cache}：{e.strerror}；不影响导入）")
             return data
         except (urllib.error.URLError, TimeoutError, RuntimeError) as e:
             last = e
