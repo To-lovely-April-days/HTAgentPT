@@ -16,7 +16,11 @@ interface NavItem { to: string; label: string; icon: string; badge?: number; }
 function navFor(roleCode: string, has: (p: string) => boolean): NavItem[] {
   switch (roleCode) {
     case 'admin':
-      return [{ to: '/admin', label: '管理后台', icon: 'settings' }];
+      // 管理员问答默认关闭（表 3-1）；在「角色与功能权限」里给管理员角色单独开了问答等功能后，
+      // 这里跟着出入口。文件管理、价格库后台里已有，不重复摆。
+      return [{ to: '/admin', label: '管理后台', icon: 'settings' },
+        ...navFor('', has).filter((i) => i.to !== '/files' && i.to !== '/prices')
+          .map((i) => (i.to === '/chat' ? { ...i, label: '问答', icon: 'chat' } : i))];
     case 'hq_reviewer':
       return [{ to: '/review', label: '审核台', icon: 'shield' }, { to: '/chat', label: '共享库问答', icon: 'chat' },
         ...(has(Perm.CorpusUpload) ? [{ to: '/files', label: '文件管理', icon: 'upload' }] : [])];
