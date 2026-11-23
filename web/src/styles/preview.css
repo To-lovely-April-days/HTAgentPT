@@ -111,26 +111,6 @@ button.sess-file:hover { background: #ebebe8; color: var(--ink); }
 .dp-sheet { max-width: 760px; margin: 0 auto; background: #fff; border-radius: 6px; padding: 36px 44px; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
 
 /* 网页浏览 */
-.wb-tabs { display: flex; align-items: flex-end; gap: 2px; padding: 8px 10px 0; background: #f1f1ef; border-bottom: 1px solid #e4e4e1; overflow-x: auto; }
-.wb-tabs .refs-x { align-self: center; margin-bottom: 6px; }
-.wb-tab { display: flex; align-items: center; max-width: 240px; min-width: 0; border-radius: 8px 8px 0 0; border: 1px solid transparent; border-bottom: none; }
-.wb-tab.on { background: var(--panel); border-color: #e4e4e1; }
-.wb-tab-b { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; border: none; background: none; padding: 7px 4px 7px 10px; font: inherit; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
-.wb-tab.on .wb-tab-b { color: var(--ink); font-weight: 600; }
-.wb-tab-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wb-tab-x { border: none; background: none; color: var(--ink-4); cursor: pointer; padding: 4px 8px 4px 2px; font-size: 11px; }
-.wb-tab-x:hover { color: var(--ink); }
-.wb-n { flex: 0 0 auto; font-size: 10.5px; font-weight: 700; color: #7a4f00; background: #fbf0d9; border-radius: 4px; padding: 0 5px; }
-.wb-bar { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
-.wb-nav { display: flex; gap: 2px; }
-.wb-nav button { border: none; background: none; font-size: 18px; line-height: 1; color: var(--ink-3); cursor: pointer; padding: 2px 6px; border-radius: 6px; }
-.wb-nav button:disabled { color: #d0d0cc; cursor: default; }
-.wb-nav button:not(:disabled):hover { background: var(--accent-bg); color: var(--ink); }
-.wb-addr { flex: 1; min-width: 0; height: 32px; border: 1px solid var(--line-strong); border-radius: 16px; display: flex; align-items: center; gap: 8px; padding: 0 12px; }
-.wb-addr:focus-within { border-color: #9a9a9a; }
-.wb-addr input { flex: 1; min-width: 0; border: none; outline: none; background: none; font-family: var(--mono); font-size: 12px; color: var(--ink-2); }
-.wb-lock { color: var(--ink-4); font-size: 9px; }
-.wb-lock.ok { color: var(--ok); }
 .wb-cite { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 14px; background: #fffbef; border-bottom: 1px solid #f3ead6; font-size: 12.5px; }
 .wb-cite b { color: #7a4f00; font-weight: 600; }
 .wb-cite button { border: 1px solid #ebd3a2; border-radius: 999px; padding: 2px 10px; background: #fff; font: inherit; font-size: 12px; cursor: pointer; }
@@ -219,53 +199,114 @@ button.sess-file:hover { background: #ebebe8; color: var(--ink); }
 .pid-export button:hover { border-color: #c4c4c0; }
 .pid-export i { font-style: normal; color: var(--ink-3); }
 
-/* 网页面板顶部：一排标签（谁在操作用像素小人表示）+ 一行工具（前进后退、地址、看法、更多） */
-.wb-tabs { position: relative; }
 .site-ic { border-radius: 4px; object-fit: contain; display: inline-block; }
 .site-ic.fb { color: #fff; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
 /* 来源卡片上的网站图标：跟文件类型角标一样大的白底框 */
 .site-box { width: 30px; height: 34px; border-radius: 6px; background: #f4f4f2; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.wb-tab.mini { max-width: none; }
-.wb-tab.mini .wb-tab-b { padding: 7px 8px; }
-.wb-who { position: relative; flex: 0 0 auto; line-height: 0; }
-.wb-live { position: absolute; right: -3px; top: -2px; width: 6px; height: 6px; border-radius: 50%; background: #2f6fd6; box-shadow: 0 0 0 1.5px var(--panel); animation: wb-pulse 1.2s ease-in-out infinite; }
-.wb-done { position: absolute; right: -5px; bottom: -3px; width: 11px; height: 11px; border-radius: 50%; background: #1c6b45; color: #fff; display: flex; align-items: center; justify-content: center; }
-@keyframes wb-pulse { 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { .wb-live { animation: none; } }
-.wb-plus { align-self: center; margin: 0 2px 4px; width: 26px; height: 26px; border: none; border-radius: 7px; background: none; color: var(--ink-3); font-size: 16px; cursor: pointer; }
-.wb-plus:hover { background: #e4e4e0; color: var(--ink); }
-.wb-all { align-self: center; margin: 0 4px 4px auto; height: 24px; padding: 0 8px; border: none; border-radius: 7px; background: #e4e4e0; font: inherit; font-size: 11.5px; color: var(--ink-2); cursor: pointer; white-space: nowrap; }
-.wb-close { align-self: center; margin: 0 2px 4px 4px; border: none; background: none; color: var(--ink-3); cursor: pointer; padding: 4px; border-radius: 6px; }
-.wb-close:hover { background: #e4e4e0; color: var(--ink); }
 .wb-drop { position: absolute; right: 8px; top: 42px; z-index: 20; width: 280px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 12px 32px rgba(0,0,0,.12); }
 .wb-drop-r { display: flex; align-items: center; border-radius: 6px; }
 .wb-drop-r.on, .wb-drop-r:hover { background: #f4f4f2; }
 .wb-drop-r > button:first-child { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; border: none; background: none; padding: 6px 8px; font: inherit; font-size: 12px; text-align: left; cursor: pointer; color: var(--ink); }
 .wb-drop-t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wb-drop-s { font-size: 11px; color: var(--ink-4); }
-.wb-nav button { font-size: 15px; }
-.wb-more-w { position: relative; flex: 0 0 auto; }
-.wb-more { width: 28px; height: 28px; border: none; border-radius: 7px; background: none; color: var(--ink-3); font-size: 15px; letter-spacing: 1px; cursor: pointer; }
-.wb-more:hover, .wb-more.on { background: #f1f1ef; color: var(--ink); }
 .wb-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; width: 160px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 12px 32px rgba(0,0,0,.12); display: flex; flex-direction: column; }
 .wb-menu button { border: none; background: none; text-align: left; padding: 7px 10px; border-radius: 6px; font: inherit; font-size: 12.5px; color: var(--ink); cursor: pointer; }
 .wb-menu button:hover:not(:disabled) { background: #f4f4f2; }
 .wb-menu button:disabled { color: var(--ink-4); cursor: default; }
 .wb-menu i { height: 1px; margin: 4px 6px; background: var(--line-soft); }
-.wb-strip { display: flex; align-items: center; gap: 8px; padding: 6px 14px; font-size: 12px; border-bottom: 1px solid var(--line-soft); }
-.wb-strip.ai { background: #f3f6fc; color: #2a4a85; }
-.wb-strip.me { background: #fafaf9; color: var(--ink-3); }
-.wb-strip button { margin-left: auto; height: 24px; padding: 0 10px; border: 1px solid #c9d5ec; border-radius: 6px; background: #fff; color: #2a4a85; font: inherit; font-size: 12px; cursor: pointer; }
-.wb-msg { padding: 6px 14px; font-size: 12px; color: #8a5a00; background: #fffcf5; border-bottom: 1px solid #f3ead6; }
 /* 可操作：服务器上浏览器的画面 */
-.lv-view { position: relative; flex: 1; min-height: 0; display: flex; align-items: flex-start; justify-content: center; padding: 10px; outline: none; background: #f1f1ef; }
-.lv-view img { display: block; width: 100%; height: auto; border-radius: 6px; box-shadow: 0 1px 6px rgba(16,24,40,.12); cursor: pointer; user-select: none; }
-.lv-view.focus img { box-shadow: 0 0 0 2px #2f6fd6, 0 1px 6px rgba(16,24,40,.12); }
-.lv-view.busy img { cursor: not-allowed; }
-.lv-tip { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); padding: 4px 10px; border-radius: 999px; background: rgba(20,20,20,.72); color: #fff; font-size: 11.5px; pointer-events: none; white-space: nowrap; }
-.lv-badge { position: absolute; right: 18px; top: 18px; padding: 2px 8px; border-radius: 999px; background: rgba(47,111,214,.9); color: #fff; font-size: 11px; pointer-events: none; }
 /* 网页下载的文件：放不放进对话附件由员工定 */
 .wb-dl { display: flex; align-items: center; gap: 8px; padding: 7px 14px; font-size: 12.5px; background: #f6f8fc; border-bottom: 1px solid #e3e9f5; color: var(--ink); }
 .wb-dl svg { color: #2a4a85; flex: 0 0 auto; }
 .wb-dl-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wb-dl button { height: 26px; padding: 0 10px; font-size: 12px; }
+
+/* ── 网页浏览 ─────────────────────────────────────────
+   照桌面浏览器的样子：灰底标签条，选中的标签是白的、和下面的工具条连成一片；
+   工具条里线框图标按钮、灰底圆角地址栏、看法切换；助手在操作时工具条下沿走一条进度线。 */
+.wb-tabs { position: relative; display: flex; align-items: flex-end; gap: 0; height: 40px; padding: 0 6px 0 8px; box-sizing: border-box;
+  background: #ebebe8; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; flex: 0 0 auto; }
+.wb-tabs::-webkit-scrollbar { display: none; }
+.wb-tab { position: relative; display: flex; align-items: center; height: 32px; max-width: 220px; min-width: 0; flex: 0 1 220px;
+  border-radius: 9px 9px 0 0; color: var(--ink-2); }
+.wb-tab:not(.on):hover { background: rgba(0,0,0,.045); }
+.wb-tab.on { background: var(--panel); color: var(--ink); box-shadow: 0 -1px 0 rgba(0,0,0,.04), 0 0 0 0.5px rgba(0,0,0,.06); z-index: 1; }
+/* 选中标签两侧的小圆角，把标签和工具条接上 */
+.wb-tab.on::before, .wb-tab.on::after { content: ''; position: absolute; bottom: 0; width: 9px; height: 9px; pointer-events: none; }
+.wb-tab.on::before { left: -9px; background: radial-gradient(circle at 0 0, transparent 8.5px, var(--panel) 9px); }
+.wb-tab.on::after { right: -9px; background: radial-gradient(circle at 100% 0, transparent 8.5px, var(--panel) 9px); }
+/* 没选中的标签之间一条细竖线 */
+.wb-tab:not(.on) + .wb-tab:not(.on) .wb-tab-b::before { content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 1px; background: #d3d3cf; }
+.wb-tab-b { position: relative; flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; gap: 8px; border: none; background: none;
+  padding: 0 4px 0 12px; font: inherit; font-size: 12.5px; color: inherit; cursor: pointer; }
+.wb-tab.on .wb-tab-b { font-weight: 500; }
+.wb-tab-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-tab-x { flex: 0 0 auto; width: 20px; height: 20px; margin-right: 7px; padding: 0; border: none; border-radius: 50%; background: none;
+  color: var(--ink-3); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.wb-tab-x svg { display: block; }
+.wb-tab-x:hover { background: rgba(0,0,0,.08); color: var(--ink); }
+.wb-tab.mini { flex: 0 0 auto; max-width: none; }
+.wb-tab.mini .wb-tab-b { padding: 0 10px; }
+.wb-n { flex: 0 0 auto; font-size: 10.5px; font-weight: 600; color: #7a4f00; background: #fbf0d9; border-radius: 4px; padding: 0 5px; line-height: 17px; }
+.wb-plus, .wb-close, .wb-ib { flex: 0 0 auto; width: 28px; height: 28px; padding: 0; border: none; border-radius: 7px; background: none; color: var(--ink-3);
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.wb-plus, .wb-close { align-self: center; margin: 0 2px; }
+.wb-plus:hover, .wb-close:hover { background: rgba(0,0,0,.07); color: var(--ink); }
+.wb-all { align-self: center; flex: 0 0 auto; margin: 0 2px 0 auto; height: 24px; padding: 0 9px; border: none; border-radius: 7px; background: rgba(0,0,0,.06);
+  font: inherit; font-size: 11.5px; color: var(--ink-2); cursor: pointer; white-space: nowrap; }
+/* 谁在操作：标签上的像素小人，正在动带蓝点、做完打勾 */
+.wb-who { position: relative; flex: 0 0 auto; line-height: 0; }
+.wb-live { position: absolute; right: -3px; top: -2px; width: 6px; height: 6px; border-radius: 50%; background: #2f6fd6; box-shadow: 0 0 0 1.5px var(--panel); animation: wb-pulse 1.2s ease-in-out infinite; }
+.wb-done { position: absolute; right: -5px; bottom: -3px; width: 11px; height: 11px; border-radius: 50%; background: var(--ok); color: #fff; display: flex; align-items: center; justify-content: center; }
+@keyframes wb-pulse { 50% { opacity: .35; } }
+
+.wb-bar { position: relative; display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 8px; box-sizing: border-box; flex: 0 0 auto;
+  background: var(--panel); border-bottom: 1px solid var(--line); }
+.wb-nav { display: flex; gap: 1px; }
+.wb-ib:hover:not(:disabled), .wb-ib.on { background: var(--accent-bg); color: var(--ink); }
+.wb-ib:disabled { color: #cfcfcb; cursor: default; }
+.wb-addr { flex: 1; min-width: 0; height: 30px; margin: 0 2px; padding: 0 12px 0 10px; display: flex; align-items: center; gap: 7px;
+  border: 1px solid transparent; border-radius: 15px; background: #f1f1ef; transition: background .12s, border-color .12s, box-shadow .12s; }
+.wb-addr:hover { background: #ebebe8; }
+.wb-addr:focus-within { background: var(--panel); border-color: #8fb0e6; box-shadow: 0 0 0 3px rgba(47,111,214,.12); }
+.wb-addr input { flex: 1; min-width: 0; border: none; outline: none; background: none; font: inherit; font-size: 12.5px; color: var(--ink); }
+.wb-addr input::placeholder { color: var(--ink-4); }
+.wb-lock { flex: 0 0 auto; display: inline-flex; color: var(--ink-3); }
+.wb-lock.warn { color: #b26b00; }
+/* 看法：灰底小分段，选中的是白块 */
+.wb-mode { flex: 0 0 auto; display: inline-flex; padding: 2px; gap: 2px; border-radius: 8px; background: #f1f1ef; }
+.wb-mode button { height: 24px; padding: 0 10px; border: none; border-radius: 6px; background: none; font: inherit; font-size: 12px; color: var(--ink-3); cursor: pointer; white-space: nowrap; }
+.wb-mode button:hover { color: var(--ink); }
+.wb-mode button.on { background: var(--panel); color: var(--ink); font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,.1), 0 0 0 0.5px rgba(0,0,0,.05); }
+.wb-more-w { position: relative; flex: 0 0 auto; }
+/* 进度线：在工具条下沿 */
+.wb-progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; overflow: hidden; pointer-events: none; z-index: 2; }
+.wb-progress i { position: absolute; top: 0; bottom: 0; left: -40%; width: 40%; background: #2f6fd6; border-radius: 2px; animation: wb-run 1.1s ease-in-out infinite; }
+@keyframes wb-run { to { left: 100%; } }
+
+/* 状态条：助手在操作（可以停下）、你在操作、提示 */
+.wb-strip { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 10px 0 12px; box-sizing: border-box; font-size: 12px; flex: 0 0 auto; border-bottom: 1px solid var(--line); }
+.wb-strip.ai { background: #f4f7fd; color: #24467f; }
+.wb-strip.me { background: var(--panel); color: var(--ink-3); }
+.wb-strip.me svg { color: var(--ink-4); flex: 0 0 auto; }
+.wb-strip-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-strip-t b { font-weight: 600; }
+.wb-stop { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px 0 8px; border: 1px solid #c9d5ec; border-radius: 6px;
+  background: var(--panel); color: #24467f; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }
+.wb-stop:hover { border-color: #9fb4dc; background: #fafcff; }
+.wb-msg { padding: 7px 14px; font-size: 12px; color: #7a4f00; background: #fffaf0; border-bottom: 1px solid #f3ead6; flex: 0 0 auto; }
+
+/* 可操作：服务器上浏览器的画面，铺满，像真的网页一样 */
+.lv-view { position: relative; flex: 1; min-height: 0; display: flex; align-items: flex-start; justify-content: center; outline: none; background: var(--panel); }
+.lv-view img { display: block; width: 100%; height: auto; cursor: default; user-select: none; }
+.lv-view.focus::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px rgba(47,111,214,.55); pointer-events: none; }
+.lv-view.busy img { cursor: progress; }
+.lv-tip { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 5px 12px; border-radius: 8px; background: rgba(20,20,20,.78);
+  color: #fff; font-size: 11.5px; pointer-events: none; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.15); }
+.lv-badge { position: absolute; right: 12px; top: 10px; display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 7px; border-radius: 999px;
+  background: rgba(20,20,20,.72); color: #fff; font-size: 11px; pointer-events: none; }
+.lv-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #4ade80; }
+.wb-ft { display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 11.5px; color: var(--ink-4); border-top: 1px solid var(--line); background: var(--panel); flex: 0 0 auto; }
+.wb-ft svg { flex: 0 0 auto; }
+.wb-ft span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .wb-live, .wb-progress i { animation: none; } .wb-progress i { left: 0; width: 100%; opacity: .5; } }

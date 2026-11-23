@@ -294,9 +294,9 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
             </span>
           );
         })}
-        <button type="button" className="wb-plus" aria-label="打开新网页" title="打开新网页" onClick={() => { setAddr({ for: keyOf(tab), value: '' }); setTimeout(() => addrInput.current?.focus(), 0); }}>＋</button>
-        {many && <button type="button" className="wb-all" aria-expanded={all} onClick={() => setAll(!all)}>全部 {tabs.length} 个 ▾</button>}
-        <button type="button" className="wb-close" style={many ? undefined : { marginLeft: 'auto' }} aria-label="关闭网页浏览" onClick={onClose}><Icon name="x" size={14} style={{ display: 'block' }} /></button>
+        <button type="button" className="wb-plus" aria-label="打开新网页" title="打开新网页" onClick={() => { setAddr({ for: keyOf(tab), value: '' }); setTimeout(() => addrInput.current?.focus(), 0); }}><Icon name="plus" size={15} stroke={2} /></button>
+        {many && <button type="button" className="wb-all" aria-expanded={all} onClick={() => setAll(!all)}>全部 {tabs.length} 个<Icon name="down" size={11} style={{ marginLeft: 3, verticalAlign: '-1px' }} /></button>}
+        <button type="button" className="wb-close" style={many ? undefined : { marginLeft: 'auto' }} aria-label="关闭网页浏览" onClick={onClose}><Icon name="x" size={15} style={{ display: 'block' }} /></button>
       </div>
       {all && (
         <div className="wb-drop" role="menu">
@@ -319,21 +319,23 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
       )}
       <div className="wb-bar">
         <span className="wb-nav">
-          <button type="button" aria-label="后退" disabled={mode !== 'live'} onClick={() => void nav('back')}>←</button>
-          <button type="button" aria-label="前进" disabled={mode !== 'live'} onClick={() => void nav('forward')}>→</button>
-          <button type="button" aria-label="刷新" onClick={() => void nav('reload')}>↻</button>
+          <button type="button" className="wb-ib" aria-label="后退" title="后退" disabled={mode !== 'live'} onClick={() => void nav('back')}><Icon name="left" size={17} /></button>
+          <button type="button" className="wb-ib" aria-label="前进" title="前进" disabled={mode !== 'live'} onClick={() => void nav('forward')}><Icon name="right" size={17} /></button>
+          <button type="button" className="wb-ib" aria-label="刷新" title="刷新" onClick={() => void nav('reload')}><Icon name="refresh" size={15} /></button>
         </span>
         <form className="wb-addr" onSubmit={(e) => { e.preventDefault(); void submitAddr(addrValue); }}>
-          <span className={'wb-lock' + (url.startsWith('https') ? ' ok' : '')} aria-hidden="true"><Icon name="dot" size={10} style={{ display: 'block' }} /></span>
+          <span className={'wb-lock' + (url.startsWith('https') ? '' : ' warn')} title={url.startsWith('https') ? '加密连接' : '不是加密连接'}>
+            <Icon name={url.startsWith('https') ? 'lock' : 'warn'} size={13} style={{ display: 'block' }} />
+          </span>
           <input ref={addrInput} value={addrValue} aria-label="网址" spellCheck={false} placeholder="输入网址，回车打开"
             onChange={(e) => setAddr({ for: keyOf(tab), value: e.target.value })} />
         </form>
-        <span className="pv-seg small" role="group" aria-label="怎么看这个网页">
+        <span className="wb-mode" role="group" aria-label="怎么看这个网页">
           {caps.browser && <button type="button" className={mode === 'live' ? 'on' : ''} aria-pressed={mode === 'live'} title="服务器上的真浏览器：助手和你都能点、能填" onClick={() => void setMode('live')}>可操作</button>}
           <button type="button" className={mode === 'reader' ? 'on' : ''} aria-pressed={mode === 'reader'} title="只看正文，回答引用的句子标黄" onClick={() => void setMode('reader')}>阅读</button>
         </span>
         <span className="wb-more-w">
-          <button type="button" className={'wb-more' + (menu ? ' on' : '')} aria-label="更多" aria-expanded={menu} onClick={() => setMenu(!menu)}>···</button>
+          <button type="button" className={'wb-ib' + (menu ? ' on' : '')} aria-label="更多" title="更多" aria-expanded={menu} onClick={() => setMenu(!menu)}><Icon name="more" size={17} /></button>
           {menu && (
             <div className="wb-menu" role="menu">
               <button type="button" onClick={() => { setMenu(false); void nav('reload'); }}>刷新</button>
@@ -343,16 +345,17 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
             </div>
           )}
         </span>
+        {(mode === 'live' ? !!live?.live || (!tab.live && canLive) : q.isFetching) && <div className="wb-progress" aria-hidden="true"><i /></div>}
       </div>
       {mode === 'live' && live?.live && (
         <div className="wb-strip ai">
           <PixelSprite pose="idle" width={13} tint={tintOf(live.who ?? 0)} />
-          <span>{live.who ? `子代理 ${live.who}` : '助手'}正在操作 · {live.label ?? '…'}</span>
-          <button type="button" onClick={() => void stop()}>停下</button>
+          <span className="wb-strip-t"><b>{live.who ? `子代理 ${live.who}` : '助手'}正在操作</b>{live.label ? ` · ${live.label}` : ''}</span>
+          <button type="button" className="wb-stop" onClick={() => void stop()}><Icon name="stop" size={11} />停下，我来</button>
         </div>
       )}
       {mode === 'live' && !live?.live && tab.live && (
-        <div className="wb-strip me"><span>你在操作 · 直接在画面上点、打字；问助手「这页」它能看到</span></div>
+        <div className="wb-strip me"><Icon name="cursor" size={13} /><span className="wb-strip-t">你在操作：直接在画面上点、打字；问助手「这页」它能看到</span></div>
       )}
       {downloads.map((d) => (
         <div key={d.id} className="wb-dl">
@@ -395,10 +398,11 @@ export function WebBrowser({ tabs, active, sessionId, onActivate, onCloseTab, on
           </div>
         ) : data ? <Reader data={data} sentences={sentences} /> : null}
       </div>
-      <div className="pv-ft">
-        {mode === 'live' ? '内置浏览器跑在公司服务器上：密码、验证码由你自己在画面上填；提交、确认这类按钮助手会先问你。'
-          : <>{data?.fetchedAt && <span>抓取于 {new Date(data.fetchedAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · </span>}
-            网上的内容，需自行核实。阅读模式由服务器抓取，去掉了广告、脚本和导航。</>}
+      <div className="wb-ft">
+        <Icon name="shield" size={12} />
+        {mode === 'live'
+          ? <span title="内置浏览器跑在公司服务器上：密码、验证码由你自己在画面上填；提交、确认这类按钮助手会先问你。">在公司服务器上运行 · 密码、验证码请自己填 · 提交前助手会先问你</span>
+          : <span>阅读模式 · 已去掉广告和脚本{data?.fetchedAt ? ` · 抓取于 ${new Date(data.fetchedAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''} · 网上内容请自行核实</span>}
       </div>
       {saving && <UploadModal mode="staff" initialFiles={saving} onClose={() => setSaving(null)} onUploaded={() => { setSaving(null); flash('已提交，审核通过后入库'); }} />}
     </div>
