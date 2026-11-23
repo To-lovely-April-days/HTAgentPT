@@ -92,7 +92,7 @@ export default function RolesTab() {
       <section className="org-tree" style={{ padding: '18px 12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px 10px' }}>
           <b style={{ fontSize: 15, fontWeight: 600 }}>角色</b>
-          <button type="button" className="gbtn" onClick={() => startNew()}>＋ 新建角色</button>
+          <button type="button" className="gbtn" onClick={() => startNew()}><Icon name="plus" size={13} className="gi l" />新建角色</button>
         </div>
         {roles.isLoading && <Spinner text="载入…" />}
         <div className="sc" style={{ display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
@@ -212,9 +212,9 @@ export default function RolesTab() {
                 <span>
                   {edit.id === null ? <b>新角色，还没保存</b> : <>
                     <b>改动：</b>
-                    {[...added.map((p) => <span key={`a${p}`} style={{ color: '#1c6b45' }}>＋ {permLabel(p)}</span>),
+                    {[...added.map((p) => <span key={`a${p}`} style={{ color: '#1c6b45' }}><Icon name="plus" size={12} className="gi l" />{permLabel(p)}</span>),
                       ...removed.map((p) => <span key={`r${p}`} style={{ color: 'var(--brand-fg)' }}>－ {permLabel(p)}</span>),
-                      ...(clsChanged ? [<span key="cls">密级 → {CLS_ORDER.filter((c) => edit.classifications.includes(c)).map((c) => CLS_TAG[c][0]).join('/') || '无'}</span>] : []),
+                      ...(clsChanged ? [<span key="cls">密级改为 {CLS_ORDER.filter((c) => edit.classifications.includes(c)).map((c) => CLS_TAG[c][0]).join('/') || '无'}</span>] : []),
                       ...(nameChanged ? [<span key="name">改名</span>] : [])]
                       .reduce<React.ReactNode[]>((acc, el, i) => (i ? [...acc, ' · ', el] : [el]), [])}
                   </>}

@@ -229,7 +229,7 @@ export function TranslationCard({ data }: {
         <div className="advc-foot" style={{ flexWrap: 'wrap' }}>
           <span className="hint" style={{ alignSelf: 'center' }}>已套用术语</span>
           {data.termsApplied.slice(0, 8).map((t) => (
-            <span key={t.zh + t.en} className="pill pill-pub">{t.zh} → {t.en}</span>
+            <span key={t.zh + t.en} className="pill pill-pub">{t.zh}<Icon name="forward" size={11} className="gi m" />{t.en}</span>
           ))}
         </div>
       )}
@@ -559,7 +559,7 @@ export function DocPreviewModal({ src, fileName, onClose, page, find, note }: {
           {note && <span className="hint">{note}</span>}
           <div style={{ flexGrow: 1 }} />
           <button className="pbtn" style={{ height: 26, fontSize: 12, padding: '0 12px' }}
-            onClick={() => void download(src, fileName)}>下载 ↓</button>
+            onClick={() => void download(src, fileName)}>下载<Icon name="download" size={13} className="gi" /></button>
           <button className="gbtn" style={{ height: 26, fontSize: 12 }} onClick={onClose}>关闭</button>
         </div>
         <div className="pv-body">
@@ -590,7 +590,7 @@ export function TranslatedCard({ data }: { data: GenTranslated }) {
           <button className="gbtn" style={{ height: 21, fontSize: 11, padding: '0 8px' }}
             onClick={() => setPeek(true)}>看版式</button>
           <button className="pbtn" style={{ height: 21, fontSize: 11, padding: '0 10px' }}
-            onClick={() => void download(src, data.fileName)}>下载 ↓</button>
+            onClick={() => void download(src, data.fileName)}>下载<Icon name="download" size={13} className="gi" /></button>
         </span>
       </div>
       {data.notice && (
@@ -616,7 +616,7 @@ export function TranslatedCard({ data }: { data: GenTranslated }) {
               <div className="sum-sec" style={{ marginBottom: 6 }}>按已审定译法统一</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: data.unfillable.length ? 10 : 0 }}>
                 {data.terms.map((t) => (
-                  <span key={t.zh + t.en} className="pill pill-pub">{t.zh} → {t.en}</span>
+                  <span key={t.zh + t.en} className="pill pill-pub">{t.zh}<Icon name="forward" size={11} className="gi m" />{t.en}</span>
                 ))}
               </div>
             </>

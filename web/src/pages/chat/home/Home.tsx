@@ -189,10 +189,10 @@ export function Home({ fallbackName, composer, resume, onPick, drafts, onDrafts 
         {data && data.work.length === 0 && data.quiet.length > 0 && (
           <div className="hm-quiet">
             <span id="hm-work-t">今天没有跟你有关的新变动，可以问问这些：</span>
-            {data.quiet.map((x) => <button key={x} type="button" onClick={() => onPick(x)}><i aria-hidden="true">→</i>{x}</button>)}
+            {data.quiet.map((x) => <button key={x} type="button" onClick={() => onPick(x)}><Icon name="forward" size={13} className="gi l" />{x}</button>)}
           </div>
         )}
-        {drafts > 0 && <button type="button" className="hm-more" onClick={onDrafts}>还有 {drafts} 份文档没填完 · <b>去看看 →</b></button>}
+        {drafts > 0 && <button type="button" className="hm-more" onClick={onDrafts}>还有 {drafts} 份文档没填完 · <b>去看看<Icon name="forward" size={13} className="gi" /></b></button>}
         {resume}
       </section>
     </div>

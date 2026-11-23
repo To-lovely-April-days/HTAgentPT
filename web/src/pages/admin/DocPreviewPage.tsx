@@ -11,6 +11,7 @@ import * as pdfjs from 'pdfjs-dist';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { get, fetchBlob, download, ApiError } from '../../lib/api';
 import { AuthImage, ErrorBox, Spinner } from '../../components/Common';
+import { Icon } from '../../components/Icons';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
 
@@ -166,7 +167,7 @@ export default function DocPreviewPage() {
   return (
     <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '10px 40px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
-        <Link to="/admin/corpus" style={{ fontSize: 12.5, color: 'var(--accent)', textDecoration: 'none' }}>← 语料管理</Link>
+        <Link to="/admin/corpus" style={{ fontSize: 12.5, color: 'var(--accent)', textDecoration: 'none' }}><Icon name="back" size={13} className="gi l" />语料管理</Link>
         <span style={{ fontSize: 13.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
         <span className="hint" style={{ marginLeft: 'auto', flexShrink: 0 }}>
           分块 {chunks.data?.length ?? '…'} · 图片 {images.data?.length ?? '…'}

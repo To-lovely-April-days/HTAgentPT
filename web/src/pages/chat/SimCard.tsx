@@ -84,7 +84,7 @@ export function SimCard({ a }: { a: Sim }) {
             <table className="sim-t">
               <thead><tr><th>物流</th>{a.streams.map((s) => <th key={s.id} title={s.label || undefined}><span className="sim-sn">{s.id}</span>{s.label && <small>{s.label}</small>}</th>)}</tr></thead>
               <tbody>
-                <tr className="sub"><td>来自 → 去往</td>{a.streams.map((s) => <td key={s.id}>{s.from ?? '进料'} → {s.to ?? '产品'}</td>)}</tr>
+                <tr className="sub"><td>来自<Icon name="forward" size={12} className="gi m" />去往</td>{a.streams.map((s) => <td key={s.id}>{s.from ?? '进料'}<Icon name="forward" size={12} className="gi m" />{s.to ?? '产品'}</td>)}</tr>
                 {rows.map(([label, f]) => <tr key={label}><td>{label}</td>{a.streams.map((s) => <td key={s.id}>{f(s)}</td>)}</tr>)}
               </tbody>
             </table>

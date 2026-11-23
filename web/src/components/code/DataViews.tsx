@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { CodeBlock } from './CodeBlock';
 import { ViewFrame } from './Views';
 import { jsonErrorLine, parseCsv } from './data';
+import { Icon } from '../Icons';
 
 const NUM = /^[-+]?[\d,]*\.?\d+(e[-+]?\d+)?%?$/i;
 const toNum = (s: string) => Number(s.replace(/[,%]/g, ''));
@@ -36,7 +37,7 @@ export function CsvView({ code, lang }: { code: string; lang: string }) {
             <tr>{head.map((h, i) => (
               <th key={i} className={numeric[i] ? 'num' : undefined} aria-sort={sort?.col === i ? (sort.desc ? 'descending' : 'ascending') : 'none'}>
                 <button type="button" className="th-sort" onClick={() => setSort(sort?.col === i ? { col: i, desc: !sort.desc } : { col: i, desc: false })}>
-                  {h}<span aria-hidden="true">{sort?.col === i ? (sort.desc ? ' ▾' : ' ▴') : ''}</span>
+                  {h}{sort?.col === i && <Icon name={sort.desc ? 'down' : 'chevUp'} size={12} className="gi" />}
                 </button>
               </th>
             ))}</tr>
@@ -63,7 +64,7 @@ function Node({ k, v, depth }: { k: string | null; v: J; depth: number }) {
   const brace = Array.isArray(v) ? ['[', ']'] : ['{', '}'];
   return (
     <div className="jt-row">
-      <button type="button" className="jt-tg" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? '▾' : '▸'}</button>
+      <button type="button" className="jt-tg" aria-expanded={open} onClick={() => setOpen(!open)}><Icon name={open ? 'down' : 'right'} size={12} style={{ display: 'block' }} /></button>
       {key}<span className="jt-p">{brace[0]}</span>
       {!open && <span className="jt-more" onClick={() => setOpen(true)}>{entries.length} 项{brace[1]}</span>}
       {open && (

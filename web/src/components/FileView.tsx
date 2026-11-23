@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { download, fetchBlob, ApiError } from '../lib/api';
 import { ErrorBox, Spinner } from './Common';
+import { Icon } from './Icons';
 
 /** 把 docx 渲染进指定容器。新的一版画好再整体替换，切换时不白一下。 */
 export async function renderDocxInto(blob: Blob, el: HTMLElement) {
@@ -205,7 +206,7 @@ export function FileView({ docId, src, fileName, page, find }: { docId?: string;
             </div>
           ))}
           <div style={{ padding: '4px 14px 16px' }}>
-            <button className="gbtn" onClick={() => void download(url, fileName)}>下载原件 ↓</button>
+            <button className="gbtn" onClick={() => void download(url, fileName)}>下载原件<Icon name="download" size={13} className="gi" /></button>
           </div>
         </div>
       )}
@@ -213,7 +214,7 @@ export function FileView({ docId, src, fileName, page, find }: { docId?: string;
         <div style={{ padding: 16, textAlign: 'center' }}>
           <div className="hint" style={{ marginBottom: 8 }}>这个格式没法在浏览器里还原版式。</div>
           <button className="pbtn" onClick={() => void download(url, fileName)}>
-            下载原件 ↓
+            下载原件<Icon name="download" size={13} className="gi" />
           </button>
         </div>
       )}

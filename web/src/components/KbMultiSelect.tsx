@@ -33,7 +33,7 @@ export function KbMultiSelect({ options, value, onChange, placeholder = '选择�
             <button type="button" aria-label={`去掉 ${o.name}`} onClick={(e) => { e.stopPropagation(); toggle(o.id); }}><Icon name="x" size={11} stroke={2.2} style={{ display: 'block' }} /></button>
           </span>
         ))}
-        <span className="kbms-caret" aria-hidden="true">{open ? '▴' : '▾'}</span>
+        <span className="kbms-caret" aria-hidden="true"><Icon name={open ? 'chevUp' : 'down'} size={14} style={{ display: 'block' }} /></span>
       </div>
       {open && (
         <div className="kbms-pop" role="listbox" aria-multiselectable="true">

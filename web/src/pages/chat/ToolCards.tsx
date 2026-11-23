@@ -53,7 +53,7 @@ function CalcCard({ a }: { a: Extract<ToolArtifact, { kind: 'calc' }> }) {
         <span className="tool-ic calc" aria-hidden="true">算</span>
         <b>计算结果</b>
         <span className="hint">Python · 运行 {a.seconds.toFixed(1)} 秒</span>
-        <button type="button" className="tool-link" aria-expanded={showCode} onClick={() => setShowCode(!showCode)}>{showCode ? '收起代码 ▴' : '看代码 ▾'}</button>
+        <button type="button" className="tool-link" aria-expanded={showCode} onClick={() => setShowCode(!showCode)}>{showCode ? '收起代码' : '看代码'}<Icon name={showCode ? 'chevUp' : 'down'} size={12} className="gi" /></button>
       </div>
       {showCode && <pre className="tool-code">{a.code}</pre>}
       <div className="tool-card-body">
@@ -75,7 +75,7 @@ function ChemCard({ a }: { a: Extract<ToolArtifact, { kind: 'chem' }> }) {
         <b>{a.title}{a.cas ? ` · CAS ${a.cas}` : ''}</b>
         {a.hazchem === true && <span className="tool-flag bad">列入《危险化学品目录》</span>}
         {a.hazchem === false && <span className="tool-flag">未列入本地危化品目录</span>}
-        <a className="tool-link" href={a.url} target="_blank" rel="noopener noreferrer">PubChem ↗</a>
+        <a className="tool-link" href={a.url} target="_blank" rel="noopener noreferrer">PubChem<Icon name="external" size={12} className="gi" /></a>
       </div>
       <div className="chem-grid">
         {a.formula && <div><span>分子式</span><b>{a.formula}{a.weight ? ` · ${a.weight}` : ''}</b></div>}
@@ -263,10 +263,10 @@ function LitCard({ a }: { a: Extract<ToolArtifact, { kind: 'lit' }> }) {
             <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
               <span><span className={'lit-kind' + (it.kind === '专利' ? ' pat' : '')}>{it.kind}</span>
                 <a href={it.url} target="_blank" rel="noopener noreferrer" className="lit-t">{it.title}</a></span>
-              <span className="hint">{it.meta}{it.fullText && <> · <a className="lit-ft" href={it.fullText} target="_blank" rel="noopener noreferrer">开放全文 ↗</a></>}</span>
+              <span className="hint">{it.meta}{it.fullText && <> · <a className="lit-ft" href={it.fullText} target="_blank" rel="noopener noreferrer">开放全文<Icon name="external" size={12} className="gi" /></a></>}</span>
               {it.abstract && (open === it.n
                 ? <span className="lit-abs">{it.abstract}</span>
-                : <button type="button" className="tool-link" style={{ marginLeft: 0, alignSelf: 'flex-start' }} onClick={() => setOpen(it.n)}>看摘要 ▾</button>)}
+                : <button type="button" className="tool-link" style={{ marginLeft: 0, alignSelf: 'flex-start' }} onClick={() => setOpen(it.n)}>看摘要<Icon name="down" size={12} className="gi" /></button>)}
             </div>
           </div>
         ))}

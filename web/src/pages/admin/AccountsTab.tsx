@@ -22,7 +22,7 @@ function deptOptions(depts: DeptRow[]): { id: string; path: string; depth: numbe
   const walk = (parent: string | null, prefix: string[], depth: number) => {
     for (const d of (kids.get(parent) ?? []).sort((a, b) => a.sortOrder - b.sortOrder)) {
       const path = [...prefix, d.name];
-      out.push({ id: d.id, path: path.join(' › '), depth });
+      out.push({ id: d.id, path: path.join(' / '), depth });
       walk(d.id, path, depth + 1);
     }
   };
@@ -125,12 +125,12 @@ export default function AccountsTab() {
             <h1 className="dash-title" style={{ fontSize: 24 }}>账号</h1>
             <p className="dash-sub">{counts.all} 个账号 · 员工 {counts.emp} · 外部客户 {counts.cus} · 已停用 {counts.off}</p>
           </div>
-          <button type="button" className="pbtn dash-btn" onClick={() => setCreating(true)}>＋ 开通账号</button>
+          <button type="button" className="pbtn dash-btn" onClick={() => setCreating(true)}><Icon name="plus" size={13} className="gi l" />开通账号</button>
         </div>
 
         <div className="acc-filters">
           <input className="inp" style={{ width: 220, height: 36 }} placeholder="搜姓名、账号" value={search} onChange={(e) => setSearch(e.target.value)} />
-          {sel_(fDept, setFDept, '按部门筛选', [['', '部门：全部'], ['__none__', '未分配部门'], ...opts.map((o) => [o.id, `${'　'.repeat(o.depth)}${o.path.split(' › ').slice(-1)[0]}`] as [string, string])])}
+          {sel_(fDept, setFDept, '按部门筛选', [['', '部门：全部'], ['__none__', '未分配部门'], ...opts.map((o) => [o.id, `${'　'.repeat(o.depth)}${o.path.split(' / ').slice(-1)[0]}`] as [string, string])])}
           {sel_(fRole, setFRole, '按角色筛选', [['', '角色：全部'], ...(roles.data ?? []).map((r) => [r.code, r.name] as [string, string])])}
           {sel_(fKind, setFKind, '按类型筛选', [['', '类型：全部'], ['Employee', '公司员工'], ['Customer', '外部客户']])}
           {sel_(fStatus, setFStatus, '按状态筛选', [['active', '状态：正常'], ['off', '状态：已停用'], ['', '状态：全部']])}

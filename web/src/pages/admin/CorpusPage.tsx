@@ -10,6 +10,7 @@ import type { DocRow, KbRow, ParseJobRow, ParseStatus } from '../../lib/types';
 import { ErrorBox, Spinner } from '../../components/Common';
 import UploadModal from './UploadModal';
 import CorpusReviewTab from './CorpusReviewTab';
+import { Icon } from '../../components/Icons';
 
 const STATUS_PILL: Record<ParseStatus, React.CSSProperties> = {
   Parsed: { background: '#e6f2ec', color: '#1c6b45', border: '1px solid #c2ded1' },
@@ -274,7 +275,7 @@ export default function CorpusPage() {
       )}
 
       {tab === 'review' && <CorpusReviewTab onChanged={refresh}
-        extra={<button type="button" className="gbtn" style={{ height: 34 }} onClick={() => nav('/approvals')}>新增客户申请 ›</button>} />}
+        extra={<button type="button" className="gbtn" style={{ height: 34 }} onClick={() => nav('/approvals')}>新增客户申请<Icon name="right" size={12} className="gi" /></button>} />}
 
       {tab === 'queue' && (
         <>

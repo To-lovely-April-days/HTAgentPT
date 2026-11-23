@@ -10,6 +10,7 @@ import { Prose } from '../../components/Prose';
 import type { Classification } from '../../lib/types';
 import { AgentProgressCard, mergeAgentSteps } from '../chat/ResultCards';
 import type { AgentStep } from '../chat/ResultCards';
+import { Icon } from '../../components/Icons';
 
 // ── 一轮问答在界面上的形态（对应 SSE 事件契约）──────────────────────
 interface Turn {
@@ -268,7 +269,7 @@ export default function QaPage() {
             <button
               onClick={() => void download(`/api/files/${s.docId}`, s.docTitle).catch((err) => alert(err instanceof ApiError ? err.message : '下载失败'))}
               style={{ fontSize: 11.5, marginTop: 6, padding: 0, border: 'none', background: 'none', color: 'var(--accent)', cursor: 'pointer', fontFamily: 'var(--font)' }}
-            >下载原件 ↗</button>
+            >下载原件<Icon name="download" size={13} className="gi" /></button>
           </div>
         ))}
       </aside>

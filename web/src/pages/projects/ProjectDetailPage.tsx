@@ -8,6 +8,7 @@ import { useAuth } from '../../lib/auth';
 import { CLS_LABEL, CLS_PILL, DELIVERY_LABEL } from '../../lib/types';
 import type { ProjectDetail } from '../../lib/types';
 import { ErrorBox, Spinner } from '../../components/Common';
+import { Icon } from '../../components/Icons';
 
 export default function ProjectDetailPage() {
   const { projectNo = '' } = useParams();
@@ -29,7 +30,7 @@ export default function ProjectDetailPage() {
     return (
       <div style={{ padding: 40, maxWidth: 560 }}>
         <ErrorBox message={notFound ? `台账里没有编号为 ${projectNo} 的项目（或不在你的可见范围内）。` : (q.error instanceof ApiError ? q.error.message : '载入失败，请稍后重试')} />
-        <div style={{ marginTop: 12 }}><Link to="/projects" style={{ fontSize: 13 }}>← 返回项目查询</Link></div>
+        <div style={{ marginTop: 12 }}><Link to="/projects" style={{ fontSize: 13 }}><Icon name="back" size={13} className="gi l" />返回项目查询</Link></div>
       </div>
     );
   }
@@ -44,10 +45,10 @@ export default function ProjectDetailPage() {
     <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
       {/* 项目头 */}
       <div style={{ height: 60, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '0 18px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
-        <button className="gbtn" style={{ height: 28, padding: '0 9px' }} onClick={() => nav(-1)} title="返回">←</button>
+        <button className="gbtn" style={{ height: 28, padding: '0 9px' }} onClick={() => nav(-1)} title="返回" aria-label="返回"><Icon name="back" size={15} style={{ display: 'block' }} /></button>
         <div>
           <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginBottom: 2 }}>
-            {fromQa ? '问答 › 台账查询结果 › 项目详情' : '项目查询 › 项目详情'}
+            {(fromQa ? ['问答', '台账查询结果', '项目详情'] : ['项目查询', '项目详情']).map((x, i) => <span key={x}>{i > 0 && <Icon name="right" size={12} className="gi m" />}{x}</span>)}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <span className="m" style={{ fontSize: 15, fontWeight: 600 }}>{row.projectNo}</span>

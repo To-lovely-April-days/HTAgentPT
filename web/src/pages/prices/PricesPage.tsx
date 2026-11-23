@@ -163,10 +163,10 @@ function HitRow({ h }: { h: PriceHit }) {
         <td className="num">
           <b className="tnum">{h.taxLow == null ? <span className="muted">没有价格</span> : price(h.taxLow, h.taxHigh)}</b>
           <span className={'cell-sub ' + (up ? 'd-up' : down ? 'd-down' : '')}>
-            {h.changePct != null ? `${up ? '▲' : down ? '▼' : ''} ${Math.abs(h.changePct)}%` : h.taxLow != null && h.taxHigh !== h.taxLow ? '区间价' : h.taxDerived ? '按未税推算' : ''}
+            {h.changePct != null ? <>{(up || down) && <Icon name={up ? 'trendUp' : 'trendDown'} size={12} className="gi l" />}{Math.abs(h.changePct)}%</> : h.taxLow != null && h.taxHigh !== h.taxLow ? '区间价' : h.taxDerived ? '按未税推算' : ''}
           </span>
         </td>
-        <td className="muted">{h.versions} 个版本 {open ? '▴' : '▾'}</td>
+        <td className="muted">{h.versions} 个版本<Icon name={open ? 'chevUp' : 'down'} size={13} className="gi" /></td>
         <td className="num mono muted">{h.tableName} #{h.rowNo}{h.stale && <span className="cell-sub warn">可能过时</span>}</td>
       </tr>
       {open && (
@@ -261,7 +261,7 @@ function ImportDrawer({ table, onClose, onDone }: { table: PriceTableRow | null;
               {map.filter((m) => m.header || m.field !== 'ignore').map((m) => (
                 <div key={m.col} className="pl-map-row">
                   <span className="pl-map-from" title={m.header}>{m.header || `第 ${m.col + 1} 列（没有表头）`}</span>
-                  <span className="muted" aria-hidden="true">→</span>
+                  <Icon name="forward" size={14} className="muted" />
                   <select className="inp" aria-label={`${m.header || `第 ${m.col + 1} 列`} 对应`} value={m.field}
                     onChange={(e) => setMap(map.map((x) => (x.col === m.col ? { ...x, field: e.target.value } : x)))}>
                     {FIELDS.map(([k, l]) => <option key={k} value={k}>{l}{m.supplier && ['price', 'price_net', 'model', 'lead'].includes(k) ? ` · ${m.supplier}` : ''}</option>)}

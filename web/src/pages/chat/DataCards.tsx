@@ -126,7 +126,7 @@ function Cell({ v, type }: { v: string; type: string }) {
       const n = num(t);
       const up = t.startsWith('▲') || (n != null && n > 0 && !t.startsWith('▼'));
       const down = t.startsWith('▼') || (n != null && n < 0);
-      return <span className={up ? 'd-up' : down ? 'd-down' : 'muted'}>{up && !t.startsWith('▲') ? '▲ ' : ''}{down && !t.startsWith('▼') ? '▼ ' : ''}{t.replace(/^[+-]/, '')}</span>;
+      return <span className={up ? 'd-up' : down ? 'd-down' : 'muted'}>{(up || down) && <Icon name={up ? 'trendUp' : 'trendDown'} size={12} className="gi l" />}{t.replace(/^[+\-▲▼]\s*/, '')}</span>;
     }
     case 'status': {
       const tone = /交付|完成|正常|通过|在用|满足/.test(t) ? 'ok' : /失败|停|驳回|不满足|超期/.test(t) ? 'bad' : 'mid';

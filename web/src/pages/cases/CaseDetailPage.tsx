@@ -7,6 +7,7 @@ import { get, post, ApiError } from '../../lib/api';
 import { SYNC_LABEL, SYNC_PILL_STYLE } from '../../lib/types';
 import type { CaseDetailData, CaseSyncStatus, SensitiveHit } from '../../lib/types';
 import { ErrorBox, Spinner } from '../../components/Common';
+import { Icon } from '../../components/Icons';
 
 const STEPS = [
   { name: '本地录入', note: '写入本公司私有库，立即可检索' },
@@ -35,7 +36,7 @@ export default function CaseDetailPage() {
     return (
       <div style={{ padding: 40, maxWidth: 560 }}>
         <ErrorBox message={q.error instanceof ApiError && q.error.status === 404 ? '案例不存在或不在你的可见范围内。' : '载入失败，请稍后重试'} />
-        <div style={{ marginTop: 12 }}><Link to="/cases" style={{ fontSize: 13 }}>← 返回案例检索</Link></div>
+        <div style={{ marginTop: 12 }}><Link to="/cases" style={{ fontSize: 13 }}><Icon name="back" size={13} className="gi l" />返回案例检索</Link></div>
       </div>
     );
   }
@@ -92,7 +93,7 @@ export default function CaseDetailPage() {
   return (
     <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
       <div style={{ height: 58, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 11, padding: '0 18px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
-        <button className="gbtn" style={{ height: 28, padding: '0 9px' }} onClick={() => nav(-1)} title="返回">←</button>
+        <button className="gbtn" style={{ height: 28, padding: '0 9px' }} onClick={() => nav(-1)} title="返回" aria-label="返回"><Icon name="back" size={15} style={{ display: 'block' }} /></button>
         <span className="m" style={{ fontSize: 14, fontWeight: 600 }}>{c.caseNo}</span>
         <span className="m pill" style={{ background: '#eef1f5', color: 'var(--ink-2)', border: '1px solid #dde3ea' }}>{c.deviceModel}</span>
         {c.alarmCode && <span className="m pill" style={{ background: 'var(--cls-conf-bg)', color: 'var(--cls-conf-fg)', border: '1px solid var(--cls-conf-line)' }}>{c.alarmCode}</span>}

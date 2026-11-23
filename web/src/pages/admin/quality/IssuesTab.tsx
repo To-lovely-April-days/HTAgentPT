@@ -248,7 +248,7 @@ function Fix({ category, detail, cards, onReask }: { category: string; detail: I
       {category === 'parse' && (
         <>
           <p>打开原文和解析出来的文字对照，表格乱了、扫描件没认出字的，在语料管理里重新解析。</p>
-          {docs.map((c) => <Link key={c.docId!} className="qy-doc" to={`/admin/corpus/${c.docId}/preview`}>{c.title} ›</Link>)}
+          {docs.map((c) => <Link key={c.docId!} className="qy-doc" to={`/admin/corpus/${c.docId}/preview`}>{c.title}<Icon name="right" size={12} className="gi" /></Link>)}
         </>
       )}
       {category === 'crowded' && (
@@ -274,14 +274,14 @@ function AliasForm() {
     setErr(null);
     try {
       await post('/api/quality/aliases', { alias: alias.trim(), value: value.trim(), kind });
-      setDone((x) => [...x, `${alias.trim()} → ${value.trim()}`]); setAlias(''); setValue('');
+      setDone((x) => [...x, `${alias.trim()} 归到 ${value.trim()}`]); setAlias(''); setValue('');
     } catch (e) { setErr(e instanceof ApiError ? e.message : '没加上'); }
   };
   return (
     <>
       <div className="qy-alias">
         <input aria-label="问题里的叫法" placeholder="问题里的叫法，如「哈氏釜」" value={alias} onChange={(e) => setAlias(e.target.value)} />
-        <span aria-hidden="true">→</span>
+        <Icon name="forward" size={13} className="muted" />
         <input aria-label="公司的标准说法" placeholder="标准说法，如「C276 反应釜」" value={value} onChange={(e) => setValue(e.target.value)} />
         <select aria-label="类型" value={kind} onChange={(e) => setKind(e.target.value)}>
           {KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}

@@ -890,7 +890,7 @@ function AssistantMessage() {
           } : m.sources ? (n) => setFocusSource(n) : undefined} />}
         {m.text && !m.streaming && isLongDoc(m.text) && (
           <button type="button" className="as-refs-btn" onClick={() => openPreview({ kind: 'doc', title: (lastQuestion(byId, id) || '助手回答').slice(0, 30), markdown: m.text })}>
-            在面板里按文档看（有目录，可导出 Word / PDF） ›
+            在面板里按文档看（有目录，可导出 Word / PDF）<Icon name="right" size={12} className="gi" />
           </button>
         )}
         {m.ask && <AskCard ask={m.ask} active={active && !m.ask.answered} onAnswer={sendText} />}
@@ -900,7 +900,7 @@ function AssistantMessage() {
         )}
         {m.evidence && m.evidence.used.length > 0 && !m.streaming && refs?.msgId !== id && (
           <button type="button" className="as-refs-btn" onClick={() => showRefs(id)}>
-            参考资料 {new Set(m.evidence.used.map((c) => c.docId ?? c.kind + (c.fileName ?? ''))).size} 份 · {m.evidence.used.length} 段原文 ›
+            参考资料 {new Set(m.evidence.used.map((c) => c.docId ?? c.kind + (c.fileName ?? ''))).size} 份 · {m.evidence.used.length} 段原文<Icon name="right" size={12} className="gi" />
           </button>
         )}
         {m.truncated && !m.streaming && (
@@ -974,7 +974,7 @@ function AssistantMessage() {
           <div style={{ marginTop: 9 }}>
             <button className="pbtn"
               onClick={() => void download(`/api/generate/sessions/${m.genSessionId}/output`, m.gen!.rendered!.fileName)}>
-              下载《{m.gen.rendered.fileName}》↓
+              下载《{m.gen.rendered.fileName}》<Icon name="download" size={13} className="gi" />
             </button>
           </div>
         )}

@@ -178,7 +178,7 @@ function SyncTab() {
             </div>
             {result.docsQueuedForEmbedding > 0 && (
               <div className="hint" style={{ marginTop: 10, color: 'var(--cls-int-fg)' }}>
-                版本标识不一致：{result.docsQueuedForEmbedding} 篇文档已进重算队列，完成前这些内容不参与语义检索（进度见语料管理 › 解析队列）。
+                版本标识不一致：{result.docsQueuedForEmbedding} 篇文档已进重算队列，完成前这些内容不参与语义检索（进度见「语料管理」的「解析队列」）。
               </div>
             )}
             {result.warnings.map((w, i) => <div key={i} className="hint" style={{ marginTop: 6, color: 'var(--cls-conf-fg)' }}>{w}</div>)}

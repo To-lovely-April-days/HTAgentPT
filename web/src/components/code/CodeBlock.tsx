@@ -90,7 +90,7 @@ export function CodeBlock({ code, lang, title, maxHeight, bare, unfold }: {
       </div>
       {lines.length > FOLD_AT && (
         <button type="button" className="cb-fold" onClick={() => setOpen(!open)}>
-          {open ? '收起 ▴' : `展开全部 ${lines.length} 行 ▾`}
+          {open ? <>收起<Icon name="chevUp" size={13} className="gi" /></> : <>展开全部 {lines.length} 行<Icon name="down" size={13} className="gi" /></>}
         </button>
       )}
       {run && (

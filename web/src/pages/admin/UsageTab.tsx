@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { get } from '../../lib/api';
 import { Spinner } from '../../components/Common';
+import { Icon } from '../../components/Icons';
 
 interface DayRow { date: string; total: number; modules: Record<string, number> }
 interface ModuleRow { name: string; n: number; prev: number }
@@ -109,25 +110,30 @@ export default function UsageTab() {
 }
 
 // ─── 汇总条 ─────────────────────────────────────────────
+/** 和上期比：一句话、好坏（配色）、方向（图标）。 */
+type Delta = { text: string; cls: string; dir?: 'up' | 'down' };
+
 function Summary({ t, rangeLabel }: { t: Totals; rangeLabel: string }) {
   const up = 'up', down = 'down', flat = 'flat';
-  const pctDelta = (cur: number, prev: number, goodWhenUp = true) => {
+  const pctDelta = (cur: number, prev: number, goodWhenUp = true): Delta => {
     const p = pct(cur, prev);
     if (p == null) return { text: '与上期持平', cls: flat };
     if (p === Infinity) return { text: '上期没有记录', cls: flat };
     if (Math.abs(p) < 0.05) return { text: '与上期持平', cls: flat };
     const good = (p > 0) === goodWhenUp;
-    return { text: `${p > 0 ? '↑' : '↓'} ${Math.abs(p).toFixed(1)}% 较前 ${rangeLabel}`, cls: good ? up : down };
+    return { text: `${Math.abs(p).toFixed(1)}% 较前 ${rangeLabel}`, cls: good ? up : down, dir: p > 0 ? 'up' : 'down' };
   };
   const userDiff = t.activeUsers - t.prevActiveUsers;
   const hitDiff = t.hitRate != null && t.prevHitRate != null ? t.hitRate - t.prevHitRate : null;
   const tpl = Object.entries(t.docsByTemplate).slice(0, 3).map(([k, v]) => `${k} ${v}`).join(' · ');
-  const cells = [
+  const cells: (Delta & { l: string; v: string; u: string })[] = [
     { l: '调用次数', v: fmt(t.calls), u: '次', ...pctDelta(t.calls, t.prevCalls) },
     { l: '活跃用户', v: String(t.activeUsers), u: `/ ${t.totalUsers} 人`,
-      text: userDiff === 0 ? '与上期持平' : `${userDiff > 0 ? '↑' : '↓'} ${Math.abs(userDiff)} 人`, cls: userDiff > 0 ? up : userDiff < 0 ? down : flat },
+      text: userDiff === 0 ? '与上期持平' : `${Math.abs(userDiff)} 人`, cls: userDiff > 0 ? up : userDiff < 0 ? down : flat,
+      dir: userDiff > 0 ? 'up' : userDiff < 0 ? 'down' : undefined },
     { l: '问答命中率', v: t.hitRate != null ? t.hitRate.toFixed(1) : '—', u: t.hitRate != null ? '%' : '',
-      text: hitDiff == null ? (t.hitRate == null ? '本期没有知识问答' : '上期没有可比数据') : Math.abs(hitDiff) < 0.05 ? '与上期持平' : `${hitDiff > 0 ? '↑' : '↓'} ${Math.abs(hitDiff).toFixed(1)} 个百分点`,
+      text: hitDiff == null ? (t.hitRate == null ? '本期没有知识问答' : '上期没有可比数据') : Math.abs(hitDiff) < 0.05 ? '与上期持平' : `${Math.abs(hitDiff).toFixed(1)} 个百分点`,
+      dir: hitDiff != null && Math.abs(hitDiff) >= 0.05 ? (hitDiff > 0 ? 'up' : 'down') : undefined,
       cls: hitDiff == null || Math.abs(hitDiff) < 0.05 ? flat : hitDiff > 0 ? up : down },
     { l: '生成文档', v: String(t.docs), u: '份', text: tpl || (t.docs === 0 ? '本期还没有出文档' : ''), cls: flat },
     { l: '没答上来', v: String(t.noResult), u: '次', ...pctDelta(t.noResult, t.prevNoResult, false) },
@@ -138,7 +144,7 @@ function Summary({ t, rangeLabel }: { t: Totals; rangeLabel: string }) {
         <div key={c.l} className="us-sum-c">
           <span className="dash-kpi-l">{c.l}</span>
           <span className="us-sum-v">{c.v}<small>{c.u}</small></span>
-          <span className={`us-sum-d ${c.cls}`}>{c.text}</span>
+          <span className={`us-sum-d ${c.cls}`}>{c.dir && <Icon name={c.dir === 'up' ? 'trendUp' : 'trendDown'} size={12} className="gi l" />}{c.text}</span>
         </div>
       ))}
     </section>

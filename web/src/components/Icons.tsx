@@ -39,6 +39,11 @@ const PATHS: Record<string, ReactElement> = {
   down: <path d="m6 9 6 6 6-6" />,  // chevron-down
   right: <path d="m9 18 6-6-6-6" />,  // chevron-right
   left: <path d="m15 18-6-6 6-6" />,  // chevron-left
+  chevUp: <path d="m18 15-6-6-6 6" />,  // chevron-up
+  download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></>,  // download
+  arrowDown: <><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></>,  // arrow-down
+  trendUp: <><polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" /></>,  // trending-up
+  trendDown: <><polyline points="22 17 13.5 8.5 8.5 13.5 2 7" /><polyline points="16 17 22 17 22 11" /></>,  // trending-down
   back: <><path d="m12 19-7-7 7-7" /><path d="M19 12H5" /></>,  // arrow-left
   forward: <><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></>,  // arrow-right
   box: <><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z" /><path d="M12 22V12" /><path d="m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7" /><path d="m7.5 4.27 9 5.15" /></>,  // package

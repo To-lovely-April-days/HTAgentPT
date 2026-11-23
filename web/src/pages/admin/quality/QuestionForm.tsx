@@ -68,7 +68,7 @@ export function QuestionForm({ draft, onClose, onSaved }: { draft: QuestionDraft
           <div className="q-chips">
             <Chips items={d.expectDocs} onRemove={(x) => set({ expectDocs: d.expectDocs.filter((y) => y !== x) })} />
             {unpicked.map((c) => (
-              <button key={c} type="button" className="q-chip" onClick={() => set({ expectDocs: uniq([...d.expectDocs, c]) })}>＋ {c}</button>
+              <button key={c} type="button" className="q-chip" onClick={() => set({ expectDocs: uniq([...d.expectDocs, c]) })}><Icon name="plus" size={12} className="gi l" />{c}</button>
             ))}
             <AddInput placeholder="再加一份" onAdd={(x) => set({ expectDocs: uniq([...d.expectDocs, x]) })} />
           </div>
@@ -88,7 +88,7 @@ export function QuestionForm({ draft, onClose, onSaved }: { draft: QuestionDraft
               )}
             </div>
           ))}
-          <button type="button" className="q-link" onClick={() => set({ expectPoints: [...d.expectPoints, ''] })}>＋ 再加一条要点</button>
+          <button type="button" className="q-link" onClick={() => set({ expectPoints: [...d.expectPoints, ''] })}><Icon name="plus" size={12} className="gi l" />再加一条要点</button>
         </div>
         <label className="q-check">
           <input type="checkbox" checked={d.expectAsk} onChange={(e) => set({ expectAsk: e.target.checked })} />

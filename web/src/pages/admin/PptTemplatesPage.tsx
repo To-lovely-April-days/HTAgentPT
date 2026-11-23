@@ -66,7 +66,7 @@ export default function PptTemplatesPage() {
     <>
       <div className="qy-tabs">
         <b>PPT 模板</b>
-        <span className="hint">助手「做 PPT」用的模板库：员工在输入框「＋ → PPT 模板」里挑，助手按页面类型从模板里挑样页、换字、检查</span>
+        <span className="hint">助手「做 PPT」用的模板库：员工在输入框左下角加号菜单的「PPT 模板」里挑，助手按页面类型从模板里挑样页、换字、检查</span>
       </div>
       <div className="qy">
         {d && (

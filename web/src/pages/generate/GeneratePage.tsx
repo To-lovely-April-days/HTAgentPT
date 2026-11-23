@@ -14,6 +14,7 @@ import type {
 import { ErrorBox, InfoBox, Spinner } from '../../components/Common';
 import { AdviceCard, EvidenceCard, SummaryCard } from './ChatCards';
 import { Prose } from '../../components/Prose';
+import { Icon } from '../../components/Icons';
 
 export default function GeneratePage() {
   // 从问答分流跳来：state 带模板与原话，落地即建会话开聊，原话作首轮输入自动抽取
@@ -204,14 +205,14 @@ function SessionChat({ sessionId, initialMessage, onExit, onWorkbench }: {
     <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
       <div style={{ flexShrink: 0, padding: '10px 18px 9px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <button className="gbtn" style={{ height: 26, padding: '0 9px' }} onClick={onExit}>←</button>
+          <button className="gbtn" style={{ height: 26, padding: '0 9px' }} onClick={onExit} title="返回" aria-label="返回"><Icon name="back" size={15} style={{ display: 'block' }} /></button>
           <span style={{ fontSize: 13.5, fontWeight: 600 }}>{templateName || '方案生成对话'}</span>
           <span className="pill pill-neutral">对话填写</span>
           <div style={{ flexGrow: 1 }} />
           <span className="hint">已完成 <span className="m">{done}</span> / {total}</span>
           {progress?.outputFileName && (
             <button className="gbtn" onClick={() => void download(`/api/generate/sessions/${sessionId}/output`, progress.outputFileName!)
-              .catch((e2) => setErr(e2 instanceof ApiError ? e2.message : '下载失败'))}>下载 Word ↓</button>
+              .catch((e2) => setErr(e2 instanceof ApiError ? e2.message : '下载失败'))}>下载 Word<Icon name="download" size={13} className="gi" /></button>
           )}
           <button className="gbtn" onClick={onWorkbench}>逐项核对</button>
           {progress?.canRender && (
@@ -328,7 +329,7 @@ function AssistantChatMsg({ msg, active, sessionId, onTurn, onError }: {
             <button className="pbtn" style={{ height: 26, fontSize: 12, padding: '0 12px' }}
               onClick={() => void download(`/api/generate/sessions/${sessionId}/output`, payload.rendered!.fileName)
                 .catch((e) => onError(e instanceof ApiError ? e.message : '下载失败'))}>
-              下载《{payload.rendered.fileName}》↓
+              下载《{payload.rendered.fileName}》<Icon name="download" size={13} className="gi" />
             </button>
           </div>
         )}
@@ -359,7 +360,7 @@ function SessionWorkbench({ sessionId, onExit }: { sessionId: string; onExit: ()
       {/* 顶条：进度绿段已确认、紫段待确认（5.2.5 色板） */}
       <div style={{ flexShrink: 0, padding: '10px 18px 9px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <button className="gbtn" style={{ height: 26, padding: '0 9px' }} onClick={onExit}>←</button>
+          <button className="gbtn" style={{ height: 26, padding: '0 9px' }} onClick={onExit} title="返回" aria-label="返回"><Icon name="back" size={15} style={{ display: 'block' }} /></button>
           <span style={{ fontSize: 13.5, fontWeight: 600 }}>{s.templateName}</span>
           {s.baseProjectNo
             ? <span className="pill" style={SOURCE_PILL_STYLE.Inherited}>基准 {s.baseProjectNo}</span>
@@ -571,7 +572,7 @@ function SlotRow({ sessionId, v, onChanged }: { sessionId: string; v: SlotView; 
               {sugg.note && <div style={{ fontSize: 11.5, color: '#8f3d74', marginBottom: 6 }}>{sugg.note}</div>}
               {sugg.evidence.map((e, i) => (
                 <div key={i} style={{ fontSize: 11, lineHeight: 1.6, color: 'var(--ink-2)', marginBottom: 3 }}>
-                  <span className="m" style={{ color: '#8f3d74' }}>[{i + 1}]</span> {e.sourceTitle}{e.section ? ` › ${e.section}` : ''}{e.pageNo != null ? ` · 第 ${e.pageNo} 页` : ''}——{e.excerpt.slice(0, 90)}…
+                  <span className="m" style={{ color: '#8f3d74' }}>[{i + 1}]</span> {e.sourceTitle}{e.section ? ` / ${e.section}` : ''}{e.pageNo != null ? ` · 第 ${e.pageNo} 页` : ''}——{e.excerpt.slice(0, 90)}…
                 </div>
               ))}
               <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
@@ -757,7 +758,7 @@ function PreviewModal({ sessionId, outputFileName, onClose, onRendered }: {
           {(rendered || outputFileName) && (
             <button className="gbtn" onClick={() => void download(`/api/generate/sessions/${sessionId}/output`, rendered?.outputFileName ?? outputFileName ?? '方案.docx')
               .catch((err) => setError(err instanceof ApiError ? err.message : '下载失败'))}>
-              下载 Word ↓
+              下载 Word<Icon name="download" size={13} className="gi" />
             </button>
           )}
           <button className="pbtn" style={{ height: 28, padding: '0 13px' }} disabled={busy} onClick={() => void render()}>

@@ -1280,6 +1280,7 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .blk-legend { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--ink-2); padding: 4px 18px 12px; }
 .blk-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
 .blk-legend i.ln { height: 3px; width: 14px; vertical-align: 3px; }
+.blk-legend i.lg-tri { width: 0; height: 0; border-radius: 0; background: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 8px solid #141414; vertical-align: 0; }
 .blk-legend .src { margin-left: auto; color: var(--ink-3); }
 .blk-sub-note { padding: 10px 18px; font-size: 12px; color: var(--ink-2); border-top: 1px solid #f1f1ef; }
 .blk-foot-warn { padding: 10px 18px; font-size: 12.5px; color: #8a0b20; background: #fffbfb; border-top: 1px solid #f1f1ef; }
@@ -1730,3 +1731,8 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 @media (max-width: 900px) { .pt-wrap { flex-direction: column; } .pt-up { flex: none; width: 100%; box-sizing: border-box; } }
 .pt-tbl td:nth-child(2) { min-width: 130px; }
 .pt-tbl td:nth-child(3) { min-width: 140px; }
+
+/* 文字里跟着的小图标（展开、下载、跳转、新窗口）：和文字基线对齐 */
+.gi { display: inline-block; vertical-align: -0.17em; margin-left: 3px; flex: 0 0 auto; }
+.gi.l { margin: 0 4px 0 0; }
+.gi.m { margin: 0 4px; }

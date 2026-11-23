@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { AssistantStep, PlanState } from '../../lib/types';
 import { PixelSprite } from '../../components/pet/PixelSprite';
 import { ACTS, actOfTool } from '../../components/pet/thinking';
+import { Icon } from '../../components/Icons';
 
 // 列计划、思考、翻看技能不挂在步骤下面给用户看
 const QUIET = new Set(['plan', 'think', 'use_skill']);
@@ -55,7 +56,7 @@ export function PlanCard({ plan, steps, streaming, seconds }: { plan: PlanState;
       <button type="button" className="pl-one" aria-expanded={false} onClick={() => setOpen(true)}>
         <Mark s="done" /><b>做了 {done} 步</b>
         <span className="hint">· 用时 {clock(total)}{plan.revisions > 0 ? ` · 计划改过 ${plan.revisions} 次` : ''}{plan.items.some((i) => i.status === 'skip') ? ` · ${plan.items.filter((i) => i.status === 'skip').length} 步没做` : ''}</span>
-        <span className="hint" style={{ marginLeft: 'auto' }}>展开 ▾</span>
+        <span className="hint" style={{ marginLeft: 'auto' }}>展开<Icon name="down" size={13} className="gi" /></span>
       </button>
     );
   }
@@ -65,7 +66,7 @@ export function PlanCard({ plan, steps, streaming, seconds }: { plan: PlanState;
         <b>要做 {plan.items.length} 步</b>
         <span className="hint">已完成 {done} 步{plan.revisions > 0 ? ` · 计划改过 ${plan.revisions} 次` : ''}</span>
         <span className="hint pl-r">用时 {clock(total)}</span>
-        {!live && <button type="button" className="hm-link" onClick={() => setOpen(false)}>收起 ▴</button>}
+        {!live && <button type="button" className="hm-link" onClick={() => setOpen(false)}>收起<Icon name="chevUp" size={13} className="gi" /></button>}
       </div>
       <div className="pl-bar"><i style={{ width: `${(done / Math.max(1, plan.items.length)) * 100}%` }} /></div>
       {lastReason && live && <div className="pl-note">改了计划：{lastReason}</div>}
@@ -78,7 +79,7 @@ export function PlanCard({ plan, steps, streaming, seconds }: { plan: PlanState;
             <div className={'pl-it ' + it.status}>
               <Mark s={it.status} />
               <span className="pl-t">{it.title}{it.note && <small>{it.note}</small>}</span>
-              {sub.length > 0 && <button type="button" className="pl-n" aria-expanded={show} onClick={() => setPeek({ ...peek, [i]: !show })}>{sub.length} 次调用 {show ? '▴' : '▾'}</button>}
+              {sub.length > 0 && <button type="button" className="pl-n" aria-expanded={show} onClick={() => setPeek({ ...peek, [i]: !show })}>{sub.length} 次调用<Icon name={show ? 'chevUp' : 'down'} size={12} className="gi" /></button>}
               <span className="pl-s">{secs != null && it.status !== 'todo' ? clock(secs) : ''}</span>
             </div>
             {show && sub.length > 0 && (

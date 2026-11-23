@@ -85,7 +85,7 @@ export default function OrgTreeTab() {
         <div className="org-tree-hd">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <b style={{ fontSize: 15, fontWeight: 600 }}>部门</b>
-            <button type="button" className="gbtn" onClick={() => setNaming({ mode: 'new', value: '' })}>＋ 新建部门</button>
+            <button type="button" className="gbtn" onClick={() => setNaming({ mode: 'new', value: '' })}><Icon name="plus" size={13} className="gi l" />新建部门</button>
           </div>
           <input className="inp" style={{ height: 34 }} placeholder="搜人或部门" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
@@ -98,7 +98,7 @@ export default function OrgTreeTab() {
               onClick={() => { setSel(d.id); setNaming(null); }}>
               <button type="button" className="org-caret" aria-label={collapsed.has(d.id) ? '展开' : '收起'} disabled={!hasChildren}
                 onClick={(e) => { e.stopPropagation(); setCollapsed((c) => { const n = new Set(c); if (n.has(d.id)) n.delete(d.id); else n.add(d.id); return n; }); }}>
-                {hasChildren ? (collapsed.has(d.id) ? '▸' : '▾') : ''}
+                {hasChildren && <Icon name={collapsed.has(d.id) ? 'right' : 'down'} size={12} style={{ display: 'block' }} />}
               </button>
               <span className="org-node-n">{d.name}</span>
               <span className="org-node-h">{d.headName ?? '—'}</span>
@@ -134,7 +134,7 @@ export default function OrgTreeTab() {
           <>
             <div className="dash-head">
               <div>
-                <div className="dash-muted">{pathOf(list, cur.id).slice(0, -1).join(' › ') || '最上层'}</div>
+                <div className="dash-muted">{pathOf(list, cur.id).slice(0, -1).join(' / ') || '最上层'}</div>
                 {naming?.mode === 'rename' ? (
                   <form style={{ display: 'flex', gap: 8, marginTop: 4 }} onSubmit={(e) => { e.preventDefault(); void saveName(); }}>
                     <input className="inp" autoFocus style={{ height: 36, width: 260 }} value={naming.value} onChange={(e) => setNaming({ ...naming, value: e.target.value })} />
@@ -150,10 +150,10 @@ export default function OrgTreeTab() {
                   <select className="inp" style={{ height: 32, width: 160 }} value={cur.parentId ?? ''}
                     onChange={(e) => void act(() => put(`/api/departments/${cur.id}`, { name: null, parentId: e.target.value || null, moveParent: true }))}>
                     <option value="">（最上层）</option>
-                    {list.filter((d) => d.id !== cur.id).map((d) => <option key={d.id} value={d.id}>{pathOf(list, d.id).join(' › ')}</option>)}
+                    {list.filter((d) => d.id !== cur.id).map((d) => <option key={d.id} value={d.id}>{pathOf(list, d.id).join(' / ')}</option>)}
                   </select>
                 </label>
-                <button type="button" className="gbtn" onClick={() => setNaming({ mode: 'child', value: '' })}>＋ 下级部门</button>
+                <button type="button" className="gbtn" onClick={() => setNaming({ mode: 'child', value: '' })}><Icon name="plus" size={13} className="gi l" />下级部门</button>
                 <button type="button" className="gbtn" style={{ color: 'var(--cls-conf-fg)' }}
                   onClick={() => { if (window.confirm(`删除部门「${cur.name}」？部门里要没有人、没有下级部门才能删。`)) void act(() => del(`/api/departments/${cur.id}`)).then(() => setSel(null)); }}>删除</button>
               </div>
@@ -180,7 +180,7 @@ export default function OrgTreeTab() {
                 <h2 className="dash-h2">成员 · {members.length} 人</h2>
                 <select className="inp" style={{ height: 32, width: 220 }} value="" aria-label="加人到本部门"
                   onChange={(e) => { if (e.target.value) void act(() => put(`/api/departments/members/${e.target.value}`, { departmentId: cur.id })); }}>
-                  <option value="">＋ 加人到本部门</option>
+                  <option value="">加人到本部门…</option>
                   {employees.filter((u) => u.isActive && u.departmentId !== cur.id).map((u) => (
                     <option key={u.id} value={u.id}>{u.displayName}（{u.departmentId ? pathOf(list, u.departmentId).slice(-1)[0] : '未分配'}）</option>
                   ))}

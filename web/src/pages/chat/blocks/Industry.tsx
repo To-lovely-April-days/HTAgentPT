@@ -102,7 +102,7 @@ export function OpWindow({ d }: { d: D }) {
       })}
       <div className="blk-legend">
         <span><i style={{ background: '#cfe6d9' }} />正常操作</span><span><i style={{ background: '#f5e2be' }} />报警区</span>
-        <span><i style={{ background: '#a00d25', width: 2 }} />设计值</span><span>▼ 要求值</span>
+        <span><i style={{ background: '#a00d25', width: 2 }} />设计值</span><span><i className="lg-tri" />要求值</span>
       </div>
       {s(d.conclusion) && <div className="blk-callout warn compact"><span className="sym" aria-hidden="true">!</span><span className="body"><b>结论</b><span>{s(d.conclusion)}</span></span></div>}
     </div>
@@ -142,10 +142,10 @@ export function RiskMatrix({ d }: { d: D }) {
   return (
     <div className="blk-risk">
       <div className="grid" role="img" aria-label="风险矩阵：纵轴可能性，横轴严重程度">
-        <span className="ylab">可能性 →</span>
+        <span className="ylab">可能性<Icon name="forward" size={11} className="gi" /></span>
         {cells.map((c, i) => <span key={i} className="cell" style={{ background: riskColor(c.l * c.sv) }}>{c.ids.join(' ')}</span>)}
         <span />
-        <span className="xlab">严重程度 →</span>
+        <span className="xlab">严重程度<Icon name="forward" size={11} className="gi" /></span>
       </div>
       <div className="list">
         {[...items].sort((a, b) => b.l * b.sv - a.l * a.sv).map((x) => (
@@ -180,7 +180,7 @@ export function Bom({ d }: { d: D }) {
               <td style={{ paddingLeft: 10 + x.level * 18 }}>
                 {hasKids(i)
                   ? <button type="button" className="tw" aria-expanded={!closed.includes(i)} aria-label={(closed.includes(i) ? '展开 ' : '收起 ') + x.name}
-                      onClick={() => setClosed(closed.includes(i) ? closed.filter((c) => c !== i) : [...closed, i])}>{closed.includes(i) ? '▸' : '▾'}</button>
+                      onClick={() => setClosed(closed.includes(i) ? closed.filter((c) => c !== i) : [...closed, i])}><Icon name={closed.includes(i) ? 'right' : 'down'} size={12} style={{ display: 'block' }} /></button>
                   : <span className="tw-sp" />}
                 <span style={{ fontWeight: x.level === 0 ? 600 : x.level === 1 ? 500 : 400 }}>{x.name}</span>
               </td>

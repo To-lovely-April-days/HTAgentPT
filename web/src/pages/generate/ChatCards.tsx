@@ -23,7 +23,7 @@ function AdviceRow({ name, current, value, tone, pill, high, detail, active, onA
           <span className="advc-tri"><Icon name="play" size={9} style={{ display: 'block' }} /></span>
           <span className="advc-name" style={high ? { color: tone, fontWeight: 600 } : undefined}>{name}</span>
           <span className="advc-val">
-            {changed && <><span className="advc-old">{current}</span> → </>}
+            {changed && <><span className="advc-old">{current}</span><Icon name="forward" size={12} className="gi m" /></>}
             <span style={{ fontWeight: changed ? 600 : 400 }}>{value}</span>
           </span>
         </button>
@@ -100,7 +100,7 @@ export function EvidenceCard({ suggestions, active, onTurn }: {
             {s.evidence.map((e, i) => (
               <div key={i} className="advc-src">
                 <span className="m" style={{ color: 'var(--pending)' }}>[{i + 1}]</span> {e.sourceTitle}
-                {e.section ? ` › ${e.section}` : ''}{e.pageNo != null ? ` · 第 ${e.pageNo} 页` : ''}
+                {e.section ? ` / ${e.section}` : ''}{e.pageNo != null ? ` · 第 ${e.pageNo} 页` : ''}
               </div>
             ))}
           </>} />

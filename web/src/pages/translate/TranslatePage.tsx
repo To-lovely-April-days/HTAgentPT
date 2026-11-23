@@ -7,6 +7,7 @@ import { get, post, upload, download, ApiError } from '../../lib/api';
 import type { FileTranslationResult, TermHit, TermRow, TextTranslationResult } from '../../lib/types';
 import { ErrorBox, Spinner } from '../../components/Common';
 import TermSubmitModal from './TermSubmitModal';
+import { Icon } from '../../components/Icons';
 
 type Mode = 'text' | 'file';
 type Direction = 'zh2en' | 'en2zh';
@@ -93,8 +94,8 @@ export default function TranslatePage() {
         <span style={tabStyle(mode === 'file')} onClick={() => setMode('file')}>文档翻译（docx）</span>
         <div style={{ width: 1, height: 20, background: 'var(--line)' }} />
         <select style={fi} value={direction} onChange={(e) => setDirection(e.target.value as Direction)}>
-          <option value="zh2en">中 → 英</option>
-          <option value="en2zh">英 → 中</option>
+          <option value="zh2en">中文译成英文</option>
+          <option value="en2zh">英文译成中文</option>
         </select>
         <select style={fi} value={domain} onChange={(e) => setDomain(e.target.value)} title="术语域">
           <option value="">术语域：全部已审定</option>
@@ -110,7 +111,7 @@ export default function TranslatePage() {
         {fileResult && (
           <button className="gbtn" onClick={() => void download(`/api/translate/files/${fileResult.taskId}`, fileResult.outputFileName)
             .catch((err) => alert(err instanceof ApiError ? err.message : '下载失败'))}>
-            下载译文 ↓
+            下载译文<Icon name="download" size={13} className="gi" />
           </button>
         )}
       </div>

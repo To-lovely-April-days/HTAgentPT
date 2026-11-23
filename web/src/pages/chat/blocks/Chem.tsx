@@ -205,12 +205,12 @@ export function Pfd({ d }: { d: D }) {
       {streams.length > 0 && (
         <div className="dc-scroll">
           <table className="dc-table compact">
-            <thead><tr><th>物流</th><th>从 → 到</th><th className="num">温度</th><th className="num">压力</th><th className="num">流量</th><th>相态</th>{comps.map((c) => <th key={c} className="num">{c}</th>)}</tr></thead>
+            <thead><tr><th>物流</th><th>从<Icon name="forward" size={11} className="gi m" />到</th><th className="num">温度</th><th className="num">压力</th><th className="num">流量</th><th>相态</th>{comps.map((c) => <th key={c} className="num">{c}</th>)}</tr></thead>
             <tbody>
               {streams.map((e, i) => (
                 <tr key={i}>
                   <td><b>{e.id}</b>{e.label && <span className="cell-sub">{e.label}</span>}</td>
-                  <td className="muted">{e.from ?? '进料'} → {e.to ?? '产品'}</td>
+                  <td className="muted">{e.from ?? '进料'}<Icon name="forward" size={11} className="gi m" />{e.to ?? '产品'}</td>
                   <td className="num">{s(e.raw.T)}</td><td className="num">{s(e.raw.P)}</td>
                   <td className="num strong">{n(e.raw.flow) != null ? fmt(n(e.raw.flow)!) : s(e.raw.flow)} <span className="muted">{s(e.raw.unit)}</span></td>
                   <td>{s(e.raw.phase)}</td>

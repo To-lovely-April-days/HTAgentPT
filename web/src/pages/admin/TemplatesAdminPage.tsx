@@ -248,7 +248,7 @@ function SlotEditPanel({ slot, onClose, onSaved }: { slot: SlotDef; onClose: () 
         <div><div style={fl}>提问话术（初值取自控件占位文字·自动）</div>
           <textarea style={{ width: '100%', minHeight: 54, padding: '7px 9px', border: '1px solid var(--line-strong)', borderRadius: 4, fontSize: 12.5, lineHeight: 1.6, fontFamily: 'var(--font)', resize: 'vertical' }}
             value={f.prompt} onChange={(e) => setF({ ...f, prompt: e.target.value })} /></div>
-        <div><div style={fl}>建议来源规则（按序尝试，命中即停：精确标题 → 标题关键词 → 章节序号）</div>
+        <div><div style={fl}>建议来源规则（按序尝试，命中即停：先精确标题，再标题关键词，最后章节序号）</div>
           <input style={{ ...fi, width: '100%' }} className="m" placeholder="如：技术参数|参数表|3" value={f.suggestSource} onChange={(e) => setF({ ...f, suggestSource: e.target.value })} /></div>
       </div>
       {error && <div style={{ marginTop: 10 }}><ErrorBox message={error} /></div>}

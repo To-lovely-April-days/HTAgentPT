@@ -25,7 +25,7 @@ export function StepsCard({ steps, streaming, seconds }: { steps: AssistantStep[
         <b>{running ? '正在查' : used > 0 ? `查了 ${used} 步` : '直接回答'}</b>
         {!running && seconds != null && <span className="as-muted">· 用时 {Math.round(seconds)} 秒</span>}
         {running && <span className="as-muted">· {steps[steps.length - 1].label}…</span>}
-        <span className="as-muted" style={{ marginLeft: 'auto' }}>{expanded ? '收起 ▴' : '展开 ▾'}</span>
+        <span className="as-muted" style={{ marginLeft: 'auto' }}>{expanded ? '收起' : '展开'}<Icon name={expanded ? 'chevUp' : 'down'} size={13} className="gi" /></span>
       </button>
       {expanded && steps.map((s) => (
         <Fragment key={s.id}>
@@ -175,8 +175,8 @@ export function RefPanel({ used, other, focus, onFocus, onClose, onOpenWeb }: {
                   <b title={g.title}>{g.title}</b>
                   {g.meta && <span>{g.meta}</span>}
                 </span>
-                {g.kind === 'doc' && <button type="button" className="refs-open" onClick={() => open(g.first)}>打开原文 ↗</button>}
-                {g.kind === 'web' && <button type="button" className="refs-open" onClick={() => open(g.first)}>打开网页 ›</button>}
+                {g.kind === 'doc' && <button type="button" className="refs-open" onClick={() => open(g.first)}>打开原文<Icon name="external" size={12} className="gi" /></button>}
+                {g.kind === 'web' && <button type="button" className="refs-open" onClick={() => open(g.first)}>打开网页<Icon name="right" size={12} className="gi" /></button>}
               </div>
               {g.cards.map((c) => (
                 <div key={c.n} ref={(el) => { if (el) refs.current.set(c.n, el); else refs.current.delete(c.n); }}
@@ -188,7 +188,7 @@ export function RefPanel({ used, other, focus, onFocus, onClose, onOpenWeb }: {
                     <span className="refs-where">
                       {c.kind === 'ledger' ? c.title : c.kind === 'price' ? c.title.split(' · ').slice(1).join(' · ') + (c.section ? ` · ${c.section}` : '')
                         : [c.pageNo != null ? `第 ${c.pageNo} 页` : null, c.section].filter(Boolean).join(' · ') || '原文'}
-                      {(c.kind === 'doc' || c.kind === 'web' || (c.kind === 'ledger' && c.projectNo)) && <span className="refs-go">{c.kind === 'ledger' ? '看台账 ›' : c.kind === 'web' ? '打开网页 ›' : '跳到原文 ›'}</span>}
+                      {(c.kind === 'doc' || c.kind === 'web' || (c.kind === 'ledger' && c.projectNo)) && <span className="refs-go">{c.kind === 'ledger' ? '看台账' : c.kind === 'web' ? '打开网页' : '跳到原文'}<Icon name="right" size={12} className="gi" /></span>}
                     </span>
                     <span className="refs-text"><Highlighted text={c.text} spans={c.highlights} /></span>
                   </div>
@@ -200,7 +200,7 @@ export function RefPanel({ used, other, focus, onFocus, onClose, onOpenWeb }: {
         {otherGroups.length > 0 && (
           <div className="refs-other">
             <button type="button" className="refs-other-hd" aria-expanded={showOther} onClick={() => setShowOther(!showOther)}>
-              {showOther ? '▾' : '▸'} 其他相关资料 {otherGroups.length} 份<span className="as-muted">（查到了，这次回答没用上）</span>
+              <Icon name={showOther ? 'down' : 'right'} size={13} className="gi l" />其他相关资料 {otherGroups.length} 份<span className="as-muted">（查到了，这次回答没用上）</span>
             </button>
             {showOther && otherGroups.map((g) => (
               <div key={g.key} className="refs-other-row">

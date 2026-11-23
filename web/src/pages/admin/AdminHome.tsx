@@ -7,6 +7,7 @@ import { get, post } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { KB_TIER_LABEL, Perm } from '../../lib/types';
 import type { ClauseRow, DocRow, KbRow, TermRow } from '../../lib/types';
+import { Icon } from '../../components/Icons';
 
 interface OpsAlert {
   kind: string; runId: string; startedAt: string; error: string | null;
@@ -330,7 +331,7 @@ export function AdminHome() {
               <NavLink key={t.label} to={t.to} className="dash-todo">
                 <span className={'dash-todo-n' + ((t.n ?? 0) > 0 ? ' hot' : '')}>{t.n ?? '—'}</span>
                 <span className="dash-todo-t"><b>{t.label}</b><span>{t.hint}</span></span>
-                <span className="dash-todo-a">{t.action} ›</span>
+                <span className="dash-todo-a">{t.action}<Icon name="right" size={12} className="gi" /></span>
               </NavLink>
             ))}
           </section>
@@ -344,7 +345,7 @@ export function AdminHome() {
                   <h2 id="dash-gap" className="dash-h2">语料缺口 · 近 7 天没答上来的问题</h2>
                   <div className="hint" style={{ marginTop: 3 }}>问的人越多越该补：补进对应资料后，这些问题就能答上来</div>
                 </div>
-                {(gaps.data?.length ?? 0) > gapRows.length && <NavLink to="/admin/audit" className="dash-link">全部 {gaps.data!.length} 条 ›</NavLink>}
+                {(gaps.data?.length ?? 0) > gapRows.length && <NavLink to="/admin/audit" className="dash-link">全部 {gaps.data!.length} 条<Icon name="right" size={12} className="gi" /></NavLink>}
               </div>
               {gapRows.length === 0 ? (
                 <div className="dash-empty">近 7 天的提问都在资料里找到了答案。</div>
@@ -377,7 +378,7 @@ export function AdminHome() {
             <section className="dash-card dash-side" aria-labelledby="dash-kb">
               <div className="dash-sec-hd">
                 <h2 id="dash-kb" className="dash-h2">知识库</h2>
-                <NavLink to="/admin/kbs" className="dash-link">管理 ›</NavLink>
+                <NavLink to="/admin/kbs" className="dash-link">管理<Icon name="right" size={12} className="gi" /></NavLink>
               </div>
               {kbList.length === 0 && <div className="dash-empty">还没有知识库。</div>}
               {kbList.map((k) => (
@@ -400,7 +401,7 @@ export function AdminHome() {
           <section className="dash-card" aria-labelledby="dash-audit">
             <div className="dash-sec-hd">
               <h2 id="dash-audit" className="dash-h2">最近操作</h2>
-              <NavLink to="/admin/audit" className="dash-link">审计与统计 ›</NavLink>
+              <NavLink to="/admin/audit" className="dash-link">审计与统计<Icon name="right" size={12} className="gi" /></NavLink>
             </div>
             {auditRows.map(({ a, kind }) => (
               <div key={a.id} className="dash-ev">

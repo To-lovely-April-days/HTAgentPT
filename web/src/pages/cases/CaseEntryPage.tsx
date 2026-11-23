@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { get, post, put, ApiError } from '../../lib/api';
 import type { CaseDetailData, CaseRow } from '../../lib/types';
 import { ErrorBox, Spinner } from '../../components/Common';
+import { Icon } from '../../components/Icons';
 
 interface Form {
   deviceModel: string; alarmCode: string; phenomenon: string; causeAnalysis: string;
@@ -80,7 +81,7 @@ export default function CaseEntryPage() {
   return (
     <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
       <div style={{ height: 54, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '0 18px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
-        <button className="gbtn" style={{ height: 28, padding: '0 9px' }} onClick={() => nav(-1)} title="返回">←</button>
+        <button className="gbtn" style={{ height: 28, padding: '0 9px' }} onClick={() => nav(-1)} title="返回" aria-label="返回"><Icon name="back" size={15} style={{ display: 'block' }} /></button>
         <div>
           <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.4 }}>{caseId ? '编辑故障案例' : '新建故障案例'}</div>
           <div className="hint" style={{ marginTop: 2 }}>带 * 为必填 · 客户名称与项目编号不要写进任何字段——提交总部前会检测</div>

@@ -26,7 +26,7 @@ const TEMPLATE = `# 技能名称
 search_documents · query_projects
 
 ## 回答怎么写
-结论 → 依据（带出处）→ 风险提醒 → 要确认的参数
+结论、依据（带出处）、风险提醒、要确认的参数
 `;
 
 interface Form { code: string; name: string; category: string; description: string; body: string; roles: string[]; refDocs: { id: string; title: string }[] }
@@ -168,7 +168,7 @@ function EditorBody({ detail, meta, refresh, onSaved, onDeleted }: {
               <span className="sk-cap">效果</span>
               <div className="sk-kv"><span>这 7 天被翻看</span><b>{detail.usedWeek} 次</b></div>
               <div className="sk-kv"><span>用了它的回答被点「没帮上」</span><b className={detail.notHelpfulWeek ? 'bad' : ''}>{detail.notHelpfulWeek} 条</b></div>
-              {detail.notHelpfulWeek > 0 && <Link to="/admin/quality" className="hint">去「回答质量」看看 ›</Link>}
+              {detail.notHelpfulWeek > 0 && <Link to="/admin/quality" className="hint">去「回答质量」看看<Icon name="right" size={12} className="gi" /></Link>}
               <span className="hint">改之前用「试一试」对比，有代表性的问题存成测试题。</span>
             </div>
           )}
@@ -221,7 +221,7 @@ function RefDocs({ value, onChange }: { value: { id: string; title: string }[]; 
       ))}
       <input className="sk-in" value={kw} onChange={(e) => setKw(e.target.value)} placeholder="搜知识库里的文件名，挑一份加上" />
       {(docs.data ?? []).filter((d) => !value.some((x) => x.id === d.id)).slice(0, 6).map((d) => (
-        <button key={d.id} type="button" className="sk-doc-add" onClick={() => { onChange([...value, { id: d.id, title: d.title }]); setKw(''); }}>＋ {d.title}</button>
+        <button key={d.id} type="button" className="sk-doc-add" onClick={() => { onChange([...value, { id: d.id, title: d.title }]); setKw(''); }}><Icon name="plus" size={12} className="gi l" />{d.title}</button>
       ))}
     </div>
   );
