@@ -13,6 +13,11 @@ RUN pip install --no-cache-dir -i ${PIP_INDEX} numpy scipy pandas matplotlib Coo
  && pip install --no-cache-dir -i ${PIP_INDEX} fluids==1.3.1 ht==1.2.0 chemicals==1.5.2 thermo==0.6.1 \
  && python -c "import fluids, ht, chemicals, thermo, CoolProp; print('calc libs ok')"
 
+# cadquery-ocp 的几何内核和自带的 VTK 要系统里有 libGL、libX11（slim 镜像没有，缺了 import cadquery 直接失败）。
+# 单独一层放在这里，前面装好的计算库层不用重装
+RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libx11-6 libexpat1 \
+ && rm -rf /var/lib/apt/lists/*
+
 # 化学平衡（cantera，BSD）、设备外形图和三维模型（cadquery，Apache-2.0；ezdxf，MIT）。cadquery 的几何内核 cadquery-ocp 约 300 MB
 RUN pip install --no-cache-dir -i ${PIP_INDEX} cantera==3.1.0 ezdxf==1.4.2 cadquery==2.5.2 cadquery-ocp==7.7.2 \
  && python -c "import cantera, ezdxf, cadquery; print('cad + equilibrium libs ok')"
