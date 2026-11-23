@@ -35,8 +35,10 @@ public class HomeService(AppDbContext db, ICurrentUser me, IRuntimeConfig config
         var day = now.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var user = await db.Users.AsNoTracking().Where(u => u.Id == me.UserId)
             .Select(u => new { u.DisplayName, u.Department, u.MemoryOff, Role = u.Role != null ? u.Role.Name : null }).FirstOrDefaultAsync(ct);
-        // 记忆开关变了，首页那份（按记忆推荐的）也换一份
-        var key = $"home:{me.UserId}:{day}:{(user?.MemoryOff == true ? "m0" : "m1")}";
+        // 记忆用不用：后台整体关了、或本人关了，都不读记忆；开关变了，首页那份（按记忆推荐的）也换一份
+        var globalMemory = (await config.GetStringAsync(ConfigKeys.MemoryEnabled, "on", ct)).Trim().ToLowerInvariant() is "on" or "true";
+        var memoryOff = !globalMemory || user?.MemoryOff == true;
+        var key = $"home:{me.UserId}:{day}:{(memoryOff ? "m0" : "m1")}";
         var rkey = $"home-refresh:{me.UserId}:{day}";
         var used = cache.Get<int?>(rkey) ?? 0;
         if (refresh && used < MaxRefresh)
@@ -55,7 +57,7 @@ public class HomeService(AppDbContext db, ICurrentUser me, IRuntimeConfig config
         var pending = false;
         if (!cache.TryGetValue(key, out HomeBrief.Result? brief) || brief is null)
         {
-            var ctx = await ContextAsync(name, user?.Role ?? me.RoleCode, user?.Department, user?.MemoryOff ?? false, recent, drafts, now, ct);
+            var ctx = await ContextAsync(name, user?.Role ?? me.RoleCode, user?.Department, memoryOff, recent, drafts, now, ct);
             var chat = sp.GetService<IChatModelClient>();
             if (chat is null) brief = HomeBrief.Fallback(ctx);
             else
