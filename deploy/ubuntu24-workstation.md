@@ -637,6 +637,85 @@ python3 deploy/kb-import/import_folder.py ~/kb-import
 
 `--dry-run` 先列出每个文件会进哪个库、标题是什么；老格式（.doc / .xls）和读不了的格式会列在「跳过」里。扫描版的标准和手册要逐页识别，上千兆的资料全部解析完可能要一天，进度在后台「资料管理」里看。
 
+## 19. 外网访问：公司没有公网 IP 时，用一台云服务器中转组网（WireGuard）
+
+不要把 8080 映射到公网：服务器上有机密资料，模型接口也没有鉴权。做法是组一个加密的虚拟局域网：租一台有公网 IP 的小云服务器当「中转站」，公司这台服务器和要远程用的电脑、手机都连上它，彼此用 10.8.0.x 的地址互访。公网上看不到公司服务器，也不用备案、域名和证书。
+
+```
+远程电脑/手机 ──WireGuard──▶ 云服务器（中转，wg-easy） ◀──WireGuard── 公司服务器（主动连出去，不用公网 IP）
+```
+
+流量都经云服务器转一手，速度取决于它的带宽：聊天很轻，几 Mbps 就够；远程上传大文件会慢（5 Mbps 传 100 MB 约 3 分钟）。
+
+### 19.1 云服务器（一次性）
+
+1. 买一台国内云的轻量服务器，Ubuntu 24.04，1 核 1G 就够，带宽按远程上传文件的需要选。安全组/防火墙放行 **UDP 51820**（只放这一个；管理页面不对公网开）。
+2. 装 Docker 后，建 `/srv/wg-easy/docker-compose.yml`：
+
+```yaml
+services:
+  wg-easy:
+    image: ghcr.io/wg-easy/wg-easy:15
+    container_name: wg-easy
+    environment:
+      INSECURE: "true"          # 管理页面只绑本机，经 SSH 隧道访问，所以用 http
+    volumes:
+      - ./data:/etc/wireguard
+      - /lib/modules:/lib/modules:ro
+    ports:
+      - "51820:51820/udp"
+      - "127.0.0.1:51821:51821/tcp"
+    cap_add: [NET_ADMIN, SYS_MODULE]
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+    restart: unless-stopped
+```
+
+```bash
+cd /srv/wg-easy && sudo docker compose up -d
+```
+
+ghcr.io 拉不动时换国内镜像加速前缀。
+
+3. 在自己电脑上开 SSH 隧道进管理页面：
+
+```bash
+ssh -L 51821:127.0.0.1:51821 用户@云服务器IP
+```
+
+浏览器打开 http://127.0.0.1:51821，按向导建管理员账号，「主机」填云服务器公网 IP、端口 51820。
+4. **先改设置再加客户端**：设置里把默认 Allowed IPs 改成 `10.8.0.0/24`（只有访问组网内地址的流量走隧道，上网照旧走本地），Persistent Keepalive 设 25。
+
+### 19.2 公司服务器接入（一次性）
+
+1. 在 wg-easy 里新建客户端「htagent-server」，下载它的配置文件。
+2. 打开看一眼：`AllowedIPs` 必须是 `10.8.0.0/24`（若是 `0.0.0.0/0` 就改掉，否则服务器所有上网流量都会绕到云服务器）；有 `PersistentKeepalive = 25`（没有就在 `[Peer]` 下加一行——公司服务器在 NAT 后面，靠它保持通道）；删掉 `DNS =` 那一行。
+3. 拷到服务器上启用：
+
+```bash
+sudo apt install -y wireguard
+sudo install -m 600 htagent-server.conf /etc/wireguard/wg0.conf
+sudo systemctl enable --now wg-quick@wg0
+ip addr show wg0
+```
+
+记下 `inet 10.8.0.x`：这就是服务器的组网地址。`sudo wg` 里能看到 `latest handshake` 就是通了，重启后自动连上。
+
+### 19.3 远程电脑、手机接入（每人一份）
+
+1. 在 wg-easy 里每人建一个客户端（用人名起名，离职时删掉即失效）。
+2. 装 WireGuard 官方客户端（Windows/macOS/iOS/Android 都有），电脑导入配置文件，手机扫二维码。同样确认 AllowedIPs 是 `10.8.0.0/24`。
+3. 打开隧道，浏览器访问 `http://服务器组网地址:8080`；SSH 也可以 `ssh dell@服务器组网地址`。
+
+配置文件等于钥匙，只发给本人，不要发群里。远程账号还可以在后台「系统设置 → 备份与远程接入」里和终端绑定。
+
+### 19.4 排错
+
+- 远程打不开：先看两端 `sudo wg`（电脑上看客户端的「最近握手」）。云服务器上没有某一端的握手 → 那一端没连上（安全组 UDP 51820、配置里的 Endpoint）。
+- 都有握手但打不开：在公司服务器上 `curl -I http://127.0.0.1:8080` 看网页本身是否正常。
+- 运营商偶尔会对 UDP 限速，表现为时快时慢；这时把 wg-easy 的端口改成别的数字（如 443/udp）再重新下发配置。
+
 ## 排错所需信息
 
 出现问题时，提供 GPU 型号/驱动版本、失败命令、错误日志尾部即可。不要发送 compose.env、管理员密码或 API key。
