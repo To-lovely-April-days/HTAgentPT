@@ -624,6 +624,19 @@ python3 deploy/safety-corpus/import_csb.py
 3. 服务器上不了 csb.gov 时：在能上的电脑上按 `deploy/safety-corpus/csb_reports.json` 里的地址下载（文件名照 `file`），拷到服务器某个目录，再运行 `python3 deploy/safety-corpus/import_csb.py --dir 那个目录`。重跑不会重复导入。
 4. 验证：对话里问「丙烯酸聚合放大时冷凝器能力不够会怎样，有没有真实事故」，回答里应引用 CSB 报告。
 
+## 18. 导入：一个文件夹的资料批量进知识库（标准、手册、公司资料）
+
+把资料按子文件夹整理好（`标准规范/`、`已作废标准/`、`设计手册/`、`公司资料/`；别的子文件夹名按「库名 = 文件夹名、类别 = 资料」导），拷到服务器，例如 `~/kb-import`。脚本会：建库、在词表里补「通用」设备类型、规整标准标题（「GBT 150.1-2024」→「GB/T 150.1-2024」，从文件名取年份）、已作废的标题前加【已作废】、跳过库里已有的同名文件、按文件夹顺序提交解析。密级默认「内部」。
+
+```bash
+cd /srv/htagent/app
+export HT_URL=http://localhost:8080 HT_USER=admin HT_PASS='密码'
+python3 deploy/kb-import/import_folder.py ~/kb-import --dry-run
+python3 deploy/kb-import/import_folder.py ~/kb-import
+```
+
+`--dry-run` 先列出每个文件会进哪个库、标题是什么；老格式（.doc / .xls）和读不了的格式会列在「跳过」里。扫描版的标准和手册要逐页识别，上千兆的资料全部解析完可能要一天，进度在后台「资料管理」里看。
+
 ## 排错所需信息
 
 出现问题时，提供 GPU 型号/驱动版本、失败命令、错误日志尾部即可。不要发送 compose.env、管理员密码或 API key。
