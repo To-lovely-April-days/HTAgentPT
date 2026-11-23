@@ -3,6 +3,7 @@ name: company-profile
 title: 关于霍桐仪器
 category: 公司与产品
 status: enabled
+menu: hidden
 source: own
 description: 被问到你是谁、你是哪家公司的、公司是做什么的、有什么资质、在哪里、怎么联系、服务流程是怎样时用；向客户介绍公司时也用。
 ---

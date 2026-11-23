@@ -4,7 +4,7 @@ export type SkillStatus = 'Draft' | 'Review' | 'Enabled';
 
 export interface SkillRow {
   id: string; code: string; name: string; category: string; description: string; source: string; status: SkillStatus;
-  version: number; updatedAt: string; roles: string[]; usedWeek: number; notHelpfulWeek: number;
+  version: number; updatedAt: string; roles: string[]; inMenu: boolean; usedWeek: number; notHelpfulWeek: number;
 }
 export interface SkillList { answersWeek: number; answersWithSkillWeek: number; items: SkillRow[] }
 

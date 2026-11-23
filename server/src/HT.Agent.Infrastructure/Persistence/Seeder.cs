@@ -68,6 +68,8 @@ public static class Seeder
                     {
                         Id = Guid.NewGuid(), CompanyId = cid, Code = p.Name, Name = title, Category = category, Description = p.Description,
                         Body = p.Body, Source = source, Status = status, Version = 1, UpdatedAt = now, CreatedAt = now,
+                        // menu: hidden = 不进聊天技能清单（只在新加时定；之后归后台管，不跟着系统版本变）
+                        InMenu = p.Meta.GetValueOrDefault("menu") != "hidden",
                     };
                     db.AssistantSkills.Add(skill);
                     db.AssistantSkillVersions.Add(new AssistantSkillVersion

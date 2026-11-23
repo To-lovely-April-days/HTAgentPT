@@ -25,6 +25,9 @@ public class AssistantSkill
     public List<string> Roles { get; set; } = [];
     /// <summary>附带的参考资料（知识库文档）。</summary>
     public List<Guid> RefDocIds { get; set; } = [];
+    /// <summary>出不出现在聊天「＋ → 用技能」清单里。关掉的照样启用——助手碰到相关问题自己翻看，只是不占清单
+    /// （像「关于霍桐仪器」这种问一句就会自动用上的，没必要让人去点）。</summary>
+    public bool InMenu { get; set; } = true;
     public int Version { get; set; } = 1;
     public Guid? UpdatedById { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

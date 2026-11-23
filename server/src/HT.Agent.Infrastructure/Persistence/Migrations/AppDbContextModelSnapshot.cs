@@ -251,6 +251,10 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("description");
 
+                    b.Property<bool>("InMenu")
+                        .HasColumnType("boolean")
+                        .HasColumnName("in_menu");
+
                     b.Property<string>("License")
                         .HasColumnType("text")
                         .HasColumnName("license");

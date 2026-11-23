@@ -37,7 +37,7 @@ public class SkillsController(AppDbContext db, ICurrentUser me, IAuditWriter aud
         var since = DateTimeOffset.UtcNow.AddDays(-7);
         var skills = await db.AssistantSkills.AsNoTracking().Where(s => s.CompanyId == me.CompanyId)
             .OrderBy(s => s.Category).ThenBy(s => s.Name)
-            .Select(s => new { s.Id, s.Code, s.Name, s.Category, s.Description, s.Source, s.Status, s.Version, s.UpdatedAt, s.Roles })
+            .Select(s => new { s.Id, s.Code, s.Name, s.Category, s.Description, s.Source, s.Status, s.Version, s.UpdatedAt, s.Roles, s.InMenu })
             .ToListAsync(ct);
         var used = await UsageAsync(since, ct);
         var total = await db.QaMessages.AsNoTracking().CountAsync(m => m.Session!.CompanyId == me.CompanyId && m.At >= since, ct);
@@ -48,7 +48,7 @@ public class SkillsController(AppDbContext db, ICurrentUser me, IAuditWriter aud
             items = skills.Select(s =>
             {
                 used.TryGetValue(s.Id, out var u);
-                return new { s.Id, s.Code, s.Name, s.Category, s.Description, s.Source, s.Status, s.Version, s.UpdatedAt, s.Roles, usedWeek = u.Used, notHelpfulWeek = u.NotHelpful };
+                return new { s.Id, s.Code, s.Name, s.Category, s.Description, s.Source, s.Status, s.Version, s.UpdatedAt, s.Roles, s.InMenu, usedWeek = u.Used, notHelpfulWeek = u.NotHelpful };
             }),
         });
     }
@@ -67,7 +67,7 @@ public class SkillsController(AppDbContext db, ICurrentUser me, IAuditWriter aud
         used.TryGetValue(id, out var u);
         return Ok(new
         {
-            s.Id, s.Code, s.Name, s.Category, s.Description, s.Body, s.Source, s.License, s.Status, s.Version, s.Roles,
+            s.Id, s.Code, s.Name, s.Category, s.Description, s.Body, s.Source, s.License, s.Status, s.Version, s.Roles, s.InMenu,
             s.UpdatedAt, s.ReviewedAt, reviewer = s.ReviewedById is Guid r && people.TryGetValue(r, out var rn) ? rn : null,
             refDocs = docs, usedWeek = u.Used, notHelpfulWeek = u.NotHelpful,
             length = SkillFiles.Length(s.Body), unknownTools = SkillFiles.UnknownTools(s.Body),
@@ -140,6 +140,20 @@ public class SkillsController(AppDbContext db, ICurrentUser me, IAuditWriter aud
         s.Status = st;
         await db.SaveChangesAsync(ct);
         await Log("skill.status", s, ct);
+        return NoContent();
+    }
+
+    public record MenuBody(bool InMenu);
+
+    /// <summary>出不出现在聊天「用技能」清单里。只是清单显示，不动内容、不用重新审核。</summary>
+    [HttpPost("{id:guid}/menu")]
+    public async Task<IActionResult> SetMenu(Guid id, [FromBody] MenuBody b, CancellationToken ct)
+    {
+        var s = await db.AssistantSkills.FirstOrDefaultAsync(x => x.Id == id && x.CompanyId == me.CompanyId, ct);
+        if (s is null) return NotFound();
+        s.InMenu = b.InMenu;
+        await db.SaveChangesAsync(ct);
+        await Log("skill.menu", s, ct);
         return NoContent();
     }
 

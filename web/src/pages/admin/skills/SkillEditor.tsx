@@ -136,6 +136,22 @@ function EditorBody({ detail, meta, refresh, onSaved, onDeleted }: {
               ))}
             </div>
           </div>
+          {detail && (
+            <div className="sk-card">
+              <span className="sk-cap">聊天「用技能」清单 <i>· 不放进去照样启用，助手碰到相关问题自己会用</i></span>
+              <div className="q-chips">
+                {[true, false].map((v) => (
+                  <button key={String(v)} type="button" className={'q-chip' + (detail.inMenu === v ? ' on' : '')} disabled={busy}
+                    onClick={() => {
+                      if (detail.inMenu === v) return;
+                      setBusy(true);
+                      post(`/api/skills/${detail.id}/menu`, { inMenu: v }).then(refresh, () => setMsg('没改成'))
+                        .finally(() => setBusy(false));
+                    }}>{v ? '放进清单' : '不放（自动用）'}</button>
+                ))}
+              </div>
+            </div>
+          )}
           <RefDocs value={f.refDocs} onChange={(refDocs) => set({ refDocs })} />
           <div className="sk-card">
             <span className="sk-cap">正文里用到的工具</span>

@@ -3,6 +3,7 @@ name: product-catalog
 title: 霍桐产品目录
 category: 公司与产品
 status: enabled
+menu: hidden
 source: own
 description: 被问到公司有哪些产品、某类反应釜的型号和参数范围、能不能做某种设备、做过哪些定制案例时用。
 ---

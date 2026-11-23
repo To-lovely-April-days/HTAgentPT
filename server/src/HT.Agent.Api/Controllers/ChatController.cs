@@ -12,12 +12,12 @@ namespace HT.Agent.Api.Controllers;
 public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, IRuntimeConfig config, ILogger<ChatController> logger,
     HT.Agent.Infrastructure.Persistence.AppDbContext db, IFileStorage storage) : ControllerBase
 {
-    /// <summary>「＋ → 用技能」的清单：已启用、这个人的角色能用的技能，按分类。</summary>
+    /// <summary>「＋ → 用技能」的清单：已启用、放进清单的、这个人的角色能用的技能，按分类。</summary>
     [HttpGet("skills")]
     public async Task<IActionResult> Skills(CancellationToken ct)
     {
         var rows = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
-            db.AssistantSkills.Where(s => s.CompanyId == me.CompanyId && s.Status == HT.Agent.Domain.Entities.SkillStatus.Enabled)
+            db.AssistantSkills.Where(s => s.CompanyId == me.CompanyId && s.Status == HT.Agent.Domain.Entities.SkillStatus.Enabled && s.InMenu)
                 .OrderBy(s => s.Category).ThenBy(s => s.Name)
                 .Select(s => new { s.Code, s.Name, s.Category, s.Description, s.Roles }), ct);
         var internalUser = me.Permissions.Contains(PermissionKeys.QaInternal);
