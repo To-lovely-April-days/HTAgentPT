@@ -1,5 +1,7 @@
 // 系统设置 · 思考档位：三档各自的参数（思考强度、最多查几轮、回答最长、温度），默认档位，员工能不能自己选，模型服务的上下文长度。
 // 思考强度是 Qwen3.8 自带的三级；温度以外的采样参数按官方推荐跟着「思考 / 不思考」自动带，不放到界面上。
+import { useQuery } from '@tanstack/react-query';
+import { get } from '../../lib/api';
 import { Icon } from '../../components/Icons';
 
 const LEVELS: { code: 'fast' | 'standard' | 'deep'; name: string }[] = [
@@ -7,7 +9,7 @@ const LEVELS: { code: 'fast' | 'standard' | 'deep'; name: string }[] = [
 ];
 const EFFORTS: [string, string][] = [['off', '不思考'], ['low', '低 low'], ['medium', '中 medium'], ['xhigh', '最高 xhigh']];
 const DEFAULTS: Record<string, string> = {
-  'assistant.level.default': 'auto', 'assistant.level.user_choice': 'true', 'model.chat.context_tokens': '8192',
+  'assistant.level.default': 'auto', 'assistant.level.user_choice': 'true', 'model.chat.context_tokens': '0',
   'assistant.level.fast.effort': 'off', 'assistant.level.fast.rounds': '3', 'assistant.level.fast.max_tokens': '2000', 'assistant.level.fast.temperature': '0.7',
   'assistant.level.standard.effort': 'medium', 'assistant.level.standard.rounds': '6', 'assistant.level.standard.max_tokens': '6000', 'assistant.level.standard.temperature': '1.0',
   'assistant.level.deep.effort': 'xhigh', 'assistant.level.deep.rounds': '10', 'assistant.level.deep.max_tokens': '12000', 'assistant.level.deep.temperature': '1.0',
@@ -16,7 +18,11 @@ const DEEP_MIN = 32768;
 
 export function LevelsCard({ values, onChange }: { values: Record<string, string>; onChange: (key: string, value: string) => void }) {
   const v = (k: string) => values[k] ?? DEFAULTS[k] ?? '';
-  const context = Number(v('model.chat.context_tokens')) || 0;
+  const set = Number(v('model.chat.context_tokens')) || 0;
+  // 系统实际用的：模型服务报了 max_model_len 就按它，报不出来才按这里填的
+  const live = useQuery({ queryKey: ['chat-levels'], staleTime: 60_000,
+    queryFn: () => get<{ contextTokens: number }>('/api/chat/levels') });
+  const context = live.data?.contextTokens ?? set;
   const deepOk = context >= DEEP_MIN;
   const userChoice = v('assistant.level.user_choice') !== 'false';
   const num = (k: string, w = 72) => (
@@ -57,9 +63,9 @@ export function LevelsCard({ values, onChange }: { values: Record<string, string
         <button type="button" className="lv-check" aria-pressed={userChoice} onClick={() => onChange('assistant.level.user_choice', userChoice ? 'false' : 'true')}>
           <Icon name={userChoice ? 'boxOn' : 'boxOff'} size={15} />员工可以自己选
         </button>
-        <label>模型服务的上下文 {num('model.chat.context_tokens', 88)} <span className="hint">token，即 vLLM 的 --max-model-len</span></label>
+        <label>模型服务的上下文 {num('model.chat.context_tokens', 88)} <span className="hint">token。模型服务报得出 --max-model-len 时自动按它算，这里只在报不出来时用{live.data ? `（现在实际是 ${live.data.contextTokens.toLocaleString()}）` : ''}</span></label>
       </div>
-      {!deepOk && (
+      {!deepOk && context > 0 && (
         <div className="lv-warn">
           <Icon name="warn" size={14} stroke={2} />
           <div><b>上下文现在是 {context.toLocaleString()}，深度档放不下</b>

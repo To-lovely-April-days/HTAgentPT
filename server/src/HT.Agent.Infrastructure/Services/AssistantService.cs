@@ -48,7 +48,8 @@ public sealed class AssistantService(
     ITranslationService translation,
     IPriceService prices,
     PptTemplateService pptTemplates,
-    IEmbeddingClient embeddings) : IAssistantService
+    IEmbeddingClient embeddings,
+    ModelContextProbe contextProbe) : IAssistantService
 {
     /// <summary>同时在跑的模型请求上限（vLLM 开了 8 路并发；留余量给别的功能）。</summary>
     private static readonly SemaphoreSlim Slots = new(6, 6);
@@ -224,7 +225,7 @@ public sealed class AssistantService(
         }
         if (skills.Count > 0) ((HashSet<string>)enabled).Add("use_skill");
         // 思考档位：输入框里选的（或自动判断的）那一档，决定思考强度、查几轮、回答最长、温度
-        var levels = await LevelConfig.LoadAsync(config, ct);
+        var levels = await LevelConfig.LoadAsync(config, ct, contextProbe);
         var choice = ThinkLevels.Resolve(req.Level, levels.Default, levels.UserChoice || req.LevelForced, levels.DeepAvailable, req.Question, attachmentFiles.Count > 0);
         var lv = levels.Levels[choice.Level];
         var sampling = ThinkLevels.SamplingFor(lv.Think);

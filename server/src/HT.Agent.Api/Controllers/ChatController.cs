@@ -68,7 +68,8 @@ public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, 
     [HttpGet("levels")]
     public async Task<IActionResult> Levels(CancellationToken ct)
     {
-        var c = await HT.Agent.Infrastructure.Services.LevelConfig.LoadAsync(config, ct);
+        var c = await HT.Agent.Infrastructure.Services.LevelConfig.LoadAsync(config, ct,
+            HttpContext.RequestServices.GetService(typeof(HT.Agent.Infrastructure.Services.ModelContextProbe)) as HT.Agent.Infrastructure.Services.ModelContextProbe);
         return Ok(new { @default = c.Default, userChoice = c.UserChoice, deepAvailable = c.DeepAvailable, contextTokens = c.ContextTokens });
     }
 

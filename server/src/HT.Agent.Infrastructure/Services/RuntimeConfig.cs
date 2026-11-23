@@ -24,7 +24,7 @@ public class RuntimeConfig(IServiceScopeFactory scopeFactory, IMemoryCache cache
         [ConfigKeys.ChatModelName] = "chat-default",
         [ConfigKeys.ChatTemperature] = "0.2",
         [ConfigKeys.ChatMaxTokens] = "2048",
-        [ConfigKeys.ChatContextTokens] = "8192",
+        [ConfigKeys.ChatContextTokens] = "0",   // 模型服务报了 max_model_len 就按它；报不出来才用这里的（0 = 按 8192）
         // 做文件：先开 Excel 和 Word；PPT、PDF 用测试题跑过、成功率够了再开
         [ConfigKeys.FileXlsx] = "on",
         [ConfigKeys.FileDocx] = "on",

@@ -10,7 +10,9 @@ public record LevelConfig(string Default, bool UserChoice, int ContextTokens, IR
     /// <summary>上下文到 32K 才开放深度档。</summary>
     public bool DeepAvailable => ContextTokens >= ThinkLevels.DeepMinContext;
 
-    public static async Task<LevelConfig> LoadAsync(IRuntimeConfig config, CancellationToken ct)
+    /// <summary>上下文长度：模型服务报了 max_model_len 就按它（这是实际值，后台填的数可能是旧的）；
+    /// 报不出来（在线接口、服务没起来）才按后台填的，没填按 8192。</summary>
+    public static async Task<LevelConfig> LoadAsync(IRuntimeConfig config, CancellationToken ct, ModelContextProbe? probe = null)
     {
         var levels = new Dictionary<ThinkLevel, LevelSettings>();
         foreach (var (level, effort, rounds, tokens, temp) in new[]
@@ -30,7 +32,8 @@ public record LevelConfig(string Default, bool UserChoice, int ContextTokens, IR
         }
         var def = (await config.GetStringAsync(ConfigKeys.AssistantLevelDefault, "auto", ct)).Trim().ToLowerInvariant();
         var choice = !(await config.GetStringAsync(ConfigKeys.AssistantLevelUserChoice, "true", ct)).Trim().Equals("false", StringComparison.OrdinalIgnoreCase);
-        var context = Math.Max(0, await config.GetIntAsync(ConfigKeys.ChatContextTokens, 8192, ct));
+        var set = Math.Max(0, await config.GetIntAsync(ConfigKeys.ChatContextTokens, 0, ct));
+        var context = (probe is null ? null : await probe.DetectAsync(ct)) ?? (set > 0 ? set : 8192);
         return new LevelConfig(def, choice, context, levels);
     }
 }

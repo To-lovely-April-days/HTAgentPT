@@ -201,6 +201,16 @@ public class AssistantLoopTests
     }
 
     [Theory]
+    [InlineData("""{"object":"list","data":[{"id":"Qwen/Qwen3.8-27B","max_model_len":32768}]}""", 32768)]
+    [InlineData("""{"data":[{"id":"deepseek-chat"}]}""", null)]
+    [InlineData("""{"error":"x"}""", null)]
+    public void Reads_max_model_len_from_models_list(string json, int? expected)
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+        Assert.Equal(expected, HT.Agent.Infrastructure.Services.ModelContextProbe.MaxModelLen(doc.RootElement));
+    }
+
+    [Theory]
     [InlineData("<html><title>WTS-WAF拦截详情</title><body><h1>出现该页面的原因：</h1><p>1.你的请求是黑客攻击</p></body></html>", true)]
     [InlineData("<html><title>反应釜选型</title><body><p>高压反应釜由釜体、搅拌、加热组成，防火墙一词与此无关。</p></body></html>", false)]
     public void Recognizes_waf_block_pages(string html, bool blocked)

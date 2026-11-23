@@ -71,6 +71,7 @@ public static class DependencyInjection
         services.AddScoped<IMemoryService, MemoryService>();
         services.AddScoped<IPriceService, PriceService>();
         services.AddScoped<HomeService>();
+        services.AddSingleton<ModelContextProbe>();
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<IFaultCaseService, FaultCaseService>();
         services.AddScoped<ITranslationService, TranslationService>();
