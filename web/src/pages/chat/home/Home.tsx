@@ -17,6 +17,8 @@ export interface HomeToday {
     number: { value: string; text: string } | null;
   };
   work: WorkItem[]; quiet: string[]; recent: string[]; offWork: string; refreshLeft: number; generated: boolean;
+  /** 模型还在后台写，这次先给的系统台词；过几秒再取 */
+  pending: boolean;
 }
 
 function slotOf(d: Date): string {
@@ -70,7 +72,11 @@ export function Home({ fallbackName, composer, resume, onPick, drafts, onDrafts 
   drafts: number; onDrafts: () => void;
 }) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['home-today'], queryFn: () => get<HomeToday>('/api/home/today'), staleTime: 30 * 60_000, retry: false });
+  // 模型写今天的内容要一阵子：后端先回系统台词（pending），这里每 4 秒再取，写好了自动换上；最多等 3 分钟
+  const q = useQuery({
+    queryKey: ['home-today'], queryFn: () => get<HomeToday>('/api/home/today'), staleTime: 30 * 60_000, retry: false,
+    refetchInterval: (query) => (query.state.data?.pending && query.state.dataUpdateCount < 45 ? 4000 : false),
+  });
   const fixed = useQuery({ queryKey: ['feedback-resolved'], queryFn: () => get<{ id: string; question: string; note: string | null }[]>('/api/qa-sessions/feedback/resolved'), retry: false });
   const data = q.data;
   const now = useNow();
@@ -84,7 +90,15 @@ export function Home({ fallbackName, composer, resume, onPick, drafts, onDrafts 
 
   const refresh = async () => {
     setRefreshing(true);
-    try { qc.setQueryData(['home-today'], await get<HomeToday>('/api/home/today?refresh=true')); setLiked(false); }
+    try {
+      // 换一组也是后台写：没写好前先留着旧的，写好了再换
+      let r = await get<HomeToday>('/api/home/today?refresh=true');
+      for (let i = 0; r.pending && i < 45; i++) {
+        await new Promise((ok) => setTimeout(ok, 4000));
+        r = await get<HomeToday>('/api/home/today');
+      }
+      qc.setQueryData(['home-today'], r); setLiked(false);
+    }
     catch { /* 换不了就保持原样 */ }
     finally { setRefreshing(false); }
   };
@@ -99,7 +113,7 @@ export function Home({ fallbackName, composer, resume, onPick, drafts, onDrafts 
 
       {composer}
 
-      {(q.isPending || hasFun) && (
+      {(q.isPending || data?.pending || hasFun) && (
         <section className="hm-fun" aria-labelledby="hm-fun-t">
           <div className="hm-sec-hd">
             <b id="hm-fun-t">今天有点意思</b>
@@ -108,7 +122,7 @@ export function Home({ fallbackName, composer, resume, onPick, drafts, onDrafts 
               <button type="button" className="hm-link" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? '正在换…' : <>换一组<Icon name="refresh" size={13} style={{ verticalAlign: '-2px', marginLeft: 4 }} /></>}</button>
             )}
           </div>
-          {q.isPending && <div className="hm-skel"><i /><i /></div>}
+          {(q.isPending || (data?.pending && !hasFun)) && <div className="hm-skel"><i /><i /></div>}
           {fun && (fun.knowledge || fun.quiz) && (
             <div className="fun-row">
               {fun.knowledge && (

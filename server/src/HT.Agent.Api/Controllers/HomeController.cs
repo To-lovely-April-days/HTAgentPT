@@ -35,6 +35,7 @@ public class HomeController(HomeService home) : ControllerBase
             offWork = t.OffWork,
             refreshLeft = t.RefreshLeft,
             generated = b.Generated,
+            pending = t.Pending,
         });
     }
 }

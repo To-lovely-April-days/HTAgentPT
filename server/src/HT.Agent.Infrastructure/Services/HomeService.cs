@@ -23,7 +23,11 @@ public class HomeService(AppDbContext db, ICurrentUser me, IRuntimeConfig config
     /// <summary>公司在国内，按北京时间算「今天」（容器里一般是 UTC）。</summary>
     public static DateTimeOffset Now => DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(8));
 
-    public record Today(HomeBrief.Result Brief, List<string> Recent, string OffWork, int RefreshLeft, string Name);
+    /// <param name="Pending">模型还在后台写今天的内容，这次先给的是系统台词；前端过几秒再来取。</param>
+    public record Today(HomeBrief.Result Brief, List<string> Recent, string OffWork, int RefreshLeft, string Name, bool Pending = false);
+
+    /// <summary>首页不能干等模型：这么久写不完就先回系统台词和正事，模型在后台接着写，写完放进缓存。</summary>
+    private static readonly TimeSpan Wait = TimeSpan.FromSeconds(3);
 
     public async Task<Today> TodayAsync(bool refresh, CancellationToken ct)
     {
@@ -47,41 +51,59 @@ public class HomeService(AppDbContext db, ICurrentUser me, IRuntimeConfig config
         var recent = await db.QaSessions.AsNoTracking().Where(s => s.UserId == me.UserId)
             .OrderByDescending(s => s.UpdatedAt).Select(s => s.Title).Take(6).ToListAsync(ct);
 
+        var pending = false;
         if (!cache.TryGetValue(key, out HomeBrief.Result? brief) || brief is null)
         {
-            var task = InFlight.GetOrAdd(key, _ => BuildAsync(name, user?.Role ?? me.RoleCode, user?.Department, user?.MemoryOff ?? false, recent, drafts, now));
-            try { brief = await task; }
-            finally { InFlight.TryRemove(key, out _); }
-            // 模型没写成的只缓存 10 分钟，过一会再试
-            cache.Set(key, brief, brief.Generated ? now.Date.AddDays(1) - now.DateTime : TimeSpan.FromMinutes(10));
+            var ctx = await ContextAsync(name, user?.Role ?? me.RoleCode, user?.Department, user?.MemoryOff ?? false, recent, drafts, now, ct);
+            var chat = sp.GetService<IChatModelClient>();
+            if (chat is null) brief = HomeBrief.Fallback(ctx);
+            else
+            {
+                // 后台这一份不跟请求走：用户关了页面也写完、放进缓存，下次来直接取
+                var task = InFlight.GetOrAdd(key, _ => GenerateAsync(chat, ctx, key, now));
+                if (await Task.WhenAny(task, Task.Delay(Wait, ct)) == task) brief = await task;
+                else { brief = HomeBrief.Fallback(ctx); pending = true; }
+            }
         }
         var offWork = (await config.GetStringAsync("home.off_work", "18:00", ct)).Trim();
-        return new Today(brief, recent.Take(4).ToList(), offWork, Math.Max(0, MaxRefresh - used), name);
+        return new Today(brief, recent.Take(4).ToList(), offWork, Math.Max(0, MaxRefresh - used), name, pending);
     }
 
-    private async Task<HomeBrief.Result> BuildAsync(string name, string role, string? dept, bool memoryOff, List<string> recent, int drafts, DateTimeOffset now)
+    /// <summary>喂给模型的材料：记忆和候选正事，都在请求里按这个人的权限取（后台任务里没有当前用户）。</summary>
+    private async Task<HomeBrief.Context> ContextAsync(string name, string role, string? dept, bool memoryOff, List<string> recent, int drafts, DateTimeOffset now, CancellationToken ct)
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
-        var ct = cts.Token;
         List<string> memories = memoryOff ? [] : await db.UserMemories.AsNoTracking().Where(m => m.UserId == me.UserId)
             .OrderByDescending(m => m.UpdatedAt).Select(m => m.Text).Take(10).ToListAsync(ct);
         var candidates = new List<HomeBrief.Candidate>();
         try { candidates = await CandidatesAsync(memories, recent, now, ct); }
         catch (Exception ex) when (ex is not OperationCanceledException) { logger.LogWarning(ex, "首页：取近况失败"); }
-        var ctx = new HomeBrief.Context(name, role, dept, now, memories, recent, candidates, drafts);
+        return new HomeBrief.Context(name, role, dept, now, memories, recent, candidates, drafts);
+    }
 
-        var chat = sp.GetService<IChatModelClient>();
-        if (chat is null) return HomeBrief.Fallback(ctx);
+    /// <summary>后台写今天的内容，写完放缓存。只用单例（模型客户端、缓存、日志），不碰请求里的数据库和当前用户。</summary>
+    private async Task<HomeBrief.Result> GenerateAsync(IChatModelClient chat, HomeBrief.Context ctx, string key, DateTimeOffset now)
+    {
+        HomeBrief.Result brief;
         try
         {
-            var raw = await chat.CompleteAsync([new ChatTurn("user", HomeBrief.Prompt(ctx))], ct);
-            return HomeBrief.Parse(raw, ctx);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+            var raw = await chat.CompleteAsync([new ChatTurn("user", HomeBrief.Prompt(ctx))], cts.Token);
+            brief = HomeBrief.Parse(raw, ctx);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
         {
             logger.LogInformation("首页：模型没写成，用系统台词（{Error}）", ex.Message);
-            return HomeBrief.Fallback(ctx);
+            brief = HomeBrief.Fallback(ctx);
         }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "首页：生成出错，用系统台词");
+            brief = HomeBrief.Fallback(ctx);
+        }
+        // 模型没写成的只缓存 10 分钟，过一会再试
+        cache.Set(key, brief, brief.Generated ? now.Date.AddDays(1) - now.DateTime : TimeSpan.FromMinutes(10));
+        InFlight.TryRemove(key, out _);
+        return brief;
     }
 
     private static bool Mentioned(string text, IEnumerable<string> hay)
