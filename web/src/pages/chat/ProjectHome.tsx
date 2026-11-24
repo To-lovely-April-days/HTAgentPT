@@ -66,7 +66,7 @@ export function ProjectHome({ id, composer, busy, onOpenSession, onEdit, onGone,
     setNote(null);
     for (const file of Array.from(list)) {
       const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
-      if (!ATTACH_ACCEPT.split(',').includes(ext)) { setNote(`「${file.name}」格式不支持（可传 Word、Excel、PowerPoint、PDF）`); continue; }
+      if (!ATTACH_ACCEPT.split(',').includes(ext)) { setNote(`「${file.name}」格式不支持（可传 Word、Excel、PowerPoint、PDF、图片）`); continue; }
       if (file.size > 20 * 1024 * 1024) { setNote(`「${file.name}」超过 20MB`); continue; }
       const form = new FormData();
       form.append('file', file);

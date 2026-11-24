@@ -66,6 +66,21 @@ public class AttachmentParseWorker(IServiceScopeFactory scopeFactory, ILogger<At
 
         var parser = scope.ServiceProvider.GetRequiredService<IDocumentParserClient>();
         var storage = scope.ServiceProvider.GetRequiredService<IFileStorage>();
+        // 图片（截图、照片、图纸）：不走文档解析，原图留着，问到时助手用看图工具看（问什么看什么，比先写一段笼统的描述准）
+        if (AttachmentLimits.IsImage(a.FileName))
+        {
+            var canSee = await scope.ServiceProvider.GetRequiredService<Vision.ImageDescriber>().EnabledAsync(ct);
+            var hint = canSee
+                ? $"图片「{a.FileName}」：内容要用看图工具（view_image）看，问到图里的字、数字、位号时用识别文字（ocr_image）。"
+                : $"图片「{a.FileName}」：看图功能没开，读不了图里的内容，请让用户用文字说明图里是什么。";
+            a.Chunks = JsonSerializer.Serialize(new List<StoredChunk> { new(0, ImageNotes.SectionName, null, hint) }, Json);
+            a.CharCount = 0;
+            a.Status = ParseStatus.Parsed;
+            a.Error = null;
+            a.ParsedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(ct);
+            return true;
+        }
         try
         {
             ParsedDocument parsed;

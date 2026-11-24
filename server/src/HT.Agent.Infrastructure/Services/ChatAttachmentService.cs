@@ -22,7 +22,7 @@ public class ChatAttachmentService(
         if (!AttachmentLimits.Extensions.Contains(ext))
             throw new DomainRuleException("ATTACH_FORMAT", ext is ".doc" or ".xls" or ".ppt" or ".wps"
                 ? $"「{name}」是老格式，读不了——用 Office 另存为 .docx / .xlsx / .pptx 再传"
-                : $"「{name}」的格式不支持，可以传 Word、Excel、PowerPoint 或 PDF");
+                : $"「{name}」的格式不支持，可以传 Word、Excel、PowerPoint、PDF 或图片");
         if (size <= 0) throw new DomainRuleException("ATTACH_EMPTY", $"「{name}」是空文件");
         if (size > AttachmentLimits.MaxBytes)
             throw new DomainRuleException("ATTACH_SIZE", $"「{name}」超过 20MB，传不了——可以拆成几份，或只传需要的章节");
@@ -37,7 +37,8 @@ public class ChatAttachmentService(
             UploaderId = me.UserId,
             CompanyId = me.CompanyId,
             FileName = name,
-            ContentType = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType,
+            ContentType = AttachmentLimits.IsImage(name) ? AttachmentLimits.ImageType(name, contentType)
+                : string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType,
             Size = size,
             FileKey = key,
             Classification = Classification.Internal,

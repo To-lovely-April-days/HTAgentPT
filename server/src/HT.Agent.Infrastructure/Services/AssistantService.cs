@@ -1782,7 +1782,7 @@ public sealed class AssistantService(
                 var name = S("file") ?? "";
                 var att = await AttachmentAsync(name, attachments, ct);
                 if (att is null) return new ToolOutcome($"本对话里没有叫「{name}」的附件。", "找不到附件", label, name, "找不到附件");
-                var isImage = att.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+                var isImage = att.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) || AttachmentLimits.IsImage(att.FileName);
                 if (!isImage)
                 {
                     // PDF/Word：解析时已经读出文字（扫描件也经解析引擎识别过），直接给
@@ -1805,7 +1805,7 @@ public sealed class AssistantService(
                     ? "把图片里的文字逐行原样转写出来，保持原来的行和表格顺序；看不清的字写成 [看不清]，不要猜，不要加解释。"
                     : $"请仔细看图回答：{question}\n只描述图里确实能看到的内容，位号、数字照图上写；看不清就说看不清，不要猜。";
                 string answer;
-                try { answer = (await vision.DescribeAsync(bytes, att.ContentType, instruction, ct)).Trim(); }
+                try { answer = (await vision.DescribeAsync(bytes, AttachmentLimits.ImageType(att.FileName, att.ContentType), instruction, ct)).Trim(); }
                 catch (VisionUnavailableException) { return new ToolOutcome("看图模型现在用不了（模型不支持图片输入或没开启）。", "看图不可用", label, name, "看图不可用"); }
                 var thumb = bytes.Length <= 1_500_000 ? $"data:{att.ContentType};base64,{Convert.ToBase64String(bytes)}" : null;
                 var e = run.Add($"img:{att.Id}:{(ocr ? "ocr" : question)}", n => new EvidenceItem(n, "attachment", $"{att.FileName}（本对话上传）",

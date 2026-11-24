@@ -25,6 +25,19 @@ public static class AttachmentLimits
 {
     public const long MaxBytes = 20L * 1024 * 1024;
     public const int MaxPerMessage = 5;
-    /// <summary>Office 走本地解析，PDF 走 MinerU（扫描件也能出文字）。老格式（.doc/.xls）读不了，请另存为新格式。</summary>
-    public static readonly string[] Extensions = [".docx", ".docm", ".xlsx", ".xlsm", ".pptx", ".pdf"];
+    /// <summary>图片（截图、照片、图纸）交给看图模型。静态字段按书写顺序初始化，要写在 Extensions 前面。</summary>
+    public static readonly string[] ImageExtensions = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"];
+
+    /// <summary>Office 走本地解析，PDF 走 MinerU（扫描件也能出文字），图片交给看图模型。老格式（.doc/.xls）读不了，请另存为新格式。</summary>
+    public static readonly string[] Extensions = [".docx", ".docm", ".xlsx", ".xlsm", ".pptx", ".pdf", .. ImageExtensions];
+
+    public static bool IsImage(string fileName) => ImageExtensions.Contains(Path.GetExtension(fileName ?? "").ToLowerInvariant());
+
+    /// <summary>图片的类型：浏览器给的不对（有的给 application/octet-stream）就按扩展名定。</summary>
+    public static string ImageType(string fileName, string? contentType)
+        => contentType is { } c && c.StartsWith("image/", StringComparison.OrdinalIgnoreCase) ? c
+            : Path.GetExtension(fileName ?? "").ToLowerInvariant() switch
+            {
+                ".jpg" or ".jpeg" => "image/jpeg", ".webp" => "image/webp", ".gif" => "image/gif", ".bmp" => "image/bmp", _ => "image/png",
+            };
 }

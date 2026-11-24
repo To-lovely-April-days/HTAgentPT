@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, del, get, upload } from '../../lib/api';
 import type { ChatAttachment } from '../../lib/types';
 
-export const ATTACH_ACCEPT = '.docx,.docm,.xlsx,.xlsm,.pptx,.pdf';
+export const ATTACH_ACCEPT = '.docx,.docm,.xlsx,.xlsm,.pptx,.pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp';
+const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'];
 const EXTS = ATTACH_ACCEPT.split(',');
 const MAX_BYTES = 20 * 1024 * 1024;
 const MAX_FILES = 5;
@@ -24,7 +25,8 @@ const settled = (f: PendingFile) => f.state === 'ready' || f.state === 'error';
 
 function fromServer(key: string, a: ChatAttachment): PendingFile {
   const state = a.status === 'Parsed' ? 'ready' : a.status === 'Failed' ? 'error' : 'parsing';
-  const note = a.status === 'Parsed' ? `${a.charCount.toLocaleString()} 字`
+  const isImage = IMAGE_EXTS.includes(a.fileName.slice(a.fileName.lastIndexOf('.')).toLowerCase());
+  const note = a.status === 'Parsed' ? (isImage ? '图片，问到时看图' : `${a.charCount.toLocaleString()} 字`)
     : a.status === 'Waiting' ? '解析引擎忙，稍后自动重试'
     : a.error ?? undefined;
   return { key, name: a.fileName, size: a.size, state, id: a.id, note };
@@ -52,7 +54,7 @@ export function useAttachments() {
       const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
       const reject = i >= room ? `一次最多带 ${MAX_FILES} 个文件`
         : ['.doc', '.xls', '.ppt', '.wps'].includes(ext) ? '老格式读不了，请另存为新格式再传'
-        : !EXTS.includes(ext) ? '格式不支持（可传 Word、Excel、PowerPoint、PDF）'
+        : !EXTS.includes(ext) ? '格式不支持（可传 Word、Excel、PowerPoint、PDF、图片）'
         : file.size > MAX_BYTES ? '超过 20MB'
         : file.size === 0 ? '空文件' : null;
       const item: PendingFile = { key, name: file.name, size: file.size, state: reject ? 'error' : 'uploading', note: reject ?? undefined };

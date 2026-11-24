@@ -59,4 +59,22 @@ public class FeedbackFixTests
         Assert.True(MadeFiles.FixLayoutFirst(1));
         Assert.False(MadeFiles.FixLayoutFirst(MadeFiles.MaxAttempts - 1));
     }
+
+    [Theory]
+    [InlineData("image.png", null, "image/png")]
+    [InlineData("现场照片.JPG", "application/octet-stream", "image/jpeg")]
+    [InlineData("截图.webp", "image/webp", "image/webp")]
+    public void 图片能当附件传_类型按扩展名补(string name, string? type, string expected)
+    {
+        Assert.True(HT.Agent.Application.Abstractions.AttachmentLimits.IsImage(name));
+        Assert.Contains(System.IO.Path.GetExtension(name).ToLowerInvariant(), HT.Agent.Application.Abstractions.AttachmentLimits.Extensions);
+        Assert.Equal(expected, HT.Agent.Application.Abstractions.AttachmentLimits.ImageType(name, type));
+    }
+
+    [Fact]
+    public void 文档不当图片()
+    {
+        Assert.False(HT.Agent.Application.Abstractions.AttachmentLimits.IsImage("方案.docx"));
+        Assert.False(HT.Agent.Application.Abstractions.AttachmentLimits.IsImage("图纸.dwg"));
+    }
 }
