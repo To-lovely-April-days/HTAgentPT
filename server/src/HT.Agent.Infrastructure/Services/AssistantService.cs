@@ -1111,7 +1111,7 @@ public sealed class AssistantService(
         {
             var kinds = fileKinds ?? new HashSet<string>();
             var props = new Dictionary<string, object> { ["code"] = Str("完整的 Python 代码") };
-            var desc = "在隔离环境里运行 Python 代码做计算：工程计算、物性、数据统计、作图（matplotlib，图会显示给用户）。可用 numpy、scipy、pandas，以及化工计算库：fluids（管道压降、调节阀 Kv、安全阀 API 520、泵）、ht（换热、LMTD、夹套传热）、CoolProp 和 thermo / chemicals（物性、7 万多种化学品）、cantera（化学平衡、反应）。不能上网。用 print 输出结果，写明单位。"
+            var desc = "在隔离环境里运行 Python 代码做计算：工程计算、物性、数据统计、作图（matplotlib，图会显示给用户；中文字体已经配好，不用设 font）。可用 numpy、scipy、pandas，以及化工计算库：fluids（管道压降、调节阀 Kv、安全阀 API 520、泵）、ht（换热、LMTD、夹套传热）、CoolProp 和 thermo / chemicals（物性、7 万多种化学品）、cantera（化学平衡、反应）。不能上网。用 print 输出结果，写明单位。"
                 + "\n设备外形图和三维模型：cadquery（三维建模，导出 STEP）、ezdxf（二维 DXF 图纸），文件写到 out/（如 out/30L加氢釜外形图.dxf），先用 use_skill 翻看「外形图和三维模型」。";
             if (kinds.Count > 0)
             {

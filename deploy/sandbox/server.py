@@ -24,6 +24,27 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 plt.rcParams["font.sans-serif"] = ["WenQuanYi Micro Hei", "DejaVu Sans"]
 plt.rcParams["axes.unicode_minus"] = False
+# 模型写的代码常自己设 rcParams["font.sans-serif"] = ["SimHei"] 之类，容器里没有这些字体，中文就成了方框：
+# 把常见的中文字体名都指到装好的文泉驿微米黑上，写哪个名字都能显示中文
+def __cjk_alias():
+    import dataclasses
+    from matplotlib import font_manager as fm
+    wqy = [f for f in fm.fontManager.ttflist if "WenQuanYi" in f.name]
+    if not wqy:
+        return
+    have = {f.name for f in fm.fontManager.ttflist}
+    for alias in ("SimHei", "Microsoft YaHei", "Microsoft JhengHei", "SimSun", "NSimSun", "KaiTi", "FangSong", "STSong", "STHeiti", "STKaiti",
+                  "Heiti SC", "PingFang SC", "Songti SC", "Noto Sans CJK SC", "Noto Sans SC", "Noto Serif CJK SC", "Source Han Sans SC",
+                  "Source Han Serif SC", "WenQuanYi Zen Hei", "Arial Unicode MS", "Droid Sans Fallback"):
+        if alias not in have:
+            fm.fontManager.ttflist.append(dataclasses.replace(wqy[0], name=alias))
+    # 改成衬线、等宽字体的也带上中文（matplotlib 3.6 起一个字体缺字会往后找）
+    for key, base in (("font.serif", "DejaVu Serif"), ("font.monospace", "DejaVu Sans Mono")):
+        plt.rcParams[key] = [base, wqy[0].name] + [x for x in plt.rcParams[key] if x not in (base, wqy[0].name)]
+try:
+    __cjk_alias()
+except Exception:
+    pass
 __n = [0]
 def __save(*a, **k):
     __n[0] += 1
