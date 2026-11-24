@@ -10,9 +10,9 @@ const LEVELS: { code: 'fast' | 'standard' | 'deep'; name: string }[] = [
 const EFFORTS: [string, string][] = [['off', '不思考'], ['low', '低 low'], ['medium', '中 medium'], ['xhigh', '最高 xhigh']];
 const DEFAULTS: Record<string, string> = {
   'assistant.level.default': 'auto', 'assistant.level.user_choice': 'true', 'model.chat.context_tokens': '0',
-  'assistant.level.fast.effort': 'off', 'assistant.level.fast.rounds': '3', 'assistant.level.fast.max_tokens': '2000', 'assistant.level.fast.temperature': '0.7',
-  'assistant.level.standard.effort': 'medium', 'assistant.level.standard.rounds': '6', 'assistant.level.standard.max_tokens': '6000', 'assistant.level.standard.temperature': '1.0',
-  'assistant.level.deep.effort': 'xhigh', 'assistant.level.deep.rounds': '10', 'assistant.level.deep.max_tokens': '12000', 'assistant.level.deep.temperature': '1.0',
+  'assistant.level.fast.effort': 'off', 'assistant.level.fast.rounds': '3', 'assistant.level.fast.max_tokens': '0', 'assistant.level.fast.temperature': '0.7',
+  'assistant.level.standard.effort': 'medium', 'assistant.level.standard.rounds': '6', 'assistant.level.standard.max_tokens': '0', 'assistant.level.standard.temperature': '1.0',
+  'assistant.level.deep.effort': 'xhigh', 'assistant.level.deep.rounds': '10', 'assistant.level.deep.max_tokens': '0', 'assistant.level.deep.temperature': '1.0',
 };
 const DEEP_MIN = 32768;
 
@@ -33,10 +33,10 @@ export function LevelsCard({ values, onChange }: { values: Record<string, string
     <div className="card lv-card">
       <div className="lv-hd">
         <b>思考档位</b>
-        <span className="hint">员工在输入框里选「自动 / 快速 / 标准 / 深度」。思考强度是模型自带的三级，温度以外的采样参数按官方推荐自动带。改完点页底「保存」，马上生效。</span>
+        <span className="hint">员工在输入框里选「自动 / 快速 / 标准 / 深度」。思考强度是模型自带的三级（档位主要就是这个）。回答最长填 0 = 不另设上限，按上下文里剩下的给，一般不用改。温度以外的采样参数按官方推荐自动带。改完点页底「保存」，马上生效。</span>
       </div>
       <table className="lv-t">
-        <thead><tr><th>档位</th><th>思考强度</th><th>最多查几轮</th><th>回答最长（token）</th><th>温度</th><th>状态</th></tr></thead>
+        <thead><tr><th>档位</th><th>思考强度</th><th>最多查几轮</th><th>回答最长（token，0=不限）</th><th>温度</th><th>状态</th></tr></thead>
         <tbody>
           {LEVELS.map((l) => (
             <tr key={l.code}>

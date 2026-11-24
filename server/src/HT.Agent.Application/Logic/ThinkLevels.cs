@@ -4,7 +4,8 @@ namespace HT.Agent.Application.Logic;
 
 public enum ThinkLevel { Fast, Standard, Deep }
 
-/// <summary>一档的参数。Effort：off=不思考；low / medium / xhigh 是 Qwen3.8 自带的思考强度。</summary>
+/// <summary>一档的参数。Effort：off=不思考；low / medium / xhigh 是 Qwen3.8 自带的思考强度（档位的本体）。
+/// MaxTokens：每轮回答（含思考）最多写多少；0=不另设上限，按上下文里剩下的给（模型官方建议的输出长度远大于上下文，压小了只会写到一半停）。</summary>
 public record LevelSettings(string Effort, int MaxRounds, int MaxTokens, double Temperature)
 {
     public bool Think => Effort != "off";
@@ -39,9 +40,9 @@ public static class ThinkLevels
     /// <summary>出厂默认值（后台可改）。</summary>
     public static LevelSettings Default(ThinkLevel l) => l switch
     {
-        ThinkLevel.Fast => new("off", 3, 2000, 0.7),
-        ThinkLevel.Deep => new("xhigh", 10, 12000, 1.0),
-        _ => new("medium", 6, 6000, 1.0)
+        ThinkLevel.Fast => new("off", 3, 0, 0.7),
+        ThinkLevel.Deep => new("xhigh", 10, 0, 1.0),
+        _ => new("medium", 6, 0, 1.0)
     };
 
     public static Sampling SamplingFor(bool think) => think ? new(0.95, 20, 0) : new(0.8, 20, 1.5);

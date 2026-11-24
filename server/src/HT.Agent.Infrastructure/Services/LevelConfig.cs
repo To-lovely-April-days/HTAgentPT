@@ -14,6 +14,8 @@ public record LevelConfig(string Default, bool UserChoice, int ContextTokens, IR
     /// 报不出来（在线接口、服务没起来）才按后台填的，没填按 8192。</summary>
     public static async Task<LevelConfig> LoadAsync(IRuntimeConfig config, CancellationToken ct, ModelContextProbe? probe = null)
     {
+        var set = Math.Max(0, await config.GetIntAsync(ConfigKeys.ChatContextTokens, 0, ct));
+        var context = (probe is null ? null : await probe.DetectAsync(ct)) ?? (set > 0 ? set : 8192);
         var levels = new Dictionary<ThinkLevel, LevelSettings>();
         foreach (var (level, effort, rounds, tokens, temp) in new[]
         {
@@ -24,16 +26,16 @@ public record LevelConfig(string Default, bool UserChoice, int ContextTokens, IR
         {
             var d = ThinkLevels.Default(level);
             var e = (await config.GetStringAsync(effort, d.Effort, ct)).Trim().ToLowerInvariant();
+            // 回答最长：0（默认）= 不另设上限，按上下文给；每轮实际给多少还会按剩下的空间再收
+            var max = await config.GetIntAsync(tokens, d.MaxTokens, ct);
             levels[level] = new LevelSettings(
                 ThinkLevels.Efforts.Contains(e) ? e : d.Effort,
                 Math.Clamp(await config.GetIntAsync(rounds, d.MaxRounds, ct), 1, 16),
-                Math.Clamp(await config.GetIntAsync(tokens, d.MaxTokens, ct), 512, 64000),
+                max <= 0 ? context : Math.Clamp(max, 512, context),
                 Math.Clamp(await config.GetDoubleAsync(temp, d.Temperature, ct), 0, 2));
         }
         var def = (await config.GetStringAsync(ConfigKeys.AssistantLevelDefault, "auto", ct)).Trim().ToLowerInvariant();
         var choice = !(await config.GetStringAsync(ConfigKeys.AssistantLevelUserChoice, "true", ct)).Trim().Equals("false", StringComparison.OrdinalIgnoreCase);
-        var set = Math.Max(0, await config.GetIntAsync(ConfigKeys.ChatContextTokens, 0, ct));
-        var context = (probe is null ? null : await probe.DetectAsync(ct)) ?? (set > 0 ? set : 8192);
         return new LevelConfig(def, choice, context, levels);
     }
 }

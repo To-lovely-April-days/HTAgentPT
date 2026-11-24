@@ -1,6 +1,8 @@
 using HT.Agent.Application.Abstractions;
 using HT.Agent.Application.Logic;
+using HT.Agent.Domain;
 using HT.Agent.Infrastructure.Clients;
+using HT.Agent.Infrastructure.Services;
 
 namespace HT.Agent.Tests;
 
@@ -115,5 +117,35 @@ public class ThinkLevelTests
         Assert.Equal(4.5, r.ThinkSeconds);
         Assert.Equal("length", r.FinishReason);
         Assert.Equal("结论", r.Content);
+    }
+
+    [Fact]
+    public async Task 回答最长默认不设限_按上下文给_填了数就按填的但不超过上下文()
+    {
+        var c = await LevelConfig.LoadAsync(new MapConfig(new() { [ConfigKeys.ChatContextTokens] = "32768" }), CancellationToken.None);
+        Assert.Equal(32768, c.Levels[ThinkLevel.Standard].MaxTokens);
+        Assert.Equal("medium", c.Levels[ThinkLevel.Standard].Effort);
+
+        c = await LevelConfig.LoadAsync(new MapConfig(new()
+        {
+            [ConfigKeys.ChatContextTokens] = "32768",
+            [ConfigKeys.LevelStandardMaxTokens] = "10000",
+            [ConfigKeys.LevelDeepMaxTokens] = "100000",
+        }), CancellationToken.None);
+        Assert.Equal(10000, c.Levels[ThinkLevel.Standard].MaxTokens);
+        Assert.Equal(32768, c.Levels[ThinkLevel.Deep].MaxTokens);
+    }
+
+    private sealed class MapConfig(Dictionary<string, string> values) : IRuntimeConfig
+    {
+        public Task<string?> GetAsync(string key, CancellationToken ct = default) => Task.FromResult(values.GetValueOrDefault(key));
+        public Task<int> GetIntAsync(string key, int fallback, CancellationToken ct = default)
+            => Task.FromResult(values.TryGetValue(key, out var v) && int.TryParse(v, out var i) ? i : fallback);
+        public Task<double> GetDoubleAsync(string key, double fallback, CancellationToken ct = default) => Task.FromResult(fallback);
+        public Task<string> GetStringAsync(string key, string fallback, CancellationToken ct = default)
+            => Task.FromResult(values.GetValueOrDefault(key) ?? fallback);
+        public Task SetAsync(string key, string value, Guid? updatedBy, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<IReadOnlyDictionary<string, string>> GetAllAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyDictionary<string, string>>(values);
     }
 }
