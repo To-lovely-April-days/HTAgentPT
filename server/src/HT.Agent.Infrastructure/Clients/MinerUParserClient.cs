@@ -29,7 +29,7 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
 
         var url = await config.GetStringAsync(ConfigKeys.ParserUrl, "http://127.0.0.1:8000", ct);
         var backend = await config.GetStringAsync(ConfigKeys.ParserBackend, "pipeline", ct);
-        var timeout = await config.GetIntAsync(ConfigKeys.ParserTimeoutSeconds, 300, ct);
+        var timeout = await config.GetIntAsync(ConfigKeys.ParserTimeoutSeconds, 1800, ct);
         var maxRetries = Math.Max(0, await config.GetIntAsync(ConfigKeys.ParserMaxRetries, 3, ct));
         using var buffer = new MemoryStream();
         await file.CopyToAsync(buffer, ct);

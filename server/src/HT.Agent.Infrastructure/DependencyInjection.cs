@@ -32,7 +32,8 @@ public static class DependencyInjection
         services.AddHttpClient("model");
         // 通用助手：一轮里可能先思考再输出长回答，给足时间
         services.AddHttpClient("assistant", c => c.Timeout = TimeSpan.FromMinutes(5));
-        services.AddHttpClient("parser");
+        // 解析请求各自按「解析超时」设置截止（大 PDF 要十几分钟）；HttpClient 默认 100 秒会先把它掐掉
+        services.AddHttpClient("parser", c => c.Timeout = Timeout.InfiniteTimeSpan);
         services.AddHttpClient("sync");
 
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();

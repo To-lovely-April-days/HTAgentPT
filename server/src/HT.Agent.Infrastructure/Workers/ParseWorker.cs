@@ -52,7 +52,7 @@ public class ParseWorker(
 
         // 崩溃回收：Running 超过 30 分钟（解析超时调得更长时按超时再加 10 分钟）视为进程死亡遗留，重新入队。
         // 没有这条，崩溃时正在处理的文档会永远停在「解析中」并退出检索。
-        var parseTimeout = await config.GetIntAsync(ConfigKeys.ParserTimeoutSeconds, 300, ct);
+        var parseTimeout = await config.GetIntAsync(ConfigKeys.ParserTimeoutSeconds, 1800, ct);
         var stale = now - TimeSpan.FromMinutes(Math.Max(30, parseTimeout / 60 + 10));
         await db.ParseJobs
             .Where(j => j.Status == JobStatus.Running && j.StartedAt != null && j.StartedAt < stale)

@@ -47,7 +47,7 @@ public class RuntimeConfig(IServiceScopeFactory scopeFactory, IMemoryCache cache
         [ConfigKeys.RerankModelName] = "rerank-default",
         [ConfigKeys.ParserUrl] = "http://127.0.0.1:8082/parse",
         [ConfigKeys.ParserBackend] = "pipeline",
-        [ConfigKeys.ParserTimeoutSeconds] = "300",
+        [ConfigKeys.ParserTimeoutSeconds] = "1800",   // 大 PDF（上千页）本地 MinerU 要十来分钟，5 分钟不够
         [ConfigKeys.ParserMaxRetries] = "3",
         [ConfigKeys.ParserConcurrency] = "1",
         [ConfigKeys.RecallTopK] = "50",

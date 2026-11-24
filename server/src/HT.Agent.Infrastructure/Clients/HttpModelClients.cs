@@ -144,7 +144,7 @@ public class HttpParserClient(IHttpClientFactory httpFactory, IRuntimeConfig con
     public async Task<ParsedDocument> ParseAsync(Stream file, string fileName, string contentType, CancellationToken ct = default)
     {
         var url = await config.GetStringAsync(ConfigKeys.ParserUrl, "http://127.0.0.1:8082/parse", ct);
-        var timeout = await config.GetIntAsync(ConfigKeys.ParserTimeoutSeconds, 300, ct);
+        var timeout = await config.GetIntAsync(ConfigKeys.ParserTimeoutSeconds, 1800, ct);
         // 调用超时与重试次数可配置（表 8-2）。重试要重传文件，先落内存/临时缓冲
         var maxRetries = Math.Max(0, await config.GetIntAsync(ConfigKeys.ParserMaxRetries, 3, ct));
         using var buffer = new MemoryStream();

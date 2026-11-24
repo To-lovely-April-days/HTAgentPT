@@ -29,7 +29,7 @@ public class MinerUOnlineParserClient(IHttpClientFactory httpFactory, IRuntimeCo
             throw new ParseContentException("未配置在线解析令牌：在「系统设置 → 文档解析」选择在线服务并填入 mineru.net 的令牌");
         var baseUrl = (await config.GetStringAsync(ConfigKeys.ParserOnlineBase, "https://mineru.net", ct)).TrimEnd('/');
         var backend = await config.GetStringAsync(ConfigKeys.ParserBackend, "pipeline", ct);
-        var timeout = await config.GetIntAsync(ConfigKeys.ParserTimeoutSeconds, 300, ct);
+        var timeout = await config.GetIntAsync(ConfigKeys.ParserTimeoutSeconds, 1800, ct);
         var http = httpFactory.CreateClient("parser");
 
         using var buffer = new MemoryStream();
