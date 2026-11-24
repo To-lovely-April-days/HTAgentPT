@@ -803,7 +803,8 @@ function Composer({ placeholder, big, attach, plus, chips, children, busy = fals
         </div>
       )}
       {/* 滚到底时不抢焦点：右边「可操作」的网页画面上打字时，字要留在网页里 */}
-      <ComposerPrimitive.Input className="composer-input" minRows={big ? 3 : 1} autoFocus unstable_focusOnScrollToBottom={false}
+      {/* 按 Esc 不停止回答：组件默认 Esc 就取消，关预览、关输入法候选时顺手一按，正在做的就断了。停止只认那个停止按钮 */}
+      <ComposerPrimitive.Input className="composer-input" minRows={big ? 3 : 1} autoFocus unstable_focusOnScrollToBottom={false} cancelOnEscape={false}
         aria-label="输入你的问题或任务" placeholder={placeholder} />
       <div className="composer-bar">
         <PlusMenu {...plus} onUpload={attach ? () => pick.current?.click() : undefined} />
@@ -813,13 +814,15 @@ function Composer({ placeholder, big, attach, plus, chips, children, busy = fals
         )}
         <span className="composer-chips">{chips}</span>
         {children}
-        {busy
-          ? <ComposerPrimitive.Cancel className="composer-send composer-stop" aria-label="停止生成" title="停止生成（做完的部分会留着，可以接着做）">
-              <Icon name="stop" size={14} />
-            </ComposerPrimitive.Cancel>
-          : <ComposerPrimitive.Send className="composer-send" aria-label="发送">
-              <Icon name="up" size={18} stroke={2.2} />
-            </ComposerPrimitive.Send>}
+        {/* 停止单独一个写着字的按钮，不占发送的位置：回答中顺手打下一句、点圆按钮想发送，不会误点成停止 */}
+        {busy && (
+          <ComposerPrimitive.Cancel className="composer-stop" title="停止生成（做完的部分会留着，可以接着做）">
+            <Icon name="stop" size={11} />停止
+          </ComposerPrimitive.Cancel>
+        )}
+        <ComposerPrimitive.Send className="composer-send" aria-label="发送">
+          <Icon name="up" size={18} stroke={2.2} />
+        </ComposerPrimitive.Send>
       </div>
       {drag && <div className="composer-drop">松开即可添加文件</div>}
       <InputPet busy={busy} size={big ? 40 : 32} />
