@@ -128,7 +128,67 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
         var apiKey = (await config.GetStringAsync(ConfigKeys.ParserApiKey, "", ct)).Trim();
         var safeName = SafeAsciiFileName(fileName);
         var sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+        var tier = MapTier(backend);
 
+        // 同一份文件上次等超时了，MinerU 那边的任务其实还在跑：这次接着等那个任务，不重新提交。
+        // 重新提交会让 MinerU 里排着同一批文件的好几份，越排越长，后面的文件一个接一个超时。
+        var key = $"{baseUrl}|{tier}|{sha256}";
+        var now = DateTimeOffset.UtcNow;
+        foreach (var (k, v) in InFlight)
+            if (now - v.Since > InFlightKeep) InFlight.TryRemove(k, out _);
+        var resumed = InFlight.TryGetValue(key, out var prev);
+        string outputFileId;
+        try
+        {
+            if (resumed)
+            {
+                try
+                {
+                    outputFileId = await WaitV1Async(http, apiKey, baseUrl, prev!.JobId, prev.Since, timeout, ct);
+                }
+                catch (JobGoneException)
+                {
+                    // MinerU 重启过，原来的任务没了：重新提交一次
+                    var again = await SubmitV1Async(http, apiKey, baseUrl, bytes, safeName, contentType, sha256, tier, timeout, ct);
+                    InFlight[key] = new(again, DateTimeOffset.UtcNow);
+                    outputFileId = await WaitV1Async(http, apiKey, baseUrl, again, DateTimeOffset.UtcNow, timeout, ct);
+                }
+            }
+            else
+            {
+                var jobId = await SubmitV1Async(http, apiKey, baseUrl, bytes, safeName, contentType, sha256, tier, timeout, ct);
+                InFlight[key] = new(jobId, DateTimeOffset.UtcNow);
+                outputFileId = await WaitV1Async(http, apiKey, baseUrl, jobId, DateTimeOffset.UtcNow, timeout, ct);
+            }
+        }
+        catch (ParserUnavailableException)
+        {
+            throw; // 超时、连不上：记着任务号，下次重试接着等
+        }
+        catch (JobGoneException)
+        {
+            InFlight.TryRemove(key, out _);
+            throw new ParserUnavailableException("MinerU 找不到刚提交的解析任务（服务可能刚重启），稍后重新提交");
+        }
+        catch
+        {
+            InFlight.TryRemove(key, out _);
+            throw;
+        }
+        InFlight.TryRemove(key, out _);
+
+        var zipBytes = await SendBytesDownloadAsync(http, $"{baseUrl}/v1/files/{Uri.EscapeDataString(outputFileId)}"
+            + "/content", apiKey, timeout, ct, "下载 MinerU 解析结果");
+        var (blocks, images) = ExtractV4Zip(zipBytes);
+        if (blocks.Count == 0)
+            throw new ParseContentException("MinerU 解析结果不含内容块（文件可能为空或全为无法识别的图像）");
+        return new ParsedDocument(blocks, images);
+    }
+
+    /// <summary>上传源文件并创建解析任务，返回 MinerU 任务号。</summary>
+    private async Task<string> SubmitV1Async(HttpClient http, string apiKey, string baseUrl, byte[] bytes,
+        string safeName, string contentType, string sha256, string tier, int timeout, CancellationToken ct)
+    {
         var uploadJson = await SendJsonAsync(http, HttpMethod.Post, $"{baseUrl}/v1/uploads", new
         {
             filename = safeName,
@@ -169,7 +229,6 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
                 ?? throw new ParseContentException("MinerU 上传确认未返回 file.id");
         }
 
-        var tier = MapTier(backend);
         var jobJson = await SendJsonAsync(http, HttpMethod.Post, $"{baseUrl}/v1/parse/jobs", new
         {
             files = new[] { new { source = new { type = "file_id", file_id = fileId } } },
@@ -179,19 +238,28 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
         }, apiKey, timeout, ct, "创建 MinerU 解析任务");
         using var job = ParseJson(jobJson, "MinerU 任务响应");
         var jobId = GetRequiredString(job.RootElement, "job_id", "MinerU 任务响应缺少 job_id");
+        return jobId;
+    }
 
+    /// <summary>轮询 MinerU 任务直到完成，返回 zip 产物的文件号。任务不存在（服务重启过）抛 JobGoneException。</summary>
+    private async Task<string> WaitV1Async(HttpClient http, string apiKey, string baseUrl, string jobId,
+        DateTimeOffset since, int timeout, CancellationToken ct)
+    {
         var deadline = DateTimeOffset.UtcNow.AddSeconds(Math.Max(30, timeout));
-        string? outputFileId = null;
         string? terminalError = null;
         while (true)
         {
             ct.ThrowIfCancellationRequested();
             if (DateTimeOffset.UtcNow > deadline)
-                throw new ParserUnavailableException($"MinerU 解析超时（{timeout} 秒未完成，任务号 {jobId}）");
+            {
+                var total = (int)Math.Round((DateTimeOffset.UtcNow - since).TotalMinutes);
+                throw new ParserUnavailableException(
+                    $"MinerU 还没解析完（本次等了 {timeout} 秒，提交后共 {total} 分钟，任务号 {jobId}），稍后接着等这个任务，不会重复提交");
+            }
             await Task.Delay(TimeSpan.FromSeconds(2), ct);
             var stateJson = await SendJsonAsync(http, HttpMethod.Get,
                 $"{baseUrl}/v1/parse/jobs/{Uri.EscapeDataString(jobId)}", null,
-                apiKey, timeout, ct, "查询 MinerU 解析进度");
+                apiKey, timeout, ct, "查询 MinerU 解析进度", goneOn404: true);
             using var state = ParseJson(stateJson, "MinerU 任务状态响应");
             var status = (GetString(state.RootElement, "status") ?? "").ToLowerInvariant();
             if (status is "queued" or "running" or "pending") continue;
@@ -204,23 +272,22 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
             }
             if (status is "completed" or "partial")
             {
-                outputFileId = FindOutputFileId(state.RootElement, "zip");
+                var outputFileId = FindOutputFileId(state.RootElement, "zip");
                 if (string.IsNullOrWhiteSpace(outputFileId))
                     throw new ParseContentException($"MinerU 任务已{(status == "partial" ? "部分" : "完成")}，但没有返回 zip 产物");
-                break;
+                return outputFileId;
             }
             throw new ParseContentException($"MinerU 返回未知任务状态：{status}");
         }
-
-        var zipBytes = await SendBytesDownloadAsync(http, $"{baseUrl}/v1/files/{Uri.EscapeDataString(outputFileId!)}"
-            + "/content", apiKey, timeout, ct, "下载 MinerU 解析结果");
-        var (blocks, images) = ExtractV4Zip(zipBytes);
-        if (blocks.Count == 0)
-            throw new ParseContentException("MinerU 解析结果不含内容块（文件可能为空或全为无法识别的图像）");
-        return new ParsedDocument(blocks, images);
     }
 
     private sealed class LegacyEndpointNotFoundException : Exception;
+    private sealed class JobGoneException : Exception;
+
+    /// <summary>提交给 MinerU、还没等到结果的任务（键：服务地址 | 档位 | 文件哈希）。进程重启就清空，最多记 6 小时。</summary>
+    private sealed record PendingJob(string JobId, DateTimeOffset Since);
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, PendingJob> InFlight = new();
+    private static readonly TimeSpan InFlightKeep = TimeSpan.FromHours(6);
 
     private static bool IsLegacyUrl(string url)
         => new Uri(url, UriKind.Absolute).AbsolutePath.TrimEnd('/').EndsWith("/file_parse", StringComparison.OrdinalIgnoreCase);
@@ -296,12 +363,12 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
     }
 
     private async Task<string> SendJsonAsync(HttpClient http, HttpMethod method, string url, object? body,
-        string apiKey, int timeout, CancellationToken ct, string step)
+        string apiKey, int timeout, CancellationToken ct, string step, bool goneOn404 = false)
     {
         using var req = new HttpRequestMessage(method, url);
         if (body is not null) req.Content = JsonContent.Create(body);
         AddAuthorization(req, apiKey);
-        return await SendTextAsync(http, req, timeout, ct, step);
+        return await SendTextAsync(http, req, timeout, ct, step, goneOn404);
     }
 
     private async Task SendBytesAsync(HttpClient http, HttpMethod method, string url, byte[] bytes,
@@ -345,7 +412,7 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
     }
 
     private static async Task<string> SendTextAsync(HttpClient http, HttpRequestMessage req,
-        int timeout, CancellationToken ct, string step)
+        int timeout, CancellationToken ct, string step, bool goneOn404 = false)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(Math.Max(5, timeout)));
@@ -353,6 +420,7 @@ public class MinerUParserClient(IHttpClientFactory httpFactory, IRuntimeConfig c
         {
             using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseContentRead, cts.Token);
             var body = await resp.Content.ReadAsStringAsync(ct);
+            if (goneOn404 && resp.StatusCode == System.Net.HttpStatusCode.NotFound) throw new JobGoneException();
             if (!resp.IsSuccessStatusCode) ThrowHttpFailure(resp.StatusCode, body, step);
             return body;
         }

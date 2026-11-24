@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.IO.Compression;
 using System.Text;
+using System.Net;
 using HT.Agent.Application.Abstractions;
 using HT.Agent.Infrastructure.Clients;
 
@@ -188,5 +189,95 @@ public class MinerUParserTests
         Assert.Equal(2, rows.Count); // 全空行被丢弃
         Assert.Equal(["A&B 值"], rows[0]);
         Assert.Equal(["x", "y"], rows[1]);
+    }
+
+    // ── 超时后重试：接着等原来的 MinerU 任务，不重复提交 ──────────────────────
+    [Fact]
+    public async Task 上次没等到结果_重试时接着等原任务不重新提交()
+    {
+        var mineru = new FakeMinerU { FailPollsLeft = 1 };
+        var client = new MinerUParserClient(new OneClient(mineru), new Cfg("http://mineru-resume:8000"));
+        var pdf = Encoding.UTF8.GetBytes("resume-" + Guid.NewGuid());
+
+        await Assert.ThrowsAsync<ParserUnavailableException>(() => client.ParseAsync(new MemoryStream(pdf), "a.pdf", "application/pdf"));
+        var doc = await client.ParseAsync(new MemoryStream(pdf), "a.pdf", "application/pdf");
+
+        Assert.Equal(1, mineru.Submits);
+        Assert.Equal("正文", doc.Blocks[0].Text);
+    }
+
+    [Fact]
+    public async Task MinerU重启后原任务没了_重新提交一次()
+    {
+        var mineru = new FakeMinerU { FailPollsLeft = 1 };
+        var client = new MinerUParserClient(new OneClient(mineru), new Cfg("http://mineru-gone:8000"));
+        var pdf = Encoding.UTF8.GetBytes("gone-" + Guid.NewGuid());
+
+        await Assert.ThrowsAsync<ParserUnavailableException>(() => client.ParseAsync(new MemoryStream(pdf), "a.pdf", "application/pdf"));
+        mineru.Forget(); // 服务重启：之前的任务号查不到了
+        var doc = await client.ParseAsync(new MemoryStream(pdf), "a.pdf", "application/pdf");
+
+        Assert.Equal(2, mineru.Submits);
+        Assert.Equal("正文", doc.Blocks[0].Text);
+    }
+
+    private sealed class FakeMinerU : HttpMessageHandler
+    {
+        public int Submits;
+        public int FailPollsLeft;
+        private readonly HashSet<string> jobs = [];
+        public void Forget() => jobs.Clear();
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct)
+        {
+            var path = req.RequestUri!.AbsolutePath;
+            if (req.Method == HttpMethod.Post && path == "/v1/uploads")
+                return Json("""{"status":"completed","file":{"id":"f1"}}""");
+            if (req.Method == HttpMethod.Post && path == "/v1/parse/jobs")
+            {
+                var id = "job" + Interlocked.Increment(ref Submits);
+                jobs.Add(id);
+                return Json($$"""{"job_id":"{{id}}"}""");
+            }
+            if (req.Method == HttpMethod.Get && path.StartsWith("/v1/parse/jobs/"))
+            {
+                var id = path["/v1/parse/jobs/".Length..];
+                if (!jobs.Contains(id)) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+                if (FailPollsLeft-- > 0) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+                return Json("""{"status":"completed","files":[{"output_files":{"zip":{"file_id":"out1"}}}]}""");
+            }
+            if (req.Method == HttpMethod.Get && path == "/v1/files/out1/content")
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Zip()) });
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadRequest));
+        }
+
+        private static Task<HttpResponseMessage> Json(string body)
+            => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") });
+
+        private static byte[] Zip()
+        {
+            using var output = new MemoryStream();
+            using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+            using (var writer = new StreamWriter(archive.CreateEntry("structured_content.json").Open(), Encoding.UTF8))
+                writer.Write("""{"pages":[{"page_idx":0,"blocks":[{"type":"text","content":"正文"}]}]}""");
+            return output.ToArray();
+        }
+    }
+
+    private sealed class OneClient(HttpMessageHandler h) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new(h, disposeHandler: false);
+    }
+
+    private sealed class Cfg(string url) : IRuntimeConfig
+    {
+        public Task<string?> GetAsync(string key, CancellationToken ct = default) => Task.FromResult<string?>(null);
+        public Task<int> GetIntAsync(string key, int fallback, CancellationToken ct = default) => Task.FromResult(fallback);
+        public Task<double> GetDoubleAsync(string key, double fallback, CancellationToken ct = default) => Task.FromResult(fallback);
+        public Task<string> GetStringAsync(string key, string fallback, CancellationToken ct = default)
+            => Task.FromResult(key == "parser.url" ? url : fallback);
+        public Task SetAsync(string key, string value, Guid? updatedBy, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<IReadOnlyDictionary<string, string>> GetAllAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>());
     }
 }
