@@ -26,6 +26,14 @@ public class LocalFileStorage(IOptions<StorageOptions> options) : IFileStorage
         return key;
     }
 
+    public async Task SaveAtAsync(string key, Stream content, CancellationToken ct = default)
+    {
+        var path = FullPath(key);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await using var fs = File.Create(path);
+        await content.CopyToAsync(fs, ct);
+    }
+
     public Task<Stream> OpenAsync(string key, CancellationToken ct = default)
         => Task.FromResult<Stream>(File.OpenRead(FullPath(key)));
 

@@ -39,7 +39,7 @@ public class PptTemplatesController(AppDbContext db, ICurrentUser me, IAuditWrit
     {
         var t = await db.PptTemplates.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
         if (t is null || n < 1 || n > t.Previews) return NotFound(new { code = "NOT_FOUND", message = "没有这一页" });
-        var key = $"ppt-templates/{t.Id:N}/p{n}.jpg";
+        var key = PptTemplateService.PreviewKey(t.Id, n);
         if (!await storage.ExistsAsync(key, ct)) return NotFound(new { code = "NOT_FOUND", message = "没有这一页" });
         Response.Headers.CacheControl = "private, max-age=86400";
         return File(await storage.OpenAsync(key, ct), "image/jpeg");
@@ -159,7 +159,7 @@ public class PptTemplatesController(AppDbContext db, ICurrentUser me, IAuditWrit
         if (t.FileKey is not null) await storage.DeleteAsync(t.FileKey, ct);
         for (var i = 1; i <= t.Previews; i++)
         {
-            var key = $"ppt-templates/{t.Id:N}/p{i}.jpg";
+            var key = PptTemplateService.PreviewKey(t.Id, i);
             if (await storage.ExistsAsync(key, ct)) await storage.DeleteAsync(key, ct);
         }
         db.PptTemplates.Remove(t);

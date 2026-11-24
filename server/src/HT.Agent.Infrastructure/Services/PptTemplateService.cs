@@ -47,7 +47,7 @@ public sealed class PptTemplateService(AppDbContext db, IFileStorage storage, Cl
             int added = 0, failed = 0;
             foreach (var b in list)
             {
-                if (have.TryGetValue(b.Id, out var row) && row.Status == "ready") continue;
+                if (have.TryGetValue(b.Id, out var row) && row.Status == "ready" && await HasPreviewsAsync(row, ct)) continue;
                 var file = Path.Combine(dir, Path.GetFileName(b.File));
                 if (!File.Exists(file)) continue;
                 var data = await File.ReadAllBytesAsync(file, ct);
@@ -64,6 +64,30 @@ public sealed class PptTemplateService(AppDbContext db, IFileStorage storage, Cl
         finally { ImportLock.Release(); }
     }
 
+    public static string PreviewKey(Guid id, int page) => $"ppt-templates/{id:N}/p{page}.jpg";
+
+    private async Task<bool> HasPreviewsAsync(PptTemplate row, CancellationToken ct)
+        => row.Previews > 0 && await storage.ExistsAsync(PreviewKey(row.Id, 1), ct);
+
+    /// <summary>缩略图找不到的模板（早先的版本把缩略图存到了带随机编号的地方，按固定地址取不到）重新转一遍。
+    /// 系统自带的由 ImportBuiltInAsync 处理；这里管管理员上传的。</summary>
+    public async Task<int> RepairUploadedPreviewsAsync(CancellationToken ct)
+    {
+        var rows = await db.PptTemplates.Where(t => !t.BuiltIn && t.Status == "ready" && t.FileKey != null).ToListAsync(ct);
+        var fixedCount = 0;
+        foreach (var row in rows)
+        {
+            if (await HasPreviewsAsync(row, ct)) continue;
+            byte[] data;
+            await using (var s = await storage.OpenAsync(row.FileKey!, ct))
+            using (var ms = new MemoryStream()) { await s.CopyToAsync(ms, ct); data = ms.ToArray(); }
+            await PrepareAsync(row, data, ct);
+            await db.SaveChangesAsync(ct);
+            if (row.Status == "ready") fixedCount++;
+        }
+        return fixedCount;
+    }
+
     /// <summary>存文件、分析每页、转缩略图。分析不了标 failed（不给员工选）。</summary>
     public async Task PrepareAsync(PptTemplate row, byte[] data, CancellationToken ct)
     {
@@ -76,9 +100,7 @@ public sealed class PptTemplateService(AppDbContext db, IFileStorage storage, Cl
         if (pv is null) { row.Status = "failed"; row.Problem = "转缩略图的服务（office 容器）连不上"; return; }
         for (var i = 0; i < pv.Value.Pages.Count; i++)
         {
-            var key = $"ppt-templates/{row.Id:N}/p{i + 1}.jpg";
-            if (await storage.ExistsAsync(key, ct)) await storage.DeleteAsync(key, ct);
-            await storage.SaveAsync(new MemoryStream(pv.Value.Pages[i]), key, ct);
+            await storage.SaveAtAsync(PreviewKey(row.Id, i + 1), new MemoryStream(pv.Value.Pages[i]), ct);
         }
         row.Previews = pv.Value.Pages.Count;
         row.Status = "ready";

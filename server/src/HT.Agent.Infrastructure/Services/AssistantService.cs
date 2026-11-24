@@ -2580,7 +2580,7 @@ public sealed class AssistantService(
         if (await pptTemplates.RenderPagesAsync(data, ct) is { } pv)
             for (var i = 0; i < pv.Pages.Count; i++)
             {
-                await storage.SaveAsync(new MemoryStream(pv.Pages[i]), $"made/{row.Id:N}-p{i + 1}.jpg", ct);
+                await storage.SaveAtAsync($"made/{row.Id:N}-p{i + 1}.jpg", new MemoryStream(pv.Pages[i]), ct);
                 shots.Add($"/api/chat/made-files/{row.Id}/pages/{i + 1}");
             }
         var (forModel, checks) = PptPages.Report(r.Report, tpl.Name, tpl.Credit is not null);

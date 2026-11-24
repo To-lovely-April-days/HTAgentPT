@@ -19,6 +19,8 @@ public interface IJwtIssuer
 public interface IFileStorage
 {
     Task<string> SaveAsync(Stream content, string keyHint, CancellationToken ct = default);
+    /// <summary>存到指定的键（已有就覆盖）。给按固定地址取的文件用，比如模板每页的缩略图；SaveAsync 会另起一个带随机编号的键。</summary>
+    Task SaveAtAsync(string key, Stream content, CancellationToken ct = default);
     Task<Stream> OpenAsync(string key, CancellationToken ct = default);
     Task DeleteAsync(string key, CancellationToken ct = default);
     Task<bool> ExistsAsync(string key, CancellationToken ct = default);

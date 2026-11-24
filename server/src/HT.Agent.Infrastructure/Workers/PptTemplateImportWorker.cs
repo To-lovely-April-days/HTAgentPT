@@ -19,6 +19,8 @@ public class PptTemplateImportWorker(IServiceScopeFactory scopeFactory, ILogger<
             {
                 await using var scope = scopeFactory.CreateAsyncScope();
                 var svc = scope.ServiceProvider.GetRequiredService<PptTemplateService>();
+                if (attempt == 0 && await svc.RepairUploadedPreviewsAsync(stoppingToken) is > 0 and var repaired)
+                    logger.LogInformation("重新生成了 {Count} 套上传模板的缩略图", repaired);
                 if ((await svc.BuiltInsAsync(stoppingToken)).Count == 0) return;
                 var (added, failed) = await svc.ImportBuiltInAsync(stoppingToken);
                 if (added > 0) logger.LogInformation("导入了 {Added} 套自带 PPT 模板", added);
