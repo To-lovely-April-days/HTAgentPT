@@ -7,8 +7,13 @@ server {
     # 与后端 Upload:KestrelLimitMb=512 对齐，否则大文件上传在反代这层就被截断
     client_max_body_size 512m;
 
+    # 后端地址每次请求都重新查（Docker 内置 DNS，10 秒缓存）。原来 nginx 启动时查一次就一直用那个 IP：
+    # 后端容器重建后 IP 会变，公司节点和总部节点可能互换 IP，界面就连到了另一个节点的库（看着像「旧数据库」）
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
     location /api/ {
-        proxy_pass ${API_TARGET};
+        set $api_target ${API_TARGET};
+        proxy_pass $api_target;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -18,6 +23,16 @@ server {
         proxy_request_buffering off;
         proxy_read_timeout 3600s;
         proxy_send_timeout 3600s;
+    }
+
+    # 入口页不缓存：更新后打开就是新版本（原来浏览器会拿着旧的入口页、跑旧版本的界面）
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+    }
+    # 带哈希的静态文件，内容变了文件名就变：可以放心长期缓存
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files $uri =404;
     }
 
     # 单页应用：非文件路径全部回落 index.html
