@@ -144,6 +144,49 @@ public class AssistantLoopTests
     private static readonly IReadOnlyList<ToolSpec> Tools = [new("search_documents", "搜", new { })];
 
     [Fact]
+    public async Task 回答写到长度上限_系统让它接着写_拼成完整回答()
+    {
+        var model = new ScriptedModel(
+            new ToolRoundResult("第一段，", [], "length"),
+            new ToolRoundResult("第二段。", [], "stop"));
+        var msgs = new List<AgentMessage> { new("user", "q") };
+        var r = await new AssistantLoop(model, new AssistantLoopOptions()).RunAsync(msgs, Tools,
+            (_, _) => Task.FromResult(new ToolOutcome("x", "x", "搜索资料", "", null)),
+            _ => Task.CompletedTask, CancellationToken.None);
+
+        Assert.Equal("第一段，第二段。", r.Answer);
+        Assert.False(r.Truncated);
+        Assert.Contains(msgs, m => m.Role == "user" && m.Content is { } c && c.Contains("接着上面没写完"));
+    }
+
+    [Fact]
+    public async Task 接着写最多两次_还没写完就标写到一半()
+    {
+        var model = new ScriptedModel(new ToolRoundResult("又一段", [], "length"));
+        var r = await new AssistantLoop(model, new AssistantLoopOptions()).RunAsync([new("user", "q")], Tools,
+            (_, _) => Task.FromResult(new ToolOutcome("x", "x", "搜索资料", "", null)),
+            _ => Task.CompletedTask, CancellationToken.None);
+
+        Assert.Equal("又一段又一段又一段", r.Answer);
+        Assert.True(r.Truncated);
+        Assert.Equal(3, model.Calls);
+    }
+
+    [Fact]
+    public async Task 接着写了一半又去调工具_前面写的不算进最后的回答()
+    {
+        var model = new ScriptedModel(
+            new ToolRoundResult("写了一半", [], "length"),
+            new ToolRoundResult("", [new ToolCall("c1", "search_documents", "{}")], "tool_calls"),
+            new ToolRoundResult("完整回答。", [], "stop"));
+        var r = await new AssistantLoop(model, new AssistantLoopOptions()).RunAsync([new("user", "q")], Tools,
+            (_, _) => Task.FromResult(new ToolOutcome("x", "x", "搜索资料", "", null)),
+            _ => Task.CompletedTask, CancellationToken.None);
+
+        Assert.Equal("完整回答。", r.Answer);
+    }
+
+    [Fact]
     public async Task 同一个工具连着三次没结果_提醒别再换说法重试()
     {
         var model = new ScriptedModel(

@@ -351,7 +351,9 @@ public sealed class AssistantService(
             {
                 // ② 列计划：界面上马上亮出来，附在这一问后面交给助手照着做
                 run.Plan.Seed(triage.Steps, triage.Assumptions, DateTimeOffset.UtcNow);
-                messages[^1] = messages[^1] with { Content = messages[^1].Content + TaskFlow.PlanNote(run.Plan) };
+                // 计划里提到要做的事（做 PPT、流程模拟、画图……）：对应的专用工具开工就备好，免得做到那步才去找、或者干脆写成文字代替
+                var ready = LoadGroups(run, ToolCatalog.WordHits(string.Join(" ", triage.Steps), ToolCatalog.Available(run.AllTools)));
+                messages[^1] = messages[^1] with { Content = messages[^1].Content + TaskFlow.PlanNote(run.Plan) + GroupGuides(run, ready) };
                 await emit(new QaEvent("plan", run.Plan.State()));
             }
         }
@@ -484,39 +486,45 @@ public sealed class AssistantService(
                 object Check(string? res, string status) => new { id = "chk", tool = "check", label = "自查", detail = "对照要求和计划检查", result = res, status };
                 await emit(new QaEvent("step", Check(null, "running")));
                 review = await ReviewAsync(req.Question, run, result, ct);
-                var problems = review.Problems;
-                if (problems.Count > 0 && !result.HitRoundLimit)
+                var firstFound = 0;
+                // 有缺口就自己补，不留给用户去点「接着做」：最多补 MaxFixPasses 遍，每遍都有自己的轮数（第一遍轮数用完了也照样补）
+                for (var pass = 1; pass <= MaxFixPasses && result.PausedCallId is null; pass++)
                 {
-                    await emit(new QaEvent("step", Check($"发现 {problems.Count} 处，接着补", "running")));
-                    messages.Add(new AgentMessage("assistant", result.Answer));
-                    messages.Add(new AgentMessage("user", TaskFlow.FixNote(problems)));
-                    // 第一遍的回答已经显示出来了：补的那遍会重写完整回答，先清掉，免得接在后面
-                    var firstAnswer = result.Answer;
+                    var gaps = Gaps(review, run, result);
+                    if (gaps.Count == 0) break;
+                    if (pass == 1) firstFound = gaps.Count;
+                    await emit(new QaEvent("step", Check(pass == 1 ? $"发现 {gaps.Count} 处，接着补" : $"还有 {gaps.Count} 处，再补一遍", "running")));
+                    if (result.Answer.Length > 0) messages.Add(new AgentMessage("assistant", result.Answer));
+                    messages.Add(new AgentMessage("user", TaskFlow.FixNote(gaps)));
+                    // 前一遍的回答已经显示出来了：补的这遍会重写完整回答，先清掉，免得接在后面
+                    var before = result.Answer;
                     answerSoFar.Clear();
                     await emit(new QaEvent("replace", new { text = "" }));
-                    var fix = await RunLoopAsync(new AssistantLoop(new SlotClient(model), options with { MaxRounds = Math.Max(3, lv.MaxRounds / 2) }), "f");
+                    var fix = await RunLoopAsync(new AssistantLoop(new SlotClient(model), options with { MaxRounds = Math.Max(4, lv.MaxRounds) }), pass == 1 ? "f" : "g");
                     if (fix.Answer.Length == 0 && fix.PausedCallId is null)
                     {
-                        // 补的那遍没写出回答：把第一遍的放回去
-                        answerSoFar.Append(firstAnswer);
-                        await emit(new QaEvent("replace", new { text = firstAnswer }));
+                        // 补的这遍没写出回答：把前一遍的放回去
+                        answerSoFar.Append(before);
+                        await emit(new QaEvent("replace", new { text = before }));
                     }
                     result = fix with
                     {
                         Steps = [.. result.Steps, .. fix.Steps], Rounds = result.Rounds + fix.Rounds,
-                        Answer = fix.Answer.Length > 0 || fix.PausedCallId is not null ? fix.Answer : result.Answer,
+                        Answer = fix.Answer.Length > 0 || fix.PausedCallId is not null ? fix.Answer : before,
                         Reasoning = string.Join("\n\n", new[] { result.Reasoning, fix.Reasoning }.Where(x => x.Length > 0)),
                         ThinkSeconds = result.ThinkSeconds + fix.ThinkSeconds,
                     };
-                    if (result.PausedCallId is null)
-                    {
-                        review = await ReviewAsync(req.Question, run, result, ct);
-                        checkNote = review.Problems.Count == 0 ? $"发现 {problems.Count} 处，已补上" : $"发现 {problems.Count} 处，补过一次还有 {review.Problems.Count} 处";
-                    }
+                    if (result.PausedCallId is null) review = await ReviewAsync(req.Question, run, result, ct);
                 }
-                else checkNote = problems.Count == 0 ? "没发现问题" : $"发现 {problems.Count} 处，没来得及补";
-                // 没补上的缺口也算「还没做」，收尾卡上写出来
-                if (review.Problems.Count > 0) review = review with { Left = [.. review.Left.Concat(review.Problems).Distinct().Take(5)] };
+                if (result.PausedCallId is null)
+                {
+                    var still = Gaps(review, run, result);
+                    checkNote = firstFound == 0 ? "没发现问题"
+                        : still.Count == 0 ? $"发现 {firstFound} 处，已自己补上"
+                        : $"发现 {firstFound} 处，补了 {MaxFixPasses} 遍还有 {still.Count} 处";
+                    // 补不上的也写进「还没做」
+                    if (still.Count > 0) review = review with { Left = [.. review.Left.Concat(still).Distinct().Take(5)] };
+                }
                 await emit(new QaEvent("step", Check(checkNote ?? "自查时停下来问你了", "done")));
             }
 
@@ -1996,6 +2004,20 @@ public sealed class AssistantService(
     private const int PlanStepRounds = 3, MaxPlanRounds = 30;
     /// <summary>计划里的一步调了这么多次工具还没往下走，提醒一次。</summary>
     private const int StepCallsWarn = 8;
+
+    /// <summary>交付前自查最多自己补几遍。</summary>
+    private const int MaxFixPasses = 2;
+
+    /// <summary>要补的缺口：检查员指出的，加上系统能确定的（计划里没做完的步骤、回答写到一半停了）——检查员漏看了也照样补。</summary>
+    private static List<string> Gaps(TaskFlow.Review review, Run run, LoopResult result)
+    {
+        var gaps = new List<string>(review.Problems);
+        var left = run.Plan.Left(result.HitRoundLimit);
+        if (left.Count > 0 && !gaps.Any(g => left.Any(l => g.Contains(l))))
+            gaps.Add("计划里这几步还没做：" + string.Join("、", left));
+        if (result.Truncated) gaps.Add("回答写到一半停了，没写完");
+        return gaps;
+    }
 
     /// <summary>开工前判断、交付前自查用的快速调用：不思考、不给工具、回答短；40 秒没回来或出错就当没有（不耽误回答）。</summary>
     private async Task<string> QuickAsync(string system, string user, int maxTokens, CancellationToken ct)

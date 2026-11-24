@@ -54,6 +54,8 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         var widened = false;
         var misses = new Dictionary<string, int>();   // 每个工具连着几次没结果
         var limitNoted = false;
+        var written = new System.Text.StringBuilder();   // 回答写到长度上限、系统让它接着写时，前面已经写出来的
+        var continues = 0;
         for (var round = 1; ; round++)
         {
             var toolChars = ToolChars(tools);   // 工具按需加载：中途加载了专用工具，下一轮的工具清单就变长了
@@ -99,14 +101,26 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
 
             if (calls.Count == 0)
             {
-                var answer = StripThinking(content);
-                if (answer != content) await emit(new QaEvent("replace", new { text = answer }));
+                var part = StripThinking(content);
+                // 回答写到「回答最长」停了：不交给用户去点，系统让它从断的地方接着写（最多接 MaxContinues 次），界面上接在后面
+                if (result.FinishReason == "length" && continues < MaxContinues && part.Trim().Length > 0)
+                {
+                    continues++;
+                    if (part != content) await emit(new QaEvent("replace", new { text = written + part }));
+                    written.Append(part);
+                    messages.Add(new AgentMessage("assistant", part));
+                    messages.Add(new AgentMessage("user", "接着上面没写完的地方往下写：直接接上断的那句，不要重复已经写过的，也不要加开场白。"));
+                    continue;
+                }
+                var answer = written + part;
+                if (part != content) await emit(new QaEvent("replace", new { text = answer }));
                 return new LoopResult(answer.Trim(), round, steps, cut,
                     Truncated: result.FinishReason == "length", Reasoning: Clip(reasoning.ToString(), MaxReasoning), ThinkSeconds: thinkSeconds);
             }
 
-            // 这一轮是「先说一句再去查」：说的话不算答案，界面上清掉
-            if (streamed) await emit(new QaEvent("replace", new { text = "" }));
+            // 这一轮是「先说一句再去查」：说的话不算答案，界面上清掉（接着写了一半又去调工具的，前面写的也不算）
+            if (streamed || written.Length > 0) await emit(new QaEvent("replace", new { text = "" }));
+            written.Clear();
 
             // 工具参数（比如一整页代码）写到「回答最长」被截断了：参数是半截的，执行了只会报「参数不对」。
             // 第一次：不执行，长度放宽一倍把这一轮重来；放宽了还截断：告诉模型拆短了再写
@@ -123,12 +137,12 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
                 foreach (var call in calls)
                 {
                     var id = $"{stepPrefix}{++stepNo}";
-                    var written = call.ArgumentsJson.Length;
+                    var argChars = call.ArgumentsJson.Length;
                     var rec = new StepRecord(id, call.Name, ToolLabel(call.Name), Describe(call), "写太长，被截断了", "error", 0);
                     steps.Add(rec);
                     await emit(new QaEvent("step", new { id, tool = call.Name, label = rec.Label, detail = rec.Detail, result = rec.Result, status = "error", seconds = 0 }));
                     messages.Add(new AgentMessage("tool",
-                        $"没有执行：这次调用的参数写了 {written} 字，到了单次回答的长度上限被截断，内容是半截的。"
+                        $"没有执行：这次调用的参数写了 {argChars} 字，到了单次回答的长度上限被截断，内容是半截的。"
                         + "把它拆短再做：代码分几次写（第一次 open(路径, 'w') 写前一部分，后面每次 open(路径, 'a') 接着写，最后一次再运行或检查），"
                         + "或者先做一个精简版，回答里说明哪些部分可以接着补。",
                         ToolCallId: call.Id));
@@ -177,6 +191,9 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
 
     /// <summary>模型想收尾、但还有没做完的事时，最多提醒几次。</summary>
     public const int MaxNudges = 2;
+
+    /// <summary>回答写到长度上限时，系统让它接着写最多几次。</summary>
+    public const int MaxContinues = 2;
 
     /// <summary>界面上「看思路」最多留多少字。</summary>
     public const int MaxReasoning = 6000;

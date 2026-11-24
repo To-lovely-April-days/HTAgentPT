@@ -86,7 +86,8 @@ public static class TaskFlow
         for (var i = 0; i < plan.Items.Count; i++) sb.AppendLine($"{i + 1}. {plan.Items[i].Title}{(plan.Items[i].Status == "now" ? "（现在做这步）" : "")}");
         if (plan.Assumptions.Count > 0) sb.AppendLine("用户没说清的地方按这些假设做：" + string.Join("；", plan.Assumptions));
         sb.Append("照计划一步步做：每开始一步用 plan 把它标 now、做完标 done（plan 每次给整张清单，标题照抄）；做着发现计划不对，用 plan 重列并写 reason。"
-            + "不要停下来问用户，假设不合适的在回答里说一句。最终回答写交付的内容本身；按什么假设做的、还有什么没做，系统会在回答下面统一列出，回答末尾不用再列。）");
+            + "不要停下来问用户，假设不合适的在回答里说一句。要交付文件的（PPT、Excel、Word……），用工具把文件做出来，不要把内容写在回答里代替文件。"
+            + "所有步骤都做完再写最终回答。最终回答写交付的内容本身；按什么假设做的、还有什么没做，系统会在回答下面统一列出，回答末尾不用再列。）");
         return sb.ToString();
     }
 
@@ -139,7 +140,8 @@ public static class TaskFlow
     /// <summary>自查发现缺口时交给助手的话：补上，再把完整回答重写一遍。</summary>
     public static string FixNote(IEnumerable<string> problems)
         => "交付前自查发现这些问题：\n" + string.Join("\n", problems.Select((p, i) => $"{i + 1}. {p}"))
-           + "\n能补的用工具补上（计划里对应的步骤用 plan 标 now、做完标 done），然后把完整的最终回答重新写一遍（不要只写补了什么）；补不了的在回答里如实写明。";
+           + "\n现在就补，不要问用户：能补的用工具补上（要交付文件的就用工具把文件做出来，不要把内容写在回答里代替；计划里对应的步骤用 plan 标 now、做完标 done），"
+           + "然后把完整的最终回答重新写一遍（不要只写补了什么）；实在补不了的在回答里如实写明。";
 
     // ── 工具 ─────────────────────────────────────────────
 
