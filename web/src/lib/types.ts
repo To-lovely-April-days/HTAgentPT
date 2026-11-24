@@ -477,7 +477,9 @@ export interface MyFilesContext {
 export interface ApprovalSummary { isApprover: boolean; isAdmin?: boolean; files: number; customers: number }
 
 /** 助手请用户确认：问题和选项。answered 是用户后来的回答（打开历史时有）。 */
-export interface AskSpec { question: string; options: { label: string; detail: string | null }[]; multiple: boolean; answered?: string | null }
+export interface AskQuestion { question: string; options: { label: string; detail: string | null }[]; multiple: boolean }
+/** more：同一张卡上一起问的其余问题（要问的几件事一次问完） */
+export interface AskSpec extends AskQuestion { more?: AskQuestion[] | null; answered?: string | null }
 
 /** 助手工具生成的结果卡：计算结果、化学品数据。 */
 /** 分头查：每个子代理一行（像素小人、做什么、状态、一句话结论、它自己查了哪几步）。 */

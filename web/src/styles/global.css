@@ -1014,6 +1014,9 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .ask-card { border: 1.5px solid var(--ink); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; margin: 6px 0 12px; }
 .ask-card.done { border-color: var(--line-strong); }
 .ask-q { font-size: 15px; font-weight: 600; }
+.ask-one { display: flex; flex-direction: column; gap: 10px; }
+.ask-one + .ask-one { padding-top: 12px; border-top: 1px dashed var(--line); }
+.ask-n { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 8px; border-radius: 50%; background: var(--ink); color: var(--bg, #fff); font-size: 12px; font-weight: 700; vertical-align: 1px; }
 .ask-opts { display: flex; flex-direction: column; gap: 8px; }
 .ask-opt { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line-strong); background: var(--panel); border-radius: 10px; padding: 10px 14px;
   font: inherit; text-align: left; cursor: pointer; color: var(--ink); }

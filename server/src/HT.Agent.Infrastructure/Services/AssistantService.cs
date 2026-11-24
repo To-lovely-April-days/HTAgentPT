@@ -73,7 +73,9 @@ public sealed class AssistantService(
         List<double> Computed, List<string> Searches, int NextN);
     public record AskOption(string Label, string? Detail);
     public record SkillRef(Guid Id, string Code, string Name, string Description, int Version);
-    public record AskSpec(string Question, List<AskOption> Options, bool Multiple);
+    /// <summary>More：同一张卡上一起问的其余问题（要问的几件事一次问完，最多 4 个）。</summary>
+    public record AskSpec(string Question, List<AskOption> Options, bool Multiple, List<AskQuestion>? More = null);
+    public record AskQuestion(string Question, List<AskOption> Options, bool Multiple);
     /// <summary>等用户回话时存下来的现场：对话（含已查到的资料）、等着填结果的那次调用、依据编号表。</summary>
     public record PendingState(List<AgentMessage> Messages, string CallId, RunState Run, PendingBrowser? Browser = null);
 
@@ -407,12 +409,13 @@ public sealed class AssistantService(
             {
                 var ask = run.Ask;
                 var askSteps = stepRows;
-                await emit(new QaEvent("ask", new { question = ask.Question, options = ask.Options, multiple = ask.Multiple }));
-                message.Answer = ask.Question + "\n" + string.Join("\n", ask.Options.Select(o => $"· {o.Label}"));
+                await emit(new QaEvent("ask", new { question = ask.Question, options = ask.Options, multiple = ask.Multiple, more = ask.More }));
+                message.Answer = string.Join("\n\n", new[] { new AskQuestion(ask.Question, ask.Options, ask.Multiple) }.Concat(ask.More ?? [])
+                    .Select(x => x.Question + "\n" + string.Join("\n", x.Options.Select(o => $"· {o.Label}"))));
                 message.Payload = JsonSerializer.Serialize(new
                 {
                     kind = "assistant", rounds = result.Rounds, steps = askSteps, toolsLoaded = run.Loaded.ToArray(), artifacts = run.Artifacts, level = levelCode, agents = run.Agents, plan = run.Plan.Items.Count > 0 ? run.Plan.State() : null,
-                    ask = new { question = ask.Question, options = ask.Options, multiple = ask.Multiple },
+                    ask = new { question = ask.Question, options = ask.Options, multiple = ask.Multiple, more = ask.More },
                     pending = new PendingState(messages, result.PausedCallId, run.ToState(), run.PendingBrowser)
                 }, Json);
                 db.QaMessages.Add(message);
@@ -604,13 +607,14 @@ public sealed class AssistantService(
             """);
         if (enabled.Contains("plan"))
             sb.AppendLine("""
-                - 任务要 3 步以上（文献调研、流程模拟、出外形图、做文件、对照协议、多处资料汇总……）时，第一个动作就用 plan 列出要做的步骤（最多 7 步，每步一句话说做什么；在翻看技能、查资料之前列，翻完技能发现步骤要变就重列），
+                - 拿到问题先判断值不值得列计划：一两步就能答的直接答；要 3 步以上的（写程序或界面、文献调研、流程模拟、出外形图、做文件、对照协议、多处资料汇总……），第一个动作就用 plan 列出要做的步骤（最多 7 步，每步一句话说做什么；在翻看技能、查资料之前列，翻完技能发现步骤要变就重列），
                   再一步步做：开始一步就把它标 now，做完标 done，同时把下一步标 now；计划变了就整个重列并在 reason 里说为什么；写最终回答之前把做完的都标 done，没做的标 skip 并写 note。
                   一两步就能答的问题不要列计划。
                 """);
         if (enabled.Contains("ask_user"))
             sb.AppendLine("""
-                - 问题里关键信息有歧义、或者查到好几个都对得上，而不同理解会导致答案明显不同时，先把候选查清楚，再请用户确认（给 2–6 个选项，每个附一句区别）。不影响结论的小歧义不要问，直接按最合理的理解回答并写明「按 XX 理解」。一个问题尽量只问一次。
+                - 少问，先做：缺的信息能按常见做法、上下文或公司资料合理假设的（用什么设备、什么风格、多大规模……），就按最合理的假设把活干完，回答末尾写「我是按这些假设做的：……」，再问一句哪里要调整（写在回答里，不用 ask_user）。
+                  只有缺了就没法开始、或者猜错要整个返工的（不知道是哪个项目、哪份文件、查到好几个候选都对得上），才在动手前用 ask_user 问；要问的几件事一次问完（第一个写在 question，其余放 more，最多 4 个），不要问一个、等回答、再问一个。不影响结论的小歧义不要问。
                 """);
         // 查找顺序：先公司内部，内部没有或问的是外部公开信息就联网搜；联网搜索没开时告诉用户，不装作查过
         if (enabled.Contains("web_search"))
@@ -689,7 +693,8 @@ public sealed class AssistantService(
                 }, "items")));
         if (enabled.Contains("ask_user"))
             list.Add(new ToolSpec("ask_user",
-                "请用户确认或选择：问题有歧义、或查到多个候选且会影响答案时用。给出问题和 2–6 个选项（每个附一句区别），用户可以点选，也可以自己补充。调用后等用户回答再继续。",
+                "请用户确认或选择：缺了就没法开始、或者猜错要整个返工时才用（能按常见做法假设的先假设着做）。给出问题和 2–6 个选项（每个附一句区别），用户可以点选，也可以自己补充。"
+                + "要问的几件事一次问完：第一个写在 question/options，其余写进 more（最多再 3 个），不要问一个、等回答、再问下一个。调用后等用户回答再继续。",
                 Obj(new()
                 {
                     ["question"] = Str("要问用户的话，简短明确"),
@@ -699,6 +704,20 @@ public sealed class AssistantService(
                         ["items"] = Obj(new() { ["label"] = Str("选项，如「HT-2024-018 · 50L 加氢釜」"), ["detail"] = Str("一句区别说明，如年份、材质、参数") }, "label"),
                     },
                     ["multiple"] = new Dictionary<string, object> { ["type"] = "boolean", ["description"] = "能不能多选，默认不能" },
+                    ["more"] = new Dictionary<string, object>
+                    {
+                        ["type"] = "array", ["maxItems"] = 3, ["description"] = "同一张卡上一起问的其余问题（可省略）",
+                        ["items"] = Obj(new()
+                        {
+                            ["question"] = Str("问题"),
+                            ["options"] = new Dictionary<string, object>
+                            {
+                                ["type"] = "array", ["minItems"] = 2, ["maxItems"] = 6,
+                                ["items"] = Obj(new() { ["label"] = Str("选项"), ["detail"] = Str("一句区别说明") }, "label"),
+                            },
+                            ["multiple"] = new Dictionary<string, object> { ["type"] = "boolean", ["description"] = "能不能多选" },
+                        }, "question", "options"),
+                    },
                 }, "question", "options")));
         if (enabled.Contains("remember"))
         {
@@ -1611,16 +1630,16 @@ public sealed class AssistantService(
             case "ask_user":
             {
                 var q = S("question") ?? "请确认一下";
-                var opts = new List<AskOption>();
-                if (a["options"] is JsonArray arr)
-                    foreach (var o in arr)
-                    {
-                        if (o is JsonObject ob && ob["label"]?.ToString() is { Length: > 0 } l) opts.Add(new AskOption(Clip(l, 80), ob["detail"]?.ToString() is { Length: > 0 } d ? Clip(d, 160) : null));
-                        else if (o is JsonValue v && v.ToString() is { Length: > 0 } l2) opts.Add(new AskOption(Clip(l2, 80), null));
-                    }
+                var opts = AskOptions(a["options"]);
                 if (opts.Count < 2) return new ToolOutcome("请用户确认至少要给 2 个选项。", "选项不够", label, q, "选项不够");
-                run.Ask = new AskSpec(Clip(q, 200), opts.Take(6).ToList(), a["multiple"] is JsonValue mv && mv.TryGetValue<bool>(out var mb) && mb);
-                return new ToolOutcome("", "", label, q, $"{run.Ask.Options.Count} 个选项，等你选", Pause: true);
+                // 其余一起问的问题（选项不够 2 个的那条不要）
+                var more = (a["more"] as JsonArray ?? []).OfType<JsonObject>()
+                    .Select(m => new AskQuestion(Clip(m["question"]?.ToString() ?? "", 200), AskOptions(m["options"]).Take(6).ToList(),
+                        m["multiple"] is JsonValue mmv && mmv.TryGetValue<bool>(out var mmb) && mmb))
+                    .Where(m => m.Question.Length > 0 && m.Options.Count >= 2).Take(3).ToList();
+                run.Ask = new AskSpec(Clip(q, 200), opts.Take(6).ToList(), a["multiple"] is JsonValue mv && mv.TryGetValue<bool>(out var mb) && mb,
+                    more.Count > 0 ? more : null);
+                return new ToolOutcome("", "", label, q, more.Count > 0 ? $"{more.Count + 1} 个问题，等你选" : $"{run.Ask.Options.Count} 个选项，等你选", Pause: true);
             }
             case "delegate":
                 return await DelegateAsync(a, run, req, attachments, topK, enabled, emit, label, ct);
@@ -1836,6 +1855,18 @@ public sealed class AssistantService(
             docCategory = e.DocCategory, fileName = e.FileName, projectNo = e.ProjectNo, classification = e.Classification, url = e.Url, priceId = e.PriceId,
             score = e.Score, text, highlights = hl.Select(h => new { start = h.Start, length = h.Length }).ToList()
         };
+    }
+
+    private static List<AskOption> AskOptions(JsonNode? node)
+    {
+        var opts = new List<AskOption>();
+        if (node is JsonArray arr)
+            foreach (var o in arr)
+            {
+                if (o is JsonObject ob && ob["label"]?.ToString() is { Length: > 0 } l) opts.Add(new AskOption(Clip(l, 80), ob["detail"]?.ToString() is { Length: > 0 } d ? Clip(d, 160) : null));
+                else if (o is JsonValue v && v.ToString() is { Length: > 0 } l2) opts.Add(new AskOption(Clip(l2, 80), null));
+            }
+        return opts;
     }
 
     private static readonly string[] OptionalTools = ["ask_user", "plan", "run_python", "chemical_info", "hazard_lookup", "process_sim", "web_search", "fetch_url", "compare_documents", "browser",

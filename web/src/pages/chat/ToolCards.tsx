@@ -1,7 +1,7 @@
 // 助手工具生成的卡片：请你确认（选项）、计算结果（代码/输出/图）、化学品数据，以及回答下面的导出条。
 import { useState } from 'react';
 import { ApiError, download, postDownload } from '../../lib/api';
-import type { AskSpec, EvidenceCard, HazardChemCard, HazardProcessCard, ToolArtifact } from '../../lib/types';
+import type { AskQuestion, AskSpec, EvidenceCard, HazardChemCard, HazardProcessCard, ToolArtifact } from '../../lib/types';
 import { EstimateCard, TableCard } from './DataCards';
 import { BlockCard } from './blocks/BlockCard';
 import { SimCard } from './SimCard';
@@ -12,34 +12,49 @@ import { SiteIcon, hostOf } from '../../components/SiteIcon';
 
 // ── 请你确认 ─────────────────────────────────────────
 export function AskCard({ ask, active, onAnswer }: { ask: AskSpec; active: boolean; onAnswer: (text: string) => void }) {
-  const [picked, setPicked] = useState<string[]>([]);
+  // 一张卡上可以有几个问题（助手把要问的一次问完）：每个问题各选各的，全选了才能确定；也可以不选，直接自己说
+  const qs: AskQuestion[] = [ask, ...(ask.more ?? [])];
+  const many = qs.length > 1;
+  const [picked, setPicked] = useState<string[][]>(() => qs.map(() => []));
   const [own, setOwn] = useState('');
-  const toggle = (l: string) => setPicked((p) => (ask.multiple ? (p.includes(l) ? p.filter((x) => x !== l) : [...p, l]) : [l]));
-  const answer = own.trim() || picked.join('、');
+  const toggle = (qi: number, l: string) => setPicked((all) => all.map((p, i) => (i !== qi ? p
+    : qs[qi].multiple ? (p.includes(l) ? p.filter((x) => x !== l) : [...p, l]) : [l])));
+  const allPicked = picked.every((p) => p.length > 0);
+  const answer = !many
+    ? own.trim() || picked[0].join('、')
+    : allPicked
+      ? qs.map((q, i) => `${q.question}：${picked[i].join('、')}`).join('\n') + (own.trim() ? `\n补充：${own.trim()}` : '')
+      : own.trim();
   return (
     <div className={'ask-card' + (active ? '' : ' done')}>
-      <b className="ask-q">{ask.question}</b>
-      <div className="ask-opts" role={ask.multiple ? 'group' : 'radiogroup'} aria-label={ask.question}>
-        {ask.options.map((o) => {
-          const on = picked.includes(o.label) || (!active && ask.answered?.includes(o.label));
-          return (
-            <button key={o.label} type="button" className={'ask-opt' + (on ? ' on' : '')} disabled={!active}
-              role={ask.multiple ? 'checkbox' : 'radio'} aria-checked={!!on} onClick={() => toggle(o.label)}>
-              <span className={'ask-mark' + (ask.multiple ? ' sq' : '')} aria-hidden="true">{on && <Icon name={ask.multiple ? 'check' : 'dot'} size={ask.multiple ? 12 : 14} stroke={2.6} />}</span>
-              <span className="ask-t"><b>{o.label}</b>{o.detail && <span>{o.detail}</span>}</span>
-            </button>
-          );
-        })}
-      </div>
+      {qs.map((q, qi) => (
+        <div key={qi} className="ask-one">
+          <b className="ask-q">{many && <span className="ask-n">{qi + 1}</span>}{q.question}</b>
+          <div className="ask-opts" role={q.multiple ? 'group' : 'radiogroup'} aria-label={q.question}>
+            {q.options.map((o) => {
+              const on = picked[qi]?.includes(o.label) || (!active && ask.answered?.includes(o.label));
+              return (
+                <button key={o.label} type="button" className={'ask-opt' + (on ? ' on' : '')} disabled={!active}
+                  role={q.multiple ? 'checkbox' : 'radio'} aria-checked={!!on} onClick={() => toggle(qi, o.label)}>
+                  <span className={'ask-mark' + (q.multiple ? ' sq' : '')} aria-hidden="true">{on && <Icon name={q.multiple ? 'check' : 'dot'} size={q.multiple ? 12 : 14} stroke={2.6} />}</span>
+                  <span className="ask-t"><b>{o.label}</b>{o.detail && <span>{o.detail}</span>}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
       {active ? (
         <>
           <form className="ask-own" onSubmit={(e) => { e.preventDefault(); if (answer) onAnswer(answer); }}>
-            <input className="inp" placeholder="都不是，我自己说…" value={own} onChange={(e) => setOwn(e.target.value)} />
+            <input className="inp" placeholder={many ? '还有要补充的，或者都不是，我自己说…' : '都不是，我自己说…'} value={own} onChange={(e) => setOwn(e.target.value)} />
             <button type="submit" className="pbtn" disabled={!answer}>确定</button>
           </form>
-          <span className="hint">选完接着查，前面查到的不会重来。{ask.multiple ? '可以多选。' : ''}</span>
+          <span className="hint">
+            {many ? `${qs.length} 个问题都选好再点确定。` : ''}选完接着做，前面查到的不会重来。{!many && ask.multiple ? '可以多选。' : ''}
+          </span>
         </>
-      ) : ask.answered && <span className="hint">↳ 你的回答：{ask.answered}</span>}
+      ) : ask.answered && <span className="hint">你的回答：{ask.answered}</span>}
     </div>
   );
 }

@@ -43,13 +43,17 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         var stepNo = 0;
         var reasoning = new System.Text.StringBuilder();
         var thinkSeconds = 0.0;
+        var widen = false;      // 上一轮工具参数写到长度上限被截断了：这一轮把长度放宽一倍重来（只放宽一次）
+        var widened = false;
         for (var round = 1; ; round++)
         {
             var toolChars = ToolChars(tools);   // 工具按需加载：中途加载了专用工具，下一轮的工具清单就变长了
             var allowTools = round <= options.MaxRounds + Math.Max(0, bonusRounds?.Invoke() ?? 0) && tools.Count > 0;
             var streamed = false;
+            var roundOptions = widen ? options with { MaxTokens = options.MaxTokens * 2 } : options;
+            widen = false;
             var result = await client.RunRoundAsync(messages, tools,
-                new ToolRoundOptions(allowTools, options.Think, RoundMaxTokens(messages, allowTools ? toolChars : 0, options), options.Temperature,
+                new ToolRoundOptions(allowTools, options.Think, RoundMaxTokens(messages, allowTools ? toolChars : 0, roundOptions), options.Temperature,
                     options.Effort, options.TopP, options.TopK, options.PresencePenalty),
                 async text => { streamed = true; await emit(new QaEvent("delta", new { text })); }, ct);
             thinkSeconds += result.ThinkSeconds;
@@ -88,6 +92,34 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
 
             // 这一轮是「先说一句再去查」：说的话不算答案，界面上清掉
             if (streamed) await emit(new QaEvent("replace", new { text = "" }));
+
+            // 工具参数（比如一整页代码）写到「回答最长」被截断了：参数是半截的，执行了只会报「参数不对」。
+            // 第一次：不执行，长度放宽一倍把这一轮重来；放宽了还截断：告诉模型拆短了再写
+            if (result.FinishReason == "length")
+            {
+                if (!widened)
+                {
+                    widened = true;
+                    widen = true;
+                    round--;
+                    continue;
+                }
+                messages.Add(new AgentMessage("assistant", StripThinking(content), calls));
+                foreach (var call in calls)
+                {
+                    var id = $"s{++stepNo}";
+                    var written = call.ArgumentsJson.Length;
+                    var rec = new StepRecord(id, call.Name, ToolLabel(call.Name), Describe(call), "写太长，被截断了", "error", 0);
+                    steps.Add(rec);
+                    await emit(new QaEvent("step", new { id, tool = call.Name, label = rec.Label, detail = rec.Detail, result = rec.Result, status = "error", seconds = 0 }));
+                    messages.Add(new AgentMessage("tool",
+                        $"没有执行：这次调用的参数写了 {written} 字，到了单次回答的长度上限被截断，内容是半截的。"
+                        + "把它拆短再做：代码分几次写（第一次 open(路径, 'w') 写前一部分，后面每次 open(路径, 'a') 接着写，最后一次再运行或检查），"
+                        + "或者先做一个精简版，回答里说明哪些部分可以接着补。",
+                        ToolCallId: call.Id));
+                }
+                continue;
+            }
             messages.Add(new AgentMessage("assistant", StripThinking(content), calls));
 
             string? pausedOn = null;

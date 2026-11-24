@@ -144,6 +144,43 @@ public class AssistantLoopTests
     private static readonly IReadOnlyList<ToolSpec> Tools = [new("search_documents", "搜", new { })];
 
     [Fact]
+    public async Task 工具参数写到长度上限被截断_放宽一倍重来_不执行半截的()
+    {
+        var model = new ScriptedModel(
+            new ToolRoundResult("", [new ToolCall("c1", "search_documents", "{\"query\":\"写到一半")], "length"),
+            new ToolRoundResult("", [new ToolCall("c2", "search_documents", "{\"query\":\"釜\"}")], "tool_calls"),
+            new ToolRoundResult("好了。", [], "stop"));
+        var ran = new List<string>();
+        var r = await new AssistantLoop(model, new AssistantLoopOptions(MaxTokens: 6000)).RunAsync(
+            [new("user", "q")], Tools,
+            (call, _) => { ran.Add(call.Id); return Task.FromResult(new ToolOutcome("x", "x", "搜索资料", "", null)); },
+            _ => Task.CompletedTask, CancellationToken.None);
+
+        Assert.Equal(["c2"], ran);                        // 半截的那次没执行
+        Assert.Equal(12000, model.Seen[1].MaxTokens);     // 重来的那轮长度放宽一倍
+        Assert.Equal(6000, model.Seen[2].MaxTokens);      // 之后恢复
+        Assert.Equal("好了。", r.Answer);
+    }
+
+    [Fact]
+    public async Task 放宽了还截断_告诉模型拆短再写()
+    {
+        var model = new ScriptedModel(
+            new ToolRoundResult("", [new ToolCall("c1", "search_documents", "{\"query\":\"半截")], "length"),
+            new ToolRoundResult("", [new ToolCall("c2", "search_documents", "{\"query\":\"还是半截")], "length"),
+            new ToolRoundResult("先给精简版。", [], "stop"));
+        var msgs = new List<AgentMessage> { new("user", "q") };
+        var ran = 0;
+        var r = await new AssistantLoop(model, new AssistantLoopOptions()).RunAsync(msgs, Tools,
+            (_, _) => { ran++; return Task.FromResult(new ToolOutcome("x", "x", "搜索资料", "", null)); },
+            _ => Task.CompletedTask, CancellationToken.None);
+
+        Assert.Equal(0, ran);
+        Assert.Contains(msgs, m => m.Role == "tool" && m.Content is { } c && c.Contains("截断") && c.Contains("拆短"));
+        Assert.Equal("error", Assert.Single(r.Steps).Status);
+    }
+
+    [Fact]
     public async Task Runs_tools_until_the_model_answers()
     {
         var model = new ScriptedModel(
