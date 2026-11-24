@@ -42,6 +42,8 @@ export default function PricesPage() {
   if (overview.error) return <div style={{ padding: 40 }}><ErrorBox message={overview.error instanceof ApiError ? overview.error.message : '载入失败'} /></div>;
   const o = overview.data!;
   const stale = o.tables.filter((t) => t.stale).length;
+  // 「采购记录」「沿用上面的订单」是导入时的说明，不是数据问题：不进「数据问题」那一栏，表名下面标一句「采购记录」
+  const INFO = new Set(['ledger', 'filled']);
 
   const remove = async (t: PriceTableRow) => {
     if (!window.confirm(`删除价格表「${t.name}」和它的全部 ${t.versions} 个版本？删除后助手就查不到这些价格了，不能恢复。`)) return;
@@ -82,7 +84,7 @@ export default function PricesPage() {
                       <td>
                         <span className="pl-file">
                           <span className="pl-ext" aria-hidden="true">XLSX</span>
-                          <span style={{ minWidth: 0 }}><span className="cell-main">{t.name}</span><span className="cell-sub">{t.description ?? `${t.versions} 个版本`}</span></span>
+                          <span style={{ minWidth: 0 }}><span className="cell-main">{t.name}</span><span className="cell-sub">{t.description ?? `${t.issues.some((i) => i.kind === 'ledger') ? '采购记录 · ' : ''}${t.versions} 个版本`}</span></span>
                         </span>
                       </td>
                       <td className="num strong">{t.itemCount.toLocaleString()}</td>
@@ -95,8 +97,8 @@ export default function PricesPage() {
                       </td>
                       <td>
                         <span className="pl-issues">
-                          {t.issues.length === 0 ? <span className="st-pill ok">无问题</span>
-                            : t.issues.slice(0, 3).map((i) => <span key={i.kind} className={'st-pill ' + (i.kind === 'unit' || i.kind === 'missing' ? 'mid' : 'gray')} title={i.message}>{i.label} {i.count}</span>)}
+                          {t.issues.filter((i) => !INFO.has(i.kind)).length === 0 ? <span className="st-pill ok">无问题</span>
+                            : t.issues.filter((i) => !INFO.has(i.kind)).slice(0, 3).map((i) => <span key={i.kind} className={'st-pill ' + (i.kind === 'unit' || i.kind === 'missing' ? 'mid' : 'gray')} title={i.message}>{i.label} {i.count}</span>)}
                         </span>
                       </td>
                       <td className="muted">{t.uploadedBy ?? '—'}</td>
@@ -299,7 +301,7 @@ function ImportDrawer({ table, onClose, onDone }: { table: PriceTableRow | null;
             <div className="pl-step"><b>{pv.diff ? '③' : '②'} 需要你看一下的{pv.issues.length ? `（${pv.issues.length} 类）` : ''}</b></div>
             {pv.issues.length === 0 && <div className="st-pill ok" style={{ alignSelf: 'flex-start' }}>没有发现问题</div>}
             {pv.issues.map((i) => (
-              <div key={i.kind} className={'pl-issue ' + (i.kind === 'unit' || i.kind === 'missing' || i.kind === 'noheader' ? 'warn' : '')}>
+              <div key={i.kind} className={'pl-issue ' + (i.kind === 'unit' || i.kind === 'missing' || i.kind === 'noheader' ? 'warn' : i.kind === 'ledger' ? 'info' : '')}>
                 <b>{i.label}{i.count ? ` ${i.count} 行` : ''}</b>
                 <span>{i.message}{i.rows.length ? `（第 ${i.rows.slice(0, 8).join('、')}${i.rows.length > 8 ? ' 等' : ''} 行）` : ''}</span>
               </div>

@@ -7,7 +7,7 @@
 // 自动滚动、输入框与运行态。领域结果卡按消息 id 从我们自己的表里取，
 // 不经它的 part 体系——那样两边都不别扭。
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { ClipboardEvent as ReactClipboardEvent, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -772,11 +772,17 @@ function Composer({ placeholder, big, attach, plus, chips, children, busy = fals
 }) {
   const pick = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
+  // 粘贴文件、截图（资源管理器里复制的文件、截图工具截的图）：和拖进来一样当附件；只粘贴文字的照常进输入框
+  const onPaste = attach ? (e: ReactClipboardEvent) => {
+    const fs = e.clipboardData?.files;
+    if (fs && fs.length > 0) { e.preventDefault(); attach.onAdd(fs); }
+  } : undefined;
   return (
     <ComposerPrimitive.Root className={'composer has-pet' + (big ? ' big' : '') + (drag ? ' drag' : '')}
       onDragOver={attach ? (e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDrag(true); } } : undefined}
       onDragLeave={attach ? () => setDrag(false) : undefined}
-      onDrop={attach ? (e) => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files.length) attach.onAdd(e.dataTransfer.files); } : undefined}>
+      onDrop={attach ? (e) => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files.length) attach.onAdd(e.dataTransfer.files); } : undefined}
+      onPaste={onPaste}>
       {attach && attach.files.length > 0 && (
         <div className="att-list">
           {attach.files.map((f) => (
