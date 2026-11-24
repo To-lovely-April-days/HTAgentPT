@@ -17,6 +17,8 @@ namespace HT.Agent.Infrastructure.Services;
 public class HomeService(AppDbContext db, ICurrentUser me, IRuntimeConfig config, IMemoryCache cache, IServiceProvider sp, ILogger<HomeService> logger)
 {
     public const int MaxRefresh = 3;
+    /// <summary>首页那份 JSON 的长度上限（token）。</summary>
+    private const int HomeMaxTokens = 3000;
     private static readonly ConcurrentDictionary<string, Task<HomeBrief.Result>> InFlight = new();
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
 
@@ -59,11 +61,12 @@ public class HomeService(AppDbContext db, ICurrentUser me, IRuntimeConfig config
         {
             var ctx = await ContextAsync(name, user?.Role ?? me.RoleCode, user?.Department, memoryOff, recent, drafts, now, ct);
             var chat = sp.GetService<IChatModelClient>();
-            if (chat is null) brief = HomeBrief.Fallback(ctx);
+            var tool = sp.GetService<IToolChatClient>();
+            if (chat is null && tool is null) brief = HomeBrief.Fallback(ctx);
             else
             {
                 // 后台这一份不跟请求走：用户关了页面也写完、放进缓存，下次来直接取
-                var task = InFlight.GetOrAdd(key, _ => GenerateAsync(chat, ctx, key, now));
+                var task = InFlight.GetOrAdd(key, _ => GenerateAsync(chat, tool, ctx, key, now));
                 if (await Task.WhenAny(task, Task.Delay(Wait, ct)) == task) brief = await task;
                 else { brief = HomeBrief.Fallback(ctx); pending = true; }
             }
@@ -84,14 +87,21 @@ public class HomeService(AppDbContext db, ICurrentUser me, IRuntimeConfig config
     }
 
     /// <summary>后台写今天的内容，写完放缓存。只用单例（模型客户端、缓存、日志），不碰请求里的数据库和当前用户。</summary>
-    private async Task<HomeBrief.Result> GenerateAsync(IChatModelClient chat, HomeBrief.Context ctx, string key, DateTimeOffset now)
+    private async Task<HomeBrief.Result> GenerateAsync(IChatModelClient? chat, IToolChatClient? tool, HomeBrief.Context ctx, string key, DateTimeOffset now)
     {
         HomeBrief.Result brief;
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
-            var raw = await chat.CompleteAsync([new ChatTurn("user", HomeBrief.Prompt(ctx))], cts.Token);
+            // 首页一次要写好几块（台词、今日知识、小测验、正事、猜你感兴趣），JSON 不短：用自己的长度上限，不跟普通问答的「回答最长」走，
+            // 免得写到一半被截断、整份解析不了
+            var raw = tool is not null
+                ? (await tool.RunRoundAsync([new AgentMessage("user", HomeBrief.Prompt(ctx))], [],
+                    new ToolRoundOptions(AllowTools: false, Think: false, MaxTokens: HomeMaxTokens, Temperature: 0.7), null, cts.Token)).Content
+                : await chat!.CompleteAsync([new ChatTurn("user", HomeBrief.Prompt(ctx))], cts.Token);
             brief = HomeBrief.Parse(raw, ctx);
+            if (!brief.Generated)
+                logger.LogWarning("首页：模型写的内容解析不了，用系统台词（{Length} 字，结尾：{Tail}）", raw.Length, raw.Length > 80 ? raw[^80..] : raw);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
         {

@@ -47,7 +47,8 @@ public class HomeBriefTests
         var r = HomeBrief.Parse(raw, Ctx(Price));
         Assert.False(r.Generated);
         Assert.Equal("P1", Assert.Single(r.Work).Id);
-        Assert.Empty(r.Quiet);
+        // 不编示例问题：只给这个人真问过的
+        Assert.Equal(["50L 加氢釜材料成本"], r.Quiet);
         Assert.Null(r.Fun.Knowledge);
         Assert.Null(r.Fun.Quiz);
     }

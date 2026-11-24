@@ -156,8 +156,12 @@ public static class HomeBrief
             ["friday"] = new("周五啦 🎉", "收个尾，周末好好歇。"),
         };
         var work = c.Candidates.Take(3).Select(x => new Work(x.Id, x.Emoji, x.Title, x.Badge, x.Tone, x.Detail, x.Action, x.Prompt)).ToList();
-        return new Result(lines, new Fun(null, null, null, null), work, [], false);
+        return new Result(lines, new Fun(null, null, null, null), work, FallbackQuiet(c), false);
     }
+
+    /// <summary>模型没写成时首页输入框下面也不全空：给这个人最近问过的（真问过的，不编示例问题）；没问过就空着。</summary>
+    public static List<string> FallbackQuiet(Context c)
+        => c.RecentQuestions.Select(r => (r ?? "").Trim()).Where(r => r.Length is >= 4 and <= 30).Distinct().Take(3).ToList();
 
     /// <summary>按当前时间挑哪一段台词：周五下午优先，其次按钟点。</summary>
     public static string SlotOf(DateTimeOffset now)
