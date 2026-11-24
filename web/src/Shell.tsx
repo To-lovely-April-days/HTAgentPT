@@ -16,7 +16,7 @@ interface NavItem { to: string; label: string; icon: string; badge?: number; }
 function navFor(roleCode: string, has: (p: string) => boolean): NavItem[] {
   switch (roleCode) {
     case 'admin':
-      // 管理员问答默认关闭（表 3-1）；在「角色与功能权限」里给管理员角色单独开了问答等功能后，
+      // 管理员默认能用问答（系统管理员角色自带内部、公开资料问答，在「角色与功能权限」里可以去掉）；开着问答等功能时，
       // 这里跟着出入口。文件管理、价格库后台里已有，不重复摆。
       return [{ to: '/admin', label: '管理后台', icon: 'settings' },
         ...navFor('', has).filter((i) => i.to !== '/files' && i.to !== '/prices')

@@ -23,7 +23,7 @@ public class Role
     public List<string> Permissions { get; set; } = [];
     /// <summary>系统内置角色不可删除（售前/售后/客户/管理员/总部审核人）。</summary>
     public bool IsSystem { get; set; }
-    /// <summary>管理员问答默认关闭，确需开通时单独授权并记录（3.2/3.4，歧义 2 的既定处理）。</summary>
+    /// <summary>角色的备注（比如管理员：问答默认开着，不想让管理员用聊天就在角色里去掉）。</summary>
     public string? Note { get; set; }
 }
 

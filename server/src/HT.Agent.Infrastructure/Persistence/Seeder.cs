@@ -172,7 +172,7 @@ public static class Seeder
             Classifications = [Classification.Public],
             Permissions = [PermissionKeys.QaPublic, PermissionKeys.CustomerSelf]
         };
-        // 管理员：默认不开放问答（表 3-1：确需开通时单独授权并记录——即给角色加 qa.* 键，动作本身入审计）
+        // 管理员：默认也能用聊天（内部、公开资料问答）；不想让管理员用，在后台角色里去掉 qa.* 两项，改动入审计
         var admin = new Role
         {
             Id = Guid.NewGuid(), Code = RoleCodes.Admin, Name = "系统管理员", IsSystem = true,
@@ -181,9 +181,9 @@ public static class Seeder
             [
                 PermissionKeys.CorpusManage, PermissionKeys.KbManage, PermissionKeys.MetaManage,
                 PermissionKeys.TemplateManage, PermissionKeys.UserManage, PermissionKeys.SystemConfig,
-                PermissionKeys.AuditRead, PermissionKeys.CorpusUpload
+                PermissionKeys.AuditRead, PermissionKeys.CorpusUpload, PermissionKeys.QaInternal, PermissionKeys.QaPublic
             ],
-            Note = "问答默认关闭；确需开通须单独授权并记录（3.2/3.4）"
+            Note = "问答默认开着；不想让管理员用聊天，在角色里去掉「内部资料问答」「公开资料问答」"
         };
         // 总部审核人：仅共享库（数据范围在检索层强制），账号只应存在于总部节点部署
         var reviewer = new Role
