@@ -160,6 +160,38 @@ public class AssistantLoopTests
     }
 
     [Fact]
+    public async Task 思考把额度用光_正文一个字没写_关掉思考重来()
+    {
+        var model = new ScriptedModel(
+            new ToolRoundResult("<think>想了很多", [], "length", Reasoning: "想了很多"),
+            new ToolRoundResult("压力容器按 GB/T 150 设计。", [], "stop"));
+        var r = await new AssistantLoop(model, new AssistantLoopOptions(Think: true)).RunAsync([new("user", "q")], Tools,
+            (_, _) => Task.FromResult(new ToolOutcome("x", "x", "搜索资料", "", null)),
+            _ => Task.CompletedTask, CancellationToken.None);
+
+        Assert.Equal("压力容器按 GB/T 150 设计。", r.Answer);
+        Assert.False(r.Truncated);
+        Assert.True(model.Seen[0].Think);
+        Assert.False(model.Seen[1].Think);
+        Assert.True(model.Seen[1].AllowTools);   // 重来不占工具轮数
+    }
+
+    [Fact]
+    public async Task 查了很多资料上下文快满_先把早先的结果换成短版_给回答留出余量()
+    {
+        var model = new ScriptedModel(
+            new ToolRoundResult("", [new ToolCall("c1", "search_documents", "{}")], "tool_calls"),
+            new ToolRoundResult("答案", [], "stop"));
+        var o = new AssistantLoopOptions(MaxTokens: 6000, ContextTokens: 8192);
+        await new AssistantLoop(model, o).RunAsync([new("user", "q")], Tools,
+            (_, _) => Task.FromResult(new ToolOutcome(new string('段', 9000), "短版", "搜索资料", "", null)),
+            _ => Task.CompletedTask, CancellationToken.None);
+
+        // 不换短版：9000 字约 7000 token，回答只剩一千出头；换了短版至少留上下文的四分之一
+        Assert.True(model.Seen[1].MaxTokens >= 8192 / 4, $"回答上限 {model.Seen[1].MaxTokens}");
+    }
+
+    [Fact]
     public async Task 接着写最多两次_还没写完就标写到一半()
     {
         var model = new ScriptedModel(new ToolRoundResult("又一段", [], "length"));

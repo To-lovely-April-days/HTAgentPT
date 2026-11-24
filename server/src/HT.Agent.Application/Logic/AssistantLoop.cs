@@ -56,6 +56,8 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         var limitNoted = false;
         var written = new System.Text.StringBuilder();   // 回答写到长度上限、系统让它接着写时，前面已经写出来的
         var continues = 0;
+        var noThink = false;       // 上一轮想完了一个字没写就到了长度上限：这一轮关掉思考，额度全给回答
+        var thinkDropped = false;  // 只关一次
         for (var round = 1; ; round++)
         {
             var toolChars = ToolChars(tools);   // 工具按需加载：中途加载了专用工具，下一轮的工具清单就变长了
@@ -66,11 +68,16 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
                 limitNoted = true;
                 if (limitHint?.Invoke() is { Length: > 0 } lh) messages.Add(new AgentMessage("user", lh));
             }
+            // 查了好几次资料后上下文快满了：这一轮的回答上限会被压到很小，思考就能把它用光、正文一个字写不出来。
+            // 先把早先的工具结果换成短版，给回答留出余量（本档「回答最长」，最多上下文的四分之一）
+            if (options.ContextTokens > 0) Shrink(messages, compacts, AnswerRoomChars(messages, allowTools ? toolChars : 0, options));
             var streamed = false;
             var roundOptions = widen ? options with { MaxTokens = options.MaxTokens * 2 } : options;
             widen = false;
+            var think = options.Think && !noThink;
+            noThink = false;
             var result = await client.RunRoundAsync(messages, tools,
-                new ToolRoundOptions(allowTools, options.Think, RoundMaxTokens(messages, allowTools ? toolChars : 0, roundOptions), options.Temperature,
+                new ToolRoundOptions(allowTools, think, RoundMaxTokens(messages, allowTools ? toolChars : 0, roundOptions), options.Temperature,
                     options.Effort, options.TopP, options.TopK, options.PresencePenalty),
                 async text => { streamed = true; await emit(new QaEvent("delta", new { text })); }, ct);
             thinkSeconds += result.ThinkSeconds;
@@ -87,6 +94,16 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
                 // 有的解析器在流式下把工具调用原样吐成文字：认出来照样执行
                 var parsed = ToolCallTextParser.Parse(content);
                 if (parsed.Calls.Count > 0) { calls = parsed.Calls; content = parsed.Rest; }
+            }
+
+            if (calls.Count == 0 && result.FinishReason == "length" && StripThinking(content).Length == 0 && think && !thinkDropped)
+            {
+                // 思考把这一轮的额度用光了，正文一个字没写：不算一轮，关掉思考重来（想过的已经记在「看思路」里）
+                thinkDropped = true;
+                noThink = true;
+                if (streamed) await emit(new QaEvent("replace", new { text = written.ToString() }));
+                round--;
+                continue;
             }
 
             if (calls.Count == 0 && allowTools && nudges < MaxNudges && continueHint?.Invoke() is { Length: > 0 } hint)
@@ -215,6 +232,14 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         return Math.Clamp(left, Math.Min(256, o.MaxTokens), o.MaxTokens);
     }
 
+    /// <summary>给这一轮的回答留出余量时，消息正文最多能有多少字（超了就把早先的工具结果换成短版）。</summary>
+    public static int AnswerRoomChars(IReadOnlyList<AgentMessage> messages, int toolChars, AssistantLoopOptions o)
+    {
+        var reserve = Math.Min(o.MaxTokens, o.ContextTokens / 4);
+        var overhead = toolChars + messages.Sum(m => 8 + (m.ToolCalls?.Sum(c => c.Name.Length + c.ArgumentsJson.Length) ?? 0));
+        return Math.Max(0, (int)((o.ContextTokens - reserve - 64) * 1.3) - overhead);
+    }
+
     /// <summary>工具结果总量超过预算时，从最早的开始换成短版（短版里保留编号和出处，模型仍能引用）。</summary>
     public static void Shrink(List<AgentMessage> messages, Dictionary<int, string> compacts, int budget)
     {
@@ -228,7 +253,13 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
     }
 
     private static string StripThinking(string s)
-        => Regex.Replace(s ?? "", @"<think>[\s\S]*?</think>", "").Replace("<think>", "").Replace("</think>", "").Trim();
+    {
+        s = Regex.Replace(s ?? "", @"<think>[\s\S]*?</think>", "");
+        // 想到一半就到了长度上限：<think> 没有收尾，后面全是思考，不是回答
+        var open = s.IndexOf("<think>", StringComparison.Ordinal);
+        if (open >= 0) s = s[..open];
+        return s.Replace("</think>", "").Trim();
+    }
 
     public static string ToolLabel(string name) => name switch
     {
