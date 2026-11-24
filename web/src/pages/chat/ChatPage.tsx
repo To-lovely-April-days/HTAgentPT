@@ -251,6 +251,8 @@ export default function ChatPage() {
   }, [mem.data, qc]);
   const sessions = useQuery({ queryKey: ['qa-sessions'], queryFn: () => get<QaSessionRow[]>('/api/qa-sessions') });
 
+  // 「停止生成」：正在答的这一轮的连接，按停止就断开（服务端收到断开会把做到哪存下来，可以「接着做」）
+  const abortRef = useRef<AbortController | null>(null);
   const newId = () => `m${++seq.current}-${Date.now()}`;
   const push = (m: Msg) => setMsgs((x) => [...x, m]);
   const patch = (id: string, p: Partial<Msg>) =>
@@ -265,6 +267,8 @@ export default function ChatPage() {
     const id = newId();
     const started = Date.now();
     push({ id, role: 'assistant', text: '', streaming: true });
+    const ac = new AbortController();
+    abortRef.current = ac;
     try {
       let answer = '';
       for await (const ev of sse('/api/chat/completions', {
@@ -276,7 +280,7 @@ export default function ChatPage() {
         browserTab: panel?.kind === 'web' ? webTabs[Math.min(webActive, webTabs.length - 1)]?.live ?? null : null,
         projectId, skill: skill?.code ?? null, pptTemplate: ppt?.id ?? null,
         off: off.length > 0 ? off : null,
-      })) {
+      }, ac.signal)) {
         const p = ev.payload as Record<string, unknown>;
         switch (ev.kind) {
           case 'meta':
@@ -406,7 +410,11 @@ export default function ChatPage() {
       }
       patch(id, { streaming: false });
     } catch (err) {
-      patch(id, { streaming: false, interrupted: true, error: err instanceof ApiError ? err.message : '连接中断，本轮未完成' });
+      // 自己按了停止：不算出错，留着做完的部分，给「接着做」
+      if (ac.signal.aborted) patch(id, { streaming: false, interrupted: true });
+      else patch(id, { streaming: false, interrupted: true, error: err instanceof ApiError ? err.message : '连接中断，本轮未完成' });
+    } finally {
+      if (abortRef.current === ac) abortRef.current = null;
     }
   }, [qaSessionId, scope, level, panel, webTabs, webActive, openPreview, projectId, skill, ppt, off]);
 
@@ -549,6 +557,7 @@ export default function ChatPage() {
       const t = m.content.find((c): c is { type: 'text'; text: string } => c.type === 'text')?.text ?? '';
       await send(t);
     },
+    onCancel: async () => { abortRef.current?.abort(); },
   });
 
   const ctx = useMemo(() => ({
@@ -798,9 +807,13 @@ function Composer({ placeholder, big, attach, plus, chips, children, busy = fals
         )}
         <span className="composer-chips">{chips}</span>
         {children}
-        <ComposerPrimitive.Send className="composer-send" aria-label="发送">
-          <Icon name="up" size={18} stroke={2.2} />
-        </ComposerPrimitive.Send>
+        {busy
+          ? <ComposerPrimitive.Cancel className="composer-send composer-stop" aria-label="停止生成" title="停止生成（做完的部分会留着，可以接着做）">
+              <Icon name="stop" size={14} />
+            </ComposerPrimitive.Cancel>
+          : <ComposerPrimitive.Send className="composer-send" aria-label="发送">
+              <Icon name="up" size={18} stroke={2.2} />
+            </ComposerPrimitive.Send>}
       </div>
       {drag && <div className="composer-drop">松开即可添加文件</div>}
       <InputPet busy={busy} size={big ? 40 : 32} />
@@ -850,11 +863,22 @@ function Welcome({ has, name, composer, onPick, onOpenDoc }: {
   );
 }
 
+/** 把一句话放回输入框（改一改再发）：走输入框自己的输入事件，和用户亲手打字一样。 */
+function putInComposer(text: string) {
+  const el = document.querySelector<HTMLTextAreaElement>('textarea.composer-input');
+  if (!el) return;
+  Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(el, text);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.focus();
+  el.setSelectionRange(text.length, text.length);
+}
+
 function UserMessage() {
   const id = useAuiState((s) => s.message.id);
-  const { byId } = useContext(MsgCtx);
+  const { byId, busy } = useContext(MsgCtx);
   const files = byId.get(id)?.files;
   const skill = byId.get(id)?.skill;
+  const text = byId.get(id)?.text ?? '';
   return (
     <MessagePrimitive.Root className="chat-user">
       {skill && <span className="sess-file" title="这一问点名用的技能"><Icon name="book" size={13} />技能：{skill}</span>}
@@ -864,6 +888,11 @@ function UserMessage() {
         </div>
       )}
       <div className="chat-user-bubble"><MessagePrimitive.Parts /></div>
+      {text && !busy && (
+        <button type="button" className="chat-user-edit" title="把这个问题放回输入框，改一改再发" onClick={() => putInComposer(text)}>
+          <Icon name="edit" size={13} />编辑重发
+        </button>
+      )}
     </MessagePrimitive.Root>
   );
 }

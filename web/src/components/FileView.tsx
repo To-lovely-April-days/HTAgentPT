@@ -101,6 +101,14 @@ function markInDocx(root: HTMLElement, find: string) {
   hit[0]?.node.parentElement?.scrollIntoView({ block: 'center' });
 }
 
+/** 打不开时说清楚为什么：系统刚更新过、旧页面去取预览组件取不到的，提示刷新；别的把原因带上，不只说「打不开」。 */
+function whyFailed(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/dynamically imported module|Importing a module script failed|error loading dynamically|Failed to fetch/i.test(msg))
+    return '系统刚更新过，这个页面还是旧的：按 Ctrl+F5 刷新页面后再预览';
+  return `原件打不开（${msg.slice(0, 120) || '未知原因'}），可以先下载看`;
+}
+
 /** 要看的东西在哪：语料给 docId，别处（比如刚译出来的那一版）直接给取文件的地址。
     page / find：从参考资料点进来时，PDF 跳到那一页，Word 找到那段话标黄。 */
 export function FileView({ docId, src, fileName, page, find }: { docId?: string; src?: string; fileName: string; page?: number | null; find?: string | null }) {
@@ -126,7 +134,9 @@ export function FileView({ docId, src, fileName, page, find }: { docId?: string;
         const kind = await sniff(blob);
         if (!alive) return;
         if (kind === 'pdf') {
-          objUrl = URL.createObjectURL(blob);
+          // 一定要标明是 PDF：服务端按「下载」给的类型（octet-stream）原样放进 iframe，浏览器不显示、直接下载，
+          // 下载下来的文件名还是一串乱码（临时地址的编号）
+          objUrl = URL.createObjectURL(blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' }));
           setPdfUrl(objUrl);
           setState('pdf');
           return;
@@ -165,7 +175,7 @@ export function FileView({ docId, src, fileName, page, find }: { docId?: string;
         setState('other');
       } catch (e) {
         if (!alive) return;
-        setError(e instanceof ApiError ? e.message : '原件打不开');
+        setError(e instanceof ApiError ? e.message : whyFailed(e));
         setState('fail');
       }
     })();
@@ -175,7 +185,12 @@ export function FileView({ docId, src, fileName, page, find }: { docId?: string;
   return (
     <div className="fv">
       {state === 'loading' && <div style={{ padding: 14 }}><Spinner text="打开原件…" /></div>}
-      {state === 'fail' && <div style={{ padding: 14 }}><ErrorBox message={error ?? '原件打不开'} /></div>}
+      {state === 'fail' && (
+        <div style={{ padding: 14 }}>
+          <ErrorBox message={error ?? '原件打不开'} />
+          <button className="gbtn" style={{ marginTop: 10 }} onClick={() => void download(url, fileName)}>下载原件<Icon name="download" size={13} className="gi" /></button>
+        </div>
+      )}
       {state === 'pdf' && pdfUrl && <iframe className="fv-pdf" src={page ? `${pdfUrl}#page=${page}` : pdfUrl} title={fileName} />}
 
       {state === 'xlsx' && sheets.length > 0 && (

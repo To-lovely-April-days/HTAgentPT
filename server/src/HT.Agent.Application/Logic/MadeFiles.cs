@@ -67,6 +67,17 @@ public static class MadeFiles
         return problems;
     }
 
+    /// <summary>Excel 排版问题（office 检查报的：字比格子宽、旁边格子有内容，打开后被截断或挤在一起）。</summary>
+    public static List<string> LayoutIssues(JsonElement? info)
+        => info is { ValueKind: JsonValueKind.Object } o && o.TryGetProperty("layout", out var l) && l.ValueKind == JsonValueKind.Array
+            ? l.EnumerateArray().Select(x => x.ValueKind == JsonValueKind.String ? x.GetString() ?? "" : "").Where(x => x.Length > 0).ToList()
+            : [];
+
+    /// <summary>排版问题要不要让助手先改了再交：还有重做次数就改（留最后一次照样交付，免得为排版把文件卡死）。</summary>
+    public static bool FixLayoutFirst(int failsSoFar) => failsSoFar < MaxAttempts - 1;
+
+    public const string LayoutHint = "排版：这些格子里的字比格子宽、旁边格子又有内容，打开后会被截断或和旁边挤在一起。加宽这一列（column_dimensions[列].width）、把标签和内容放进合并单元格，或给这个格子设自动换行并调高行高";
+
     /// <summary>卡片上的一行说明，比如「3 个工作表 · 42 个公式 · 已检查：能打开，公式没有错误」。</summary>
     public static string Detail(string kind, JsonElement? info, bool fullCheck)
     {

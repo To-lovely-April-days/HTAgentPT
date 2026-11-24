@@ -285,6 +285,11 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
   border-radius: 13px; background: #f3f3f1; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sess-file b { font-weight: 500; color: var(--cls-conf); }
 .chat-user { flex-direction: column; align-items: flex-end; gap: 6px; }
+.chat-user-edit { display: inline-flex; align-items: center; gap: 4px; border: none; background: none; padding: 2px 4px;
+  font-size: 12px; color: #8a8a85; cursor: pointer; opacity: 0; transition: opacity .15s; }
+.chat-user:hover .chat-user-edit, .chat-user-edit:focus-visible { opacity: 1; }
+.chat-user-edit:hover { color: #1f1f1c; }
+.composer-send.composer-stop { background: #1f1f1c; color: #fff; }
 .chat-user-files { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 80%; }
 /* 资料范围：输入框里的一枚小下拉，选窄了就变深色，一眼看出「这条对话只在某处找」 */
 .scope { position: relative; display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 4px 0 10px;

@@ -49,6 +49,61 @@ def pdf_pages(path):
     return len(PdfReader(path).pages)
 
 
+def _disp(text):
+    """一行字大约占几个「列宽单位」（Excel 列宽按默认字体一个数字的宽度算）：中文、全角算 2，其余算 1。"""
+    import unicodedata
+    return sum(2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1 for ch in text)
+
+
+def xlsx_layout(wb, limit=8):
+    """排版问题：字比格子宽、旁边格子又有内容——打开后被截断、或者和旁边的字挤在一起（看着像串行）。
+    自动换行、缩小填充的格子不算；合并单元格按合并后的总宽算；字号大于 11 按比例放大。"""
+    from openpyxl.utils import get_column_letter
+    issues = []
+    for ws in wb.worksheets:
+        merged = {}
+        for rng in ws.merged_cells.ranges:
+            for r in range(rng.min_row, rng.max_row + 1):
+                for c in range(rng.min_col, rng.max_col + 1):
+                    merged[(r, c)] = rng
+        default_w = ws.sheet_format.defaultColWidth or 8.43
+
+        def width(c):
+            d = ws.column_dimensions.get(get_column_letter(c))
+            return d.width if d is not None and d.width else default_w
+
+        def filled(r, c):
+            if c < 1:
+                return False
+            rng = merged.get((r, c))
+            cell = ws._cells.get((rng.min_row, rng.min_col) if rng else (r, c))
+            return cell is not None and cell.value is not None
+
+        for row in ws.iter_rows():
+            for cell in row:
+                v = cell.value
+                if not isinstance(v, str) or not v.strip() or v.startswith("="):
+                    continue
+                al = cell.alignment
+                if al is not None and (al.wrap_text or al.shrink_to_fit):
+                    continue
+                size = (cell.font.sz or 11) if cell.font is not None else 11
+                need = max(_disp(line) for line in v.split("\n")) * max(1.0, size / 11) * (1.08 if cell.font is not None and cell.font.b else 1.0)
+                r, c = cell.row, cell.column
+                rng = merged.get((r, c))
+                c1, c2 = (rng.min_col, rng.max_col) if rng else (c, c)
+                have = sum(width(x) for x in range(c1, c2 + 1))
+                if need <= have + 1:
+                    continue
+                horizontal = al.horizontal if al is not None else None
+                sides = [c2 + 1] + ([c1 - 1] if horizontal in ("center", "centerContinuous", "right") else [])
+                if any(filled(r, x) for x in sides):
+                    issues.append(f"{ws.title}!{cell.coordinate}「{v[:14]}」比格子宽（约 {need:.0f}，格宽 {have:.0f}），旁边格子有内容，打开后会被截断或和旁边挤在一起")
+                    if len(issues) >= limit:
+                        return issues
+    return issues
+
+
 def check(src, ext, work, convert=soffice):
     """返回 (问题列表, 信息, 重算后的文件)。问题为空就算过。
     Excel 交付重算后的那一版：openpyxl 写的公式没有计算结果，手机、微信里预览会是空白；重算后公式和结果都在。"""
@@ -80,6 +135,11 @@ def check(src, ext, work, convert=soffice):
             return [f"Excel 打不开：{type(e).__name__}"], info, None
         info["sheets"] = len(wb.worksheets)
         info["formulas"] = sum(1 for ws in wb.worksheets for row in ws.iter_rows() for c in row if c.data_type == "f")
+        # 排版：只报给助手改，不算「打不开」（后端决定是让它重做还是照样交付）
+        try:
+            info["layout"] = xlsx_layout(wb)
+        except Exception:  # noqa: BLE001 - 排版检查出错不影响交付
+            info["layout"] = []
         out = convert(src, work, "xlsx:Calc MS Excel 2007 XML", os.path.join(work, "recalc"))
         if out is None:
             problems.append("LibreOffice 打不开这个 Excel")

@@ -8,7 +8,8 @@ namespace HT.Agent.Infrastructure.Services;
 /// <summary>把助手的回答（Markdown）存成 Word：标题、段落、加粗、列表、表格、引用块。够发给客户或领导看，不追求花哨排版。</summary>
 public static class MarkdownDocx
 {
-    public static byte[] Build(string title, string markdown, IReadOnlyList<string>? sources = null)
+    /// <summary>title 为空就不加标题（导出回答时只要正文，不把提问那句话当标题）。</summary>
+    public static byte[] Build(string? title, string markdown, IReadOnlyList<string>? sources = null)
     {
         using var ms = new MemoryStream();
         using (var doc = WordprocessingDocument.Create(ms, WordprocessingDocumentType.Document))
@@ -16,8 +17,7 @@ public static class MarkdownDocx
             var main = doc.AddMainDocumentPart();
             main.Document = new Document(new Body());
             var body = main.Document.Body!;
-            body.Append(Para(title, bold: true, size: 32));
-            body.Append(Para($"导出时间：{DateTime.Now:yyyy-MM-dd HH:mm}", size: 18, color: "6B6B6B"));
+            if (!string.IsNullOrWhiteSpace(title)) body.Append(Para(title, bold: true, size: 32));
 
             var lines = markdown.Replace("\r\n", "\n").Split('\n');
             for (var i = 0; i < lines.Length; i++)

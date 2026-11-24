@@ -159,13 +159,21 @@ public class ExportController(IAuditWriter audit, ICurrentUser me, IRuntimeConfi
     [HttpPost("docx")]
     public async Task<IActionResult> Docx([FromBody] DocxBody b, CancellationToken ct)
     {
-        var title = string.IsNullOrWhiteSpace(b.Title) ? "助手回答" : b.Title.Trim();
-        if (title.Length > 60) title = title[..60];
-        var bytes = MarkdownDocx.Build(title, b.Markdown ?? "", b.Sources);
+        var (title, markdown) = ForExport(b);
+        var bytes = MarkdownDocx.Build(null, markdown, b.Sources);
         await audit.WriteAsync(new AuditEntry("export.docx", AuditResult.Success, UserId: me.UserId, Username: me.Username,
             CompanyId: me.CompanyId, Detail: new { title, chars = b.Markdown?.Length ?? 0 }), ct);
         var safe = string.Concat(title.Where(c => !Path.GetInvalidFileNameChars().Contains(c)));
         return File(bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", $"{safe}.docx");
+    }
+
+    /// <summary>导出只留正文：去掉结尾问用户的话、指向界面的说明；文档里不加提问那句话当标题（回答自己有标题就留着）。
+    /// 文件名用回答的第一个标题，没有才用提问。</summary>
+    private static (string FileTitle, string Markdown) ForExport(DocxBody b)
+    {
+        var markdown = HT.Agent.Application.Logic.ExportText.Clean(b.Markdown ?? "");
+        var title = HT.Agent.Application.Logic.ExportText.Heading(markdown) ?? (string.IsNullOrWhiteSpace(b.Title) ? "助手回答" : b.Title.Trim());
+        return (title.Length > 60 ? title[..60] : title, markdown);
     }
 
     /// <summary>默认的转换容器地址（docker-compose.tools.yml 里的 office）。</summary>
@@ -175,9 +183,8 @@ public class ExportController(IAuditWriter audit, ICurrentUser me, IRuntimeConfi
     [HttpPost("pdf")]
     public async Task<IActionResult> Pdf([FromBody] DocxBody b, CancellationToken ct)
     {
-        var title = string.IsNullOrWhiteSpace(b.Title) ? "助手回答" : b.Title.Trim();
-        if (title.Length > 60) title = title[..60];
-        var docx = MarkdownDocx.Build(title, b.Markdown ?? "", b.Sources);
+        var (title, markdown) = ForExport(b);
+        var docx = MarkdownDocx.Build(null, markdown, b.Sources);
         var url = (await config.GetStringAsync(ConfigKeys.PdfConverterUrl, "", ct)).Trim();
         if (url.Length == 0) url = DefaultConverter;
         byte[] pdf;

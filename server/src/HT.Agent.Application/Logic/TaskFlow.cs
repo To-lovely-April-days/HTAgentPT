@@ -143,6 +143,24 @@ public static class TaskFlow
            + "\n现在就补，不要问用户：能补的用工具补上（要交付文件的就用工具把文件做出来，不要把内容写在回答里代替；计划里对应的步骤用 plan 标 now、做完标 done），"
            + "然后把完整的最终回答重新写一遍（不要只写补了什么）；实在补不了的在回答里如实写明。";
 
+    // ── 核对文件：说做好了，是不是真的做出来了 ─────────────
+
+    private static readonly System.Text.RegularExpressions.Regex MadeClaim = new(
+        @"(?:已经?|重新|已重新)(?:生成|做好|做出|做完|导出|更新|修改|改好|调整|重做)了?.{0,12}?(?:文件|表格|报价单|清单|Excel|Word|PPT|PDF|xlsx|docx|pptx|模板|演示稿)"
+        + @"|(?:文件|表格|报价单|清单|Excel|Word|PPT|PDF|xlsx|docx|pptx|模板|演示稿).{0,8}?(?:(?:已经?|已重新)(?:生成|做好|做出|更新|修改|改好|调整|重做)|(?:重新)?(?:生成|做好|做出|改好|重做)(?:好)?了)"
+        + @"|(?:上方|上面|下方|卡片上).{0,4}(?:可以?|能)?(?:直接)?下载",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    private static readonly System.Text.RegularExpressions.Regex MakeAsk = new(@"生成|做|改|更新|导出|调整|弄|出一[份个版]|重新", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>用户要做或改文件、回答里说文件做好了（「文件已重新生成（上方可下载）」）。调用方再看这一轮有没有真的交出文件。</summary>
+    public static bool ClaimsFile(string question, string answer)
+        => MakeAsk.IsMatch(question) && MadeClaim.IsMatch(answer);
+
+    public const string NoFileNote =
+        "系统核对：你在回答里说文件已经做好（或重新生成、改好了），但这一轮你没有调用工具，文件并没有做出来——上一轮的文件不会自己变，用户下载到的还是旧的。"
+        + "现在就用工具把文件真的做出来（Excel、Word、PDF 用运行代码写到 out/，PPT 用做 PPT 的工具），做完检查通过后再重写完整回答；"
+        + "确实做不了的，如实告诉用户没做成、为什么，不要说已经做好。";
+
     // ── 中断后接着做 ─────────────────────────────────────
 
     /// <summary>用户这句是不是要接着上次没做完的（「接着做」「继续」……）。问别的就不续，免得把旧现场套到新问题上。</summary>

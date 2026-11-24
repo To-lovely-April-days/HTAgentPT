@@ -525,6 +525,44 @@ public sealed class AssistantService(
                 throw;
             }
 
+            // 补一遍：把前一遍的回答和要补的话交回去，让助手接着做、重写完整回答（自查补缺口、核对文件都用它）
+            async Task<LoopResult> FixPassAsync(LoopResult cur, string note, string prefix)
+            {
+                if (cur.Answer.Length > 0) messages.Add(new AgentMessage("assistant", cur.Answer));
+                messages.Add(new AgentMessage("user", note));
+                // 前一遍的回答已经显示出来了：补的这遍会重写完整回答，先清掉，免得接在后面
+                var before = cur.Answer;
+                answerSoFar.Clear();
+                await emit(new QaEvent("replace", new { text = "" }));
+                var fix = await RunLoopAsync(new AssistantLoop(new SlotClient(model), options with { MaxRounds = Math.Max(4, lv.MaxRounds) }), prefix);
+                if (fix.Answer.Length == 0 && fix.PausedCallId is null)
+                {
+                    // 补的这遍没写出回答：把前一遍的放回去
+                    answerSoFar.Append(before);
+                    await emit(new QaEvent("replace", new { text = before }));
+                }
+                return fix with
+                {
+                    Steps = [.. cur.Steps, .. fix.Steps], Rounds = cur.Rounds + fix.Rounds,
+                    Answer = fix.Answer.Length > 0 || fix.PausedCallId is not null ? fix.Answer : before,
+                    Reasoning = string.Join("\n\n", new[] { cur.Reasoning, fix.Reasoning }.Where(x => x.Length > 0)),
+                    ThinkSeconds = cur.ThinkSeconds + fix.ThinkSeconds,
+                };
+            }
+
+            // 嘴上说做好了文件、其实这一轮一个文件都没做出来（没调工具就说「文件已重新生成，上方可下载」）：
+            // 系统核对一次，让它真的用工具做出来；做不了的如实说。不靠模型自觉
+            string? fileCheckNote = null;
+            if (result.PausedCallId is null && (enabled.Contains("run_python") || enabled.Contains("make_ppt"))
+                && !MadeAnyFile(run) && TaskFlow.ClaimsFile(req.Question, result.Answer))
+            {
+                object FileCheck(string? res, string status) => new { id = "chkf", tool = "check", label = "核对文件", detail = "回答里说文件做好了，核对是不是真的做出来了", result = res, status };
+                await emit(new QaEvent("step", FileCheck("这一轮没有做出文件，接着做", "running")));
+                result = await FixPassAsync(result, TaskFlow.NoFileNote, "h");
+                fileCheckNote = MadeAnyFile(run) ? "原来没做出来，已经补做出来" : "没做出文件，回答里已说明";
+                await emit(new QaEvent("step", FileCheck(fileCheckNote, "done")));
+            }
+
             // ④ 交付前自查（多步任务）：对照要求和计划看有没有硬缺口，有就让助手补一次；⑤ 再整理收尾卡（假设、没做的、最后问一句）
             TaskFlow.Review? review = null;
             string? checkNote = null;
@@ -541,26 +579,7 @@ public sealed class AssistantService(
                     if (gaps.Count == 0) break;
                     if (pass == 1) firstFound = gaps.Count;
                     await emit(new QaEvent("step", Check(pass == 1 ? $"发现 {gaps.Count} 处，接着补" : $"还有 {gaps.Count} 处，再补一遍", "running")));
-                    if (result.Answer.Length > 0) messages.Add(new AgentMessage("assistant", result.Answer));
-                    messages.Add(new AgentMessage("user", TaskFlow.FixNote(gaps)));
-                    // 前一遍的回答已经显示出来了：补的这遍会重写完整回答，先清掉，免得接在后面
-                    var before = result.Answer;
-                    answerSoFar.Clear();
-                    await emit(new QaEvent("replace", new { text = "" }));
-                    var fix = await RunLoopAsync(new AssistantLoop(new SlotClient(model), options with { MaxRounds = Math.Max(4, lv.MaxRounds) }), pass == 1 ? "f" : "g");
-                    if (fix.Answer.Length == 0 && fix.PausedCallId is null)
-                    {
-                        // 补的这遍没写出回答：把前一遍的放回去
-                        answerSoFar.Append(before);
-                        await emit(new QaEvent("replace", new { text = before }));
-                    }
-                    result = fix with
-                    {
-                        Steps = [.. result.Steps, .. fix.Steps], Rounds = result.Rounds + fix.Rounds,
-                        Answer = fix.Answer.Length > 0 || fix.PausedCallId is not null ? fix.Answer : before,
-                        Reasoning = string.Join("\n\n", new[] { result.Reasoning, fix.Reasoning }.Where(x => x.Length > 0)),
-                        ThinkSeconds = result.ThinkSeconds + fix.ThinkSeconds,
-                    };
+                    result = await FixPassAsync(result, TaskFlow.FixNote(gaps), pass == 1 ? "f" : "g");
                     if (result.PausedCallId is null) review = await ReviewAsync(req.Question, run, result, ct);
                 }
                 if (result.PausedCallId is null)
@@ -584,6 +603,8 @@ public sealed class AssistantService(
             await emit(new QaEvent("step", thinkStep));
             var stepRows = new List<object> { thinkStep };
             stepRows.AddRange(result.Steps.Select(s => new { id = s.Id, tool = s.Tool, label = s.Label, detail = s.Detail, result = s.Result, status = s.Status, seconds = s.Seconds, more = (string?)null }));
+            if (fileCheckNote is not null)
+                stepRows.Add(new { id = "chkf", tool = "check", label = "核对文件", detail = "回答里说文件做好了，核对是不是真的做出来了", result = (string?)fileCheckNote, status = "done", seconds = 0.0, more = (string?)null });
             if (checkNote is not null)
                 stepRows.Add(new { id = "chk", tool = "check", label = "自查", detail = "对照要求和计划检查", result = (string?)checkNote, status = "done", seconds = 0.0, more = (string?)null });
             var levelCode = ThinkLevels.Code(choice.Level);
@@ -2519,6 +2540,16 @@ public sealed class AssistantService(
                 if (chk is not null)
                 {
                     full = true; info = chk.Info; problems.AddRange(chk.Problems);
+                    // Excel 排版（字被截断、挤在一起）：还有重做次数就让助手改了再交；最后一次照样交，回答里说明
+                    if (problems.Count == 0 && MadeFiles.LayoutIssues(info) is { Count: > 0 } layout)
+                    {
+                        if (MadeFiles.FixLayoutFirst(run.FileFails.GetValueOrDefault(kind)))
+                        {
+                            problems.Add(MadeFiles.LayoutHint);
+                            problems.AddRange(layout);
+                        }
+                        else text.AppendLine($"《{f.Name}》还有 {layout.Count} 处字可能显示不全（{string.Join("；", layout.Take(3))}），回答里提醒用户打开后调一下列宽。");
+                    }
                     // Excel 交重算过的那一版：公式带上计算结果，手机、微信里预览才不是空白
                     if (chk.Ok && chk.Recalculated is { Length: > 0 } rc && MadeFiles.BasicProblems(rc, kind).Count == 0) data = rc;
                 }
@@ -2567,6 +2598,10 @@ public sealed class AssistantService(
         }
         catch (JsonException) { return null; }
     }
+
+    /// <summary>这一轮有没有真的交出文件（文件卡）。</summary>
+    private static bool MadeAnyFile(Run run)
+        => run.Artifacts.Any(a => a.GetType().GetProperty("kind")?.GetValue(a) as string == "file");
 
     /// <summary>这条对话最后一条消息若是做到一半断了的，取出存下的进度。</summary>
     private async Task<(QaMessage Message, Checkpoint State)?> InterruptedAsync(Guid sessionId, CancellationToken ct)
