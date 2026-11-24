@@ -3273,8 +3273,12 @@ public sealed class AssistantService(
     private static string Clip(string s, int max) => string.IsNullOrEmpty(s) ? "" : s.Length <= max ? s : s[..max] + "…";
 
     /// <summary>每一轮模型请求都占一个并发名额。</summary>
-    private sealed class SlotClient(IToolChatClient inner) : IToolChatClient
+    private sealed class SlotClient(IToolChatClient inner) : IToolChatClient, ITokenCounter
     {
+        // 算 token 很快、不占模型的生成名额，不排队
+        public Task<TokenCount?> CountAsync(IReadOnlyList<AgentMessage> messages, IReadOnlyList<ToolSpec> tools, bool think, CancellationToken ct = default)
+            => inner is ITokenCounter tc ? tc.CountAsync(messages, tools, think, ct) : Task.FromResult<TokenCount?>(null);
+
         public async Task<ToolRoundResult> RunRoundAsync(IReadOnlyList<AgentMessage> messages, IReadOnlyList<ToolSpec> tools,
             ToolRoundOptions options, Func<string, Task>? onText, CancellationToken ct = default)
         {

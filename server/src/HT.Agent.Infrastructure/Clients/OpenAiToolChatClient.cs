@@ -11,8 +11,63 @@ namespace HT.Agent.Infrastructure.Clients;
 /// <summary>OpenAI 兼容的工具调用（tools / tool_calls），流式。地址、模型名、密钥与普通对话共用一套运行时配置。
 /// 本地 vLLM 要在启动参数里开 --enable-auto-tool-choice 和 --tool-call-parser，否则会回 400——
 /// 这种情况抛 ToolCallingUnavailableException，调用方退回老的问答流程，不让用户看到报错。</summary>
-public class OpenAiToolChatClient(IHttpClientFactory httpFactory, IRuntimeConfig config) : IToolChatClient
+public class OpenAiToolChatClient(IHttpClientFactory httpFactory, IRuntimeConfig config) : IToolChatClient, ITokenCounter
 {
+    /// <summary>哪些模型服务算不了 token（没有 /tokenize、或不认带工具清单）：记住，不再每轮去试。</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> NoTokenize = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> NoToolsInTokenize = new();
+
+    /// <summary>vLLM 的 /tokenize：和对话接口同样的消息、工具清单、模板参数，套上对话模板后算 token 数。只对本地 Qwen（vLLM）用。</summary>
+    public async Task<TokenCount?> CountAsync(IReadOnlyList<AgentMessage> messages, IReadOnlyList<ToolSpec> tools, bool think, CancellationToken ct = default)
+    {
+        var baseUrl = (await config.GetStringAsync(ConfigKeys.ChatModelUrl, "http://127.0.0.1:8000/v1", ct)).TrimEnd('/');
+        var model = await config.GetStringAsync(ConfigKeys.ChatModelName, "chat-default", ct);
+        var provider = await config.GetStringAsync(ConfigKeys.ChatProvider, "", ct);
+        if (!IsQwen(provider, model) || NoTokenize.ContainsKey(baseUrl)) return null;
+        var root = System.Text.RegularExpressions.Regex.Replace(baseUrl, @"/v1$", "");
+        var apiKey = (await config.GetStringAsync(ConfigKeys.ChatApiKey, "", ct)).Trim();
+        var chat = BuildBody(model, messages, tools, new ToolRoundOptions(tools.Count > 0, think), qwen: true);
+        var withTools = tools.Count > 0 && !NoToolsInTokenize.ContainsKey(baseUrl);
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var body = new JsonObject
+            {
+                ["model"] = model,
+                ["messages"] = chat["messages"]!.DeepClone(),
+                ["add_generation_prompt"] = true,
+                ["chat_template_kwargs"] = new JsonObject { ["enable_thinking"] = think },
+            };
+            if (withTools && chat["tools"] is { } t) body["tools"] = t.DeepClone();
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts.CancelAfter(TimeSpan.FromSeconds(10));
+                using var req = new HttpRequestMessage(HttpMethod.Post, $"{root}/tokenize")
+                {
+                    Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json")
+                };
+                if (apiKey.Length > 0) req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+                using var resp = await httpFactory.CreateClient("assistant").SendAsync(req, cts.Token);
+                if (resp.StatusCode == HttpStatusCode.NotFound) { NoTokenize[baseUrl] = true; return null; }
+                if (!resp.IsSuccessStatusCode)
+                {
+                    // 老版本不认 tools 字段：不带工具清单再算一次（工具清单那部分由调用方粗估）
+                    if (withTools) { NoToolsInTokenize[baseUrl] = true; withTools = false; continue; }
+                    return null;
+                }
+                using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(cts.Token));
+                var r = doc.RootElement;
+                if (!r.TryGetProperty("count", out var c) || !c.TryGetInt32(out var n) || n <= 0) return null;
+                var max = r.TryGetProperty("max_model_len", out var m) && m.TryGetInt32(out var mm) ? mm : 0;
+                return new TokenCount(n, withTools || tools.Count == 0, max);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return null; }   // 算得太慢就不算了，按粗估
+            catch (HttpRequestException) { return null; }
+            catch (JsonException) { return null; }
+        }
+        return null;
+    }
+
     public async Task<ToolRoundResult> RunRoundAsync(IReadOnlyList<AgentMessage> messages, IReadOnlyList<ToolSpec> tools,
         ToolRoundOptions options, Func<string, Task>? onText, CancellationToken ct = default)
     {

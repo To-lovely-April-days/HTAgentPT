@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -28,6 +29,9 @@ public record AssistantLoopOptions(int MaxRounds = 6, bool Think = true, int Max
 /// 上下文快满时把早先的工具结果换成短版、把过程实时推给界面。</summary>
 public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions options)
 {
+    /// <summary>模型服务能准确算 token 的（本地 vLLM）：快满时按准确数算，不靠粗估。</summary>
+    private readonly ITokenCounter? counter = client as ITokenCounter;
+
     public async Task<LoopResult> RunAsync(
         List<AgentMessage> messages,
         IReadOnlyList<ToolSpec> tools,
@@ -61,6 +65,68 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         var continues = 0;
         var noThink = false;       // 上一轮想完了一个字没写就到了长度上限：这一轮关掉思考，额度全给回答
         var overflows = 0;         // 模型服务说放不下（超出上下文）的次数：按它报的实际数字重估、压短再发，最多两次
+
+        // 按模型服务的分词器准确算一次，定下「几个字一个 token」：只在粗估过了上下文四成时算（平时不多一次请求）
+        async Task CalibrateAsync(int sentTools, IReadOnlyList<ToolSpec> liveTools, bool th)
+        {
+            if (counter is null) return;
+            var chars = PromptChars(messages, sentTools);
+            if (EstimateTokens(chars, options.CharsPerToken) < options.ContextTokens * 0.4) return;
+            if (await counter.CountAsync(messages, liveTools, th, ct) is not { Tokens: > 0 } n) return;
+            var measured = n.IncludesTools ? chars : chars - sentTools;
+            options = options with
+            {
+                CharsPerToken = Math.Clamp(measured / (double)n.Tokens * 0.97, 0.5, 4),
+                ContextTokens = n.ContextTokens > 0 ? n.ContextTokens : options.ContextTokens,
+            };
+        }
+
+        // 换成短版还放不下：让模型把早先查到的、做过的整理成要点，替换原文（最近一轮的结果、系统提示词、最后一句用户的话不动）
+        async Task<bool> SummarizeAsync(int budget)
+        {
+            var picked = Compactable(messages);
+            var total = picked.Sum(i => messages[i].Content!.Length);
+            if (picked.Count == 0 || total < 3000) return false;
+            // 交给整理的那一段自己也得放得下：最多用上下文的六成
+            var maxIn = (int)(options.ContextTokens * 0.6 * options.CharsPerToken);
+            var input = new StringBuilder();
+            var used = new List<int>();
+            foreach (var i in picked)
+            {
+                var part = $"【{used.Count + 1}】{(messages[i].Role == "tool" ? "查到的" : messages[i].Role == "user" ? "用户说的" : "助手写的")}\n{Clip(messages[i].Content!, 8000)}\n\n";
+                if (input.Length + part.Length > maxIn && used.Count > 0) break;
+                input.Append(part);
+                used.Add(i);
+            }
+            var usedChars = used.Sum(i => messages[i].Content!.Length);
+            var target = Math.Clamp(usedChars / 4, 800, 4000);
+            var id = $"{stepPrefix}{++stepNo}";
+            await emit(new QaEvent("step", new { id, tool = "compact", label = "整理资料", detail = $"前面查到的有 {usedChars} 字，放不下了，整理成要点接着做", status = "running" }));
+            var sw = Stopwatch.StartNew();
+            string summary;
+            try
+            {
+                var r = await client.RunRoundAsync(
+                    [new AgentMessage("system", SummaryPrompt(target)), new AgentMessage("user", input.ToString())], [],
+                    new ToolRoundOptions(false, false, (int)(target / options.CharsPerToken * 1.5) + 300, 0.2), null, ct);
+                summary = StripThinking(r.Content);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException) { summary = ""; }
+            var ok = summary.Length >= 100 && summary.Length < usedChars / 2;
+            var rec = new StepRecord(id, "compact", "整理资料", $"前面查到的有 {usedChars} 字，放不下了，整理成要点接着做",
+                ok ? $"{used.Count} 段整理成 {summary.Length} 字" : "没整理成，改为只留每段开头", ok ? "done" : "error", Math.Round(sw.Elapsed.TotalSeconds, 1));
+            steps.Add(rec);
+            await emit(new QaEvent("step", new { id, tool = rec.Tool, label = rec.Label, detail = rec.Detail, result = rec.Result, status = rec.Status, seconds = rec.Seconds }));
+            if (!ok) return false;
+            // 要点放进最早那段查到的资料里（工具调用和结果一一对应的关系不动），其余几段只留一句
+            var host = used.FirstOrDefault(i => messages[i].Role == "tool", used[0]);
+            foreach (var i in used)
+            {
+                messages[i] = messages[i] with { Content = i == host ? SummaryMark + summary : MergedMark };
+                compacts.Remove(i);
+            }
+            return true;
+        }
         var thinkDropped = false;  // 只关一次
         for (var round = 1; ; round++)
         {
@@ -72,20 +138,25 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
                 limitNoted = true;
                 if (limitHint?.Invoke() is { Length: > 0 } lh) messages.Add(new AgentMessage("user", lh));
             }
+            var think = options.Think && !noThink;
+            noThink = false;
             // 查了好几次资料后上下文快满了：这一轮的回答上限会被压到很小，思考就能把它用光、正文一个字写不出来，甚至整个发不出去。
+            // ⓪ 快满了（粗估过四成）：让模型服务按分词器准确算一次，按准确的比例估后面的；
             // ① 先把早先的工具结果换成短版，给回答留出余量（本档「回答最长」，最多上下文的四分之一）；
-            // ② 还放不下（历史、前一遍的回答很长）：早先的内容只留头尾，至少给回答留出上下文的八分之一
+            // ② 还放不下（历史、前一遍的回答、没有短版的原文很长）：让模型把早先的整理成要点（数字、标准号、引用编号都留着）；
+            // ③ 整理不了或整理完还放不下：早先的内容只留头尾，至少给回答留出上下文的八分之一
             if (options.ContextTokens > 0)
             {
                 var sentTools = allowTools ? toolChars : 0;
-                Shrink(messages, compacts, AnswerRoomChars(messages, sentTools, options, options.ContextTokens / 4));
+                await CalibrateAsync(sentTools, allowTools ? tools : [], think);
+                var room = AnswerRoomChars(messages, sentTools, options, options.ContextTokens / 4);
+                Shrink(messages, compacts, room);
+                if (MessageChars(messages) > room && await SummarizeAsync(room)) await CalibrateAsync(sentTools, allowTools ? tools : [], think);
                 Squeeze(messages, AnswerRoomChars(messages, sentTools, options, options.ContextTokens / 8));
             }
             var streamed = false;
             var roundOptions = widen ? options with { MaxTokens = options.MaxTokens * 2 } : options;
             widen = false;
-            var think = options.Think && !noThink;
-            noThink = false;
             ToolRoundResult result;
             try
             {
@@ -274,6 +345,38 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         return Math.Max(0, (int)((o.ContextTokens - reserve - 64) * o.CharsPerToken) - overhead);
     }
 
+    private static int MessageChars(IReadOnlyList<AgentMessage> messages) => messages.Sum(m => m.Content?.Length ?? 0);
+
+    internal const string SummaryMark = "（前面几步查到的要点，原文太长已整理压缩；引用编号照原文）\n";
+    internal const string MergedMark = "（这段已并入前面整理的要点）";
+
+    /// <summary>能整理成要点的：早先的工具结果和对话（够长、还没整理过的）。系统提示词、最后一句用户的话、最近一轮的工具调用和结果不动。</summary>
+    public static List<int> Compactable(IReadOnlyList<AgentMessage> messages)
+    {
+        var lastUser = -1;
+        for (var i = messages.Count - 1; i >= 0; i--) if (messages[i].Role == "user") { lastUser = i; break; }
+        var lastCalls = messages.Count;
+        for (var i = messages.Count - 1; i >= 0; i--) if (messages[i].Role == "assistant" && messages[i].ToolCalls is { Count: > 0 }) { lastCalls = i; break; }
+        var list = new List<int>();
+        for (var i = 1; i < messages.Count; i++)
+        {
+            if (i == lastUser || i >= lastCalls) continue;
+            if (messages[i].Role is not ("tool" or "user" or "assistant")) continue;
+            if (messages[i].Content is not { Length: > 300 } c || c.StartsWith(SummaryMark) || c == MergedMark) continue;
+            list.Add(i);
+        }
+        return list;
+    }
+
+    private static string SummaryPrompt(int target) => $"""
+        你在帮助手整理它前面查到的资料和做过的事，好腾出上下文空间接着做。把下面几段压成要点：
+        - 保留所有数字和单位、参数、标准号和条款号、文件名、型号、算出来的结果、结论、还没解决的问题；
+        - 资料里的引用编号（[1]、[2]……）原样留在对应要点后面，回答还要按编号引用；
+        - 用户提过的要求和定下的做法要留着；
+        - 去掉重复的、和问题无关的、客套话；
+        - 只输出要点本身，不加开场白，不超过 {target} 字。
+        """;
+
     private const string Omitted = "\n…（这段太长，为了放得下已省略；前面引用过的编号照样有效）";
 
     /// <summary>换成短版还放不下时（历史、前一遍的回答、没有短版的工具结果很长）：从最早的开始只留头尾。
@@ -289,7 +392,7 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
             messages[i] = messages[i] with { Content = content };
         }
         for (var i = 1; i < messages.Count && total > budget; i++)
-            if (messages[i].Role == "tool" && messages[i].Content is { Length: > 800 } c)
+            if (messages[i].Role == "tool" && messages[i].Content is { Length: > 800 } c && !c.StartsWith(SummaryMark))
                 Cut(i, c[..500] + Omitted);
         for (var i = 1; i < messages.Count && total > budget; i++)
             if (i != lastUser && messages[i].Role is "user" or "assistant" && messages[i].Content is { Length: > 1600 } c)

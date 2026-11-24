@@ -278,6 +278,88 @@ public class AssistantLoopTests
         }
     }
 
+    /// <summary>整理要点的请求（不带工具）回 summary，正常的一轮回 answer；可选按「一个字一个 token」准确计数。</summary>
+    private sealed class SummaryModel(string summary, string answer, bool countTokens = false) : IToolChatClient, ITokenCounter
+    {
+        public readonly List<ToolRoundOptions> Seen = [];
+        public int Summaries, Counts;
+        public Task<ToolRoundResult> RunRoundAsync(IReadOnlyList<AgentMessage> messages, IReadOnlyList<ToolSpec> tools,
+            ToolRoundOptions options, Func<string, Task>? onText, CancellationToken ct = default)
+        {
+            if (tools.Count == 0 && !options.AllowTools) { Summaries++; return Task.FromResult(new ToolRoundResult(summary, [], "stop")); }
+            Seen.Add(options);
+            return Task.FromResult(new ToolRoundResult(answer, [], "stop"));
+        }
+        public Task<TokenCount?> CountAsync(IReadOnlyList<AgentMessage> messages, IReadOnlyList<ToolSpec> tools, bool think, CancellationToken ct = default)
+        {
+            Counts++;
+            return Task.FromResult(countTokens ? new TokenCount(messages.Sum(m => m.Content?.Length ?? 0), false, 0) : null);
+        }
+    }
+
+    private static List<AgentMessage> Crowded(int toolChars) =>
+    [
+        new("system", "s"), new("user", "50L 反应釜壁厚怎么算"),
+        new("assistant", "", [new ToolCall("c1", "search_documents", "{}")]), new("tool", "[1] GB/T 150 " + new string('原', toolChars), ToolCallId: "c1"),
+        new("assistant", "", [new ToolCall("c2", "search_documents", "{}")]), new("tool", "[2] 许用应力 137 MPa", ToolCallId: "c2"),
+    ];
+
+    [Fact]
+    public async Task 放不下时先让模型把早先查到的整理成要点_最近一轮的结果不动()
+    {
+        var summary = "设计压力 0.6 MPa，内径 1500 mm，按 GB/T 150.3 公式 5-1 算筒体厚度 [1]。" + new string('要', 120);
+        var model = new SummaryModel(summary, "壁厚 3.29 mm [1][2]");
+        var msgs = Crowded(12000);
+        var r = await new AssistantLoop(model, new AssistantLoopOptions(MaxTokens: 8192, ContextTokens: 8192)).RunAsync(msgs, Tools,
+            (_, _) => Task.FromResult(new ToolOutcome("x", "x", "搜索资料", "", null)), _ => Task.CompletedTask, CancellationToken.None);
+
+        Assert.Equal(1, model.Summaries);
+        Assert.StartsWith("（前面几步查到的要点", msgs[3].Content);
+        Assert.Contains("[1]", msgs[3].Content);
+        Assert.Equal("[2] 许用应力 137 MPa", msgs[5].Content);   // 最近一轮的结果原样留着
+        Assert.Equal("c1", msgs[3].ToolCallId);                  // 工具调用和结果的对应不动
+        Assert.Contains(r.Steps, x => x.Tool == "compact" && x.Status == "done");
+        Assert.Equal("壁厚 3.29 mm [1][2]", r.Answer);
+    }
+
+    [Fact]
+    public async Task 整理没成_退回只留每段开头_照样能答()
+    {
+        var model = new SummaryModel("", "答案");
+        var msgs = Crowded(12000);
+        var r = await new AssistantLoop(model, new AssistantLoopOptions(MaxTokens: 8192, ContextTokens: 8192)).RunAsync(msgs, Tools,
+            (_, _) => Task.FromResult(new ToolOutcome("x", "x", "搜索资料", "", null)), _ => Task.CompletedTask, CancellationToken.None);
+
+        Assert.Contains("已省略", msgs[3].Content);
+        Assert.Contains(r.Steps, x => x.Tool == "compact" && x.Status == "error");
+        Assert.Equal("答案", r.Answer);
+    }
+
+    [Fact]
+    public async Task 快满时按模型服务准确算的token数定回答上限()
+    {
+        // 准确数：一个字一个 token（比粗估的 1.3 字一个多），回答上限要跟着收
+        var exact = new SummaryModel("", "答", countTokens: true);
+        await new AssistantLoop(exact, new AssistantLoopOptions(MaxTokens: 8192, ContextTokens: 8192)).RunAsync(Crowded(4500), Tools,
+            (_, _) => Task.FromResult(new ToolOutcome("x", "x", "搜索资料", "", null)), _ => Task.CompletedTask, CancellationToken.None);
+        var rough = new SummaryModel("", "答");
+        await new AssistantLoop(rough, new AssistantLoopOptions(MaxTokens: 8192, ContextTokens: 8192)).RunAsync(Crowded(4500), Tools,
+            (_, _) => Task.FromResult(new ToolOutcome("x", "x", "搜索资料", "", null)), _ => Task.CompletedTask, CancellationToken.None);
+
+        Assert.True(exact.Counts > 0);
+        Assert.True(exact.Seen[0].MaxTokens < rough.Seen[0].MaxTokens - 800, $"准确 {exact.Seen[0].MaxTokens}，粗估 {rough.Seen[0].MaxTokens}");
+        Assert.True(exact.Seen[0].MaxTokens <= 8192 - 4500 - 30);
+    }
+
+    [Fact]
+    public void 能整理的只有早先的内容()
+    {
+        var msgs = Crowded(1000);
+        msgs.Insert(2, new AgentMessage("assistant", new string('旧', 2000)));   // 早先写过的长回答
+        var list = AssistantLoop.Compactable(msgs);
+        Assert.Equal([2, 4], list);   // 系统提示词(0)、最后一句用户的话(1)、最近一轮(5、6)不动
+    }
+
     [Fact]
     public async Task 接着写最多两次_还没写完就标写到一半()
     {

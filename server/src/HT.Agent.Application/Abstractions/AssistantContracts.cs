@@ -25,6 +25,16 @@ public record AgentMessage(string Role, string? Content, IReadOnlyList<ToolCall>
 /// <summary>FinishReason=length：写到上限停了。Reasoning：模型的思考过程（推理解析器分出来的那部分）；ThinkSeconds：从发出到想完用了多久。</summary>
 public record ToolRoundResult(string Content, IReadOnlyList<ToolCall> ToolCalls, string? FinishReason, string? Reasoning = null, double ThinkSeconds = 0);
 
+/// <summary>按模型自己的分词器准确算一次输入有多少 token（vLLM 的 /tokenize）。
+/// 粗估在表格、代码、英文多的时候会偏少，快满时按准确数算，免得发过去被拒。算不了（在线接口、老版本）返回 null。</summary>
+public interface ITokenCounter
+{
+    Task<TokenCount?> CountAsync(IReadOnlyList<AgentMessage> messages, IReadOnlyList<ToolSpec> tools, bool think, CancellationToken ct = default);
+}
+
+/// <summary>Tokens：这些消息（IncludesTools 时连工具清单）套上对话模板后的 token 数；ContextTokens：模型服务的上下文上限（报不出来为 0）。</summary>
+public record TokenCount(int Tokens, bool IncludesTools, int ContextTokens);
+
 /// <summary>模型端不支持工具调用（vLLM 没开 --enable-auto-tool-choice 之类）。调用方据此退回老问答流程。</summary>
 public class ToolCallingUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
 
