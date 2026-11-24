@@ -90,6 +90,7 @@ interface Msg {
   feedbackReason?: string | null;
   level?: string;                // 这一轮用的思考档位（fast / standard / deep）
   truncated?: boolean;           // 写到「回答最长」停了
+  unfinished?: string[];         // 计划里没做完的步骤（轮数用完等）：给「接着做」
   agents?: AgentsCardData[];     // 分头查：每次一张，子代理的进度和结论
   plan?: PlanState | null;       // 多步任务的任务清单
 }
@@ -316,6 +317,9 @@ export default function ChatPage() {
             break;
           case 'truncated':
             patch(id, { truncated: true, level: p.level as string });
+            break;
+          case 'unfinished':
+            patch(id, { unfinished: (p.left as string[] | undefined) ?? [] });
             break;
           case 'browser':
             // 助手在内置浏览器里开了网页：右边面板跟着打开这个标签
@@ -914,6 +918,18 @@ function AssistantMessage() {
             参考资料 {new Set(m.evidence.used.map((c) => c.docId ?? c.kind + (c.fileName ?? ''))).size} 份 · {m.evidence.used.length} 段原文<Icon name="right" size={12} className="gi" />
           </button>
         )}
+        {m.unfinished && m.unfinished.length > 0 && !m.streaming && (
+          <div className="as-trunc" role="status">
+            <Icon name="warn" size={15} stroke={2} />
+            <b style={{ fontWeight: 500 }}>还有 {m.unfinished.length} 步没做完</b>
+            <span className="hint">{m.unfinished.join('、')}</span>
+            {isLast && (
+              <button type="button" className="gbtn" disabled={busy}
+                onClick={() => sendText(`接着做没做完的步骤：${m.unfinished!.join('、')}。前面查到的直接用，不用重新查。`)}>
+                <Icon name="play" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />接着做</button>
+            )}
+          </div>
+        )}
         {m.truncated && !m.streaming && (
           <div className="as-trunc" role="status">
             <Icon name="warn" size={15} stroke={2} /><b style={{ fontWeight: 500 }}>回答太长，写到一半停了</b>
@@ -1023,10 +1039,11 @@ function restore(raw: string | null | undefined): Partial<Msg> {
       }
       case 'assistant': {
         const a = parsed as unknown as { steps?: AssistantStep[]; evidence?: Msg['evidence']; verify?: VerifyReport; seconds?: number;
-          ask?: AskSpec; answered?: string; artifacts?: ToolArtifact[]; level?: string; truncated?: boolean; agents?: AgentsCardData[]; plan?: PlanState | null };
+          ask?: AskSpec; answered?: string; artifacts?: ToolArtifact[]; level?: string; truncated?: boolean; agents?: AgentsCardData[]; plan?: PlanState | null;
+          unfinished?: string[] | null };
         return {
           steps: a.steps ?? [], evidence: a.evidence, verify: a.verify, seconds: a.seconds ?? null, artifacts: a.artifacts,
-          level: a.level, truncated: a.truncated, agents: a.agents, plan: a.plan,
+          level: a.level, truncated: a.truncated, agents: a.agents, plan: a.plan, unfinished: a.unfinished ?? undefined,
           ...(a.ask ? { ask: { ...a.ask, answered: a.answered ?? null }, text: '' } : {}),
         };
       }

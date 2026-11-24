@@ -349,6 +349,9 @@ public sealed class AssistantService(
         {
             var loop = new AssistantLoop(new SlotClient(model), options);
             var files = attachmentFiles.Select(a => (a.Id, a.FileName, a.Chunks)).ToList();
+            string? stepTitle = null;   // 计划里正在做的那一步，和它调了几次工具
+            var stepCalls = 0;
+            var stepWarned = false;
             try
             {
             result = await loop.RunAsync(messages, tools,
@@ -386,7 +389,21 @@ public sealed class AssistantService(
                       + (enabled.Contains("ask_user") ? "要用户确认的用 ask_user 问；" : "")
                       + "确实不用做的，用 plan 标 skip 并在 note 写原因，然后再写最终回答。"
                     : null,
-                bonusRounds: () => run.Plan.Items.Count);
+                // 列了计划的：每一步多给 3 轮（总数封顶 30），轮数跟着活儿的多少走，不是固定一个总数
+                bonusRounds: () => Math.Min(run.Plan.Items.Count * PlanStepRounds, Math.Max(0, MaxPlanRounds - lv.MaxRounds)),
+                // 计划里的一步调了很多次工具还没往下走：提醒它够用就进下一步（一步只提醒一次）
+                progressHint: calls =>
+                {
+                    var cur = run.Plan.Current?.Title;
+                    if (cur != stepTitle) { stepTitle = cur; stepCalls = 0; stepWarned = false; }
+                    stepCalls += calls.Count(c => c.Name is not ("plan" or "ask_user"));
+                    if (cur is null || stepWarned || stepCalls < StepCallsWarn) return null;
+                    stepWarned = true;
+                    return $"「{cur}」这一步已经调了 {stepCalls} 次工具。查到的够用就进入下一步（用 plan 把它标 done、下一步标 now）；查不到的别再换说法重试，回答里写明没查到";
+                },
+                limitHint: () => run.Plan.Left(true) is { Count: > 0 } left
+                    ? $"能用工具的轮数用完了，这一轮不能再查、也不能再做文件。计划里还没做的：{string.Join("、", left)}。用已经查到的写回答；没做的几步在回答末尾列出来，告诉用户点「接着做」可以继续。"
+                    : "能用工具的轮数用完了，这一轮不能再查。用已经查到的写回答，没查到的写明。");
             }
             catch (ToolCallingUnavailableException)
             {
@@ -445,18 +462,22 @@ public sealed class AssistantService(
             await emit(new QaEvent("verify", verify));
 
             message.Answer = answer;
+            // 计划没做完（轮数用完、或者模型没往下做）：界面上给「接着做」
+            var unfinished = run.Plan.Items.Count > 0 ? run.Plan.Left(result.HitRoundLimit) : [];
             if (run.Plan.Items.Count > 0)
             {
-                run.Plan.Finish(DateTimeOffset.UtcNow);
+                run.Plan.Finish(DateTimeOffset.UtcNow, result.HitRoundLimit);
                 await emit(new QaEvent("plan", run.Plan.State()));
             }
+            if (unfinished.Count > 0) await emit(new QaEvent("unfinished", new { left = unfinished }));
             // 写到「回答最长」停了：界面出黄条，可以换深度再答一遍
             if (result.Truncated) await emit(new QaEvent("truncated", new { level = levelCode }));
             message.Payload = JsonSerializer.Serialize(new
             {
                 kind = "assistant", rounds = result.Rounds, seconds = Math.Round((DateTimeOffset.UtcNow - started).TotalSeconds, 1),
                 steps = stepRows, toolsLoaded = run.Loaded.ToArray(), evidence = new { used, other }, verify, artifacts = run.Artifacts, searches = run.SearchLog,
-                level = levelCode, truncated = result.Truncated, agents = run.Agents, plan = run.Plan.Items.Count > 0 ? run.Plan.State() : null
+                level = levelCode, truncated = result.Truncated, agents = run.Agents, plan = run.Plan.Items.Count > 0 ? run.Plan.State() : null,
+                unfinished = unfinished.Count > 0 ? unfinished : null
             }, Json);
             // 查过资料却一条都没用上：记成「没答上来」，进语料缺口清单
             var searched = run.Searches.Count > 0;
@@ -1147,7 +1168,7 @@ public sealed class AssistantService(
                 var chunks = r.Chunks.Take(topK).ToList();
                 run.SearchLog.Add(new { query, top = Math.Round(r.TopScore, 3), found = chunks.Count, hints = r.PossiblyRelatedDocs.Take(5).ToList() });
                 if (chunks.Count == 0 && standards)
-                    return new ToolOutcome($"「标准规范」类资料里没有搜到「{query}」。可能还没上传这份规范，回答时请说明没能在公司规范库里核实。", "没搜到", label, query, "没有相关规范");
+                    return new ToolOutcome($"「标准规范」类资料里没有搜到「{query}」。可能还没上传这份规范，回答时请说明没能在公司规范库里核实。", "没搜到", label, query, "没有相关规范", Empty: true);
                 if (chunks.Count == 0)
                     return new ToolOutcome($"没有搜到和「{query}」相关的资料。{(r.Notice is null ? "" : $"（{r.Notice}）")}可以换个说法或去掉筛选条件再试。",
                         "没有搜到", label, detail, "没有相关资料");
@@ -1215,7 +1236,7 @@ public sealed class AssistantService(
                     AmountMin: D("amount_min") is double mn ? (decimal)mn : null, AmountMax: D("amount_max") is double mx ? (decimal)mx : null,
                     DeliveryStatus: status, Keyword: S("keyword"), Limit: limit), ct);
                 if (r.Rows.Count == 0)
-                    return new ToolOutcome("台账里没有符合这些条件的项目。可以放宽条件（比如只留设备类型或关键词）再查。", "没有符合的项目", label, detail, "0 个项目");
+                    return new ToolOutcome("台账里没有符合这些条件的项目。可以放宽条件（比如只留设备类型或关键词）再查。", "没有符合的项目", label, detail, "0 个项目", Empty: true);
                 var sb = new StringBuilder($"共 {r.Rows.Count} 个项目{(r.Rows.Count >= limit ? $"（只列了前 {limit} 个，可加条件缩小）" : "")}。" +
                     (r.AmountVisible ? "" : "当前用户无权查看合同金额。") + (r.AmountFilterIgnored ? "金额条件因无权限已忽略。" : "") + "\n");
                 var compact = new StringBuilder();
@@ -1694,7 +1715,7 @@ public sealed class AssistantService(
             {
                 var name = S("name") ?? "";
                 var info = await pubchem.LookupAsync(name, ct);
-                if (info is null) return new ToolOutcome($"PubChem 里没查到「{name}」。换英文名或 CAS 号再试。", "没查到", label, name, "没查到");
+                if (info is null) return new ToolOutcome($"PubChem 里没查到「{name}」。换英文名或 CAS 号再试。", "没查到", label, name, "没查到", Empty: true);
                 var haz = info.Cas is null ? null : await hazards.ListedAsync(info.Cas, ct);
                 var url = $"https://pubchem.ncbi.nlm.nih.gov/compound/{info.Cid}";
                 var lines = new List<string> { $"名称 {info.Title}" };
@@ -1738,9 +1759,9 @@ public sealed class AssistantService(
                 try { hits = await searx.SearchAsync(url, q, engines, 8, ct); }
                 catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
                 {
-                    return new ToolOutcome("联网搜索现在用不了（搜索服务连不上或被临时拦截），请根据已有信息回答，并说明没能联网核实。", "搜索不可用", label, q, "搜索不可用");
+                    return new ToolOutcome("联网搜索现在用不了（搜索服务连不上或被临时拦截），请根据已有信息回答，并说明没能联网核实。", "搜索不可用", label, q, "搜索不可用", Failed: true);
                 }
-                if (hits.Count == 0) return new ToolOutcome($"没搜到「{q}」的结果（可能被搜索引擎临时拦截）。可以换个说法再试一次。", "没搜到", label, q, "没搜到");
+                if (hits.Count == 0) return new ToolOutcome($"没搜到「{q}」的结果（可能被搜索引擎临时拦截）。换一两个说法还搜不到，就别再搜了，用已有的信息往下做。", "没搜到", label, q, "没搜到", Empty: true);
                 var sb = new StringBuilder(changed ? "（搜索词里的内部信息已被替换为泛称）\n" : "");
                 var compact = new StringBuilder();
                 foreach (var h in hits)
@@ -1761,7 +1782,7 @@ public sealed class AssistantService(
                 try { page = await fetcher.FetchAsync(url, ct); }
                 catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
                 {
-                    return new ToolOutcome($"这个网页打不开：{ex.Message}", "打不开", label, url, "打不开");
+                    return new ToolOutcome($"这个网页打不开：{ex.Message}", "打不开", label, url, "打不开", Empty: true);
                 }
                 if (page.Note is not null) return new ToolOutcome(page.Note, page.Note, label, url, "读不了");
                 var focus = S("focus") ?? req.Question;
@@ -1856,6 +1877,11 @@ public sealed class AssistantService(
             score = e.Score, text, highlights = hl.Select(h => new { start = h.Start, length = h.Length }).ToList()
         };
     }
+
+    /// <summary>列了计划的，每一步多给几轮；总轮数封顶。</summary>
+    private const int PlanStepRounds = 3, MaxPlanRounds = 30;
+    /// <summary>计划里的一步调了这么多次工具还没往下走，提醒一次。</summary>
+    private const int StepCallsWarn = 8;
 
     private static List<AskOption> AskOptions(JsonNode? node)
     {

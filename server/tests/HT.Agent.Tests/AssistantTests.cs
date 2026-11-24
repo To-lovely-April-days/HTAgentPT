@@ -144,6 +144,57 @@ public class AssistantLoopTests
     private static readonly IReadOnlyList<ToolSpec> Tools = [new("search_documents", "搜", new { })];
 
     [Fact]
+    public async Task 同一个工具连着三次没结果_提醒别再换说法重试()
+    {
+        var model = new ScriptedModel(
+            new ToolRoundResult("", [new ToolCall("c1", "search_documents", "{}")], "tool_calls"),
+            new ToolRoundResult("", [new ToolCall("c2", "search_documents", "{}")], "tool_calls"),
+            new ToolRoundResult("", [new ToolCall("c3", "search_documents", "{}")], "tool_calls"),
+            new ToolRoundResult("用已有的答。", [], "stop"));
+        var msgs = new List<AgentMessage> { new("user", "q") };
+        await new AssistantLoop(model, new AssistantLoopOptions()).RunAsync(msgs, Tools,
+            (_, _) => Task.FromResult(new ToolOutcome("没搜到", "没搜到", "搜索资料", "", "没搜到", Empty: true)),
+            _ => Task.CompletedTask, CancellationToken.None);
+
+        var tools = msgs.Where(m => m.Role == "tool").Select(m => m.Content ?? "").ToList();
+        Assert.Equal(3, tools.Count);
+        Assert.DoesNotContain("连着", tools[1]);
+        Assert.Contains("连着 3 次没有结果", tools[2]);
+    }
+
+    [Fact]
+    public async Task 轮数用完_最后一轮先交代还有哪几步没做()
+    {
+        var model = new ScriptedModel(
+            new ToolRoundResult("", [new ToolCall("c1", "search_documents", "{}")], "tool_calls"),
+            new ToolRoundResult("先交代已经查到的。", [], "stop"));
+        var msgs = new List<AgentMessage> { new("user", "q") };
+        var r = await new AssistantLoop(model, new AssistantLoopOptions(MaxRounds: 1)).RunAsync(msgs, Tools,
+            (_, _) => Task.FromResult(new ToolOutcome("x", "x", "搜索资料", "", null)),
+            _ => Task.CompletedTask, CancellationToken.None,
+            limitHint: () => "轮数用完了，还没做的：做 PPT");
+
+        Assert.True(r.HitRoundLimit);
+        Assert.False(model.Seen[1].AllowTools);
+        Assert.Equal("轮数用完了，还没做的：做 PPT", msgs.Last(m => m.Role == "user").Content);
+    }
+
+    [Fact]
+    public async Task 每轮工具做完_有提醒就附在最后一个工具结果后面()
+    {
+        var model = new ScriptedModel(
+            new ToolRoundResult("", [new ToolCall("c1", "search_documents", "{}")], "tool_calls"),
+            new ToolRoundResult("好。", [], "stop"));
+        var msgs = new List<AgentMessage> { new("user", "q") };
+        await new AssistantLoop(model, new AssistantLoopOptions()).RunAsync(msgs, Tools,
+            (_, _) => Task.FromResult(new ToolOutcome("结果", "结果", "搜索资料", "", null)),
+            _ => Task.CompletedTask, CancellationToken.None,
+            progressHint: calls => calls.Count == 1 ? "够用就进下一步" : null);
+
+        Assert.Equal("结果\n（够用就进下一步）", msgs.Single(m => m.Role == "tool").Content);
+    }
+
+    [Fact]
     public async Task 工具参数写到长度上限被截断_放宽一倍重来_不执行半截的()
     {
         var model = new ScriptedModel(

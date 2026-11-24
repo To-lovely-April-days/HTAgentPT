@@ -63,4 +63,25 @@ public class TaskPlanTests
         p.OnStep("s9", "web_search");                 // 答完以后不再挂
         Assert.Empty(p.Items[1].Steps);
     }
+
+    [Fact]
+    public void 轮数用完收尾_正在做的和没开始的都算没做完()
+    {
+        var p = new TaskPlan();
+        p.Update(A("""[{"title":"查资料","status":"done"},{"title":"出对比表","status":"now"},{"title":"做 PPT","status":"todo"}]"""), null, T0);
+        Assert.Equal(["出对比表", "做 PPT"], p.Left(cutOff: true));
+        Assert.Equal(["做 PPT"], p.Left(cutOff: false));
+        p.Finish(T0.AddSeconds(5), cutOff: true);
+        Assert.Equal("skip", p.Items[1].Status);
+        Assert.Equal("没来得及做", p.Items[2].Note);
+    }
+
+    [Fact]
+    public void 正常收尾_正在做的那步算做完()
+    {
+        var p = new TaskPlan();
+        p.Update(A("""[{"title":"查资料","status":"done"},{"title":"写结论","status":"now"}]"""), null, T0);
+        p.Finish(T0.AddSeconds(5));
+        Assert.Equal("done", p.Items[1].Status);
+    }
 }

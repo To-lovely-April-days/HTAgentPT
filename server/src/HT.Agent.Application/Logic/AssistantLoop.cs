@@ -9,11 +9,12 @@ namespace HT.Agent.Application.Logic;
 /// <summary>工具执行的结果。ForModel 交给模型；Compact 是上下文紧张时换上的短版；Label/Detail/Result 给界面上的「查了几步」。</summary>
 /// <summary>Pause=true：这个工具要等用户回话（比如请用户确认），本轮执行完就停下，等用户的回答再接着跑。</summary>
 /// <summary>Failed=true：这一步没办成（比如做的文件检查没过），界面上这一行打叉。</summary>
-public record ToolOutcome(string ForModel, string Compact, string Label, string Detail, string? Result, bool Pause = false, bool Failed = false);
+/// <summary>Empty：执行了但什么都没拿到（没搜到、打不开、0 条）。同一个工具连着几次 Empty/Failed，系统提醒模型别再换说法重试。</summary>
+public record ToolOutcome(string ForModel, string Compact, string Label, string Detail, string? Result, bool Pause = false, bool Failed = false, bool Empty = false);
 
 public record StepRecord(string Id, string Tool, string Label, string Detail, string? Result, string Status, double Seconds);
 
-/// <summary>Truncated：最后一轮写到「回答最长」停了。Reasoning / ThinkSeconds：各轮思考过程拼起来、思考用时加起来。</summary>
+/// <summary>HitRoundLimit：能用工具的轮数用完了，最后一轮是被迫直接回答的。Truncated：最后一轮写到「回答最长」停了。Reasoning / ThinkSeconds：各轮思考过程拼起来、思考用时加起来。</summary>
 public record LoopResult(string Answer, int Rounds, IReadOnlyList<StepRecord> Steps, bool HitRoundLimit, string? PausedCallId = null,
     bool Truncated = false, string Reasoning = "", double ThinkSeconds = 0);
 
@@ -33,8 +34,12 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         Func<QaEvent, Task> emit,
         CancellationToken ct,
         Func<string?>? continueHint = null,
-        Func<int>? bonusRounds = null)
+        Func<int>? bonusRounds = null,
+        Func<IReadOnlyList<ToolCall>, string?>? progressHint = null,
+        Func<string?>? limitHint = null)
     {
+        // progressHint：每轮工具执行完问一句（比如计划里这一步已经查了很多次），有话就附在这轮最后一个工具结果后面。
+        // limitHint：轮数用完、下一轮只能直接回答时，交给模型的话（还有哪几步没做、回答里怎么交代）。
         // continueHint：模型不调工具、要收尾时问一句「还有没做完的吗」——有就把这句话交回去让它接着做（最多 MaxNudges 次）。
         // bonusRounds：额外放宽的回合数（列了 N 步计划的，多给 N 回合，免得计划做到一半回合数先用完）。
         var steps = new List<StepRecord>();
@@ -45,10 +50,18 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         var thinkSeconds = 0.0;
         var widen = false;      // 上一轮工具参数写到长度上限被截断了：这一轮把长度放宽一倍重来（只放宽一次）
         var widened = false;
+        var misses = new Dictionary<string, int>();   // 每个工具连着几次没结果
+        var limitNoted = false;
         for (var round = 1; ; round++)
         {
             var toolChars = ToolChars(tools);   // 工具按需加载：中途加载了专用工具，下一轮的工具清单就变长了
             var allowTools = round <= options.MaxRounds + Math.Max(0, bonusRounds?.Invoke() ?? 0) && tools.Count > 0;
+            var cut = !allowTools && tools.Count > 0;   // 轮数用完了
+            if (cut && !limitNoted)
+            {
+                limitNoted = true;
+                if (limitHint?.Invoke() is { Length: > 0 } lh) messages.Add(new AgentMessage("user", lh));
+            }
             var streamed = false;
             var roundOptions = widen ? options with { MaxTokens = options.MaxTokens * 2 } : options;
             widen = false;
@@ -86,7 +99,7 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
             {
                 var answer = StripThinking(content);
                 if (answer != content) await emit(new QaEvent("replace", new { text = answer }));
-                return new LoopResult(answer.Trim(), round, steps, round > options.MaxRounds,
+                return new LoopResult(answer.Trim(), round, steps, cut,
                     Truncated: result.FinishReason == "length", Reasoning: Clip(reasoning.ToString(), MaxReasoning), ThinkSeconds: thinkSeconds);
             }
 
@@ -143,9 +156,17 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
                 steps.Add(rec);
                 await emit(new QaEvent("step", new { id, tool = call.Name, label = rec.Label, detail = rec.Detail, result = rec.Result, status, seconds = rec.Seconds }));
                 if (outcome.Pause) { pausedOn = call.Id; continue; } // 这个调用的结果要等用户来填，先不写回去
-                messages.Add(new AgentMessage("tool", outcome.ForModel, ToolCallId: call.Id));
+                var forModel = outcome.ForModel;
+                // 同一个工具连着 3 次没结果：别再换说法重试了（搜索被拦、资料里本来就没有时，模型会一直换词搜，把轮数耗光）
+                var miss = outcome.Empty || outcome.Failed ? misses.GetValueOrDefault(call.Name) + 1 : 0;
+                misses[call.Name] = miss;
+                if (miss > 0 && miss % 3 == 0)
+                    forModel += $"\n（「{outcome.Label}」已经连着 {miss} 次没有结果。不要再换说法重试：用已经查到的往下做；实在缺的，在回答里写明没查到。）";
+                messages.Add(new AgentMessage("tool", forModel, ToolCallId: call.Id));
                 compacts[messages.Count - 1] = outcome.Compact;
             }
+            if (pausedOn is null && progressHint?.Invoke(calls) is { Length: > 0 } ph && messages[^1].Role == "tool")
+                messages[^1] = messages[^1] with { Content = messages[^1].Content + "\n（" + ph + "）" };
             Shrink(messages, compacts, options.ContextChars);
             if (pausedOn is not null)
                 return new LoopResult("", round, steps, false, pausedOn, Reasoning: Clip(reasoning.ToString(), MaxReasoning), ThinkSeconds: thinkSeconds);

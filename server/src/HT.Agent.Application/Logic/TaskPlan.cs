@@ -93,16 +93,20 @@ public sealed class TaskPlan
     public List<string> Pending() => Items.Where(i => i.Status is "todo" or "now").Select(i => i.Title).ToList();
 
     /// <summary>回答结束：还在做的算完成；没开始的标出来——模型没报告，不替它说做了没做。</summary>
-    public void Finish(DateTimeOffset now)
+    /// <summary>收尾：cutOff=能用工具的轮数用完了（正在做的那步也算没做完）。</summary>
+    public void Finish(DateTimeOffset now, bool cutOff = false)
     {
         if (Finished) return;
         foreach (var it in Items)
         {
-            if (it.Status == "now") { it.Status = "done"; it.Ended ??= now; }
-            else if (it.Status == "todo") { it.Status = "skip"; it.Note ??= "没标完成"; it.Ended ??= now; }
+            if (it.Status == "now" && !cutOff) { it.Status = "done"; it.Ended ??= now; }
+            else if (it.Status is "todo" or "now") { it.Status = "skip"; it.Note ??= cutOff ? "没来得及做" : "没标完成"; it.Ended ??= now; }
         }
         Finished = true;
     }
+
+    /// <summary>还没做完的步骤（收尾前看）：没开始的，加上轮数用完时正在做的。</summary>
+    public List<string> Left(bool cutOff) => Items.Where(i => i.Status == "todo" || cutOff && i.Status == "now").Select(i => i.Title).ToList();
 
     public object State() => new
     {
