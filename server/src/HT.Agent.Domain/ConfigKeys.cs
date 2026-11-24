@@ -107,6 +107,8 @@ public static class ConfigKeys
     public const string FileXlsxRoles = "assistant.file.xlsx.roles";
     public const string FileDocx = "assistant.file.docx";
     public const string FileDocxRoles = "assistant.file.docx.roles";
+    /// <summary>助手做事的固定流程：开工前先判断（直接答还是分几步做、按什么假设、要不要先问），多步任务交付前自查、最后统一收尾。on / off。</summary>
+    public const string AssistantFlow = "assistant.flow";
     public const string FilePptx = "assistant.file.pptx";
     public const string FilePptxRoles = "assistant.file.pptx.roles";
     public const string FilePdf = "assistant.file.pdf";

@@ -69,8 +69,9 @@ public sealed class AssistantService(
         await producer;
     }
 
+    /// <summary>Plan：停下来问用户时的计划（回来接着做，计划和进度不丢）。</summary>
     public record RunState(List<EvidenceItem> Evidence, Dictionary<string, int> Keys, Dictionary<string, string> DocRefs,
-        List<double> Computed, List<string> Searches, int NextN);
+        List<double> Computed, List<string> Searches, int NextN, TaskPlan.Snap? Plan = null);
     public record AskOption(string Label, string? Detail);
     public record SkillRef(Guid Id, string Code, string Name, string Description, int Version);
     /// <summary>More：同一张卡上一起问的其余问题（要问的几件事一次问完，最多 4 个）。</summary>
@@ -160,7 +161,7 @@ public sealed class AssistantService(
         public Dictionary<string, double>? Similarity;
 
         public RunState ToState() => new(Evidence.Values.OrderBy(e => e.N).ToList(), new(Keys),
-            DocRefs.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value), [.. Computed], [.. Searches], NextN);
+            DocRefs.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value), [.. Computed], [.. Searches], NextN, Plan.ToSnap());
 
         public static Run From(RunState st)
         {
@@ -170,6 +171,7 @@ public sealed class AssistantService(
             foreach (var kv in st.DocRefs) { var g = Guid.Parse(kv.Key); r.DocRefs[g] = kv.Value; r.RefDocs[kv.Value] = g; }
             r.Computed.AddRange(st.Computed);
             r.Searches.AddRange(st.Searches);
+            r.Plan.Restore(st.Plan);
             return r;
         }
 
@@ -335,6 +337,24 @@ public sealed class AssistantService(
         run.CanProjects = canProjects;
         await emit(new QaEvent("step", new { id = "t0", tool = "think", label = "思考", detail = ThinkLevels.Describe(choice, lv.Think, 0), status = "running" }));
         await emit(new QaEvent("level", new { level = ThinkLevels.Code(choice.Level), auto = choice.Auto }));
+
+        // ① 开工前判断（系统固定做，不靠模型记得）：直接答，还是分几步做；用户没说清的按什么假设；有没有非问不可的。
+        // 快速档、等用户回话接着做的、没开「列计划」的不判断
+        var flowOn = (await config.GetStringAsync(ConfigKeys.AssistantFlow, "on", ct)).Trim().Equals("on", StringComparison.OrdinalIgnoreCase);
+        var triage = TaskFlow.Triage.Direct;
+        if (flowOn && pending is null && choice.Level != ThinkLevel.Fast && enabled.Contains("plan"))
+        {
+            var history = messages.Skip(1).SkipLast(1).Where(m => m.Role is "user" or "assistant" && m.ToolCalls is null).Select(m => (m.Role, m.Content ?? ""));
+            triage = TaskFlow.ParseTriage(await QuickAsync(TaskFlow.TriagePrompt(Capabilities(canDocs, canProjects, enabled, fileKinds)),
+                TaskFlow.TriageInput(req.Question, history, attachmentFiles.Select(a => a.FileName)), 700, ct));
+            if (triage.Task)
+            {
+                // ② 列计划：界面上马上亮出来，附在这一问后面交给助手照着做
+                run.Plan.Seed(triage.Steps, triage.Assumptions, DateTimeOffset.UtcNow);
+                messages[^1] = messages[^1] with { Content = messages[^1].Content + TaskFlow.PlanNote(run.Plan) };
+                await emit(new QaEvent("plan", run.Plan.State()));
+            }
+        }
         var topK = Math.Clamp(await config.GetIntAsync(ConfigKeys.AssistantSearchTopK, 6, ct), 2, 12);
 
         var message = new QaMessage
@@ -345,6 +365,46 @@ public sealed class AssistantService(
         var answerSoFar = new StringBuilder();
         var saved = false;
         LoopResult? result = null;
+
+        // 停下来请用户确认：存下现场（对话、计划、依据编号），用户回话后接着做
+        async Task AskAndStopAsync(AskSpec ask, string callId, List<object> stepRows, int rounds)
+        {
+            await emit(new QaEvent("ask", new { question = ask.Question, options = ask.Options, multiple = ask.Multiple, more = ask.More }));
+            message.Answer = string.Join("\n\n", new[] { new AskQuestion(ask.Question, ask.Options, ask.Multiple) }.Concat(ask.More ?? [])
+                .Select(x => x.Question + "\n" + string.Join("\n", x.Options.Select(o => $"· {o.Label}"))));
+            message.Payload = JsonSerializer.Serialize(new
+            {
+                kind = "assistant", rounds, steps = stepRows, toolsLoaded = run.Loaded.ToArray(), artifacts = run.Artifacts, level = ThinkLevels.Code(choice.Level), agents = run.Agents,
+                plan = run.Plan.Items.Count > 0 ? run.Plan.State() : null,
+                ask = new { question = ask.Question, options = ask.Options, multiple = ask.Multiple, more = ask.More },
+                pending = new PendingState(messages, callId, run.ToState(), run.PendingBrowser)
+            }, Json);
+            db.QaMessages.Add(message);
+            session.UpdatedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(ct);
+            saved = true;
+            await audit.WriteAsync(new AuditEntry("qa.assistant.ask", AuditResult.Success,
+                UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId, TargetType: "qa_message", TargetId: message.Id.ToString(),
+                Detail: new { question = Clip(ask.Question, 200), options = ask.Options.Count, questions = 1 + (ask.More?.Count ?? 0) }), ct);
+            await emit(new QaEvent("done", new { messageId = message.Id }));
+        }
+
+        // 开工前判断出非问不可的：一张卡一次问完，用户答了再开工（计划随现场存着）
+        if (triage.Blocking.Count > 0)
+        {
+            AskOption Opt(TaskFlow.Option o) => new(o.Label, o.Detail);
+            var first = triage.Blocking[0];
+            var ask = new AskSpec(first.Text, first.Options.Select(Opt).ToList(), first.Multiple,
+                triage.Blocking.Count > 1 ? triage.Blocking.Skip(1).Select(q => new AskQuestion(q.Text, q.Options.Select(Opt).ToList(), q.Multiple)).ToList() : null);
+            const string triageCall = "triage-ask";
+            messages.Add(new AgentMessage("assistant", "", [new ToolCall(triageCall, "ask_user", JsonSerializer.Serialize(new { question = ask.Question }, Json))]));
+            await LogStartAsync();
+            var t0 = new { id = "t0", tool = "think", label = "思考", detail = "开工前要先确认几件事", result = (string?)null, status = "done", seconds = 0.0, more = (string?)null };
+            await emit(new QaEvent("step", t0));
+            await AskAndStopAsync(ask, triageCall, [t0], 0);
+            return;
+        }
+
         try
         {
             var loop = new AssistantLoop(new SlotClient(model), options);
@@ -352,9 +412,9 @@ public sealed class AssistantService(
             string? stepTitle = null;   // 计划里正在做的那一步，和它调了几次工具
             var stepCalls = 0;
             var stepWarned = false;
-            try
-            {
-            result = await loop.RunAsync(messages, tools,
+            // 回合循环（第一遍，和自查后补缺口的那一遍用同一套回调）
+            Task<LoopResult> RunLoopAsync(AssistantLoop l, string prefix)
+                => l.RunAsync(messages, tools,
                 async (call, c) =>
                 {
                     var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -403,13 +463,61 @@ public sealed class AssistantService(
                 },
                 limitHint: () => run.Plan.Left(true) is { Count: > 0 } left
                     ? $"能用工具的轮数用完了，这一轮不能再查、也不能再做文件。计划里还没做的：{string.Join("、", left)}。用已经查到的写回答；没做的几步在回答末尾列出来，告诉用户点「接着做」可以继续。"
-                    : "能用工具的轮数用完了，这一轮不能再查。用已经查到的写回答，没查到的写明。");
+                    : "能用工具的轮数用完了，这一轮不能再查。用已经查到的写回答，没查到的写明。",
+                stepPrefix: prefix);
+            try
+            {
+            result = await RunLoopAsync(loop, "s");
             }
             catch (ToolCallingUnavailableException)
             {
                 // 模型服务没开工具调用：退回老的问答流程。思考那一行写清楚，管理员一看就知道要改启动参数
                 await emit(new QaEvent("step", new { id = "t0", tool = "think", label = "思考", detail = "模型服务没开工具调用，这次按老的问答流程答（查不了技能、项目、计算）", status = "error" }));
                 throw;
+            }
+
+            // ④ 交付前自查（多步任务）：对照要求和计划看有没有硬缺口，有就让助手补一次；⑤ 再整理收尾卡（假设、没做的、最后问一句）
+            TaskFlow.Review? review = null;
+            string? checkNote = null;
+            if (flowOn && result.PausedCallId is null && run.Plan.Items.Count >= 2)
+            {
+                object Check(string? res, string status) => new { id = "chk", tool = "check", label = "自查", detail = "对照要求和计划检查", result = res, status };
+                await emit(new QaEvent("step", Check(null, "running")));
+                review = await ReviewAsync(req.Question, run, result, ct);
+                var problems = review.Problems;
+                if (problems.Count > 0 && !result.HitRoundLimit)
+                {
+                    await emit(new QaEvent("step", Check($"发现 {problems.Count} 处，接着补", "running")));
+                    messages.Add(new AgentMessage("assistant", result.Answer));
+                    messages.Add(new AgentMessage("user", TaskFlow.FixNote(problems)));
+                    // 第一遍的回答已经显示出来了：补的那遍会重写完整回答，先清掉，免得接在后面
+                    var firstAnswer = result.Answer;
+                    answerSoFar.Clear();
+                    await emit(new QaEvent("replace", new { text = "" }));
+                    var fix = await RunLoopAsync(new AssistantLoop(new SlotClient(model), options with { MaxRounds = Math.Max(3, lv.MaxRounds / 2) }), "f");
+                    if (fix.Answer.Length == 0 && fix.PausedCallId is null)
+                    {
+                        // 补的那遍没写出回答：把第一遍的放回去
+                        answerSoFar.Append(firstAnswer);
+                        await emit(new QaEvent("replace", new { text = firstAnswer }));
+                    }
+                    result = fix with
+                    {
+                        Steps = [.. result.Steps, .. fix.Steps], Rounds = result.Rounds + fix.Rounds,
+                        Answer = fix.Answer.Length > 0 || fix.PausedCallId is not null ? fix.Answer : result.Answer,
+                        Reasoning = string.Join("\n\n", new[] { result.Reasoning, fix.Reasoning }.Where(x => x.Length > 0)),
+                        ThinkSeconds = result.ThinkSeconds + fix.ThinkSeconds,
+                    };
+                    if (result.PausedCallId is null)
+                    {
+                        review = await ReviewAsync(req.Question, run, result, ct);
+                        checkNote = review.Problems.Count == 0 ? $"发现 {problems.Count} 处，已补上" : $"发现 {problems.Count} 处，补过一次还有 {review.Problems.Count} 处";
+                    }
+                }
+                else checkNote = problems.Count == 0 ? "没发现问题" : $"发现 {problems.Count} 处，没来得及补";
+                // 没补上的缺口也算「还没做」，收尾卡上写出来
+                if (review.Problems.Count > 0) review = review with { Left = [.. review.Left.Concat(review.Problems).Distinct().Take(5)] };
+                await emit(new QaEvent("step", Check(checkNote ?? "自查时停下来问你了", "done")));
             }
 
             await LogStartAsync();
@@ -421,28 +529,12 @@ public sealed class AssistantService(
             await emit(new QaEvent("step", thinkStep));
             var stepRows = new List<object> { thinkStep };
             stepRows.AddRange(result.Steps.Select(s => new { id = s.Id, tool = s.Tool, label = s.Label, detail = s.Detail, result = s.Result, status = s.Status, seconds = s.Seconds, more = (string?)null }));
+            if (checkNote is not null)
+                stepRows.Add(new { id = "chk", tool = "check", label = "自查", detail = "对照要求和计划检查", result = (string?)checkNote, status = "done", seconds = 0.0, more = (string?)null });
             var levelCode = ThinkLevels.Code(choice.Level);
             if (result.PausedCallId is not null && run.Ask is not null)
             {
-                var ask = run.Ask;
-                var askSteps = stepRows;
-                await emit(new QaEvent("ask", new { question = ask.Question, options = ask.Options, multiple = ask.Multiple, more = ask.More }));
-                message.Answer = string.Join("\n\n", new[] { new AskQuestion(ask.Question, ask.Options, ask.Multiple) }.Concat(ask.More ?? [])
-                    .Select(x => x.Question + "\n" + string.Join("\n", x.Options.Select(o => $"· {o.Label}"))));
-                message.Payload = JsonSerializer.Serialize(new
-                {
-                    kind = "assistant", rounds = result.Rounds, steps = askSteps, toolsLoaded = run.Loaded.ToArray(), artifacts = run.Artifacts, level = levelCode, agents = run.Agents, plan = run.Plan.Items.Count > 0 ? run.Plan.State() : null,
-                    ask = new { question = ask.Question, options = ask.Options, multiple = ask.Multiple, more = ask.More },
-                    pending = new PendingState(messages, result.PausedCallId, run.ToState(), run.PendingBrowser)
-                }, Json);
-                db.QaMessages.Add(message);
-                session.UpdatedAt = DateTimeOffset.UtcNow;
-                await db.SaveChangesAsync(ct);
-                saved = true;
-                await audit.WriteAsync(new AuditEntry("qa.assistant.ask", AuditResult.Success,
-                    UserId: me.UserId, Username: me.Username, CompanyId: me.CompanyId, TargetType: "qa_message", TargetId: message.Id.ToString(),
-                    Detail: new { question = Clip(ask.Question, 200), options = ask.Options.Count }), ct);
-                await emit(new QaEvent("done", new { messageId = message.Id }));
+                await AskAndStopAsync(run.Ask, result.PausedCallId, stepRows, result.Rounds);
                 return;
             }
             var answer = result.Answer.Length > 0 ? result.Answer : "这次没能整理出回答，请换个说法再问一次。";
@@ -470,6 +562,17 @@ public sealed class AssistantService(
                 await emit(new QaEvent("plan", run.Plan.State()));
             }
             if (unfinished.Count > 0) await emit(new QaEvent("unfinished", new { left = unfinished }));
+            // ⑤ 收尾卡：自查结论、按什么假设做的、还有什么没做，最后问一句加两三个按钮（点了直接发）
+            object? wrap = null;
+            if (review is not null)
+            {
+                var assumptions = review.Assumptions.Count > 0 ? review.Assumptions : [.. run.Plan.Assumptions];
+                if (checkNote is not null || assumptions.Count > 0 || review.Left.Count > 0 || review.Ask is not null)
+                {
+                    wrap = new { check = checkNote, assumptions, left = review.Left, ask = review.Ask, options = review.Options };
+                    await emit(new QaEvent("wrap", wrap));
+                }
+            }
             // 写到「回答最长」停了：界面出黄条，可以换深度再答一遍
             if (result.Truncated) await emit(new QaEvent("truncated", new { level = levelCode }));
             message.Payload = JsonSerializer.Serialize(new
@@ -477,7 +580,7 @@ public sealed class AssistantService(
                 kind = "assistant", rounds = result.Rounds, seconds = Math.Round((DateTimeOffset.UtcNow - started).TotalSeconds, 1),
                 steps = stepRows, toolsLoaded = run.Loaded.ToArray(), evidence = new { used, other }, verify, artifacts = run.Artifacts, searches = run.SearchLog,
                 level = levelCode, truncated = result.Truncated, agents = run.Agents, plan = run.Plan.Items.Count > 0 ? run.Plan.State() : null,
-                unfinished = unfinished.Count > 0 ? unfinished : null
+                unfinished = unfinished.Count > 0 ? unfinished : null, wrap
             }, Json);
             // 查过资料却一条都没用上：记成「没答上来」，进语料缺口清单
             var searched = run.Searches.Count > 0;
@@ -1893,6 +1996,53 @@ public sealed class AssistantService(
     private const int PlanStepRounds = 3, MaxPlanRounds = 30;
     /// <summary>计划里的一步调了这么多次工具还没往下走，提醒一次。</summary>
     private const int StepCallsWarn = 8;
+
+    /// <summary>开工前判断、交付前自查用的快速调用：不思考、不给工具、回答短；40 秒没回来或出错就当没有（不耽误回答）。</summary>
+    private async Task<string> QuickAsync(string system, string user, int maxTokens, CancellationToken ct)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(40));
+        try
+        {
+            var r = await new SlotClient(model).RunRoundAsync([new AgentMessage("system", system), new AgentMessage("user", user)], [],
+                new ToolRoundOptions(AllowTools: false, Think: false, MaxTokens: maxTokens, Temperature: 0.2), null, cts.Token);
+            return r.Content;
+        }
+        catch (Exception) when (!ct.IsCancellationRequested) { return ""; }
+    }
+
+    /// <summary>④ 交付前自查：系统先查出能确定的问题（计划没做完的步骤、对不上原文的数字、没成功的做文件），连同要求、计划、回答交给检查员。</summary>
+    private async Task<TaskFlow.Review> ReviewAsync(string question, Run run, LoopResult result, CancellationToken ct)
+    {
+        var found = new List<string>();
+        var left = run.Plan.Left(result.HitRoundLimit);
+        if (left.Count > 0) found.Add("计划里没做完的步骤：" + string.Join("、", left));
+        var report = CitationCheck.Verify(result.Answer, run.Evidence, run.Computed);
+        if (report.Issues.Count > 0) found.Add($"回答里有 {report.Issues.Count} 个数字在引用的原文里对不上");
+        var failed = result.Steps.Count(x => x.Status == "error" && x.Tool is "run_python" or "make_ppt");
+        if (failed > 0) found.Add($"运行代码或做文件有 {failed} 次没成功");
+        if (result.HitRoundLimit) found.Add("能用工具的轮数用完了，最后是被迫收尾的");
+        var files = run.Artifacts.Select(a => JsonSerializer.SerializeToNode(a, Json)).OfType<JsonObject>()
+            .Where(o => o["kind"]?.ToString() == "file").Select(o => o["title"]?.ToString() ?? "").Where(t => t.Length > 0).ToList();
+        return TaskFlow.ParseReview(await QuickAsync(TaskFlow.ReviewPrompt, TaskFlow.ReviewInput(question, run.Plan, result.Answer, files, found), 700, ct));
+    }
+
+    /// <summary>开工前判断时告诉判断的模型：这个人这次能让助手做哪些事。</summary>
+    private static string Capabilities(bool canDocs, bool canProjects, IReadOnlySet<string> enabled, IReadOnlySet<string> fileKinds)
+    {
+        var c = new List<string>();
+        if (canDocs) c.Add("查公司资料和标准规范");
+        if (canProjects) c.Add("查项目台账");
+        if (enabled.Contains("web_search")) c.Add("联网搜索、读网页");
+        if (enabled.Contains("run_python")) c.Add("写代码计算、作图");
+        if (fileKinds.Count > 0) c.Add("做文件（" + string.Join("、", fileKinds.Select(k => k switch { "xlsx" => "Excel", "docx" => "Word", "pptx" => "PPT", "pdf" => "PDF", _ => k })) + "）");
+        if (enabled.Contains("process_sim")) c.Add("流程模拟");
+        if (enabled.Contains("search_literature")) c.Add("查文献和专利");
+        if (enabled.Contains("browser")) c.Add("用浏览器操作网页");
+        if (enabled.Contains("search_prices")) c.Add("查价格");
+        if (enabled.Contains("delegate")) c.Add("分头查");
+        return c.Count > 0 ? string.Join("、", c) : "直接回答";
+    }
 
     private static List<AskOption> AskOptions(JsonNode? node)
     {

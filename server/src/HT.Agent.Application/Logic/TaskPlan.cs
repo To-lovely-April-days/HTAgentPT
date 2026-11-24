@@ -24,6 +24,39 @@ public sealed class TaskPlan
     public List<string> Reasons { get; } = [];
     public DateTimeOffset? Started { get; private set; }
     public bool Finished { get; private set; }
+    /// <summary>这次按什么假设做（用户没说清、按常见做法定下来的）：开工前判断时列出，界面上跟计划一起显示。</summary>
+    public List<string> Assumptions { get; } = [];
+    /// <summary>计划是系统开工前判断时列的（不是模型自己列的）。</summary>
+    public bool Seeded { get; private set; }
+
+    /// <summary>开工前系统判断出来的计划：第一步就开始做，其余没开始。</summary>
+    public void Seed(IEnumerable<string> steps, IEnumerable<string> assumptions, DateTimeOffset now)
+    {
+        Items = steps.Select(t => t.Trim()).Where(t => t.Length > 0).Take(MaxItems)
+            .Select((t, i) => new Item { Title = t.Length > 60 ? t[..60] : t, Status = i == 0 ? "now" : "todo", Started = i == 0 ? now : null }).ToList();
+        Assumptions.Clear();
+        Assumptions.AddRange(assumptions.Select(a => a.Trim()).Where(a => a.Length > 0).Take(5));
+        Started = now;
+        Seeded = Items.Count > 0;
+    }
+
+    /// <summary>存档（停下来等用户回话时随现场存，回来接着做）。</summary>
+    public sealed record Snap(List<SnapItem> Items, List<string> Assumptions, int Revisions, List<string> Reasons, DateTimeOffset? Started, bool Seeded);
+    public sealed record SnapItem(string Title, string Status, string? Note, DateTimeOffset? Started, DateTimeOffset? Ended, List<string> Steps);
+
+    public Snap? ToSnap() => Items.Count == 0 && Assumptions.Count == 0 ? null
+        : new([.. Items.Select(i => new SnapItem(i.Title, i.Status, i.Note, i.Started, i.Ended, [.. i.Steps]))], [.. Assumptions], Revisions, [.. Reasons], Started, Seeded);
+
+    public void Restore(Snap? s)
+    {
+        if (s is null) return;
+        Items = s.Items.Select(x => { var it = new Item { Title = x.Title, Status = x.Status, Note = x.Note, Started = x.Started, Ended = x.Ended }; it.Steps.AddRange(x.Steps); return it; }).ToList();
+        Assumptions.Clear(); Assumptions.AddRange(s.Assumptions);
+        Revisions = s.Revisions;
+        Reasons.Clear(); Reasons.AddRange(s.Reasons);
+        Started = s.Started;
+        Seeded = s.Seeded;
+    }
 
     public Item? Current => Items.FirstOrDefault(i => i.Status == "now");
 
@@ -92,8 +125,8 @@ public sealed class TaskPlan
     /// <summary>还没做完的步骤（给模型的提醒用）。</summary>
     public List<string> Pending() => Items.Where(i => i.Status is "todo" or "now").Select(i => i.Title).ToList();
 
-    /// <summary>回答结束：还在做的算完成；没开始的标出来——模型没报告，不替它说做了没做。</summary>
-    /// <summary>收尾：cutOff=能用工具的轮数用完了（正在做的那步也算没做完）。</summary>
+    /// <summary>回答结束：还在做的算完成；没开始的标出来——模型没报告，不替它说做了没做。
+    /// cutOff=能用工具的轮数用完了（正在做的那步也算没做完）。</summary>
     public void Finish(DateTimeOffset now, bool cutOff = false)
     {
         if (Finished) return;
@@ -111,6 +144,6 @@ public sealed class TaskPlan
     public object State() => new
     {
         items = Items.Select(i => new { title = i.Title, status = i.Status, note = i.Note, started = i.Started, ended = i.Ended, steps = i.Steps }).ToList(),
-        revisions = Revisions, reasons = Reasons, started = Started, finished = Finished,
+        revisions = Revisions, reasons = Reasons, started = Started, finished = Finished, assumptions = Assumptions,
     };
 }

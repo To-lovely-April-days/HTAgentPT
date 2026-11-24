@@ -21,10 +21,11 @@ import { Perm, unwrapLedgerTable } from '../../lib/types';
 import type {
   CaseDetailData, CaseRow, ChatAttachment, GenChatPayload, GenChatTurnResult, KbRow, LedgerTable, QaSessionRow, VocabRow,
   QaTemplateRec, QaTimeline, SessionRowT, SessionView, Source, TextTranslationResult, TicketRow,
-  AssistantStep, EvidenceCard as EvidenceRef, VerifyReport, AskSpec, ToolArtifact, AgentsCardData, PlanState, PptTemplateRow,
+  AssistantStep, EvidenceCard as EvidenceRef, VerifyReport, AskSpec, ToolArtifact, AgentsCardData, PlanState, PptTemplateRow, WrapData,
 } from '../../lib/types';
 import { AgentsCard } from './AgentsCard';
 import { PlanCard } from './PlanCard';
+import { WrapCard } from './WrapCard';
 import { RefPanel, StepsCard, VerifyBar } from './AssistantParts';
 import { ArtifactCards, AskCard, ExportBar } from './ToolCards';
 import { SideSlotCtx } from '../../Shell';
@@ -91,6 +92,7 @@ interface Msg {
   level?: string;                // 这一轮用的思考档位（fast / standard / deep）
   truncated?: boolean;           // 写到「回答最长」停了
   unfinished?: string[];         // 计划里没做完的步骤（轮数用完等）：给「接着做」
+  wrap?: WrapData;               // 多步任务的收尾卡
   agents?: AgentsCardData[];     // 分头查：每次一张，子代理的进度和结论
   plan?: PlanState | null;       // 多步任务的任务清单
 }
@@ -320,6 +322,9 @@ export default function ChatPage() {
             break;
           case 'unfinished':
             patch(id, { unfinished: (p.left as string[] | undefined) ?? [] });
+            break;
+          case 'wrap':
+            patch(id, { wrap: ev.payload as WrapData });
             break;
           case 'browser':
             // 助手在内置浏览器里开了网页：右边面板跟着打开这个标签
@@ -918,7 +923,8 @@ function AssistantMessage() {
             参考资料 {new Set(m.evidence.used.map((c) => c.docId ?? c.kind + (c.fileName ?? ''))).size} 份 · {m.evidence.used.length} 段原文<Icon name="right" size={12} className="gi" />
           </button>
         )}
-        {m.unfinished && m.unfinished.length > 0 && !m.streaming && (
+        {m.wrap && !m.streaming && <WrapCard wrap={m.wrap} unfinished={m.unfinished} active={active} onSend={sendText} />}
+        {!m.wrap && m.unfinished && m.unfinished.length > 0 && !m.streaming && (
           <div className="as-trunc" role="status">
             <Icon name="warn" size={15} stroke={2} />
             <b style={{ fontWeight: 500 }}>还有 {m.unfinished.length} 步没做完</b>
@@ -1040,10 +1046,10 @@ function restore(raw: string | null | undefined): Partial<Msg> {
       case 'assistant': {
         const a = parsed as unknown as { steps?: AssistantStep[]; evidence?: Msg['evidence']; verify?: VerifyReport; seconds?: number;
           ask?: AskSpec; answered?: string; artifacts?: ToolArtifact[]; level?: string; truncated?: boolean; agents?: AgentsCardData[]; plan?: PlanState | null;
-          unfinished?: string[] | null };
+          unfinished?: string[] | null; wrap?: WrapData | null };
         return {
           steps: a.steps ?? [], evidence: a.evidence, verify: a.verify, seconds: a.seconds ?? null, artifacts: a.artifacts,
-          level: a.level, truncated: a.truncated, agents: a.agents, plan: a.plan, unfinished: a.unfinished ?? undefined,
+          level: a.level, truncated: a.truncated, agents: a.agents, plan: a.plan, unfinished: a.unfinished ?? undefined, wrap: a.wrap ?? undefined,
           ...(a.ask ? { ask: { ...a.ask, answered: a.answered ?? null }, text: '' } : {}),
         };
       }

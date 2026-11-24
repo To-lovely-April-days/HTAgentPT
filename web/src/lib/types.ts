@@ -437,6 +437,13 @@ export interface AssistantStep {
 export interface PlanState {
   items: { title: string; status: 'todo' | 'now' | 'done' | 'skip'; note?: string | null; started?: string | null; ended?: string | null; steps: string[] }[];
   revisions: number; reasons: string[]; started?: string | null; finished: boolean;
+  /** 开工前定下的假设（用户没说清、按常见做法定的） */
+  assumptions?: string[];
+}
+
+/** 多步任务的收尾卡：自查结论、按什么假设做的、还有什么没做、最后问一句和两三个按钮。 */
+export interface WrapData {
+  check?: string | null; assumptions?: string[]; left?: string[]; ask?: string | null; options?: string[];
 }
 
 /** 通用助手的一份依据：资料切块、台账记录或附件片段。n 与回答里的 [n] 对应。 */

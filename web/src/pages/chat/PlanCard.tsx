@@ -70,6 +70,9 @@ export function PlanCard({ plan, steps, streaming, seconds }: { plan: PlanState;
       </div>
       <div className="pl-bar"><i style={{ width: `${(done / Math.max(1, plan.items.length)) * 100}%` }} /></div>
       {lastReason && live && <div className="pl-note">改了计划：{lastReason}</div>}
+      {plan.assumptions && plan.assumptions.length > 0 && (
+        <div className="pl-assume"><Icon name="bulb" size={13} className="gi l" />按这些假设做：{plan.assumptions.join('；')}</div>
+      )}
       {plan.items.map((it, i) => {
         const sub = it.steps.map((id) => byId.get(id)).filter((s): s is AssistantStep => !!s && !QUIET.has(s.tool));
         const show = peek[i] ?? it.status === 'now';

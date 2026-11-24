@@ -1646,6 +1646,16 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .pl-sub .v { font-family: var(--mono, ui-monospace, monospace); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pl-sub > div > span:last-child { flex: 0 0 auto; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pl-note { margin: 6px 14px 4px; padding: 7px 10px; border-radius: 8px; background: #fdf4e3; color: #7a4f00; font-size: 12px; line-height: 1.6; }
+.pl-assume { margin: 8px 14px 2px; font-size: 12px; line-height: 1.6; color: var(--ink-3, #6b6b68); }
+/* 多步任务的收尾卡：自查、假设、没做的、最后问一句 + 按钮 */
+.wrap-card { border: 1px solid var(--line); border-radius: 12px; background: #fff; padding: 12px 14px; margin: 10px 0; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.wrap-check { display: flex; align-items: center; gap: 6px; color: #1c6b45; font-size: 12.5px; }
+.wrap-sec b { display: block; font-weight: 600; margin-bottom: 4px; }
+.wrap-sec ul { margin: 0; padding-left: 20px; line-height: 1.7; color: var(--ink-2, #3d3d3b); }
+.wrap-ask { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.wrap-ask > span { font-weight: 500; }
+.wrap-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.wrap-btns button { height: 32px; }
 .pl-live { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-top: 1px solid #f0f0ee; font-size: 12.5px; color: #4a4a4a; background: #fcfcfb; min-width: 0; }
 .pl-live > span:nth-child(2) { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pl-pet { position: relative; flex: 0 0 auto; display: inline-block; line-height: 0; }
