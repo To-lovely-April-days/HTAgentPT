@@ -37,8 +37,10 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         Func<int>? bonusRounds = null,
         Func<IReadOnlyList<ToolCall>, string?>? progressHint = null,
         Func<string?>? limitHint = null,
-        string stepPrefix = "s")
+        string stepPrefix = "s",
+        Func<Task>? afterTools = null)
     {
+        // afterTools：每轮工具都执行完、结果写回对话后调一次（存进度：服务器中途断了，重启后能从这里接着做）
         // stepPrefix：步骤编号的前缀。同一问里再跑一遍（自查后补缺口）用别的前缀，免得和第一遍的步骤撞号。
         // progressHint：每轮工具执行完问一句（比如计划里这一步已经查了很多次），有话就附在这轮最后一个工具结果后面。
         // limitHint：轮数用完、下一轮只能直接回答时，交给模型的话（还有哪几步没做、回答里怎么交代）。
@@ -201,6 +203,7 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
             if (pausedOn is null && progressHint?.Invoke(calls) is { Length: > 0 } ph && messages[^1].Role == "tool")
                 messages[^1] = messages[^1] with { Content = messages[^1].Content + "\n（" + ph + "）" };
             Shrink(messages, compacts, options.ContextChars);
+            if (pausedOn is null && afterTools is not null) await afterTools();
             if (pausedOn is not null)
                 return new LoopResult("", round, steps, false, pausedOn, Reasoning: Clip(reasoning.ToString(), MaxReasoning), ThinkSeconds: thinkSeconds);
         }

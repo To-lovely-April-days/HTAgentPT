@@ -192,6 +192,25 @@ public class AssistantLoopTests
     }
 
     [Fact]
+    public async Task 每轮工具做完存一次进度_写最终回答那轮不存()
+    {
+        var model = new ScriptedModel(
+            new ToolRoundResult("", [new ToolCall("c1", "search_documents", "{}")], "tool_calls"),
+            new ToolRoundResult("", [new ToolCall("c2", "search_documents", "{}")], "tool_calls"),
+            new ToolRoundResult("答案", [], "stop"));
+        var msgs = new List<AgentMessage> { new("user", "q") };
+        var saves = new List<int>();
+        await new AssistantLoop(model, new AssistantLoopOptions()).RunAsync(msgs, Tools,
+            (_, _) => Task.FromResult(new ToolOutcome("结果", "结果", "搜索资料", "", null)),
+            _ => Task.CompletedTask, CancellationToken.None,
+            afterTools: () => { saves.Add(msgs.Count); return Task.CompletedTask; });
+
+        // 每次存的时候，这轮的工具结果已经写回对话（续上时不会出现「调了工具没结果」）
+        Assert.Equal([3, 5], saves);
+        Assert.Equal("tool", msgs[2].Role);
+    }
+
+    [Fact]
     public async Task 接着写最多两次_还没写完就标写到一半()
     {
         var model = new ScriptedModel(new ToolRoundResult("又一段", [], "length"));

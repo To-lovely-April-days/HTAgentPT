@@ -145,7 +145,7 @@ public class ChatController(IQaService qa, ICurrentUser me, IAuditWriter audit, 
             {
                 DomainRuleException dre => (dre.Code, dre.Message),
                 ForbiddenException fe => (fe.Code, fe.Message),
-                _ => ("INTERNAL_ERROR", "服务处理出错，本轮问答中断。请稍后重试。")
+                _ => ("INTERNAL_ERROR", "服务处理出错，这一轮中断了。可以点「接着做」从断的地方继续，或稍后重试。")
             };
             await Response.WriteAsync("event: error\n", CancellationToken.None);
             await Response.WriteAsync($"data: {JsonSerializer.Serialize(new { code, message }, JsonOpts)}\n\n", CancellationToken.None);

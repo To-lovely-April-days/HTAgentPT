@@ -92,6 +92,7 @@ interface Msg {
   level?: string;                // 这一轮用的思考档位（fast / standard / deep）
   truncated?: boolean;           // 写到「回答最长」停了
   unfinished?: string[];         // 计划里没做完的步骤（轮数用完等）：给「接着做」
+  interrupted?: boolean;         // 做到一半断了（服务器重启、出错、点了停）：做完的步骤存着，给「接着做」
   wrap?: WrapData;               // 多步任务的收尾卡
   agents?: AgentsCardData[];     // 分头查：每次一张，子代理的进度和结论
   plan?: PlanState | null;       // 多步任务的任务清单
@@ -399,13 +400,13 @@ export default function ChatPage() {
             patch(id, { text: (p.message as string) ?? '', templates: (p.templates as QaTemplateRec[] | null) ?? null });
             break;
           case 'error':
-            patch(id, { error: p.message as string });
+            patch(id, { error: p.message as string, interrupted: true });
             break;
         }
       }
       patch(id, { streaming: false });
     } catch (err) {
-      patch(id, { streaming: false, error: err instanceof ApiError ? err.message : '连接中断，本轮未完成' });
+      patch(id, { streaming: false, interrupted: true, error: err instanceof ApiError ? err.message : '连接中断，本轮未完成' });
     }
   }, [qaSessionId, scope, level, panel, webTabs, webActive, openPreview, projectId, skill, ppt, off]);
 
@@ -936,6 +937,18 @@ function AssistantMessage() {
             )}
           </div>
         )}
+        {m.interrupted && !m.streaming && !m.ask && (
+          <div className="as-trunc" role="status">
+            <Icon name="warn" size={15} stroke={2} />
+            <b style={{ fontWeight: 500 }}>这一轮做到一半断了</b>
+            <span className="hint">{m.steps && m.steps.length > 0 ? `做完的 ${m.steps.length} 步已经存下，接着做不用重查` : '可以接着做'}</span>
+            {isLast && (
+              <button type="button" className="gbtn" disabled={busy}
+                onClick={() => sendText('接着做：从中断的地方继续，前面查到的直接用，不用重新查。')}>
+                <Icon name="play" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />接着做</button>
+            )}
+          </div>
+        )}
         {m.truncated && !m.streaming && (
           <div className="as-trunc" role="status">
             <Icon name="warn" size={15} stroke={2} /><b style={{ fontWeight: 500 }}>回答太长，写到一半停了</b>
@@ -1046,10 +1059,11 @@ function restore(raw: string | null | undefined): Partial<Msg> {
       case 'assistant': {
         const a = parsed as unknown as { steps?: AssistantStep[]; evidence?: Msg['evidence']; verify?: VerifyReport; seconds?: number;
           ask?: AskSpec; answered?: string; artifacts?: ToolArtifact[]; level?: string; truncated?: boolean; agents?: AgentsCardData[]; plan?: PlanState | null;
-          unfinished?: string[] | null; wrap?: WrapData | null };
+          unfinished?: string[] | null; wrap?: WrapData | null; interrupted?: boolean; resumed?: string };
         return {
           steps: a.steps ?? [], evidence: a.evidence, verify: a.verify, seconds: a.seconds ?? null, artifacts: a.artifacts,
           level: a.level, truncated: a.truncated, agents: a.agents, plan: a.plan, unfinished: a.unfinished ?? undefined, wrap: a.wrap ?? undefined,
+          interrupted: !!a.interrupted && !a.resumed,
           ...(a.ask ? { ask: { ...a.ask, answered: a.answered ?? null }, text: '' } : {}),
         };
       }

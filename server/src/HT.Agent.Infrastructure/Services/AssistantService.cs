@@ -80,6 +80,9 @@ public sealed class AssistantService(
     /// <summary>等用户回话时存下来的现场：对话（含已查到的资料）、等着填结果的那次调用、依据编号表。</summary>
     public record PendingState(List<AgentMessage> Messages, string CallId, RunState Run, PendingBrowser? Browser = null);
 
+    /// <summary>做到一半存下的进度：对话（含已查到的资料、做完的工具调用）和依据编号表、计划。服务器中途断了，用户说「接着做」就从这里续上。</summary>
+    public record Checkpoint(List<AgentMessage> Messages, RunState Run);
+
     /// <summary>停下来等用户确认的网页操作（点「提交」这类）：用户确认了由系统去点。</summary>
     public record PendingBrowser(string Tab, string Action, int N, string? Text, string? Value, string Label);
 
@@ -278,6 +281,10 @@ public sealed class AssistantService(
         List<AgentMessage> messages;
         // 上一轮在等用户确认：这句话就是回答，接着上次的现场跑——前面查到的不重来，编号也接着用
         var pending = await PendingAsync(session.Id, ct);
+        // 上一轮做到一半断了（服务器重启、出错、用户点了停）：用户说「接着做」就从存下的进度续上；问别的就不续，存的进度删掉省空间
+        var interrupted = pending is null ? await InterruptedAsync(session.Id, ct) : null;
+        var resume = interrupted is not null && TaskFlow.WantsResume(req.Question) ? interrupted : null;
+        if (interrupted is not null && resume is null) interrupted.Value.Message.Payload = DropCheckpoint(interrupted.Value.Message.Payload!, null);
         if (pending is not null)
         {
             run = Run.From(pending.Value.State.Run);
@@ -289,6 +296,17 @@ public sealed class AssistantService(
                 : $"用户的回答：{req.Question}";
             messages.Add(new AgentMessage("tool", answerText, ToolCallId: pending.Value.State.CallId));
             pending.Value.Message.Payload = ResolvePending(pending.Value.Message.Payload!, req.Question);
+        }
+        else if (resume is not null)
+        {
+            run = Run.From(resume.Value.State.Run);
+            for (var i = 0; i < mems.Count; i++) run.MemoryRefs[$"M{i + 1}"] = mems[i].Id;
+            messages = resume.Value.State.Messages;
+            run.SessionId = session.Id;
+            var note = TaskFlow.ResumeNote(req.Question);
+            if (messages.Count > 0 && messages[^1].Role == "user") messages[^1] = messages[^1] with { Content = messages[^1].Content + "\n\n" + note };
+            else messages.Add(new AgentMessage("user", note));
+            resume.Value.Message.Payload = DropCheckpoint(resume.Value.Message.Payload!, req.Question);
         }
         else
         {
@@ -342,7 +360,7 @@ public sealed class AssistantService(
         // 快速档、等用户回话接着做的、没开「列计划」的不判断
         var flowOn = (await config.GetStringAsync(ConfigKeys.AssistantFlow, "on", ct)).Trim().Equals("on", StringComparison.OrdinalIgnoreCase);
         var triage = TaskFlow.Triage.Direct;
-        if (flowOn && pending is null && choice.Level != ThinkLevel.Fast && enabled.Contains("plan"))
+        if (flowOn && pending is null && resume is null && choice.Level != ThinkLevel.Fast && enabled.Contains("plan"))
         {
             var history = messages.Skip(1).SkipLast(1).Where(m => m.Role is "user" or "assistant" && m.ToolCalls is null).Select(m => (m.Role, m.Content ?? ""));
             triage = TaskFlow.ParseTriage(await QuickAsync(TaskFlow.TriagePrompt(Capabilities(canDocs, canProjects, enabled, fileKinds)),
@@ -357,6 +375,7 @@ public sealed class AssistantService(
                 await emit(new QaEvent("plan", run.Plan.State()));
             }
         }
+        if (resume is not null && run.Plan.Items.Count > 0) await emit(new QaEvent("plan", run.Plan.State()));   // 接着做：上次的计划接着亮
         var topK = Math.Clamp(await config.GetIntAsync(ConfigKeys.AssistantSearchTopK, 6, ct), 2, 12);
 
         var message = new QaMessage
@@ -367,6 +386,25 @@ public sealed class AssistantService(
         var answerSoFar = new StringBuilder();
         var saved = false;
         LoopResult? result = null;
+        // 做一步存一次：开工就存一条，每轮工具做完更新它。服务器中途断了，历史里看得到做完的步骤，说「接着做」从这里续上
+        var inserted = false;
+        var liveSteps = new List<object>();
+        var liveIdx = new Dictionary<string, int>();
+        string ProgressPayload() => JsonSerializer.Serialize(new
+        {
+            kind = "assistant", interrupted = true, steps = liveSteps, toolsLoaded = run.Loaded.ToArray(), artifacts = run.Artifacts,
+            level = ThinkLevels.Code(choice.Level), agents = run.Agents, plan = run.Plan.Items.Count > 0 ? run.Plan.State() : null,
+            checkpoint = new Checkpoint(messages, run.ToState())
+        }, Json);
+        async Task SaveProgressAsync(CancellationToken c)
+        {
+            message.Answer = answerSoFar.ToString();
+            message.Payload = ProgressPayload();
+            if (!inserted) { db.QaMessages.Add(message); inserted = true; }
+            session.UpdatedAt = DateTimeOffset.UtcNow;
+            try { await db.SaveChangesAsync(c); }
+            catch (Exception ex) when (ex is not OperationCanceledException) { /* 存进度失败不耽误回答，最后还会再存 */ }
+        }
 
         // 停下来请用户确认：存下现场（对话、计划、依据编号），用户回话后接着做
         async Task AskAndStopAsync(AskSpec ask, string callId, List<object> stepRows, int rounds)
@@ -381,7 +419,7 @@ public sealed class AssistantService(
                 ask = new { question = ask.Question, options = ask.Options, multiple = ask.Multiple, more = ask.More },
                 pending = new PendingState(messages, callId, run.ToState(), run.PendingBrowser)
             }, Json);
-            db.QaMessages.Add(message);
+            if (!inserted) { db.QaMessages.Add(message); inserted = true; }
             session.UpdatedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(ct);
             saved = true;
@@ -409,6 +447,7 @@ public sealed class AssistantService(
 
         try
         {
+            await SaveProgressAsync(ct);
             var loop = new AssistantLoop(new SlotClient(model), options);
             var files = attachmentFiles.Select(a => (a.Id, a.FileName, a.Chunks)).ToList();
             string? stepTitle = null;   // 计划里正在做的那一步，和它调了几次工具
@@ -434,6 +473,13 @@ public sealed class AssistantService(
                     await LogStartAsync();
                     if (e.Kind == "delta" && e.Payload.GetType().GetProperty("text")?.GetValue(e.Payload) is string t) answerSoFar.Append(t);
                     if (e.Kind == "replace") { answerSoFar.Clear(); if (e.Payload.GetType().GetProperty("text")?.GetValue(e.Payload) is string r) answerSoFar.Append(r); }
+                    // 做完（或出错）的步骤记下来，存进度时一起存
+                    if (e.Kind == "step" && e.Payload.GetType().GetProperty("status")?.GetValue(e.Payload) is "done" or "error"
+                        && e.Payload.GetType().GetProperty("id")?.GetValue(e.Payload) is string lid && lid != "t0")
+                    {
+                        if (liveIdx.TryGetValue(lid, out var ix)) liveSteps[ix] = e.Payload;
+                        else { liveIdx[lid] = liveSteps.Count; liveSteps.Add(e.Payload); }
+                    }
                     // 工具开始时挂到计划里正在做的那一步
                     if (e.Kind == "step" && run.Plan.Items.Count > 0 && e.Payload.GetType().GetProperty("status")?.GetValue(e.Payload) as string == "running"
                         && e.Payload.GetType().GetProperty("id")?.GetValue(e.Payload) is string sid && e.Payload.GetType().GetProperty("tool")?.GetValue(e.Payload) is string stool)
@@ -466,7 +512,8 @@ public sealed class AssistantService(
                 limitHint: () => run.Plan.Left(true) is { Count: > 0 } left
                     ? $"能用工具的轮数用完了，这一轮不能再查、也不能再做文件。计划里还没做的：{string.Join("、", left)}。用已经查到的写回答；没做的几步在回答末尾列出来，告诉用户点「接着做」可以继续。"
                     : "能用工具的轮数用完了，这一轮不能再查。用已经查到的写回答，没查到的写明。",
-                stepPrefix: prefix);
+                stepPrefix: prefix,
+                afterTools: () => SaveProgressAsync(ct));
             try
             {
             result = await RunLoopAsync(loop, "s");
@@ -594,7 +641,7 @@ public sealed class AssistantService(
             var searched = run.Searches.Count > 0;
             if (searched && cited.Count == 0)
                 message.NoResultHints = JsonSerializer.Serialize(run.Searches.Distinct().Take(10).ToList());
-            db.QaMessages.Add(message);
+            if (!inserted) { db.QaMessages.Add(message); inserted = true; }
             // 系统自己发现的问题，进后台「回答质量」：查了资料却一条没用上；回答里的数字在原文里核对不上
             if (searched && cited.Count == 0) db.AnswerIssues.Add(SystemIssue(message.Id, IssueSource.NoEvidence));
             if (report.Issues.Count > 0) db.AnswerIssues.Add(SystemIssue(message.Id, IssueSource.Unverified));
@@ -613,14 +660,14 @@ public sealed class AssistantService(
         finally
         {
             browserActivity.EndAll(session.Id.ToString("N"));   // 这一轮答完：网页上的小人都停下
-            // 断连兜底：已经出来一部分正文，存下来，历史里看得到
-            if (!saved && answerSoFar.Length > 0)
+            // 中途断了（出错、连接断了、用户点了停）：把最新的进度存下来——做完的步骤、写出来的部分，说「接着做」从这里续上
+            if (!saved && (inserted || answerSoFar.Length > 0))
             {
-                message.Answer = answerSoFar + "\n\n[回答因连接中断而不完整]";
-                message.Payload = JsonSerializer.Serialize(new { kind = "assistant", interrupted = true }, Json);
-                db.QaMessages.Add(message);
+                message.Answer = answerSoFar.ToString();
+                message.Payload = ProgressPayload();
+                if (!inserted) { db.QaMessages.Add(message); inserted = true; }
                 session.UpdatedAt = DateTimeOffset.UtcNow;
-                try { await db.SaveChangesAsync(CancellationToken.None); } catch (DbUpdateException) { /* 尽力而为 */ }
+                try { await db.SaveChangesAsync(CancellationToken.None); } catch (Exception ex) when (ex is not OperationCanceledException) { /* 尽力而为 */ }
             }
         }
     }
@@ -782,7 +829,8 @@ public sealed class AssistantService(
         foreach (var h in history)
         {
             list.Add(new AgentMessage("user", Clip(h.Question, 800)));
-            list.Add(new AgentMessage("assistant", Clip(Regex.Replace(h.Answer ?? "", @"\[\d{1,3}(?:\s*[,，、]\s*\d{1,3})*\]", ""), 1500)));
+            var said = Regex.Replace(h.Answer ?? "", @"\[\d{1,3}(?:\s*[,，、]\s*\d{1,3})*\]", "");
+            list.Add(new AgentMessage("assistant", said.Trim().Length > 0 ? Clip(said, 1500) : "（这一轮做到一半中断了，没写出回答）"));
         }
         return list;
     }
@@ -2518,6 +2566,29 @@ public sealed class AssistantService(
             return st is null ? null : (last, st);
         }
         catch (JsonException) { return null; }
+    }
+
+    /// <summary>这条对话最后一条消息若是做到一半断了的，取出存下的进度。</summary>
+    private async Task<(QaMessage Message, Checkpoint State)?> InterruptedAsync(Guid sessionId, CancellationToken ct)
+    {
+        var last = await db.QaMessages.Where(m => m.SessionId == sessionId).OrderByDescending(m => m.At).FirstOrDefaultAsync(ct);
+        if (last?.Payload is null || !last.Payload.Contains("\"checkpoint\"")) return null;
+        try
+        {
+            if ((JsonNode.Parse(last.Payload) as JsonObject)?["checkpoint"] is not JsonObject cp) return null;
+            var st = cp.Deserialize<Checkpoint>(Json);
+            return st is null || st.Messages.Count == 0 ? null : (last, st);
+        }
+        catch (JsonException) { return null; }
+    }
+
+    /// <summary>进度用过了（接着做了）或不用了（问了别的）：去掉存的进度省空间；接着做的记下用户那句话。</summary>
+    private static string DropCheckpoint(string payload, string? resumedWith)
+    {
+        var node = JsonNode.Parse(payload) as JsonObject ?? new JsonObject();
+        node.Remove("checkpoint");
+        if (resumedWith is not null) node["resumed"] = resumedWith;
+        return node.ToJsonString(Json);
     }
 
     /// <summary>确认已回答：去掉存的现场（省空间），记下用户选了什么。</summary>

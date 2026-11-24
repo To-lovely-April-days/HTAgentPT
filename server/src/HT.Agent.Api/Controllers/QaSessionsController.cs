@@ -37,16 +37,31 @@ public class QaSessionsController(AppDbContext db, ICurrentUser me) : Controller
         return NoContent();
     }
 
+    /// <summary>存给助手自己用的现场（等用户确认时的 pending、做到一半存的 checkpoint：整段对话、系统提示词、查到的原文）不发给界面：又大又用不上。</summary>
+    private static string? ForClient(string? payload)
+    {
+        if (payload is null || !(payload.Contains("\"pending\"") || payload.Contains("\"checkpoint\""))) return payload;
+        try
+        {
+            if (System.Text.Json.Nodes.JsonNode.Parse(payload) is not System.Text.Json.Nodes.JsonObject o) return payload;
+            if (o["pending"] is not null) { o.Remove("pending"); o["waiting"] = true; }
+            o.Remove("checkpoint");
+            return o.ToJsonString();
+        }
+        catch (System.Text.Json.JsonException) { return payload; }
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Messages(Guid id, CancellationToken ct)
     {
         var owns = await db.QaSessions.AnyAsync(s => s.Id == id && s.UserId == me.UserId, ct);
         if (!owns) return NotFound();
-        return Ok(await db.QaMessages.AsNoTracking()
+        var rows = await db.QaMessages.AsNoTracking()
             .Where(m => m.SessionId == id)
             .OrderBy(m => m.At)
             .Select(m => new { m.Id, m.Question, m.RewrittenQuery, m.Answer, m.Sources, m.Payload, m.Intent, m.NoResultHints, m.Helpful, m.At })
-            .ToListAsync(ct));
+            .ToListAsync(ct);
+        return Ok(rows.Select(m => m with { Payload = ForClient(m.Payload) }));
     }
 
     /// <summary>一条对话的完整时间线：问答的轮次 + 这条对话里起过的生成会话的轮次，按时间并成一串。
@@ -79,7 +94,7 @@ public class QaSessionsController(AppDbContext db, ICurrentUser me) : Controller
         foreach (var m in qa)
         {
             turns.Add(new Turn("qa", $"q{m.Id}", "user", m.Question, null, null, null, null, m.At));
-            turns.Add(new Turn("qa", $"a{m.Id}", "assistant", m.Answer ?? "", m.Sources, m.Payload, null, null, m.At, m.Intent,
+            turns.Add(new Turn("qa", $"a{m.Id}", "assistant", m.Answer ?? "", m.Sources, ForClient(m.Payload), null, null, m.At, m.Intent,
                 m.Id, m.Helpful, m.FeedbackReason));
         }
         var nameOf = gens.ToDictionary(g => g.Id, g => g.TemplateName);

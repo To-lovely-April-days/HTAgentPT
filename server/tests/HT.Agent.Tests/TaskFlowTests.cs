@@ -1,4 +1,5 @@
 using System.Text.Json;
+using HT.Agent.Application.Abstractions;
 using HT.Agent.Application.Logic;
 
 namespace HT.Agent.Tests;
@@ -106,5 +107,43 @@ public class TaskFlowTests
         Assert.Equal(["按内部风格"], back.Assumptions);
         Assert.True(back.Seeded);
         Assert.Null(new TaskPlan().ToSnap());
+    }
+
+    [Theory]
+    [InlineData("接着做：从中断的地方继续", true)]
+    [InlineData("继续", true)]
+    [InlineData("（接着做）", true)]
+    [InlineData("Continue please", true)]
+    [InlineData("压力容器怎么设计", false)]
+    [InlineData("我想接着问一下封头", false)]
+    public void 只有说接着做才从存下的进度续上(string q, bool expected) => Assert.Equal(expected, TaskFlow.WantsResume(q));
+
+    [Fact]
+    public void 续上时告诉助手前面查到的直接用()
+    {
+        var note = TaskFlow.ResumeNote("接着做");
+        Assert.Contains("不要重新查", note);
+        Assert.EndsWith("用户说：接着做", note);
+    }
+
+    [Fact]
+    public void 存下的进度能原样读回_工具调用和结果都在()
+    {
+        var json = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        var plan = new TaskPlan();
+        plan.Seed(["查标准", "算厚度"], ["按 Q345R"], DateTimeOffset.UtcNow);
+        var cp = new HT.Agent.Infrastructure.Services.AssistantService.Checkpoint(
+            [new("system", "s"), new("user", "q"), new("assistant", "", [new ToolCall("c1", "search_documents", "{\"q\":\"GB/T 150\"}")]), new("tool", "[1] 原文", ToolCallId: "c1")],
+            new([], new() { ["k"] = 1 }, new(), [3.29], ["GB/T 150"], 2, plan.ToSnap()));
+        var back = System.Text.Json.JsonSerializer.Deserialize<HT.Agent.Infrastructure.Services.AssistantService.Checkpoint>(
+            System.Text.Json.JsonSerializer.Serialize(cp, json), json)!;
+
+        Assert.Equal(4, back.Messages.Count);
+        Assert.Equal("search_documents", back.Messages[2].ToolCalls![0].Name);
+        Assert.Equal("c1", back.Messages[3].ToolCallId);
+        Assert.Equal(2, back.Run.NextN);
+        var restored = new TaskPlan();
+        restored.Restore(back.Run.Plan);
+        Assert.Equal(["查标准", "算厚度"], restored.Items.Select(i => i.Title));
     }
 }

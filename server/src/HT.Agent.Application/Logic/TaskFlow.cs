@@ -143,6 +143,20 @@ public static class TaskFlow
            + "\n现在就补，不要问用户：能补的用工具补上（要交付文件的就用工具把文件做出来，不要把内容写在回答里代替；计划里对应的步骤用 plan 标 now、做完标 done），"
            + "然后把完整的最终回答重新写一遍（不要只写补了什么）；实在补不了的在回答里如实写明。";
 
+    // ── 中断后接着做 ─────────────────────────────────────
+
+    /// <summary>用户这句是不是要接着上次没做完的（「接着做」「继续」……）。问别的就不续，免得把旧现场套到新问题上。</summary>
+    public static bool WantsResume(string question)
+    {
+        var q = question.Trim().TrimStart('（', '(', '【', '[').ToLowerInvariant();
+        return q.StartsWith("接着") || q.StartsWith("继续") || q.StartsWith("continue");
+    }
+
+    /// <summary>从存下的进度续上时，附在对话最后交给助手的话。</summary>
+    public static string ResumeNote(string question)
+        => "（上一轮做到一半中断了：服务器重启、出错或用户点了停。上面是中断前已经做完的步骤和查到的结果，直接用，不要重新查；"
+           + "计划里没做完的接着做（用 plan 标 now / done），做完写完整的最终回答。）\n用户说：" + Clip(question.Trim(), 1500);
+
     // ── 工具 ─────────────────────────────────────────────
 
     /// <summary>模型交回的文字里找出 JSON 对象（可能包在 ```json 里、前后带几句话）。</summary>
