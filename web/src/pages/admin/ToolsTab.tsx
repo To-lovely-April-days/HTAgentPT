@@ -174,6 +174,7 @@ function KeepDays({ value, onSave }: { value: string; onSave: (v: string) => voi
 }
 
 const ENGINES = [['bing', '必应'], ['baidu', '百度'], ['sogou', '搜狗'], ['360search', '360']] as const;
+const ENGINE_NAME: Record<string, string> = Object.fromEntries(ENGINES);
 
 /** 内置浏览器：允许打开的内网地址（默认内网一律拦）、不让打开的网站（网银、支付类默认已拦）。 */
 function BrowserPanel({ cfg, onClose, onSave }: { cfg: Record<string, string>; onClose: () => void; onSave: (v: Record<string, string>) => Promise<void> }) {
@@ -206,7 +207,7 @@ function SettingsPanel({ kind, cfg, onClose, onSave }: {
   kind: 'search' | 'sandbox'; cfg: Record<string, string>; onClose: () => void; onSave: (v: Record<string, string>) => Promise<void>;
 }) {
   const [url, setUrl] = useState(kind === 'search' ? cfg['assistant.searx_url'] ?? 'http://searxng:8080' : cfg['assistant.sandbox_url'] ?? 'http://sandbox:8000');
-  const [engines, setEngines] = useState((cfg['assistant.searx_engines'] ?? 'bing,baidu,sogou').split(',').filter(Boolean));
+  const [engines, setEngines] = useState((cfg['assistant.searx_engines'] ?? 'bing,360search,baidu,sogou').split(',').filter(Boolean));
   const [timeout, setTimeoutS] = useState(cfg['assistant.sandbox_timeout'] ?? '30');
   const [q, setQ] = useState('哈氏合金 C276 耐盐酸腐蚀');
   const [test, setTest] = useState<{ ok: boolean; text: string } | null>(null);
@@ -215,10 +216,13 @@ function SettingsPanel({ kind, cfg, onClose, onSave }: {
     setBusy(true); setTest(null);
     try {
       await onSave({ 'assistant.searx_url': url, 'assistant.searx_engines': engines.join(',') });
-      const r = await post<{ ok: boolean; seconds?: number; count?: number; engines?: Record<string, number>; error?: string; redacted?: boolean; query: string }>('/api/ops/tools/test-search', { query: q });
+      const r = await post<{ ok: boolean; seconds?: number; count?: number; engines?: Record<string, number>; error?: string; redacted?: boolean; query: string;
+        failed?: { engine: string; reason: string }[] }>('/api/ops/tools/test-search', { query: q });
+      // 没响应的引擎（被拦截、引擎出错）单独列出来，管理员看了决定留哪几个
+      const bad = (r.failed ?? []).length > 0 ? ` · 没响应：${(r.failed ?? []).map((f) => `${ENGINE_NAME[f.engine] ?? f.engine}（${f.reason || '出错'}）`).join('、')}` : '';
       setTest(r.ok
-        ? { ok: true, text: `${r.seconds} 秒 · 返回 ${r.count} 条（${Object.entries(r.engines ?? {}).map(([k, v]) => `${k} ${v}`).join(' · ')}）${r.redacted ? ` · 发出去的是「${r.query}」` : ''}` }
-        : { ok: false, text: `没搜到：${r.error ?? '搜索服务没有返回结果'}` });
+        ? { ok: true, text: `${r.seconds} 秒 · 返回 ${r.count} 条（${Object.entries(r.engines ?? {}).map(([k, v]) => `${ENGINE_NAME[k] ?? k} ${v}`).join(' · ')}）${bad}${r.redacted ? ` · 发出去的是「${r.query}」` : ''}` }
+        : { ok: false, text: `没搜到：${r.error ?? '搜索服务没有返回结果'}${bad}` });
     } catch (err) { setTest({ ok: false, text: err instanceof ApiError ? err.message : '测试失败' }); }
     finally { setBusy(false); }
   };

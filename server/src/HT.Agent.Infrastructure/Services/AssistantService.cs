@@ -1754,14 +1754,22 @@ public sealed class AssistantService(
                 var raw = S("query") ?? req.Question;
                 var (q, changed) = await RedactAsync(raw, ct);
                 var url = await config.GetStringAsync(ConfigKeys.SearxUrl, "http://searxng:8080", ct);
-                var engines = await config.GetStringAsync(ConfigKeys.SearxEngines, "bing,baidu,sogou", ct);
+                var engines = await config.GetStringAsync(ConfigKeys.SearxEngines, DefaultSearxEngines, ct);
                 IReadOnlyList<Clients.SearxClient.Hit> hits;
-                try { hits = await searx.SearchAsync(url, q, engines, 8, ct); }
+                IReadOnlyList<(string Engine, string Reason)> engineFails;
+                try { (hits, engineFails) = await searx.SearchWithStatusAsync(url, q, engines, 8, ct); }
                 catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
                 {
                     return new ToolOutcome("联网搜索现在用不了（搜索服务连不上或被临时拦截），请根据已有信息回答，并说明没能联网核实。", "搜索不可用", label, q, "搜索不可用", Failed: true);
                 }
-                if (hits.Count == 0) return new ToolOutcome($"没搜到「{q}」的结果（可能被搜索引擎临时拦截）。换一两个说法还搜不到，就别再搜了，用已有的信息往下做。", "没搜到", label, q, "没搜到", Empty: true);
+                // 用的引擎全都没响应：是搜索服务被拦了、或者引擎出错，换说法也没用
+                var asked = engines.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (hits.Count == 0 && asked.Length > 0 && asked.All(e => engineFails.Any(f => f.Engine.Equals(e, StringComparison.OrdinalIgnoreCase))))
+                {
+                    return new ToolOutcome("联网搜索现在用不了（搜索引擎都没有响应，可能被拦截了）。别再搜了：用公司内部资料和已有信息回答，并说明没能联网核实。",
+                        "搜索不可用", label, q, "搜索引擎没响应", Failed: true);
+                }
+                if (hits.Count == 0) return new ToolOutcome($"没搜到「{q}」的结果。换一两个说法还搜不到，就别再搜了，用已有的信息往下做。", "没搜到", label, q, "没搜到", Empty: true);
                 var sb = new StringBuilder(changed ? "（搜索词里的内部信息已被替换为泛称）\n" : "");
                 var compact = new StringBuilder();
                 foreach (var h in hits)
@@ -1877,6 +1885,9 @@ public sealed class AssistantService(
             score = e.Score, text, highlights = hl.Select(h => new { start = h.Start, length = h.Length }).ToList()
         };
     }
+
+    /// <summary>联网搜索默认用的引擎（后台「工具 → 联网搜索」可以改）。</summary>
+    public const string DefaultSearxEngines = "bing,360search,baidu,sogou";
 
     /// <summary>列了计划的，每一步多给几轮；总轮数封顶。</summary>
     private const int PlanStepRounds = 3, MaxPlanRounds = 30;

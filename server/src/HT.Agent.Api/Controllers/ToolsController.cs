@@ -133,10 +133,13 @@ public class ToolsController(AppDbContext db, IRuntimeConfig config, SandboxClie
         var (q, changed) = Redactor.Redact(b.Query ?? "", names, [], await config.GetStringAsync(ConfigKeys.IntentProjectNoPattern, "", ct));
         try
         {
-            var hits = await searx.SearchAsync(await config.GetStringAsync(ConfigKeys.SearxUrl, "http://searxng:8080", ct), q,
-                await config.GetStringAsync(ConfigKeys.SearxEngines, "bing,baidu,sogou", ct), 8, ct);
-            return Ok(new { ok = true, query = q, redacted = changed, seconds = Math.Round(sw.Elapsed.TotalSeconds, 1), count = hits.Count,
-                engines = hits.GroupBy(h => h.Engine).ToDictionary(g => g.Key, g => g.Count()), hits = hits.Take(3) });
+            var engines = await config.GetStringAsync(ConfigKeys.SearxEngines, HT.Agent.Infrastructure.Services.AssistantService.DefaultSearxEngines, ct);
+            var (hits, fails) = await searx.SearchWithStatusAsync(await config.GetStringAsync(ConfigKeys.SearxUrl, "http://searxng:8080", ct), q, engines, 8, ct);
+            // 每个引擎各返回几条、哪几个没响应（被拦、出错）：管理员据此决定留哪几个
+            return Ok(new { ok = hits.Count > 0, query = q, redacted = changed, seconds = Math.Round(sw.Elapsed.TotalSeconds, 1), count = hits.Count,
+                engines = hits.GroupBy(h => h.Engine).ToDictionary(g => g.Key, g => g.Count()), hits = hits.Take(3),
+                failed = fails.Select(f => new { engine = f.Engine, reason = f.Reason }),
+                error = hits.Count == 0 ? (fails.Count > 0 ? "搜索引擎都没返回结果" : "搜索服务没有返回结果") : null });
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {

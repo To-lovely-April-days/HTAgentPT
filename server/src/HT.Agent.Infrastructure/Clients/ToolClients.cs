@@ -213,19 +213,36 @@ public class SearxClient(IHttpClientFactory http)
 {
     public record Hit(string Title, string Url, string Snippet, string Engine);
 
+    /// <summary>Failed：这次没响应、报错的搜索引擎和原因（被拦截、引擎本身出错）。全挂了和「真没搜到」要分开说。</summary>
+    public record Result(IReadOnlyList<Hit> Hits, IReadOnlyList<(string Engine, string Reason)> Failed);
+
     public async Task<IReadOnlyList<Hit>> SearchAsync(string baseUrl, string query, string engines, int take, CancellationToken ct)
+        => (await SearchWithStatusAsync(baseUrl, query, engines, take, ct)).Hits;
+
+    public async Task<Result> SearchWithStatusAsync(string baseUrl, string query, string engines, int take, CancellationToken ct)
     {
         var url = $"{baseUrl.TrimEnd('/')}/search?format=json&language=zh-CN&safesearch=0&q={Uri.EscapeDataString(query)}"
                   + (string.IsNullOrWhiteSpace(engines) ? "" : $"&engines={Uri.EscapeDataString(engines)}");
         using var doc = JsonDocument.Parse(await http.CreateClient("tools").GetStringAsync(url, ct));
-        if (!doc.RootElement.TryGetProperty("results", out var results)) return [];
-        return results.EnumerateArray().Select(r => new Hit(
+        return Parse(doc.RootElement, take);
+    }
+
+    public static Result Parse(JsonElement root, int take)
+    {
+        var failed = new List<(string, string)>();
+        if (root.TryGetProperty("unresponsive_engines", out var un) && un.ValueKind == JsonValueKind.Array)
+            foreach (var x in un.EnumerateArray())
+                if (x.ValueKind == JsonValueKind.Array && x.GetArrayLength() > 0)
+                    failed.Add((x[0].GetString() ?? "", x.GetArrayLength() > 1 ? x[1].GetString() ?? "" : ""));
+        if (!root.TryGetProperty("results", out var results) || results.ValueKind != JsonValueKind.Array) return new Result([], failed);
+        var hits = results.EnumerateArray().Select(r => new Hit(
                 r.TryGetProperty("title", out var t) ? t.GetString() ?? "" : "",
                 r.TryGetProperty("url", out var u) ? u.GetString() ?? "" : "",
                 r.TryGetProperty("content", out var c) ? c.GetString() ?? "" : "",
                 r.TryGetProperty("engine", out var e) ? e.GetString() ?? "" : ""))
             .Where(h => h.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
             .DistinctBy(h => h.Url).Take(take).ToList();
+        return new Result(hits, failed);
     }
 }
 

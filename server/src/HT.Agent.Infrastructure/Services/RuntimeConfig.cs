@@ -85,7 +85,7 @@ public class RuntimeConfig(IServiceScopeFactory scopeFactory, IMemoryCache cache
         [ConfigKeys.DwsimFilesDir] = "/dwsim-files",
         [ConfigKeys.SandboxTimeout] = "30",
         [ConfigKeys.SearxUrl] = "http://searxng:8080",
-        [ConfigKeys.SearxEngines] = "bing,baidu,sogou",
+        [ConfigKeys.SearxEngines] = AssistantService.DefaultSearxEngines,
         [ConfigKeys.HazchemFile] = "hazchem.csv",
         [ConfigKeys.MemoryEnabled] = "on",
         [ConfigKeys.MemoryMax] = "50",
