@@ -28,6 +28,26 @@ public record ToolRoundResult(string Content, IReadOnlyList<ToolCall> ToolCalls,
 /// <summary>模型端不支持工具调用（vLLM 没开 --enable-auto-tool-choice 之类）。调用方据此退回老问答流程。</summary>
 public class ToolCallingUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
 
+/// <summary>发过去的内容超出了模型服务的上下文长度（vLLM 返回 400 并报出上限和这次实际有多少）。
+/// 回合循环据此按实际数字重估、把早先的内容压短再发一次。数字报不出来时为 0。</summary>
+public class ContextOverflowException(string message, int contextTokens, int promptTokens)
+    : HttpRequestException(message, null, System.Net.HttpStatusCode.BadRequest)
+{
+    public int ContextTokens { get; } = contextTokens;
+    public int PromptTokens { get; } = promptTokens;
+
+    /// <summary>认出模型服务报的「超出上下文」，取出上限和这次的输入长度。不是这类错误返回 null。</summary>
+    public static ContextOverflowException? TryParse(string error)
+    {
+        if (!System.Text.RegularExpressions.Regex.IsMatch(error, @"maximum context length|context length exceeded|context_length_exceeded|too many tokens|exceeds? the (?:model'?s? )?(?:maximum )?context", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            return null;
+        static int Num(string s, string pattern)
+            => System.Text.RegularExpressions.Regex.Match(s, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase) is { Success: true } m && int.TryParse(m.Groups[1].Value, out var n) ? n : 0;
+        return new ContextOverflowException($"超出模型上下文长度：{(error.Length > 300 ? error[..300] : error)}",
+            Num(error, @"maximum context length is (\d+)"), Num(error, @"(?:prompt contains|messages resulted in) (?:at least )?(\d+)"));
+    }
+}
+
 /// <summary>通用助手的一份依据（可被回答引用的最小单位）：资料切块、台账记录或对话附件片段。
 /// N 是这次回答里的编号，回答写 [N]，右侧参考资料按 N 对应。</summary>
 public record EvidenceItem(

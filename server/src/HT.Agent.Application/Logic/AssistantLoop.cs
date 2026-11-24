@@ -20,7 +20,8 @@ public record LoopResult(string Answer, int Rounds, IReadOnlyList<StepRecord> St
 
 /// <summary>ContextTokens：模型服务的上下文长度（0=不知道）。知道时每轮按已用的估一下，回答上限不超出剩下的，免得模型服务直接拒掉。</summary>
 public record AssistantLoopOptions(int MaxRounds = 6, bool Think = true, int MaxTokens = 6000, double Temperature = 0.2, int ContextChars = 40000,
-    string? Effort = null, double? TopP = null, int? TopK = null, double? PresencePenalty = null, int ContextTokens = 0);
+    string? Effort = null, double? TopP = null, int? TopK = null, double? PresencePenalty = null, int ContextTokens = 0,
+    double CharsPerToken = 1.3);
 
 /// <summary>通用助手的回合循环：把问题和工具交给模型 → 模型要查什么就执行什么、把结果交回去 → 直到它直接回答。
 /// 这里不判断问题类型、不规定先查什么后查什么——全由模型决定。系统只负责：执行工具、限制回合数、
@@ -59,6 +60,7 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         var written = new System.Text.StringBuilder();   // 回答写到长度上限、系统让它接着写时，前面已经写出来的
         var continues = 0;
         var noThink = false;       // 上一轮想完了一个字没写就到了长度上限：这一轮关掉思考，额度全给回答
+        var overflows = 0;         // 模型服务说放不下（超出上下文）的次数：按它报的实际数字重估、压短再发，最多两次
         var thinkDropped = false;  // 只关一次
         for (var round = 1; ; round++)
         {
@@ -70,18 +72,43 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
                 limitNoted = true;
                 if (limitHint?.Invoke() is { Length: > 0 } lh) messages.Add(new AgentMessage("user", lh));
             }
-            // 查了好几次资料后上下文快满了：这一轮的回答上限会被压到很小，思考就能把它用光、正文一个字写不出来。
-            // 先把早先的工具结果换成短版，给回答留出余量（本档「回答最长」，最多上下文的四分之一）
-            if (options.ContextTokens > 0) Shrink(messages, compacts, AnswerRoomChars(messages, allowTools ? toolChars : 0, options));
+            // 查了好几次资料后上下文快满了：这一轮的回答上限会被压到很小，思考就能把它用光、正文一个字写不出来，甚至整个发不出去。
+            // ① 先把早先的工具结果换成短版，给回答留出余量（本档「回答最长」，最多上下文的四分之一）；
+            // ② 还放不下（历史、前一遍的回答很长）：早先的内容只留头尾，至少给回答留出上下文的八分之一
+            if (options.ContextTokens > 0)
+            {
+                var sentTools = allowTools ? toolChars : 0;
+                Shrink(messages, compacts, AnswerRoomChars(messages, sentTools, options, options.ContextTokens / 4));
+                Squeeze(messages, AnswerRoomChars(messages, sentTools, options, options.ContextTokens / 8));
+            }
             var streamed = false;
             var roundOptions = widen ? options with { MaxTokens = options.MaxTokens * 2 } : options;
             widen = false;
             var think = options.Think && !noThink;
             noThink = false;
-            var result = await client.RunRoundAsync(messages, tools,
-                new ToolRoundOptions(allowTools, think, RoundMaxTokens(messages, allowTools ? toolChars : 0, roundOptions), options.Temperature,
-                    options.Effort, options.TopP, options.TopK, options.PresencePenalty),
-                async text => { streamed = true; await emit(new QaEvent("delta", new { text })); }, ct);
+            ToolRoundResult result;
+            try
+            {
+                result = await client.RunRoundAsync(messages, tools,
+                    new ToolRoundOptions(allowTools, think, RoundMaxTokens(messages, allowTools ? toolChars : 0, roundOptions), options.Temperature,
+                        options.Effort, options.TopP, options.TopK, options.PresencePenalty),
+                    async text => { streamed = true; await emit(new QaEvent("delta", new { text })); }, ct);
+            }
+            catch (ContextOverflowException ox) when (overflows < 2 && !streamed)
+            {
+                // 放不下：粗估偏少了（表格、代码、英文的字和 token 比例跟中文不一样）。按模型服务报的实际输入长度重新定比例，
+                // 上限也按它报的；下一轮开头照新的比例把早先的内容压短，再发一次（不算一轮）
+                overflows++;
+                var chars = PromptChars(messages, allowTools ? toolChars : 0);
+                var cpt = ox.PromptTokens > 0 ? chars / (double)ox.PromptTokens : options.CharsPerToken * 0.8;
+                options = options with
+                {
+                    CharsPerToken = Math.Max(0.5, Math.Min(options.CharsPerToken, cpt) * 0.9),
+                    ContextTokens = ox.ContextTokens > 0 ? ox.ContextTokens : options.ContextTokens,
+                };
+                round--;
+                continue;
+            }
             thinkSeconds += result.ThinkSeconds;
             if (!string.IsNullOrWhiteSpace(result.Reasoning) && reasoning.Length < MaxReasoning)
             {
@@ -223,24 +250,50 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
     private static int ToolChars(IReadOnlyList<ToolSpec> tools)
         => tools.Sum(t => t.Name.Length + t.Description.Length + JsonSerializer.Serialize(t.Parameters).Length);
 
-    /// <summary>粗估 token：中文约 1.3 字一个，英文和 JSON 更省——按 1.3 估偏多，宁可回答上限给小一点也别超。</summary>
-    public static int EstimateTokens(int chars) => (int)Math.Ceiling(chars / 1.3) + 64;
+    /// <summary>粗估 token：中文约 1.3 字一个，英文和 JSON 更省——按 1.3 估偏多，宁可回答上限给小一点也别超。
+    /// 模型服务报过实际输入长度的，按实际的比例估（cpt）。</summary>
+    public static int EstimateTokens(int chars, double cpt = 1.3) => (int)Math.Ceiling(chars / cpt) + 64;
+
+    /// <summary>这一轮发过去的大致字数：工具清单 + 每条消息（含工具调用的参数）。</summary>
+    public static int PromptChars(IReadOnlyList<AgentMessage> messages, int toolChars)
+        => toolChars + messages.Sum(m => (m.Content?.Length ?? 0) + 8 + (m.ToolCalls?.Sum(c => c.Name.Length + c.ArgumentsJson.Length) ?? 0));
 
     /// <summary>这一轮的回答上限：不超过本档的「回答最长」，也不超过上下文里剩下的。</summary>
     public static int RoundMaxTokens(IReadOnlyList<AgentMessage> messages, int toolChars, AssistantLoopOptions o)
     {
         if (o.ContextTokens <= 0) return o.MaxTokens;
-        var chars = toolChars + messages.Sum(m => (m.Content?.Length ?? 0) + 8 + (m.ToolCalls?.Sum(c => c.Name.Length + c.ArgumentsJson.Length) ?? 0));
-        var left = o.ContextTokens - EstimateTokens(chars);
+        var left = o.ContextTokens - EstimateTokens(PromptChars(messages, toolChars), o.CharsPerToken);
         return Math.Clamp(left, Math.Min(256, o.MaxTokens), o.MaxTokens);
     }
 
-    /// <summary>给这一轮的回答留出余量时，消息正文最多能有多少字（超了就把早先的工具结果换成短版）。</summary>
-    public static int AnswerRoomChars(IReadOnlyList<AgentMessage> messages, int toolChars, AssistantLoopOptions o)
+    /// <summary>给这一轮的回答留出余量（本档回答最长，不超过 maxReserve）时，消息正文最多能有多少字。</summary>
+    public static int AnswerRoomChars(IReadOnlyList<AgentMessage> messages, int toolChars, AssistantLoopOptions o, int maxReserve)
     {
-        var reserve = Math.Min(o.MaxTokens, o.ContextTokens / 4);
-        var overhead = toolChars + messages.Sum(m => 8 + (m.ToolCalls?.Sum(c => c.Name.Length + c.ArgumentsJson.Length) ?? 0));
-        return Math.Max(0, (int)((o.ContextTokens - reserve - 64) * 1.3) - overhead);
+        var reserve = Math.Min(o.MaxTokens, maxReserve);
+        var overhead = PromptChars(messages, toolChars) - messages.Sum(m => m.Content?.Length ?? 0);
+        return Math.Max(0, (int)((o.ContextTokens - reserve - 64) * o.CharsPerToken) - overhead);
+    }
+
+    private const string Omitted = "\n…（这段太长，为了放得下已省略；前面引用过的编号照样有效）";
+
+    /// <summary>换成短版还放不下时（历史、前一遍的回答、没有短版的工具结果很长）：从最早的开始只留头尾。
+    /// 先剪工具结果，再剪对话；系统提示词和最后一条用户的话不动。</summary>
+    public static void Squeeze(List<AgentMessage> messages, int budget)
+    {
+        var total = messages.Sum(m => m.Content?.Length ?? 0);
+        if (total <= budget) return;
+        var lastUser = messages.FindLastIndex(m => m.Role == "user");
+        void Cut(int i, string content)
+        {
+            total += content.Length - (messages[i].Content?.Length ?? 0);
+            messages[i] = messages[i] with { Content = content };
+        }
+        for (var i = 1; i < messages.Count && total > budget; i++)
+            if (messages[i].Role == "tool" && messages[i].Content is { Length: > 800 } c)
+                Cut(i, c[..500] + Omitted);
+        for (var i = 1; i < messages.Count && total > budget; i++)
+            if (i != lastUser && messages[i].Role is "user" or "assistant" && messages[i].Content is { Length: > 1600 } c)
+                Cut(i, c[..800] + "\n…（中间省略）…\n" + c[^500..]);
     }
 
     /// <summary>工具结果总量超过预算时，从最早的开始换成短版（短版里保留编号和出处，模型仍能引用）。</summary>

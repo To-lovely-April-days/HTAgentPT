@@ -211,6 +211,74 @@ public class AssistantLoopTests
     }
 
     [Fact]
+    public void 认出模型服务报的超出上下文_取出上限和实际输入长度()
+    {
+        var e = ContextOverflowException.TryParse("{\"error\":{\"message\":\"This model's maximum context length is 32768 tokens. However, you requested 256 output tokens and your prompt contains at least 32513 input tokens, for a total of at least 32769 tokens.\"}}");
+        Assert.NotNull(e);
+        Assert.Equal(32768, e!.ContextTokens);
+        Assert.Equal(32513, e.PromptTokens);
+        Assert.Null(ContextOverflowException.TryParse("{\"error\":{\"message\":\"invalid tool schema\"}}"));
+    }
+
+    private sealed class OverflowOnce(int contextTokens, int promptTokens, string answer) : IToolChatClient
+    {
+        public int Calls;
+        public readonly List<int> SentChars = [];
+        public Task<ToolRoundResult> RunRoundAsync(IReadOnlyList<AgentMessage> messages, IReadOnlyList<ToolSpec> tools,
+            ToolRoundOptions options, Func<string, Task>? onText, CancellationToken ct = default)
+        {
+            SentChars.Add(messages.Sum(m => m.Content?.Length ?? 0));
+            if (Calls++ == 0) throw new ContextOverflowException("超出", contextTokens, promptTokens);
+            return Task.FromResult(new ToolRoundResult(answer, [], "stop"));
+        }
+    }
+
+    [Fact]
+    public async Task 模型服务说放不下_按实际长度重估_压短了再发一次()
+    {
+        // 历史里有一段很长的工具结果（没有短版）：按 1.3 字一个 token 粗估放得下，模型服务说超了
+        var msgs = new List<AgentMessage>
+        {
+            new("system", "s"), new("user", "q0"),
+            new("assistant", "", [new ToolCall("c1", "search_documents", "{}")]), new("tool", new string('表', 26000), ToolCallId: "c1"),
+            new("assistant", new string('答', 8000)), new("user", "补上缺的"),
+        };
+        var model = new OverflowOnce(32768, 32513, "补好了");
+        var r = await new AssistantLoop(model, new AssistantLoopOptions(MaxTokens: 32768, ContextTokens: 32768)).RunAsync(msgs, Tools,
+            (_, _) => Task.FromResult(new ToolOutcome("x", "x", "搜索资料", "", null)),
+            _ => Task.CompletedTask, CancellationToken.None);
+
+        Assert.Equal("补好了", r.Answer);
+        Assert.Equal(2, model.Calls);
+        // 按实际比例（32513 token 对应第一次发的字数）留出回答余量：第二次明显更短，工具结果只留开头
+        Assert.True(model.SentChars[1] < model.SentChars[0] - 5000, $"第一次 {model.SentChars[0]} 字，第二次 {model.SentChars[1]} 字");
+        Assert.Contains("已省略", msgs[3].Content);
+        Assert.Equal("补上缺的", msgs[^1].Content);   // 最后一句用户的话不动
+        Assert.Equal("s", msgs[0].Content);
+    }
+
+    [Fact]
+    public async Task 一直放不下_试两次就报错_不无限重试()
+    {
+        var model = new AlwaysOverflow();
+        await Assert.ThrowsAsync<ContextOverflowException>(() => new AssistantLoop(model, new AssistantLoopOptions(ContextTokens: 8192))
+            .RunAsync([new("user", "q")], Tools, (_, _) => Task.FromResult(new ToolOutcome("x", "x", "搜索资料", "", null)),
+                _ => Task.CompletedTask, CancellationToken.None));
+        Assert.Equal(3, model.Calls);
+    }
+
+    private sealed class AlwaysOverflow : IToolChatClient
+    {
+        public int Calls;
+        public Task<ToolRoundResult> RunRoundAsync(IReadOnlyList<AgentMessage> messages, IReadOnlyList<ToolSpec> tools,
+            ToolRoundOptions options, Func<string, Task>? onText, CancellationToken ct = default)
+        {
+            Calls++;
+            throw new ContextOverflowException("超出", 8192, 9000);
+        }
+    }
+
+    [Fact]
     public async Task 接着写最多两次_还没写完就标写到一半()
     {
         var model = new ScriptedModel(new ToolRoundResult("又一段", [], "length"));

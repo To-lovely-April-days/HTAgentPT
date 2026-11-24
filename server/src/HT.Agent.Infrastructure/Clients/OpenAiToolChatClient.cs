@@ -36,6 +36,7 @@ public class OpenAiToolChatClient(IHttpClientFactory httpFactory, IRuntimeConfig
             var err = await resp.Content.ReadAsStringAsync(ct);
             if (resp.StatusCode == HttpStatusCode.BadRequest && tools.Count > 0 && LooksLikeToolsUnsupported(err))
                 throw new ToolCallingUnavailableException($"模型端没有开启工具调用：{Trim(err, 300)}");
+            if (resp.StatusCode == HttpStatusCode.BadRequest && ContextOverflowException.TryParse(err) is { } overflow) throw overflow;
             throw new HttpRequestException($"模型调用失败（{(int)resp.StatusCode}）：{Trim(err, 300)}", null, resp.StatusCode);
         }
 
