@@ -552,11 +552,14 @@ export interface PriceHit {
   spec: string | null; material: string | null; supplier: string | null; model: string | null; code: string | null; unit: string | null;
   priceUnit: string | null; taxLow: number | null; taxHigh: number | null; netLow: number | null; netHigh: number | null; taxDerived: boolean;
   leadTime: string | null; note: string | null; changePct: number | null; versions: number;
+  /** 采购记录：最近一次的采购日期、同一物料同一供应商的采购次数、含税最低最高、最早一次 */
+  priceDate: string | null; purchases: number; minTax: number | null; maxTax: number | null; firstDate: string | null;
 }
 export interface ColumnMap { col: number; header: string; field: string; supplier: string | null }
 export interface ParsedPrice {
   rowNo: number; group: string | null; name: string; spec: string | null; supplier: string | null; model: string | null;
   unit: string | null; priceUnit: string | null; taxLow: number | null; taxHigh: number | null; taxDerived: boolean;
+  netLow: number | null; netHigh: number | null; date: string | null;
 }
 export interface PriceDiff { up: number; down: number; added: number; removed: number; same: number;
   top: { name: string; spec: string | null; supplier: string | null; old: number | null; new: number | null; pct: number }[] }

@@ -1501,7 +1501,14 @@ public sealed class AssistantService(
                         $"名称：{h.Name}", h.Spec is null ? null : $"规格：{h.Spec}", h.Supplier is null ? null : $"供应商：{h.Supplier}",
                         h.Model is null ? null : $"型号：{h.Model}", $"{price}（计价单位 {h.PriceUnit ?? "未注明"}）",
                         h.LeadTime is null ? null : $"货期：{h.LeadTime}", h.Note is null ? null : $"备注：{h.Note}",
-                        $"来源：{h.TableName} 第 {h.RowNo} 行 · 版本 {h.VersionDate:yyyy-MM-dd}{(h.Stale ? " · 可能过时" : "")}",
+                        h.PriceDate is { } pd
+                            ? $"最近一次采购：{pd:yyyy-MM-dd}" + (h.Purchases > 1
+                                ? $"；{h.FirstDate:yyyy-MM-dd} 以来共采购 {h.Purchases} 次，含税 {Money(h.MinTax, h.MaxTax)} 元" + (h.ChangePct is { } cp && cp != 0 ? $"，比上一次{(cp > 0 ? "涨" : "降")} {Math.Abs(cp)}%" : "")
+                                : "；只采购过这一次")
+                            : null,
+                        h.PriceDate is not null
+                            ? $"来源：采购记录「{h.TableName}」第 {h.RowNo} 行{(h.Stale ? " · 可能过时" : "")}"
+                            : $"来源：{h.TableName} 第 {h.RowNo} 行 · 版本 {h.VersionDate:yyyy-MM-dd}{(h.Stale ? " · 可能过时" : "")}",
                     }.Where(x => x is not null));
                     var e = run.Add($"price:{h.Id}", n => new EvidenceItem(n, "price", $"{h.TableName} · {h.Name}{(h.Spec is null ? "" : " " + h.Spec)}", text,
                         Section: h.Supplier, Classification: "Confidential", PriceId: h.Id));

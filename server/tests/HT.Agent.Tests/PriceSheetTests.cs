@@ -139,4 +139,84 @@ public class PriceSheetTests
         Assert.Equal("missing", CostMath.Line(new("搅拌器", null, 1, "套", null, null, null)).Status);
         Assert.Equal("ok", CostMath.Line(new("热电偶", null, 1, "支", 70, 70, null)).Status);
     }
+
+    // ── 采购记录（金蝶、用友导出的采购订单序时簿）────────────────
+
+    private static SheetGrid Ledger() => new("采购订单序时簿",
+    [
+        R(1, "供应商", "日期", "单据编号", "物料名称", "规格型号", "数量", "单位", "交货日期", "单价", "税率(%)", "供应商型号", "物料长代码", "实际含税单价", "价税合计"),
+        R(2, "温州甲贸易有限公司", "2026-01-02", "PO26010001", "步进电机", "86x116 扭矩8.5NM", "30", "个", "2026-01-06", "185.8407", "13.00", "", "05.002.20LHD86", "210", "6300"),
+        R(3, "", "", "", "行星减速机", "减速比 1:10", "30", "个", "2026-01-06", "159.292", "13.00", "", "05.002.20LPX86", "", "5400"),
+        R(4, "", "2026-01-03", "PO26010002", "标定费", "", "1", "次", "2026-01-10", "188.68", "6", "", "", "", "200"),
+        R(5, "江阴乙建材有限公司", "2026-03-05", "PO26030001", "步进电机", "86x116 扭矩8.5NM", "10", "个", "", "176.99", "13", "", "05.002.20LHD86", "200", "2000"),
+    ], []);
+
+    [Fact]
+    public void 采购订单的列认对_单价是未税_规格型号是规格_日期和税率都认()
+    {
+        var (_, map, _, _) = PriceSheet.Guess(Ledger());
+        string F(string header) => map.Single(m => m.Header == header).Field;
+        Assert.Equal("supplier", F("供应商"));
+        Assert.Equal("date", F("日期"));
+        Assert.Equal("ignore", F("交货日期"));
+        Assert.Equal("ignore", F("单据编号"));
+        Assert.Equal("ignore", F("价税合计"));
+        Assert.Equal("spec", F("规格型号"));
+        Assert.Equal("model", F("供应商型号"));
+        Assert.Equal("price_net", F("单价"));
+        Assert.Equal("price", F("实际含税单价"));
+        Assert.Equal("tax_rate", F("税率(%)"));
+    }
+
+    [Fact]
+    public void 同一张订单的后续行沿用供应商和日期_新订单没写供应商就是没写_按每行税率推算()
+    {
+        var (grid, map, di, _) = PriceSheet.Guess(Ledger());
+        var (items, issues) = PriceSheet.Extract(grid, map, di, "采购");
+        var r3 = items.Single(i => i.RowNo == 3);
+        Assert.Equal("温州甲贸易有限公司", r3.Supplier);
+        Assert.Equal(new DateOnly(2026, 1, 2), r3.Date);
+        Assert.Equal(180m, r3.TaxLow);   // 只有未税 159.292，按这一行 13% 推算
+        Assert.True(r3.TaxDerived);
+        var r4 = items.Single(i => i.RowNo == 4);
+        Assert.Null(r4.Supplier);        // 新订单（日期写了）供应商空着：不沿用上一张订单的
+        Assert.Equal(200m, r4.TaxLow);   // 6% 的服务费按 6% 推算，不是 13%
+        var r2 = items.Single(i => i.RowNo == 2);
+        Assert.Equal(210m, r2.TaxLow);
+        Assert.Equal(185.8407m, r2.NetLow);
+        Assert.False(r2.TaxDerived);
+        Assert.NotEqual(r2.Key, items.Single(i => i.RowNo == 5).Key);   // 同一物料不同供应商：分开算最近价
+        Assert.Contains(issues, i => i.Kind == "filled" && i.Count == 1);
+        Assert.Contains(issues, i => i.Kind == "ledger");
+    }
+
+    [Theory]
+    [InlineData("2026-01-02", 2026, 1, 2)]
+    [InlineData("2026/1/2 0:00:00", 2026, 1, 2)]
+    [InlineData("2026年1月2日", 2026, 1, 2)]
+    [InlineData("46024", 2026, 1, 2)]
+    public void 认表格里的日期(string s, int y, int m, int d) => Assert.Equal(new DateOnly(y, m, d), PriceSheet.DateOf(s));
+
+    [Theory]
+    [InlineData("13.00", 1.13)]
+    [InlineData("13%", 1.13)]
+    [InlineData("0.06", 1.06)]
+    [InlineData("3", 1.03)]
+    public void 认税率(string s, double expected) => Assert.Equal((decimal)expected, PriceSheet.RateOf(s));
+
+    [Fact]
+    public void 没有日期列的价格表照旧_不沿用上一行的供应商()
+    {
+        var g = new SheetGrid("Sheet1",
+        [
+            R(1, "名称", "规格", "供应商", "单价"),
+            R(2, "卡套接头", "1/4", "OSK", "30"),
+            R(3, "卡套接头", "3/8", "", "41"),
+        ], []);
+        var (grid, map, di, _) = PriceSheet.Guess(g);
+        var (items, issues) = PriceSheet.Extract(grid, map, di, "标准品");
+        Assert.Null(items.Single(i => i.RowNo == 3).Supplier);
+        Assert.All(items, i => Assert.Null(i.Date));
+        Assert.DoesNotContain(issues, i => i.Kind is "ledger" or "filled");
+    }
 }

@@ -13,7 +13,7 @@ import { Icon } from '../../components/Icons';
 const FIELDS: [string, string][] = [
   ['name', '名称'], ['spec', '规格'], ['group', '分组'], ['unit', '数量单位'], ['price', '含税单价'], ['price_net', '未税单价'],
   ['price_unit', '计价单位'], ['supplier', '供应商 / 品牌'], ['model', '型号'], ['code', '物料代码'], ['lead', '货期'],
-  ['freq', '采购频率'], ['note', '备注'], ['ignore', '不导入'],
+  ['freq', '采购频率'], ['note', '备注'], ['date', '采购日期'], ['tax_rate', '税率'], ['ignore', '不导入'],
 ];
 const fmt = (v: number) => v.toLocaleString('zh-CN', { maximumFractionDigits: v >= 100 ? 0 : 2 });
 const price = (lo: number | null, hi: number | null) => (lo == null ? '—' : hi == null || hi === lo ? fmt(lo) : `${fmt(lo)}–${fmt(hi)}`);
@@ -130,7 +130,7 @@ export default function PricesPage() {
           </div>
           <div className="dc-scroll">
             <table className="dc-table pl-hits">
-              <thead><tr><th>名称</th><th>规格</th><th>供应商 · 型号</th><th>计价单位</th><th className="num">含税单价（元）</th><th>历次版本</th><th className="num">来源</th></tr></thead>
+              <thead><tr><th>名称</th><th>规格</th><th>供应商 · 型号</th><th>计价单位</th><th className="num">含税单价（元）</th><th>历次</th><th className="num">来源</th></tr></thead>
               <tbody>
                 {search.isLoading && <tr><td colSpan={7}><Spinner text="查找…" /></td></tr>}
                 {search.data?.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>没有查到。换个说法试试（材质 + 品名）。</td></tr>}
@@ -165,8 +165,14 @@ function HitRow({ h }: { h: PriceHit }) {
           <span className={'cell-sub ' + (up ? 'd-up' : down ? 'd-down' : '')}>
             {h.changePct != null ? <>{(up || down) && <Icon name={up ? 'trendUp' : 'trendDown'} size={12} className="gi l" />}{Math.abs(h.changePct)}%</> : h.taxLow != null && h.taxHigh !== h.taxLow ? '区间价' : h.taxDerived ? '按未税推算' : ''}
           </span>
+          {h.priceDate && h.purchases > 1 && h.minTax != null && <span className="cell-sub">历次 {price(h.minTax, h.maxTax)}</span>}
         </td>
-        <td className="muted">{h.versions} 个版本<Icon name={open ? 'chevUp' : 'down'} size={13} className="gi" /></td>
+        <td className="muted">
+          {h.priceDate
+            ? <><span className="cell-main" style={{ fontWeight: 400 }}>采购 {h.purchases} 次</span><span className="cell-sub tnum">最近 {h.priceDate}</span></>
+            : `${h.versions} 个版本`}
+          <Icon name={open ? 'chevUp' : 'down'} size={13} className="gi" />
+        </td>
         <td className="num mono muted">{h.tableName} #{h.rowNo}{h.stale && <span className="cell-sub warn">可能过时</span>}</td>
       </tr>
       {open && (
@@ -245,7 +251,7 @@ function ImportDrawer({ table, onClose, onDone }: { table: PriceTableRow | null;
               {replacing
                 ? <div className="acc-field"><span>更新哪张表</span><b>{replacing.name}</b><small className="muted">旧版本会保留，用来看价格历史</small></div>
                 : <label className="acc-field"><span>价格表名称</span><input className="inp" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} /></label>}
-              <label className="acc-field"><span>这版价格的日期</span><input className="inp" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+              <label className="acc-field"><span>{pv.issues.some((i) => i.kind === 'ledger') ? '这批采购记录截止到' : '这版价格的日期'}</span><input className="inp" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
             </div>
             {pv.sheets.length > 1 && (
               <label className="acc-field"><span>工作表</span>
@@ -302,11 +308,12 @@ function ImportDrawer({ table, onClose, onDone }: { table: PriceTableRow | null;
             <div className="pl-step"><b>前几条长这样</b></div>
             <div className="dc-scroll">
               <table className="dc-table compact">
-                <thead><tr><th>行</th><th>名称 · 规格</th><th>供应商</th><th className="num">含税</th><th>计价单位</th></tr></thead>
+                <thead><tr><th>行</th>{pv.sample.some((s) => s.date) && <th>采购日期</th>}<th>名称 · 规格</th><th>供应商</th><th className="num">含税</th><th className="num">未税</th><th>计价单位</th></tr></thead>
                 <tbody>
                   {pv.sample.map((s, i) => (
-                    <tr key={i}><td className="tnum muted">{s.rowNo}</td><td><span className="cell-main">{s.name}</span><span className="cell-sub">{s.spec}</span></td>
-                      <td>{s.supplier ?? '—'}</td><td className="num tnum">{price(s.taxLow, s.taxHigh)}</td><td>{s.priceUnit ?? '—'}</td></tr>
+                    <tr key={i}><td className="tnum muted">{s.rowNo}</td>{pv.sample.some((x) => x.date) && <td className="tnum">{s.date ?? '—'}</td>}
+                      <td><span className="cell-main">{s.name}</span><span className="cell-sub">{s.spec}</span></td>
+                      <td>{s.supplier ?? '—'}</td><td className="num tnum">{price(s.taxLow, s.taxHigh)}</td><td className="num tnum muted">{price(s.netLow, s.netHigh)}</td><td>{s.priceUnit ?? '—'}</td></tr>
                   ))}
                 </tbody>
               </table>

@@ -16,7 +16,7 @@ public record ColumnMap(int Col, string Header, string Field, string? Supplier =
 public record ParsedPrice(
     int RowNo, string? Group, string Name, string? Spec, string? Material, string? Supplier, string? Model, string? Code,
     string? Unit, string? PriceUnit, decimal? TaxLow, decimal? TaxHigh, decimal? NetLow, decimal? NetHigh, bool TaxDerived,
-    string? LeadTime, string? Frequency, string? Note)
+    string? LeadTime, string? Frequency, string? Note, DateOnly? Date = null)
 {
     public string Key => PriceSheet.KeyOf(Name, Spec, Supplier, Model);
 }
@@ -38,7 +38,7 @@ public static class PriceSheet
     [
         ("name", "名称"), ("spec", "规格"), ("group", "分组"), ("unit", "数量单位"), ("price", "含税单价"), ("price_net", "未税单价"),
         ("price_unit", "计价单位"), ("supplier", "供应商 / 品牌"), ("model", "型号"), ("code", "物料代码"), ("lead", "货期"),
-        ("freq", "采购频率"), ("note", "备注"), ("ignore", "不导入"),
+        ("freq", "采购频率"), ("note", "备注"), ("date", "采购日期"), ("tax_rate", "税率"), ("ignore", "不导入"),
     ];
 
     // ── 表头 ───────────────────────────────────────────
@@ -50,11 +50,20 @@ public static class PriceSheet
     {
         var h = Norm(header);
         if (h.Length == 0) return null;
+        if (h.Contains("税率")) return "tax_rate";
+        // 日期：采购 / 订单 / 单据日期是这条价格的日期；交货、到货、有效期这类不是
+        if (h.Contains("日期") || h.Contains("时间") || h == "date")
+            return h.Contains("交货") || h.Contains("到货") || h.Contains("交期") || h.Contains("有效") || h.Contains("截止") || h.Contains("审核") ? "ignore" : "date";
+        // 金额、价税合计、数量：不是单价
+        if (h.Contains("合计") || h.Contains("金额") || h.Contains("总价") || h == "数量" || h.Contains("数量")) return "ignore";
         if (h.Contains("未税") || h.Contains("不含税")) return "price_net";
         if (h.Contains("含税")) return "price";
         if (h.Contains("单价") || h.Contains("价格") || h.Contains("采购价") || h.Contains("报价") || h == "价" || h.Contains("price")) return "price";
+        // 「规格型号」「型号规格」写在一列的，是规格（供应商自己的型号另有一列「供应商型号」时那列才是型号）
+        if (h.Contains("规格") && h.Contains("型号") && !h.Contains("供应商")) return "spec";
         if (h.Contains("型号") || h == "model") return "model";
         if (h.Contains("代码") || h.Contains("编码") || h.Contains("料号")) return "code";
+        if (h.Contains("单据") || h.Contains("订单号") || h.Contains("单号")) return "ignore";
         if (h.Contains("分组") || h.Contains("类别") || h.Contains("分类") || h.Contains("大类")) return "group";
         if (h.Contains("名称") || h.Contains("品名") || h == "name") return "name";
         if (h.Contains("规格") || h.Contains("描述") || h.Contains("尺寸") || h.Contains("通径") || h.Contains("外径") || h.Contains("直径") || h.Contains("材质")) return "spec";
@@ -175,6 +184,14 @@ public static class PriceSheet
             var cand = map.FirstOrDefault(m => m.Field == "ignore" && m.Header.Length == 0 && NumericShare(data, m.Col) >= 0.5);
             if (cand is not null) map[cand.Col] = cand with { Field = "price" };
         }
+        // 同一家既有「单价」又有明确写「含税」的那列（金蝶、用友导出的采购单就是这样）：没写含税的「单价」是未税价
+        foreach (var grp in map.Where(m => m.Field == "price").GroupBy(m => m.Supplier).ToList())
+        {
+            var explicitTax = grp.Where(m => Norm(m.Header).Contains("含税")).ToList();
+            if (explicitTax.Count == 0 || map.Any(m => m.Field == "price_net" && m.Supplier == grp.Key)) continue;
+            foreach (var m in grp.Where(m => !Norm(m.Header).Contains("含税")))
+                map[map.FindIndex(x => x.Col == m.Col)] = m with { Field = "price_net" };
+        }
         // 同一含义只认第一列，规格可以多列
         var seen = new HashSet<string>();
         for (var i = 0; i < map.Count; i++)
@@ -286,6 +303,10 @@ public static class PriceSheet
         var suppliers = map.Where(m => m.Supplier is not null).Select(m => m.Supplier!).Distinct().ToList();
         var headerTexts = map.Select(m => Norm(m.Header)).Where(h => h.Length > 0).ToHashSet();
         var hasNameCol = map.Any(m => m.Field == "name");
+        // 有日期列的是采购记录（流水账）：一张订单只在第一行写供应商和日期，下面几行空着，沿用上面的
+        var ledger = map.Any(m => m.Field == "date");
+        string? lastSupplier = null;
+        DateOnly? lastDate = null;
 
         foreach (var r in g.Rows.Skip(dataIndex))
         {
@@ -304,12 +325,29 @@ public static class PriceSheet
 
             var unit = One(r, "unit");
             var priceUnit = One(r, "price_unit");
+            DateOnly? date = null;
+            var supplierCell = One(r, "supplier");
+            if (ledger)
+            {
+                date = DateOf(One(r, "date"));
+                var filled = false;
+                // 日期空着的才是同一张订单的后续行：供应商也跟着沿用；日期写了的是新订单，供应商空着就是真没写
+                if (date is null && lastDate is not null)
+                {
+                    date = lastDate;
+                    filled = true;
+                    if (supplierCell is null && lastSupplier is not null) supplierCell = lastSupplier;
+                }
+                if (filled) Issue("filled", "沿用上面的订单", r.RowNo, "这些行的供应商、日期空着，按采购记录沿用上面那张订单的");
+                if (!filled) { lastDate = date ?? lastDate; lastSupplier = supplierCell; }
+            }
+            var rowRate = RateOf(One(r, "tax_rate")) ?? taxRate;
             var common = (group, name: name.Trim(), spec, code: One(r, "code"), unit, freq: One(r, "freq"), note: One(r, "note"),
                 material: MaterialOf($"{name} {spec}"));
 
             var offers = new List<(string? Supplier, string? Model, string? Lead, (decimal?, decimal?) Tax, (decimal?, decimal?) Net)>();
             if (suppliers.Count == 0)
-                offers.Add((One(r, "supplier"), One(r, "model"), One(r, "lead"), ParsePrice(One(r, "price") ?? ""), ParsePrice(One(r, "price_net") ?? "")));
+                offers.Add((supplierCell, One(r, "model"), One(r, "lead"), ParsePrice(One(r, "price") ?? ""), ParsePrice(One(r, "price_net") ?? "")));
             else
             {
                 foreach (var s in suppliers)
@@ -328,14 +366,15 @@ public static class PriceSheet
                 var (tl, th) = o.Tax;
                 var (nl, nh) = o.Net;
                 var derived = false;
-                if (tl is null && nl is not null) { tl = Math.Round(nl.Value * taxRate, 2); th = Math.Round(nh!.Value * taxRate, 2); derived = true; }
-                else if (nl is null && tl is not null) { nl = Math.Round(tl.Value / taxRate, 2); nh = Math.Round(th!.Value / taxRate, 2); }
+                if (tl is null && nl is not null) { tl = Math.Round(nl.Value * rowRate, 2); th = Math.Round(nh!.Value * rowRate, 2); derived = true; }
+                else if (nl is null && tl is not null) { nl = Math.Round(tl.Value / rowRate, 2); nh = Math.Round(th!.Value / rowRate, 2); }
 
                 if (tl is null) Issue("missing", "缺价格", r.RowNo, "这些行没有价格，导入后标为「没有价格」，估算时不会计入");
                 else
                 {
                     if (th != tl) Issue("range", "区间价", r.RowNo, "价格写的是区间（如 36-40），按最低和最高记，估算时两个都给");
-                    if (derived) Issue("derived", "推算含税", r.RowNo, $"只有未税价，含税价按未税 × {taxRate} 推算，并标为推算");
+                    if (derived) Issue("derived", "推算含税", r.RowNo, map.Any(m => m.Field == "tax_rate")
+                        ? "只有未税价，含税价按这一行的税率推算，并标为推算" : $"只有未税价，含税价按未税 × {taxRate} 推算，并标为推算");
                 }
                 var pu = priceUnit ?? (unit is null ? null : $"元/{unit}");
                 if (priceUnit is not null && unit is not null)
@@ -345,15 +384,43 @@ public static class PriceSheet
                 }
                 if (Norm(unit ?? "") == "gk") Issue("typo", "单位疑似写错", r.RowNo, "单位写成了「GK」，按 kg 处理");
                 items.Add(new ParsedPrice(r.RowNo, common.group, common.name, common.spec, common.material, o.Supplier, o.Model, common.code,
-                    common.unit, pu, tl, th, nl, nh, derived, o.Lead, common.freq, common.note));
+                    common.unit, pu, tl, th, nl, nh, derived, o.Lead, common.freq, common.note, date));
             }
         }
 
+        if (ledger)
+            issues["ledger"] = ("采购记录", [], "有采购日期列，按采购记录导入：每一行记一次采购和它的日期。查价时同一物料、同一供应商用最近一次的价，"
+                + "同时给出这段时间的最低、最高价和采购次数。不同时间段的采购记录请各建一张表（上传新版会替换上一版），查价时会合在一起看");
         if (map.Any(m => m.Field is "price" && m.Header.Length == 0))
             issues["noheader"] = ("价格列没有表头", [], "价格所在的列没有表头，是按内容认出来的，请确认");
         var list = issues.Select(kv => new PriceIssue(kv.Key, kv.Value.Label, kv.Value.Rows.Count, kv.Value.Rows.Take(20).ToList(), kv.Value.Msg))
             .OrderByDescending(i => i.Kind is "unit" or "missing" or "noheader").ThenByDescending(i => i.Count).ToList();
         return (items, list);
+    }
+
+    /// <summary>表格里的日期：2026-01-02、2026/1/2、2026.1.2、2026年1月2日，后面带时间也行；Excel 的日期序号（45000 左右）也认。</summary>
+    public static DateOnly? DateOf(string? s)
+    {
+        var t = (s ?? "").Trim();
+        if (t.Length == 0) return null;
+        var m = Regex.Match(t, @"^(20\d{2}|19\d{2})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})");
+        if (m.Success)
+        {
+            try { return new DateOnly(int.Parse(m.Groups[1].Value), int.Parse(m.Groups[2].Value), int.Parse(m.Groups[3].Value)); }
+            catch (ArgumentOutOfRangeException) { return null; }
+        }
+        if (double.TryParse(t, NumberStyles.Float, CultureInfo.InvariantCulture, out var serial) && serial is > 20000 and < 80000)
+            return DateOnly.FromDateTime(DateTime.FromOADate(Math.Floor(serial)));
+        return null;
+    }
+
+    /// <summary>税率：「13」「13%」「13.00」「0.13」→ 1.13。认不出或不合理（大于 30%）返回 null。</summary>
+    public static decimal? RateOf(string? s)
+    {
+        var t = (s ?? "").Replace("%", "").Replace("％", "").Trim();
+        if (!decimal.TryParse(t, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) || v < 0) return null;
+        if (v < 1) v *= 100;
+        return v > 30 ? null : 1 + Math.Round(v, 2) / 100;
     }
 
     /// <summary>认文件名里的日期（HT20240409、2024-04-09、2024.4.9）。</summary>

@@ -66,6 +66,8 @@ public class PriceItem
     public string? LeadTime { get; set; }
     public string? Frequency { get; set; }
     public string? Note { get; set; }
+    /// <summary>这条价格的日期：采购记录里每行的采购日期（价格表没有日期列的为空，按版本日期算）。</summary>
+    public DateOnly? PriceDate { get; set; }
     /// <summary>搜索用：各字段小写拼起来。</summary>
     public string SearchText { get; set; } = "";
 }

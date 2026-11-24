@@ -194,7 +194,7 @@ public class PriceService(AppDbContext db, IFileStorage storage, IRuntimeConfig 
             diff = PriceSheet.Diff(await CurrentKeysAsync(table, ct), items.Select(i => (i.Key, i.Name, i.Spec, i.Supplier, i.TaxLow)));
         return new PricePreview(sheets.Where(s => s.Rows.Count > 0).Select(s => s.Name).ToList(), raw.Name, included, headerRow, map,
             items.Take(8).ToList(), items.Count, issues, diff,
-            PriceSheet.DateInName(req.FileName) ?? DateOnly.FromDateTime(DateTime.UtcNow), table?.Id, tableName);
+            items.Max(i => i.Date) ?? PriceSheet.DateInName(req.FileName) ?? DateOnly.FromDateTime(DateTime.UtcNow), table?.Id, tableName);
     }
 
     private static string SearchTextOf(ParsedPrice p)
@@ -244,7 +244,7 @@ public class PriceService(AppDbContext db, IFileStorage storage, IRuntimeConfig 
             Spec = Clip(p.Spec, 300), Material = Clip(p.Material, 40), Supplier = Clip(p.Supplier, 80), Model = Clip(p.Model, 120), Code = Clip(p.Code, 60),
             Unit = Clip(p.Unit, 20), PriceUnit = Clip(p.PriceUnit, 30), TaxLow = p.TaxLow, TaxHigh = p.TaxHigh, NetLow = p.NetLow, NetHigh = p.NetHigh,
             TaxDerived = p.TaxDerived, LeadTime = Clip(p.LeadTime, 200), Frequency = Clip(p.Frequency, 20), Note = Clip(p.Note, 300),
-            SearchText = SearchTextOf(p),
+            PriceDate = p.Date, SearchText = SearchTextOf(p),
         }));
         table.CurrentVersionId = version.Id;
         table.ColumnMap = JsonSerializer.Serialize(map, Json);
@@ -273,10 +273,27 @@ public class PriceService(AppDbContext db, IFileStorage storage, IRuntimeConfig 
         // 同一物料在各版本里的价格：算较上一版的涨跌和版本数
         var all = await db.PriceItems.AsNoTracking().Where(i => tableIds.Contains(i.TableId) && keys.Contains(i.Key))
             .Select(i => new { i.TableId, i.Key, i.VersionId, i.TaxLow }).ToListAsync(ct);
+        // 采购记录：同一物料、同一供应商在所有采购记录表（当前版本）里的每次采购
+        var ledgerKeys = items.Where(i => i.PriceDate != null).Select(i => i.Key).Distinct().ToList();
+        var buys = ledgerKeys.Count == 0 ? [] : await LedgerRowsAsync(ledgerKeys, ct);
         var list = new List<PriceHit>();
         foreach (var i in items)
         {
             if (!tables.TryGetValue(i.TableId, out var t) || !vmap.TryGetValue(i.VersionId, out var v)) continue;
+            if (i.PriceDate is { } pd)
+            {
+                var mine = buys.Where(b => b.Key == i.Key).OrderBy(b => b.PriceDate).ThenBy(b => b.RowNo).ToList();
+                var at = mine.FindIndex(b => b.Id == i.Id);
+                double? moved = null;
+                if (at > 0 && mine[at - 1].TaxLow is { } prev && prev > 0 && i.TaxLow is { } cur2)
+                    moved = Math.Round((double)((cur2 - prev) / prev * 100), 1);
+                var priced = mine.Where(b => b.TaxLow != null).ToList();
+                list.Add(new PriceHit(i.Id, t.Id, t.Name, pd, AgeMonths(pd) >= stale, i.RowNo, i.Group, i.Name, i.Spec, i.Material,
+                    i.Supplier, i.Model, i.Code, i.Unit, i.PriceUnit, i.TaxLow, i.TaxHigh, i.NetLow, i.NetHigh, i.TaxDerived, i.LeadTime, i.Note,
+                    moved, 1, pd, Math.Max(1, mine.Count), priced.Count == 0 ? null : priced.Min(b => b.TaxLow),
+                    priced.Count == 0 ? null : priced.Max(b => b.TaxHigh ?? b.TaxLow), mine.Count == 0 ? pd : mine[0].PriceDate));
+                continue;
+            }
             var hist = all.Where(x => x.TableId == i.TableId && x.Key == i.Key && vmap.ContainsKey(x.VersionId))
                 .OrderBy(x => vmap[x.VersionId].VersionDate).ThenBy(x => vmap[x.VersionId].UploadedAt).ToList();
             var idx = hist.FindIndex(x => x.VersionId == i.VersionId);
@@ -302,10 +319,33 @@ public class PriceService(AppDbContext db, IFileStorage storage, IRuntimeConfig 
         var tokens = Regex.Split(query ?? "", @"[\s,，、;；/]+").Select(Normalize).Where(t => t.Length > 0).Distinct().Take(8).ToList();
         foreach (var tok in tokens) { var t = tok; q = q.Where(i => i.SearchText.Contains(t)); }
         var rows = await q.OrderBy(i => i.TableId).ThenBy(i => i.RowNo).Take(600).ToListAsync(ct);
-        // 名称里就有关键词的排前面
+        // 采购记录：同一物料、同一供应商买过很多次的，只出最近一次（几张采购记录表合在一起看），次数和价格区间另外带上
+        var ledgerKeys = rows.Where(i => i.PriceDate != null).Select(i => i.Key).Distinct().ToList();
+        if (ledgerKeys.Count > 0)
+        {
+            var latest = (await LedgerRowsAsync(ledgerKeys, ct, tableId)).GroupBy(b => b.Key)
+                .Select(g => g.OrderByDescending(b => b.PriceDate).ThenByDescending(b => b.TaxLow != null).ThenByDescending(b => b.RowNo).First().Id).ToHashSet();
+            var keep = rows.Where(i => i.PriceDate == null || latest.Contains(i.Id)).ToList();
+            var missing = latest.Except(keep.Select(i => i.Id)).ToList();
+            if (missing.Count > 0) keep.AddRange(await db.PriceItems.AsNoTracking().Where(i => missing.Contains(i.Id)).ToListAsync(ct));
+            rows = keep;
+        }
+        // 名称里就有关键词的排前面；同样匹配的，有价格的、最近买过的排前面
         var ranked = rows.OrderByDescending(i => tokens.Count(t => Normalize(i.Name).Contains(t))).ThenBy(i => i.TaxLow == null)
-            .ThenBy(i => i.RowNo).Take(take).ToList();
+            .ThenByDescending(i => i.PriceDate).ThenBy(i => i.RowNo).Take(take).ToList();
         return await HitsAsync(ranked, ct);
+    }
+
+    private sealed record LedgerRow(long Id, string Key, DateOnly PriceDate, int RowNo, decimal? TaxLow, decimal? TaxHigh);
+
+    /// <summary>各采购记录表（当前版本、带采购日期的）里这些物料的每次采购。</summary>
+    private async Task<List<LedgerRow>> LedgerRowsAsync(List<string> keys, CancellationToken ct, Guid? tableId = null)
+    {
+        var cur = await Tables.AsNoTracking().Where(t => t.CurrentVersionId != null && (tableId == null || t.Id == tableId))
+            .Select(t => t.CurrentVersionId!.Value).ToListAsync(ct);
+        var rows = await db.PriceItems.AsNoTracking().Where(i => cur.Contains(i.VersionId) && i.PriceDate != null && keys.Contains(i.Key))
+            .Select(i => new { i.Id, i.Key, i.PriceDate, i.RowNo, i.TaxLow, i.TaxHigh }).ToListAsync(ct);
+        return rows.Select(r => new LedgerRow(r.Id, r.Key, r.PriceDate!.Value, r.RowNo, r.TaxLow, r.TaxHigh)).ToList();
     }
 
     public async Task<List<PriceHit>> GetAsync(IReadOnlyCollection<long> ids, CancellationToken ct = default)
@@ -322,6 +362,17 @@ public class PriceService(AppDbContext db, IFileStorage storage, IRuntimeConfig 
         var tables = await Tables.Select(t => t.Id).ToListAsync(ct);
         var item = await db.PriceItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == itemId && tables.Contains(i.TableId), ct)
                    ?? throw new DomainRuleException("PRICE_NOT_FOUND", "这条价格不存在");
+        if (item.PriceDate is not null)
+        {
+            // 采购记录：每次采购一个点（各采购记录表合在一起）
+            var cur = await Tables.AsNoTracking().Where(t => t.CurrentVersionId != null).Select(t => t.CurrentVersionId!.Value).ToListAsync(ct);
+            var buys = await (from i in db.PriceItems.AsNoTracking()
+                              join t in Tables.AsNoTracking() on i.TableId equals t.Id
+                              where cur.Contains(i.VersionId) && i.PriceDate != null && i.Key == item.Key
+                              select new { i.PriceDate, i.RowNo, i.TaxLow, i.TaxHigh, t.Name }).ToListAsync(ct);
+            return buys.OrderBy(b => b.PriceDate).ThenBy(b => b.RowNo)
+                .Select(b => new PricePoint(b.PriceDate!.Value, b.TaxLow, b.TaxHigh, $"{b.Name} 第 {b.RowNo} 行")).ToList();
+        }
         var rows = await (from i in db.PriceItems.AsNoTracking()
                           join v in db.PriceVersions.AsNoTracking() on i.VersionId equals v.Id
                           where i.TableId == item.TableId && i.Key == item.Key

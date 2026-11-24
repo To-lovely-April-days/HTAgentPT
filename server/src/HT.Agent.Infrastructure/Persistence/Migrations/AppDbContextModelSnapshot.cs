@@ -2186,6 +2186,10 @@ namespace HT.Agent.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("note");
 
+                    b.Property<DateOnly?>("PriceDate")
+                        .HasColumnType("date")
+                        .HasColumnName("price_date");
+
                     b.Property<string>("PriceUnit")
                         .HasColumnType("text")
                         .HasColumnName("price_unit");
