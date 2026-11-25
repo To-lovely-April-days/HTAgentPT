@@ -1,16 +1,26 @@
 // 住在输入框上沿的 8-bit 小人。放在输入框（position: relative）里面，自己找同一个框里的文本框来听打字。
 // 空闲时沿上沿走来走去、走累了坐下；打字时走到光标上方低头看；发送时跳一下就离开（跳进回答里干活，见 ThinkingStage），答完跳回来坐下；
-// 很久没人动就打瞌睡；点它一下举手，冒出一条今日知识。系统设置了「减少动态效果」的人，它只坐着不走。
+// 很久没人动就打瞌睡。顺手碰到的几种反应：
+// · 点它一下：按时段说句生活上的话（喝口水、该吃饭了）；连着戳 5 下它晕头转向冒星星
+// · 鼠标凑过去：停下抬头看你
+// · 往页面上拖文件：跑到中间举手接
+// · 首页「需要你看的」都看完了：欢呼（首页发 htpet 事件）
+// · 18 点以后打开：挥手说辛苦啦；22 点以后：坐着打瞌睡，点醒了叫你早点休息
+// · 过节：旁边多一样道具（灯笼、月亮……）
+// 系统设置了「减少动态效果」的人，它只换姿势不走动。
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { get } from '../../lib/api';
-import { PixelSprite } from './PixelSprite';
-import type { Pose } from './sprite';
+import { PixelIcon, PixelProp, PixelSprite } from './PixelSprite';
+import type { Icon, Pose } from './sprite';
+import { byeLine, festivalOf, isLate, talkLine } from './days';
 
-type Mode = 'walk' | 'sit' | 'look' | 'jump' | 'away' | 'sleepy' | 'cheer';
+type Mode = 'walk' | 'sit' | 'look' | 'jump' | 'away' | 'sleepy' | 'talk' | 'dizzy' | 'peek' | 'catch' | 'cheer' | 'bye';
 
-interface Knowledge { title: string; body: string }
-interface Today { fun?: { knowledge?: Knowledge | null } }
+/** 首页让小人做个反应：window.dispatchEvent(new CustomEvent('htpet', { detail: 'cheer' }))。 */
+export type PetCue = 'cheer';
+
+interface Today { name?: string }
 
 const SPEED = 26;          // 像素 / 秒
 const SLEEP_AFTER = 120_000;
@@ -32,16 +42,19 @@ function caretX(ta: HTMLTextAreaElement, host: HTMLElement): number {
 
 export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [mode, setMode] = useState<Mode>('walk');
+  const [mode, setMode] = useState<Mode>(() => (isLate(new Date()) ? 'sleepy' : 'walk'));
   const [x, setX] = useState(24);
   const [frame, setFrame] = useState(0);
   const [blink, setBlink] = useState(false);
   const [smooth, setSmooth] = useState(false);
-  const state = useRef({ mode: 'walk' as Mode, x: 24, dir: 1, width: 600, lastInput: 0, walkUntil: 0 });
+  const [say, setSay] = useState<{ label?: string; text: string } | null>(null);
+  const state = useRef({ mode: (isLate(new Date()) ? 'sleepy' : 'walk') as Mode, x: 24, dir: 1, width: 600, lastInput: 0, walkUntil: 0, pokes: [] as number[] });
   const [tipLeft, setTipLeft] = useState(false);
   const today = useQuery({ queryKey: ['home-today'], queryFn: () => get<Today>('/api/home/today'), staleTime: 30 * 60_000, retry: false });
-  const fact = today.data?.fun?.knowledge ?? null;
+  const name = today.data?.name ?? '';
   const still = reduced();
+  const fest = festivalOf(new Date());
+  const unit = size / 32;
 
   const go = useCallback((m: Mode) => { state.current.mode = m; setMode(m); }, []);
   const moveTo = useCallback((nx: number, glide: boolean) => {
@@ -49,6 +62,27 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
     const v = Math.max(8, Math.min(max, nx));
     state.current.x = v; setSmooth(glide); setX(v);
   }, [size]);
+
+  // 说完一句、晕完、欢呼完：过一会儿自己收起，坐下歇会儿再溜达
+  const back = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const settle = useCallback((ms: number) => {
+    clearTimeout(back.current);
+    back.current = setTimeout(() => {
+      setSay(null);
+      const s = state.current;
+      if (s.mode === 'away' || s.mode === 'jump') return;
+      go('sit');
+      s.walkUntil = Date.now() + 9000;
+      setTimeout(() => { if (state.current.mode === 'sit' && !still) go('walk'); }, 2500);
+    }, ms);
+  }, [go, still]);
+  useEffect(() => () => clearTimeout(back.current), []);
+  const speak = useCallback((m: Mode, text: string | null, ms: number, label?: string) => {
+    setTipLeft(state.current.x > state.current.width / 2);
+    setSay(text ? { label, text } : null);
+    go(m);
+    settle(ms);
+  }, [go, settle]);
 
   // 量输入框宽度；记下开始的时间
   useEffect(() => {
@@ -71,6 +105,7 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
     const onInput = () => {
       state.current.lastInput = Date.now();
       if (state.current.mode === 'away' || state.current.mode === 'jump') return;
+      setSay(null); clearTimeout(back.current);
       if (!ta.value.trim()) { go('sit'); return; }
       go('look');
       moveTo(caretX(ta, host) - size / 2, true);
@@ -82,16 +117,87 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
     return () => { ta.removeEventListener('input', onInput); ta.removeEventListener('click', onInput); clearTimeout(t); };
   }, [go, moveTo, size, still]);
 
-  // 有人动就醒
+  // 有人动就醒（深夜除外：它就打着瞌睡，点它才醒）；鼠标凑近就停下抬头看
   useEffect(() => {
-    const wake = () => {
+    const onMove = (e: PointerEvent) => {
+      const s = state.current;
+      s.lastInput = Date.now();
+      if (s.mode === 'sleepy' && !isLate(new Date())) go('sit');
+      const r = ref.current?.getBoundingClientRect();
+      if (!r) return;
+      const d = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
+      if (d < 90 && (s.mode === 'walk' || s.mode === 'sit')) go('peek');
+      else if (d > 140 && s.mode === 'peek') { s.walkUntil = Date.now() + 6000; go(still ? 'sit' : 'walk'); }
+    };
+    const onKey = () => {
       state.current.lastInput = Date.now();
       if (state.current.mode === 'sleepy') go('sit');
     };
-    window.addEventListener('pointermove', wake, { passive: true });
-    window.addEventListener('keydown', wake);
-    return () => { window.removeEventListener('pointermove', wake); window.removeEventListener('keydown', wake); };
-  }, [go]);
+    window.addEventListener('pointermove', onMove, { passive: true });
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('keydown', onKey); };
+  }, [go, still]);
+
+  // 往页面上拖文件：跑到中间举手接；拖走了或放下了就回去
+  useEffect(() => {
+    let depth = 0;
+    const isFile = (e: DragEvent) => !!e.dataTransfer?.types.includes('Files');
+    const free = () => state.current.mode !== 'away' && state.current.mode !== 'jump';
+    const onEnter = (e: DragEvent) => {
+      if (!isFile(e)) return;
+      depth++;
+      if (depth === 1 && free()) {
+        clearTimeout(back.current);
+        moveTo(state.current.width / 2 - size / 2, true);
+        setTipLeft(false);
+        setSay({ text: '放到输入框上，松手就行' });
+        go('catch');
+      }
+    };
+    const onLeave = (e: DragEvent) => {
+      if (!isFile(e)) return;
+      depth = Math.max(0, depth - 1);
+      if (depth === 0 && state.current.mode === 'catch') settle(0);
+    };
+    // 页面别处也接住拖动，松手时不至于让浏览器把文件直接打开、离开这个页面
+    const onOver = (e: DragEvent) => { if (isFile(e)) e.preventDefault(); };
+    const onDrop = (e: DragEvent) => {
+      if (depth === 0) return;
+      depth = 0;
+      const took = e.defaultPrevented;   // 输入框接住了会先处理掉
+      if (!took) e.preventDefault();
+      if (state.current.mode === 'catch') speak(took ? 'cheer' : 'sit', took ? '收到，我先读一遍' : '要放到输入框上哦', 2500);
+    };
+    window.addEventListener('dragenter', onEnter);
+    window.addEventListener('dragleave', onLeave);
+    window.addEventListener('dragover', onOver);
+    window.addEventListener('drop', onDrop);
+    return () => {
+      window.removeEventListener('dragenter', onEnter); window.removeEventListener('dragleave', onLeave);
+      window.removeEventListener('dragover', onOver); window.removeEventListener('drop', onDrop);
+    };
+  }, [go, moveTo, settle, size, speak]);
+
+  // 首页叫它欢呼（「需要你看的」都看完了）
+  useEffect(() => {
+    const on = (e: Event) => {
+      if ((e as CustomEvent<PetCue>).detail !== 'cheer' || state.current.mode === 'away') return;
+      speak('cheer', '今天要看的都看完了', 4000);
+    };
+    window.addEventListener('htpet', on);
+    return () => window.removeEventListener('htpet', on);
+  }, [speak]);
+
+  // 18 点以后头一回打开：挥挥手（一天一次）
+  useEffect(() => {
+    const line = byeLine(new Date());
+    if (!line) return;
+    const key = 'htpet-bye';
+    const day = new Date().toDateString();
+    try { if (localStorage.getItem(key) === day) return; localStorage.setItem(key, day); } catch { /* 存不了就每次都挥 */ }
+    const t = setTimeout(() => { if (state.current.mode !== 'away') speak('bye', line, 5000); }, 1500);
+    return () => clearTimeout(t);
+  }, [speak]);
 
   // 发送：跳一下就离开，去回答里干活；答完跳回来坐下，歇会儿再溜达
   // 从 false 起：刚发完问题、底部输入框才出现时也要先跳一下再走
@@ -104,6 +210,7 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
     // 跳完之后该到的状态；还没跳完就被清理（开发环境效果跑两遍、或状态很快又变）时直接落到这个状态，不会卡在半空
     let pending: (() => void) | null = null;
     if (busy && !prev) {
+      setSay(null); clearTimeout(back.current);
       go('jump');
       pending = () => go('away');
       t = setTimeout(() => { pending = null; go('away'); }, 650);
@@ -126,23 +233,21 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
     const tick = (now: number) => {
       const dt = Math.min(0.1, (now - last) / 1000); last = now;
       const s = state.current;
-      if (s.mode !== 'away' && s.mode !== 'jump' && s.mode !== 'cheer' && Date.now() - s.lastInput > SLEEP_AFTER) {
-        if (s.mode !== 'sleepy') go('sleepy');
-      }
+      if ((s.mode === 'walk' || s.mode === 'sit') && Date.now() - s.lastInput > SLEEP_AFTER) go('sleepy');
+      acc += dt;
       if (s.mode === 'walk') {
         const max = Math.max(8, s.width - size - 8);
         let nx = s.x + s.dir * SPEED * dt;
         if (nx >= max) { nx = max; s.dir = -1; }
         if (nx <= 8) { nx = 8; s.dir = 1; }
         s.x = nx; setSmooth(false); setX(nx);
-        acc += dt;
         if (acc > 0.25) { acc = 0; setFrame((f) => 1 - f); }
         if (Date.now() > s.walkUntil) {
           go('sit');
           const rest = 4000 + Math.random() * 5000;
           setTimeout(() => { if (state.current.mode === 'sit') { state.current.walkUntil = Date.now() + 7000 + Math.random() * 8000; go('walk'); } }, rest);
         }
-      }
+      } else if (s.mode === 'dizzy' && acc > 0.3) { acc = 0; setFrame((f) => 1 - f); }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -155,41 +260,45 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
     return () => clearInterval(t);
   }, []);
 
-  // 点它：举手 + 今日知识，8 秒后自己收起
-  useEffect(() => {
-    if (mode !== 'cheer') return;
-    const t = setTimeout(() => go('sit'), 8000);
-    return () => clearTimeout(t);
-  }, [mode, go]);
+  // 点它：说句生活上的话，再点收起；1.5 秒里连着戳 5 下就晕了
   const poke = () => {
-    state.current.lastInput = Date.now();
-    if (state.current.mode === 'away') return;
-    setTipLeft(state.current.x > state.current.width / 2);
-    go(state.current.mode === 'cheer' ? 'sit' : 'cheer');
+    const s = state.current;
+    s.lastInput = Date.now();
+    if (s.mode === 'away' || s.mode === 'jump') return;
+    s.pokes = [...s.pokes.filter((t) => Date.now() - t < 1500), Date.now()];
+    if (s.pokes.length >= 5) { s.pokes = []; speak('dizzy', '别戳啦…头晕', 2200); return; }
+    if (s.mode === 'dizzy') return;
+    if (s.mode === 'talk' && s.pokes.length === 1) { settle(0); return; }
+    if (s.mode !== 'talk') speak('talk', talkLine(new Date()), 6000, name || undefined);
   };
 
-  // 减少动态效果：只坐着（回答时不在），点它照样能看今日知识
-  const shown: Mode = still && mode !== 'cheer' ? (busy ? 'away' : 'sit') : mode;
+  // 减少动态效果：只换姿势不走动（回答时不在）
+  const shown: Mode = still && (mode === 'walk' || mode === 'away') ? (busy ? 'away' : 'sit') : mode;
   const pose: Pose = shown === 'walk' ? (frame ? 'walk2' : 'walk1')
     : shown === 'sit' ? (blink ? 'blink' : 'sit')
-      : shown === 'look' ? 'look'
+      : shown === 'look' || shown === 'peek' ? 'look'
         : shown === 'jump' ? 'jump'
-            : shown === 'sleepy' ? 'sleepy'
-              : 'cheer';
-  const seated = shown === 'sit' || shown === 'look' || shown === 'sleepy';
+          : shown === 'sleepy' ? 'sleepy'
+            : shown === 'talk' ? 'coffee'
+              : shown === 'dizzy' ? (frame ? 'oops2' : 'oops1')
+                : shown === 'bye' ? (blink ? 'blink' : 'idle')
+                  : 'cheer';
+  const icon: Icon | null = shown === 'dizzy' || shown === 'cheer' ? 'spark' : shown === 'bye' ? 'wave' : null;
+  const seated = shown === 'sit' || shown === 'look' || shown === 'peek' || shown === 'sleepy';
 
   return (
     <div ref={ref} className={'pet' + (seated ? ' seated' : '') + (shown === 'jump' ? ' jumping' : '') + (shown === 'away' ? ' away' : '') + (smooth ? ' glide' : '')}
       style={{ left: x, ['--pet-w' as string]: `${size}px` }}>
-      <button type="button" className="pet-btn" onClick={poke} title={mode === 'cheer' ? '收起' : '点我看今日知识'}
-        aria-label={mode === 'cheer' ? '收起今日知识' : '看今日知识'}>
+      <button type="button" className="pet-btn" onClick={poke} title="点我一下" aria-label="和小人打个招呼">
         <PixelSprite pose={pose} width={size} />
       </button>
+      {icon && <PixelIcon icon={icon} unit={unit} className={'pet-ic pet-ic-' + icon} />}
+      {fest && shown !== 'away' && <PixelProp prop={fest.prop} unit={unit} className="pet-prop" />}
       {shown === 'sleepy' && <span className="pet-z" aria-hidden="true">z<b>Z</b></span>}
-      {mode === 'cheer' && (
+      {say && shown !== 'away' && (
         <div className={'pet-tip' + (tipLeft ? ' left' : '')} role="status">
-          <b>今日知识</b>
-          {fact ? <><span className="pet-tip-t">{fact.title}</span><span>{fact.body}</span></> : <span>今天的知识还在路上，等会儿再点我。</span>}
+          {say.label && <b>{say.label}</b>}
+          <span>{say.text}</span>
         </div>
       )}
     </div>

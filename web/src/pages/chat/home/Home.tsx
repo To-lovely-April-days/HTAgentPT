@@ -1,24 +1,20 @@
-// 首页：一行问候、输入框（8-bit 小人住在它的上沿）、「今天有点意思」、最下面最多 3 件正事。
-// 问候按时段换、每天由模型现写；有意思的内容每天换，跟这个人常碰的材料和设备有关；正事的数字由系统算。
+// 首页：居中一列，只有三样——问候（日期、一句问好、一句生活上的话）、输入框（下面一行常用技能）、需要你看的（最多 3 件）。
+// 问候按时段换、每天由模型现写，过节换成节日祝福；「需要你看的」把处理好的反馈、没填完的文档、系统算出的正事排在一起，
+// 点过的当天不再出现；一件都没有就整块不显示；都点完了收成一行，小人欢呼一下。
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { get, post } from '../../../lib/api';
+import type { SessionRowT } from '../../../lib/types';
+import type { SkillRow } from '../composerUtil';
 import { Icon } from '../../../components/Icons';
+import { festivalOf } from '../../../components/pet/days';
 
 interface Line { title: string; sub: string }
 interface WorkItem { id: string; emoji: string; title: string; badge: string; tone: string; detail: string; action: string; prompt: string }
 export interface HomeToday {
   name: string; date: string; lines: Record<string, Line>;
-  fun: {
-    knowledge: { title: string; body: string } | null;
-    quiz: { question: string; options: string[]; answer: number; explain: string } | null;
-    history: { year: string; text: string } | null;
-    number: { value: string; text: string } | null;
-  };
   work: WorkItem[]; quiet: string[]; recent: string[]; offWork: string; refreshLeft: number; generated: boolean;
-  /** 猜你感兴趣：按记忆和最近问的推荐的话题（记忆关了、什么都没有时为空） */
-  picks?: { title: string; why: string; prompt: string }[];
   /** 模型还在后台写，这次先给的系统台词；过几秒再取 */
   pending: boolean;
 }
@@ -36,9 +32,8 @@ function defaultLine(slot: string, name: string): Line {
 }
 
 const WEEK = '日一二三四五六';
-function clockLine(now: Date): string {
-  return `周${WEEK[now.getDay()]} · ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-}
+const pad = (n: number) => String(n).padStart(2, '0');
+const dateLine = (d: Date) => `${d.getMonth() + 1} 月 ${d.getDate()} 日 · 周${WEEK[d.getDay()]} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 function useNow(ms = 30_000): Date {
   const [now, setNow] = useState(() => new Date());
@@ -46,32 +41,40 @@ function useNow(ms = 30_000): Date {
   return now;
 }
 
-const TONE: Record<string, string> = { up: 'hb-up', warn: 'hb-warn', ok: 'hb-ok', info: 'hb-info' };
-const DOT: Record<string, string> = { up: '#C8102E', warn: '#F5B800', ok: '#16A34A', info: '#3F3F46' };
-
-function Quiz({ q }: { q: NonNullable<HomeToday['fun']['quiz']> }) {
-  const [pick, setPick] = useState<number | null>(null);
-  return (
-    <div className="fun-card fun-quiz">
-      <span className="fun-k">猜一猜</span>
-      <b className="fun-q">{q.question}</b>
-      {q.options.map((o, i) => {
-        const state = pick == null ? '' : i === q.answer ? ' right' : i === pick ? ' wrong' : ' dim';
-        return (
-          <button key={i} type="button" className={'fun-opt' + state} disabled={pick != null} onClick={() => setPick(i)}>
-            <i>{'ABCD'[i]}</i><span>{o}</span>{pick != null && i === q.answer && <em><Icon name="check" size={14} stroke={2.2} style={{ verticalAlign: '-2px' }} /></em>}{pick === i && i !== q.answer && <em><Icon name="x" size={14} stroke={2.2} style={{ verticalAlign: '-2px' }} /></em>}
-          </button>
-        );
-      })}
-      {pick != null && <span className={'fun-exp' + (pick === q.answer ? ' ok' : '')}>{pick === q.answer ? '答对了！' : '差一点。'}{q.explain}</span>}
-    </div>
-  );
+function ago(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '';
+  const min = Math.round((Date.now() - t) / 60000);
+  if (min < 1) return '刚刚';
+  if (min < 60) return `${min} 分钟前`;
+  if (min < 24 * 60) return `${Math.round(min / 60)} 小时前`;
+  if (min < 48 * 60) return '昨天';
+  return iso.slice(5, 10).replace('-', '/');
 }
 
-export function Home({ fallbackName, composer, resume, onPick, drafts, onDrafts }: {
-  fallbackName: string; composer: ReactNode; resume?: ReactNode; onPick: (q: string) => void;
-  /** 没填完的文档份数，和打开它们的方法 */
-  drafts: number; onDrafts: () => void;
+// 今天点过哪几件（只记在这台电脑的浏览器里；存不了就当没点过）
+interface Seen { day: string; keys: string[]; cheered: boolean }
+const SEEN_KEY = 'hm-seen';
+function loadSeen(): Seen {
+  const day = new Date().toDateString();
+  try {
+    const s = JSON.parse(localStorage.getItem(SEEN_KEY) ?? 'null') as Seen | null;
+    if (s && s.day === day && Array.isArray(s.keys)) return s;
+  } catch { /* 读不了 */ }
+  return { day, keys: [], cheered: false };
+}
+function saveSeen(s: Seen) { try { localStorage.setItem(SEEN_KEY, JSON.stringify(s)); } catch { /* 存不了 */ } }
+
+const TONE: Record<string, string> = { up: 'up', warn: 'warn', ok: 'ok', info: 'info' };
+
+interface Item { key: string; tone: string; title: string; badge?: string; detail: string; action: string; done?: boolean; run: () => void }
+
+export function Home({ fallbackName, composer, onPick, skills, onSkill, drafts, onOpenDoc }: {
+  fallbackName: string; composer: ReactNode; onPick: (q: string) => void;
+  /** 常用：技能管理里放进菜单的技能，首页摆前 4 个 */
+  skills: SkillRow[]; onSkill: (s: SkillRow) => void;
+  /** 没填完的文档 */
+  drafts: SessionRowT[]; onOpenDoc: (id: string) => void;
 }) {
   const qc = useQueryClient();
   // 模型写今天的内容要一阵子：后端先回系统台词（pending），这里每 4 秒再取，写好了自动换上；最多等 3 分钟
@@ -84,133 +87,93 @@ export function Home({ fallbackName, composer, resume, onPick, drafts, onDrafts 
   const now = useNow();
   const slot = slotOf(now);
   const name = data?.name || fallbackName;
-  const line = data?.lines[slot] ?? defaultLine(slot, name);
-  const [refreshing, setRefreshing] = useState(false);
-  const [liked, setLiked] = useState(false);
-  const fun = data?.fun;
-  const hasFun = !!(fun && (fun.knowledge || fun.quiz || fun.history || fun.number));
+  const fest = festivalOf(now);
+  const line = fest ? { title: `${fest.title}，${name}`, sub: fest.sub } : data?.lines[slot] ?? defaultLine(slot, name);
+  const [seen, setSeen] = useState(loadSeen);
 
-  const refresh = async () => {
-    setRefreshing(true);
-    try {
-      // 换一组也是后台写：没写好前先留着旧的，写好了再换
-      let r = await get<HomeToday>('/api/home/today?refresh=true');
-      for (let i = 0; r.pending && i < 45; i++) {
-        await new Promise((ok) => setTimeout(ok, 4000));
-        r = await get<HomeToday>('/api/home/today');
-      }
-      qc.setQueryData(['home-today'], r); setLiked(false);
-    }
-    catch { /* 换不了就保持原样 */ }
-    finally { setRefreshing(false); }
+  const items: Item[] = [
+    // 反馈过的问题处理好了：点一下用原来的问题再问一次
+    ...(fixed.data ?? []).map((f) => ({
+      key: 'fb:' + f.id, tone: 'ok', done: true, title: '你反馈的问题处理好了',
+      detail: `「${f.question}」${f.note ? ` · ${f.note}` : ''}`, action: '再问一次',
+      run: () => { void post(`/api/qa-sessions/feedback/${f.id}/seen`).finally(() => void qc.invalidateQueries({ queryKey: ['feedback-resolved'] })); onPick(f.question); },
+    })),
+    ...drafts.slice(0, 2).map((d) => ({
+      key: 'doc:' + d.id, tone: 'info', title: d.templateName, badge: `填了 ${d.done}/${d.total}`,
+      detail: `还没填完 · 上次 ${ago(d.updatedAt)}`, action: '接着填', run: () => onOpenDoc(d.id),
+    })),
+    ...(data?.work ?? []).map((w) => ({
+      key: `w:${w.id}:${w.title}`, tone: TONE[w.tone] ?? 'info', title: w.title, badge: w.badge, detail: w.detail, action: w.action,
+      run: () => onPick(w.prompt),
+    })),
+  ];
+  const ready = !!data && !fixed.isPending;
+  const left = items.filter((i) => !seen.keys.includes(i.key));
+  const allDone = ready && items.length > 0 && left.length === 0;
+
+  // 都点完了：小人欢呼一下（一天一次）
+  useEffect(() => {
+    if (!allDone || seen.cheered) return;
+    const t = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('htpet', { detail: 'cheer' }));
+      const s = { ...seen, cheered: true }; setSeen(s); saveSeen(s);
+    }, 900);
+    return () => clearTimeout(t);
+  }, [allDone, seen]);
+
+  const open = (it: Item) => {
+    const s = { ...seen, keys: [...seen.keys, it.key] };
+    setSeen(s); saveSeen(s);
+    it.run();
+  };
+
+  const pickSkill = (s: SkillRow) => {
+    onSkill(s);
+    document.querySelector<HTMLTextAreaElement>('textarea.composer-input')?.focus();
   };
 
   return (
     <div className="hm">
       <header className="hm-hero">
-        <span className="hm-clock">{clockLine(now)}</span>
+        <span className="hm-date tn">{dateLine(now)}</span>
         <h1 className="hm-title">{line.title}</h1>
         {line.sub && <p className="hm-sub">{line.sub}</p>}
       </header>
 
       {composer}
 
-      {(q.isPending || data?.pending || hasFun) && (
-        <section className="hm-fun" aria-labelledby="hm-fun-t">
-          <div className="hm-sec-hd">
-            <b id="hm-fun-t">今天有点意思</b>
-            <span>每天换 · 跟你常碰的材料和设备有关</span>
-            {data && data.refreshLeft > 0 && (
-              <button type="button" className="hm-link" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? '正在换…' : <>换一组<Icon name="refresh" size={13} style={{ verticalAlign: '-2px', marginLeft: 4 }} /></>}</button>
-            )}
-          </div>
-          {(q.isPending || (data?.pending && !hasFun)) && <div className="hm-skel"><i /><i /></div>}
-          {fun && (fun.knowledge || fun.quiz) && (
-            <div className="fun-row">
-              {fun.knowledge && (
-                <div className="fun-card fun-know">
-                  <span className="fun-k">今日知识</span>
-                  <b className="fun-t">{fun.knowledge.title}</b>
-                  <p>{fun.knowledge.body}</p>
-                  <div className="fun-acts">
-                    <button type="button" className={liked ? 'on' : ''} onClick={() => setLiked(!liked)}>原来如此<Icon name={liked ? 'check' : 'thumbUp'} size={13} style={{ verticalAlign: '-2px', marginLeft: 5 }} /></button>
-                    <button type="button" onClick={() => onPick(`再详细讲讲：${fun.knowledge!.title}`)}>再讲详细点</button>
-                  </div>
-                </div>
-              )}
-              {fun.quiz && <Quiz key={fun.quiz.question} q={fun.quiz} />}
-            </div>
-          )}
-          {fun && (fun.history || fun.number) && (
-            <div className="fun-row two">
-              {fun.history && (
-                <div className="fun-card fun-mini">
-                  <span className="fun-big red">{fun.history.year}</span>
-                  <span><i>化工史上</i>{fun.history.text}</span>
-                </div>
-              )}
-              {fun.number && (
-                <div className="fun-card fun-mini">
-                  <span className="fun-big">{fun.number.value}</span>
-                  <span><i>一个数字</i>{fun.number.text}</span>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
+      {skills.length > 0 && (
+        <div className="hm-skills" aria-label="常用技能">
+          {skills.slice(0, 4).map((s) => (
+            <button key={s.code} type="button" title={s.description} onClick={() => pickSkill(s)}>
+              {s.name}{s.ppt && <span className="beta-tag" title="试用版：还在完善，做出来的 PPT 请检查后再用">Beta</span>}
+            </button>
+          ))}
+        </div>
       )}
 
-      <section className="hm-work" aria-labelledby="hm-work-t">
-        {/* 反馈过的问题处理好了：点一下用原来的问题再问一次 */}
-        {(fixed.data ?? []).map((f) => (
-          <button key={f.id} type="button" className="hm-row" onClick={() => {
-            void post(`/api/qa-sessions/feedback/${f.id}/seen`).finally(() => void qc.invalidateQueries({ queryKey: ['feedback-resolved'] }));
-            onPick(f.question);
-          }}>
-            <span className="hm-dot" style={{ background: DOT.ok }} aria-hidden="true" />
-            <span className="hm-row-m">
-              <span className="hm-row-t"><b>你反馈的问题处理好了</b></span>
-              <span className="hm-row-d">「{f.question}」{f.note ? ` · ${f.note}` : ''}</span>
-            </span>
-            <span className="hm-row-a">再问一次</span>
-          </button>
-        ))}
-        {(data?.work.length ?? 0) > 0 && (
-          <div className="hm-sec-hd"><b id="hm-work-t">正事</b><span>{data!.work.length} 件，数字由系统核算</span></div>
-        )}
-        {data?.work.map((w) => (
-          <button key={w.id} type="button" className="hm-row" onClick={() => onPick(w.prompt)}>
-            <span className="hm-dot" style={{ background: DOT[w.tone] ?? DOT.info }} aria-hidden="true" />
-            <span className="hm-row-m">
-              <span className="hm-row-t"><b>{w.title}</b><i className={'hm-badge ' + (TONE[w.tone] ?? 'hb-info')}>{w.badge}</i></span>
-              <span className="hm-row-d">{w.detail}</span>
-            </span>
-            <span className="hm-row-a">{w.action}</span>
-          </button>
-        ))}
-        {data && data.work.length === 0 && data.quiet.length > 0 && (
-          <div className="hm-quiet">
-            <span id="hm-work-t">今天没有跟你有关的新变动，可以问问这些：</span>
-            {data.quiet.map((x) => <button key={x} type="button" onClick={() => onPick(x)}><Icon name="forward" size={13} className="gi l" />{x}</button>)}
-          </div>
-        )}
-        {(data?.picks?.length ?? 0) > 0 && (
-          <>
-            <div className="hm-sec-hd"><b><Icon name="brain" size={14} className="gi l" />猜你感兴趣</b><span>按你的记忆和最近问的推荐</span></div>
-            {data!.picks!.map((p) => (
-              <button key={p.title} type="button" className="hm-row" onClick={() => onPick(p.prompt)}>
+      {ready && left.length > 0 && (
+        <section className="hm-work" aria-labelledby="hm-work-t">
+          <div className="hm-sec-hd"><b id="hm-work-t">需要你看的</b><span>{left.length > 3 ? `最要紧的 3 件，还有 ${left.length - 3} 件` : `${left.length} 件`}</span></div>
+          <div className="hm-list">
+            {left.slice(0, 3).map((it) => (
+              <button key={it.key} type="button" className="hm-row" onClick={() => open(it)}>
+                {it.done
+                  ? <span className="hm-ok" aria-hidden="true"><Icon name="check" size={12} stroke={3} /></span>
+                  : <span className={'hm-dot ' + it.tone} aria-hidden="true" />}
                 <span className="hm-row-m">
-                  <span className="hm-row-t"><b>{p.title}</b></span>
-                  {p.why && <span className="hm-row-d">{p.why}</span>}
+                  <span className="hm-row-t"><b>{it.title}</b>{it.badge && <i className={'hm-badge tn ' + it.tone}>{it.badge}</i>}</span>
+                  <span className="hm-row-d">{it.detail}</span>
                 </span>
-                <span className="hm-row-a">问问看</span>
+                <span className="hm-row-a">{it.action}<Icon name="forward" size={14} /></span>
               </button>
             ))}
-          </>
-        )}
-        {drafts > 0 && <button type="button" className="hm-more" onClick={onDrafts}>还有 {drafts} 份文档没填完 · <b>去看看<Icon name="forward" size={13} className="gi" /></b></button>}
-        {resume}
-      </section>
+          </div>
+        </section>
+      )}
+      {allDone && (
+        <div className="hm-done" role="status"><Icon name="check" size={14} stroke={2.6} />今天要看的都看完了</div>
+      )}
     </div>
   );
 }

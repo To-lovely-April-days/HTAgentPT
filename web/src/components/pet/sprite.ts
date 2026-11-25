@@ -1,7 +1,7 @@
 // HTLAB 吉祥物的 8-bit 像素版（32×44）。每个动作是一张字符画：一个字符一格，'.' 是透明。
 // 由设计稿生成；要改造型就改这里的字符画。ICONS 是头顶冒出来的小图标（问号、省略号、灯泡、汗滴、信号）。
 
-export const PALETTE: Record<string, string> = {"O": "#141416", "K": "#2B2B31", "k": "#4A4A54", "R": "#D7263D", "r": "#8E1328", "W": "#FFFFFF", "S": "#F6CBA8", "s": "#DEA07E", "E": "#18181B", "P": "#F0958A", "G": "#8C8C94", "g": "#5C5C64", "Y": "#F5B800", "y": "#B98500", "B": "#7FB7E8"};
+export const PALETTE: Record<string, string> = {"O": "#141416", "K": "#2B2B31", "k": "#4A4A54", "R": "#D7263D", "r": "#8E1328", "W": "#FFFFFF", "S": "#F6CBA8", "s": "#DEA07E", "E": "#18181B", "P": "#F0958A", "G": "#8C8C94", "g": "#5C5C64", "Y": "#F5B800", "y": "#B98500", "B": "#7FB7E8", "M": "#FCE9B0", "m": "#E9C46A", "Z": "#4E9A5B", "z": "#2F6B3A"};
 
 export type Pose = 'idle' | 'blink' | 'walk1' | 'walk2' | 'sit' | 'look' | 'jump' | 'sleepy' | 'busy' | 'coffee' | 'cheer' | 'think' | 'scratch1' | 'scratch2' | 'read1' | 'read2' | 'mag1' | 'mag2' | 'calc1' | 'calc2' | 'web1' | 'web2' | 'idea' | 'write1' | 'write2' | 'oops1' | 'oops2';
 export type Icon = 'q' | 'dots' | 'bulb' | 'sweat' | 'wave' | 'spark';
@@ -1261,4 +1261,15 @@ export const ICONS: Record<Icon, string[]> = {
   sweat: ['..O..', '.OBO.', 'OBBWO', 'OBBBO', '.OOO.'],
   wave: ['..RR.', '....R', '.RR.R', '...RR', '.R.RR'],
   spark: ['....O....', '...OWO...', '....O....', '.O.....O.', 'OWO...OWO', '.O.....O.'],
+};
+
+/** 过节时站在小人旁边的道具，格子和小人一样大。 */
+export type Prop = 'firework' | 'lantern' | 'tangyuan' | 'zongzi' | 'moon' | 'flag';
+export const PROPS: Record<Prop, string[]> = {
+  firework: ['....Y....', '.R..Y..R.', '..R.Y.R..', '...RYR...', 'YYYY.YYYY', '...RYR...', '..R.Y.R..', '.R..Y..R.', '....Y....'],
+  lantern: ['...OO...', '..OrrO..', '.ORRRRO.', 'ORRYRRRO', 'ORRYRRRO', 'ORRYRRRO', '.ORRRRO.', '..OrrO..', '...YY...', '...Y.Y..', '..Y..Y..'],
+  tangyuan: ['..OO..OO..', '.OWWOOWWO.', 'OWWWWWWWWO', 'ORRRRRRRRO', '.ORRRRRRO.', '..OrrrrO..', '...OOOO...'],
+  zongzi: ['....O....', '...OZO...', '..OZZZO..', '..OZZZO..', '.OYYYYYO.', '.OZZZZZO.', 'OZZZzZZZO', 'OZZzzzZZO', 'OOOOOOOOO'],
+  moon: ['..OOOOO..', '.OMMMMMO.', 'OMMMmMMMO', 'OMMMMMMMO', 'OMmMMMMMO', 'OMMMMMmMO', 'OMMMMMMMO', '.OMMMMMO.', '..OOOOO..'],
+  flag: ['gOOOOOOO', 'gORRRRRO', 'gORYRRRO', 'gORRRRRO', 'gOOOOOOO', 'g.......', 'g.......', 'g.......', 'g.......', 'g.......'],
 };

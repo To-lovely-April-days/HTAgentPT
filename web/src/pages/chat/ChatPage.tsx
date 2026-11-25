@@ -691,6 +691,7 @@ export default function ChatPage() {
                       <Composer big attach={attachProps} plus={plus} chips={chips}
                         placeholder={attachProps ? '问点什么，或把客户文件拖进来' : '问点什么'}>{thinkPicker}</Composer>
                     )}
+                    skills={skills.data ?? []} onSkill={(s) => plus.skills?.onChange(s)}
                     onPick={(q) => void send(q)} onOpenDoc={(id) => nav(`/generate?session=${id}`)} />
                 )}
               </ThreadPrimitive.Empty>
@@ -832,46 +833,18 @@ function Composer({ placeholder, big, attach, plus, chips, children, busy = fals
   );
 }
 
-function ago(iso: string): string {
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return '';
-  const min = Math.round((Date.now() - t) / 60000);
-  if (min < 1) return '刚刚';
-  if (min < 60) return `${min} 分钟前`;
-  if (min < 24 * 60) return `${Math.round(min / 60)} 小时前`;
-  if (min < 48 * 60) return '昨天';
-  return iso.slice(5, 10).replace('-', '/');
-}
-
-/** 首页（对话还没开始时）：吉祥物 + 今天的台词、大输入框、最要紧的几件正事、歇一会、表情包（见 home/Home）。 */
-function Welcome({ has, name, composer, onPick, onOpenDoc }: {
+/** 首页（对话还没开始时）：问候、大输入框和常用技能、需要你看的（见 home/Home）。 */
+function Welcome({ has, name, composer, onPick, onOpenDoc, skills, onSkill }: {
   has: (p: string) => boolean; name: string; composer: ReactNode;
   onPick: (q: string) => void; onOpenDoc: (sessionId: string) => void;
+  skills: SkillRow[]; onSkill: (s: SkillRow) => void;
 }) {
   const docs = useQuery({
     queryKey: ['gen-sessions'], enabled: has(Perm.Generate),
     queryFn: () => get<SessionRowT[]>('/api/generate/sessions'),
   });
-  const open = (docs.data ?? []).filter((d) => d.status !== 'Completed');
-  const recent = (docs.data ?? []).slice(0, 3);
-  return (
-    <Home fallbackName={name} onPick={onPick}
-      drafts={open.length} onDrafts={() => { if (open[0]) onOpenDoc(open[0].id); }}
-      composer={composer}
-      resume={recent.length > 0 ? (
-        <div className="hm-resume">
-          <span>接着上次：</span>
-          {recent.map((d) => {
-            const finished = d.status === 'Completed';
-            return (
-              <button key={d.id} type="button" onClick={() => onOpenDoc(d.id)} title={ago(d.updatedAt)}>
-                {d.templateName}<i>{finished ? '已生成' : `${d.done}/${d.total}`}</i>
-              </button>
-            );
-          })}
-        </div>
-      ) : null} />
-  );
+  const drafts = (docs.data ?? []).filter((d) => d.status !== 'Completed');
+  return <Home fallbackName={name} onPick={onPick} composer={composer} skills={skills} onSkill={onSkill} drafts={drafts} onOpenDoc={onOpenDoc} />;
 }
 
 /** 把一句话放回输入框（改一改再发）：走输入框自己的输入事件，和用户亲手打字一样。 */

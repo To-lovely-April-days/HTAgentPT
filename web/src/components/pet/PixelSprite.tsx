@@ -1,7 +1,7 @@
 // 把一张像素字符画画成 SVG：同一行里连在一起的同色格子合成一段，每种颜色一条 path，格子再多也很轻。
 import { memo } from 'react';
-import { H, ICONS, PALETTE, POSES, W } from './sprite';
-import type { Icon, Pose } from './sprite';
+import { H, ICONS, PALETTE, POSES, PROPS, W } from './sprite';
+import type { Icon, Pose, Prop } from './sprite';
 
 const cache = new Map<string, { ch: string; fill: string; d: string }[]>();
 
@@ -48,6 +48,17 @@ export const PixelIcon = memo(function PixelIcon({ icon, unit, className }: { ic
   return (
     <svg className={className} width={w * unit} height={rows.length * unit} viewBox={`0 0 ${w} ${rows.length}`} shapeRendering="crispEdges" aria-hidden="true">
       {paths('icon:' + icon, rows).map((p) => <path key={p.ch} d={p.d} fill={p.fill} />)}
+    </svg>
+  );
+});
+
+/** 过节的道具（灯笼、月亮……），格子和小人一样大。 */
+export const PixelProp = memo(function PixelProp({ prop, unit, className }: { prop: Prop; unit: number; className?: string }) {
+  const rows = PROPS[prop];
+  const w = Math.max(...rows.map((r) => r.length));
+  return (
+    <svg className={className} width={w * unit} height={rows.length * unit} viewBox={`0 0 ${w} ${rows.length}`} shapeRendering="crispEdges" aria-hidden="true">
+      {paths('prop:' + prop, rows).map((p) => <path key={p.ch} d={p.d} fill={p.fill} />)}
     </svg>
   );
 });
