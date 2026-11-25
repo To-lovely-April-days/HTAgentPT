@@ -30,27 +30,18 @@ public class HomeBriefTests
         var w = Assert.Single(r.Work);
         Assert.Equal("+6.2%", w.Badge);
         Assert.Equal("重算", w.Action);
-        Assert.Equal("「哈氏」不是人名", r.Fun.Knowledge!.Title);
-        Assert.Equal(1, r.Fun.Quiz!.Answer);
-        Assert.Equal(3, r.Fun.Quiz.Options.Count);
-        Assert.Equal("1913", r.Fun.History!.Year);
-        Assert.Equal("1.25×", r.Fun.Number!.Value);
-        Assert.Equal(2, r.Quiet.Count);
     }
 
     [Theory]
     [InlineData(null)]
     [InlineData("不是 JSON")]
     [InlineData("{ 坏掉的")]
-    public void Bad_output_falls_back_without_fake_examples(string? raw)
+    public void Bad_output_falls_back_to_system_lines(string? raw)
     {
         var r = HomeBrief.Parse(raw, Ctx(Price));
         Assert.False(r.Generated);
         Assert.Equal("P1", Assert.Single(r.Work).Id);
-        // 不编示例问题：只给这个人真问过的
-        Assert.Equal(["50L 加氢釜材料成本"], r.Quiet);
-        Assert.Null(r.Fun.Knowledge);
-        Assert.Null(r.Fun.Quiz);
+        Assert.Equal("早，张工 ☀️", r.Lines["morning"].Title);
     }
 
     [Theory]
@@ -64,13 +55,6 @@ public class HomeBriefTests
         => Assert.Equal(slot, HomeBrief.SlotOf(new DateTimeOffset(y, m, d, h, 0, 0, TimeSpan.FromHours(8))));
 
     [Fact]
-    public void Quiz_with_a_bad_answer_index_is_dropped()
-    {
-        var r = HomeBrief.Parse("""{"quiz":{"question":"问","options":["a","b"],"answer":5}}""", Ctx());
-        Assert.Null(r.Fun.Quiz);
-    }
-
-    [Fact]
     public void Prompt_lists_candidates_and_forbids_made_up_numbers()
     {
         var p = HomeBrief.Prompt(Ctx(Price));
@@ -80,20 +64,12 @@ public class HomeBriefTests
     }
 
     [Fact]
-    public void Picks_come_from_memories_and_need_a_prompt()
+    public void Prompt_no_longer_asks_for_trivia_or_topic_picks()
     {
-        const string raw = """{"picks":[{"title":"哈氏合金在含氯介质里的点蚀","why":"你在跟华东理工","prompt":"哈氏 C276 在含氯介质里会点蚀吗？"},{"title":"没有问题的","why":"x"},{"title":"哈氏合金在含氯介质里的点蚀","why":"重复","prompt":"再问"}]}""";
-        var r = HomeBrief.Parse(raw, Ctx());
-        var pick = Assert.Single(r.Picks!);
-        Assert.Equal("哈氏 C276 在含氯介质里会点蚀吗？", pick.Prompt);
-    }
-
-    [Fact]
-    public void No_memories_and_no_history_means_no_picks()
-    {
-        var ctx = new HomeBrief.Context("张工", "售前工程师", null, DateTimeOffset.Now, [], [], [], 0);
-        var r = HomeBrief.Parse("""{"picks":[{"title":"瞎猜的","why":"?","prompt":"问点啥"}]}""", ctx);
-        Assert.Empty(r.Picks!);
+        var p = HomeBrief.Prompt(Ctx(Price));
+        Assert.DoesNotContain("knowledge", p);
+        Assert.DoesNotContain("picks", p);
+        Assert.DoesNotContain("在跟华东理工", p);   // 问候只说生活，用不着他的记忆
     }
 
     [Theory]

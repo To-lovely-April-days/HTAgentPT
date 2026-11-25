@@ -14,7 +14,7 @@ interface Line { title: string; sub: string }
 interface WorkItem { id: string; emoji: string; title: string; badge: string; tone: string; detail: string; action: string; prompt: string }
 export interface HomeToday {
   name: string; date: string; lines: Record<string, Line>;
-  work: WorkItem[]; quiet: string[]; recent: string[]; offWork: string; refreshLeft: number; generated: boolean;
+  work: WorkItem[]; recent: string[]; offWork: string; refreshLeft: number; generated: boolean;
   /** 模型还在后台写，这次先给的系统台词；过几秒再取 */
   pending: boolean;
 }

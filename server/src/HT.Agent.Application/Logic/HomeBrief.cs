@@ -4,8 +4,7 @@ using System.Text.Json.Nodes;
 
 namespace HT.Agent.Application.Logic;
 
-/// <summary>首页每天的内容：不同时段的一句问候、「今天有点意思」（今日知识、猜一猜、化工史上的一件事、一个数字）、
-/// 最要紧的几件正事、没事时可以问的问题。
+/// <summary>首页每天的内容：不同时段的一句问候（只说生活）、最要紧的几件正事。
 /// 正事的候选和上面的数字由系统从价格库、资料库、台账等取出、算好；模型只挑重点、写那一句话，不编数字。
 /// 这里是纯逻辑：拼提示词、解析模型输出、模型不可用时的兜底。</summary>
 public static class HomeBrief
@@ -17,16 +16,7 @@ public static class HomeBrief
     public record Line(string Title, string Sub);
     public record Work(string Id, string Emoji, string Title, string Badge, string Tone, string Detail, string Action, string Prompt);
 
-    public record Knowledge(string Title, string Body);
-    public record Quiz(string Question, List<string> Options, int Answer, string Explain);
-    public record History(string Year, string Text);
-    public record Number(string Value, string Text);
-    public record Fun(Knowledge? Knowledge, Quiz? Quiz, History? History, Number? Number);
-
-    /// <summary>「猜你感兴趣」：按长期记忆和最近问的推荐的一个话题；Why 说依据，Prompt 是点了替他问的话。</summary>
-    public record Pick(string Title, string Why, string Prompt);
-
-    public record Result(Dictionary<string, Line> Lines, Fun Fun, List<Work> Work, List<string> Quiet, bool Generated, List<Pick>? Picks = null);
+    public record Result(Dictionary<string, Line> Lines, List<Work> Work, bool Generated);
 
     public static readonly string[] Slots = ["morning", "noon", "afternoon", "evening", "late", "friday"];
 
@@ -45,10 +35,7 @@ public static class HomeBrief
             - 只说生活：天气和季节、吃饭喝水、休息、身体、周末、节气节日、通勤、家人、小小的好心情；
             - 不提工作和行业：不说设备、反应釜、报价、客户、项目、加班、截止、「在等你」这类催促的话；
             - 不开任何负面的玩笑：不说爆炸、着火、泄漏、事故、出错、挨骂、背锅、扣钱、熬夜、累，不调侃人。
-            「今天有点意思」是让人放松一下、看了觉得有意思的：跟化工、材料、设备、实验有关的冷知识和小故事，最好贴近他常碰的东西；必须是你非常确定的真实知识，拿不准的宁可换一个。
             """);
-        if (c.Memories.Count > 0) sb.AppendLine("他的长期记忆：" + string.Join("；", c.Memories.Take(8)));
-        if (c.RecentQuestions.Count > 0) sb.AppendLine("他最近问过：" + string.Join("；", c.RecentQuestions.Take(8)));
         if (c.Drafts > 0) sb.AppendLine($"他还有 {c.Drafts} 份没填完的文档。");
         if (c.Candidates.Count > 0)
         {
@@ -67,17 +54,9 @@ public static class HomeBrief
                 "late":      {"title": "晚上还在加班时", "sub": "..."},
                 "friday":    {"title": "周五下午", "sub": "..."}
               },
-              "knowledge": {"title": "今日知识的一句话标题（≤22字，有点反常识最好）", "body": "两三句讲清楚（≤90字）"},
-              "quiz": {"question": "一道三选一的小题（≤26字）", "options": ["A", "B", "C"], "answer": 正确选项的序号 0/1/2, "explain": "揭晓时的一句解释（≤50字）"},
-              "history": {"year": "年份，如 1913", "text": "化工史上的一件事（≤40字）"},
-              "number": {"value": "一个数字，如 1.25×、6.022×10²³、1450 ℃", "text": "这个数字是什么（≤40字）"},
-              "work": [{"id": "上面的编号", "title": "一句话标题（≤24字）", "detail": "对他的影响或细节（≤36字）", "action": "按钮上的 2–4 个字", "prompt": "点按钮后替他发给助手的完整问题"}],
-              "quiet": ["没有正事时，可以问的 3 个问题（按他的角色和最近的工作写，每个 ≤30 字）"],
-              "picks": [{"title": "猜他感兴趣的一个话题（≤22字）", "why": "为什么推荐给他（≤20字，点明依据哪条记忆或最近问的）", "prompt": "点了替他发给助手的完整问题"}]
+              "work": [{"id": "上面的编号", "title": "一句话标题（≤24字）", "detail": "对他的影响或细节（≤36字）", "action": "按钮上的 2–4 个字", "prompt": "点按钮后替他发给助手的完整问题"}]
             }
             work 只从上面的编号里挑最要紧的，最多 3 件，没有就给空数组。
-            picks 按他的长期记忆和最近问过的，推荐 3 个他可能想深入了解的话题：他关心的设备、材料、工艺、标准、客户行业里值得一问的东西，要具体，别和最近问过的重复；
-            没有长期记忆也没有最近问过的，picks 给空数组，不要瞎猜。
             """);
         return sb.ToString();
     }
@@ -122,31 +101,7 @@ public static class HomeBrief
                     Clip(w["prompt"]?.ToString(), 200) is { Length: > 0 } p ? p : cand.Prompt));
             }
         if (work.Count == 0) work = fb.Work;
-        var quiet = (o["quiet"] as JsonArray ?? []).Select(x => Clip(x?.ToString(), 40)).Where(x => x.Length > 0).Take(3).ToList();
-        Knowledge? kn = o["knowledge"] is JsonObject ko && Clip(ko["title"]?.ToString(), 40) is { Length: > 0 } kt
-            ? new Knowledge(kt, Clip(ko["body"]?.ToString(), 160)) : null;
-        Quiz? quiz = null;
-        if (o["quiz"] is JsonObject qo && Clip(qo["question"]?.ToString(), 50) is { Length: > 0 } qq)
-        {
-            var opts = (qo["options"] as JsonArray ?? []).Select(x => Clip(x?.ToString(), 30)).Where(x => x.Length > 0).Take(4).ToList();
-            var ans = qo["answer"] is JsonValue av && av.TryGetValue<int>(out var ai) ? ai : int.TryParse(qo["answer"]?.ToString(), out var ai2) ? ai2 : -1;
-            if (opts.Count >= 2 && ans >= 0 && ans < opts.Count) quiz = new Quiz(qq, opts, ans, Clip(qo["explain"]?.ToString(), 90));
-        }
-        History? hist = o["history"] is JsonObject ho && Clip(ho["text"]?.ToString(), 70) is { Length: > 0 } ht
-            ? new History(Clip(ho["year"]?.ToString(), 8), ht) : null;
-        Number? num = o["number"] is JsonObject no && Clip(no["value"]?.ToString(), 16) is { Length: > 0 } nv
-            ? new Number(nv, Clip(no["text"]?.ToString(), 70)) : null;
-        var picks = new List<Pick>();
-        if (c.Memories.Count > 0 || c.RecentQuestions.Count > 0)
-            foreach (var p in (o["picks"] as JsonArray ?? []).OfType<JsonObject>())
-            {
-                if (picks.Count >= 3) break;
-                var t = Clip(p["title"]?.ToString(), 40);
-                var q = Clip(p["prompt"]?.ToString(), 200);
-                if (t.Length == 0 || q.Length == 0 || picks.Any(x => x.Title == t)) continue;
-                picks.Add(new Pick(t, Clip(p["why"]?.ToString(), 40), q));
-            }
-        return new Result(lines, new Fun(kn, quiz, hist, num), work, quiet.Count > 0 ? quiet : fb.Quiet, true, picks);
+        return new Result(lines, work, true);
     }
 
     /// <summary>首页问候不该出现的：事故、负面、催促的说法，以及工作和行业的词（问候只说生活）。</summary>
@@ -158,7 +113,7 @@ public static class HomeBrief
     /// <summary>这句问候不得体（有不该出现的词）。</summary>
     public static bool Unfit(string? text) => !string.IsNullOrEmpty(text) && Taboo.IsMatch(text);
 
-    /// <summary>模型连不上时：系统写的平实台词（只说生活），正事按候选顺序取前 3 件。不放假的示例问题。</summary>
+    /// <summary>模型连不上时：系统写的平实台词（只说生活），正事按候选顺序取前 3 件。</summary>
     public static Result Fallback(Context c)
     {
         var lines = new Dictionary<string, Line>
@@ -171,12 +126,8 @@ public static class HomeBrief
             ["friday"] = new("周五啦 🎉", "周末好好歇歇，陪陪家人。"),
         };
         var work = c.Candidates.Take(3).Select(x => new Work(x.Id, x.Emoji, x.Title, x.Badge, x.Tone, x.Detail, x.Action, x.Prompt)).ToList();
-        return new Result(lines, new Fun(null, null, null, null), work, FallbackQuiet(c), false);
+        return new Result(lines, work, false);
     }
-
-    /// <summary>模型没写成时首页输入框下面也不全空：给这个人最近问过的（真问过的，不编示例问题）；没问过就空着。</summary>
-    public static List<string> FallbackQuiet(Context c)
-        => c.RecentQuestions.Select(r => (r ?? "").Trim()).Where(r => r.Length is >= 4 and <= 30).Distinct().Take(3).ToList();
 
     /// <summary>按当前时间挑哪一段台词：周五下午优先，其次按钟点。</summary>
     public static string SlotOf(DateTimeOffset now)
