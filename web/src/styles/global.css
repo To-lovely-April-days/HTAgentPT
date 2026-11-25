@@ -1679,9 +1679,16 @@ button.pcite:hover { background: var(--accent); color: #fff; border-color: var(-
 .pl-one { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; margin-bottom: 10px; border: 1px solid #ececea; border-radius: 10px; font: inherit; font-size: 12.5px; background: #fff; cursor: pointer; text-align: left; color: inherit; }
 .pl-one b { font-weight: 600; font-size: 12.5px; }
 .pl-one:hover { border-color: #d6d6d3; }
-.pl-spin { animation: pl-spin .9s linear infinite; }
-@keyframes pl-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .pl-spin { animation: none; } }
+/* 「正在做」的圈：彗星尾，一道由淡到深的光尾绕着圈转。计划里正在做的那一步、各处「加载中」共用 */
+.comet { position: relative; display: inline-block; flex: 0 0 auto; width: 18px; height: 18px; border-radius: 50%; }
+.comet::before { content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(from 0deg, rgba(42, 74, 133, 0) 0 55%, rgba(42, 74, 133, .25) 75%, #2a4a85 100%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+  animation: comet-spin 1.2s linear infinite; }
+.pl-it .comet { margin-top: 1px; }
+@keyframes comet-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .comet::before { animation: none; } }
 @media (max-width: 560px) {
   .pl-it { gap: 8px; padding: 7px 10px; }
   .pl-s { display: none; }

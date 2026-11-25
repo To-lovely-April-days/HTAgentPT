@@ -11,13 +11,9 @@ export function ClsBadge({ cls }: { cls: Classification }) {
 export function Spinner({ text }: { text?: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--ink-3)', fontSize: 12.5 }}>
-      <span className="spin" style={{
-        width: 14, height: 14, border: '2px solid var(--line-strong)',
-        borderTopColor: 'var(--accent)', borderRadius: '50%', display: 'inline-block',
-        animation: 'ht-spin .8s linear infinite',
-      }} />
+      {/* 和计划里「正在做」同一个彗星尾圈（global.css 的 .comet） */}
+      <span className="comet" style={{ width: 14, height: 14 }} aria-hidden="true" />
       {text ?? '加载中…'}
-      <style>{'@keyframes ht-spin{to{transform:rotate(360deg)}}'}</style>
     </div>
   );
 }

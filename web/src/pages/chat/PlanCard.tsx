@@ -29,7 +29,8 @@ const since = (now: number, iso: string | null | undefined, end?: string | null)
 /** 状态记号：线框图标。 */
 function Mark({ s }: { s: string }) {
   if (s === 'done') return <svg width="18" height="18" viewBox="0 0 18 18" aria-label="做完"><circle cx="9" cy="9" r="8" fill="#1C6B45" /><path d="M5.2 9.3l2.4 2.4 5-5" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
-  if (s === 'now') return <svg className="pl-spin" width="18" height="18" viewBox="0 0 18 18" aria-label="正在做"><circle cx="9" cy="9" r="7" fill="none" stroke="#E4E4E1" strokeWidth="2" /><path d="M9 2a7 7 0 0 1 7 7" fill="none" stroke="#141414" strokeWidth="2" strokeLinecap="round" /></svg>;
+  // 正在做：彗星尾——一道由淡到深的光尾绕着圈转（纯 CSS，见 .comet）
+  if (s === 'now') return <span className="comet" role="img" aria-label="正在做" />;
   if (s === 'skip') return <svg width="18" height="18" viewBox="0 0 18 18" aria-label="没做"><circle cx="9" cy="9" r="7.5" fill="none" stroke="#C9C9C6" strokeWidth="1.4" /><path d="M5.5 9h7" stroke="#9A9A9A" strokeWidth="1.6" strokeLinecap="round" /></svg>;
   return <svg width="18" height="18" viewBox="0 0 18 18" aria-label="还没做"><circle cx="9" cy="9" r="7.5" fill="none" stroke="#B5B5B1" strokeWidth="1.4" strokeDasharray="2.6 2.2" /></svg>;
 }
