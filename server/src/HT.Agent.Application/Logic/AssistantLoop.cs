@@ -65,6 +65,7 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
         var continues = 0;
         var noThink = false;       // 上一轮想完了一个字没写就到了长度上限：这一轮关掉思考，额度全给回答
         var overflows = 0;         // 模型服务说放不下（超出上下文）的次数：按它报的实际数字重估、压短再发，最多两次
+        var hiccups = 0;           // 模型服务临时出错（重启、5xx、断流、卡住）重试了几次：整问最多 RetryDelays.Length 次
 
         // 按模型服务的分词器准确算一次，定下「几个字一个 token」：只在粗估过了上下文四成时算（平时不多一次请求）
         async Task CalibrateAsync(int sentTools, IReadOnlyList<ToolSpec> liveTools, bool th)
@@ -177,6 +178,21 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
                     CharsPerToken = Math.Max(0.5, Math.Min(options.CharsPerToken, cpt) * 0.9),
                     ContextTokens = ox.ContextTokens > 0 ? ox.ContextTokens : options.ContextTokens,
                 };
+                round--;
+                continue;
+            }
+            catch (Exception ex) when (ModelErrors.IsTransient(ex, ct) && hiccups < RetryDelays.Length)
+            {
+                // 模型服务临时出错：已经做完的工具步骤都在对话里，等一会儿把这一轮重发一遍（不算轮数）。写了一半的字先清掉
+                var wait = RetryDelays[hiccups++];
+                if (streamed) await emit(new QaEvent("replace", new { text = written.ToString() }));
+                var rid = $"{stepPrefix}{++stepNo}";
+                var why = ex is ModelStalledException ? "模型服务卡住了" : ex is HttpRequestException { StatusCode: null } ? "模型服务连不上（可能在重启）" : "模型服务临时出错";
+                await emit(new QaEvent("step", new { id = rid, tool = "retry", label = "重试", detail = $"{why}，{wait} 秒后重发这一轮（第 {hiccups} 次）", status = "running" }));
+                await Task.Delay(TimeSpan.FromSeconds(wait), ct);
+                var rec = new StepRecord(rid, "retry", "重试", $"{why}，等 {wait} 秒重发（第 {hiccups} 次）", "已重发", "done", wait);
+                steps.Add(rec);
+                await emit(new QaEvent("step", new { id = rid, tool = rec.Tool, label = rec.Label, detail = rec.Detail, result = rec.Result, status = rec.Status, seconds = rec.Seconds }));
                 round--;
                 continue;
             }
@@ -309,6 +325,9 @@ public sealed class AssistantLoop(IToolChatClient client, AssistantLoopOptions o
 
     /// <summary>模型想收尾、但还有没做完的事时，最多提醒几次。</summary>
     public const int MaxNudges = 2;
+
+    /// <summary>模型服务临时出错时每次重试前等几秒：越等越久，加起来三分多钟，够模型服务重启一次。测试里改短。</summary>
+    public static int[] RetryDelays = [5, 15, 30, 60, 90];
 
     /// <summary>回答写到长度上限时，系统让它接着写最多几次。</summary>
     public const int MaxContinues = 2;

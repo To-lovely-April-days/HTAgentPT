@@ -13,6 +13,9 @@ namespace HT.Agent.Infrastructure.Clients;
 /// 这种情况抛 ToolCallingUnavailableException，调用方退回老的问答流程，不让用户看到报错。</summary>
 public class OpenAiToolChatClient(IHttpClientFactory httpFactory, IRuntimeConfig config) : IToolChatClient, ITokenCounter
 {
+    /// <summary>多久一个字都没来算卡住（排队、长思考时字是一直在来的）。</summary>
+    public static readonly TimeSpan Stall = TimeSpan.FromMinutes(4);
+
     /// <summary>哪些模型服务算不了 token（没有 /tokenize、或不认带工具清单）：记住，不再每轮去试。</summary>
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> NoTokenize = new();
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> NoToolsInTokenize = new();
@@ -85,7 +88,14 @@ public class OpenAiToolChatClient(IHttpClientFactory httpFactory, IRuntimeConfig
         if (apiKey.Length > 0)
             req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
 
-        using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+        // 不设总时限（长回答写十几分钟也正常），只看「卡住」：几分钟一个字都没来才算出故障，交给回合循环重试
+        using var idle = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        idle.CancelAfter(Stall);
+        HttpResponseMessage sent;
+        try { sent = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, idle.Token); }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        { throw new ModelStalledException($"模型服务 {Stall.TotalMinutes:0} 分钟没有响应"); }
+        using var resp = sent;
         if (!resp.IsSuccessStatusCode)
         {
             var err = await resp.Content.ReadAsStringAsync(ct);
@@ -99,17 +109,26 @@ public class OpenAiToolChatClient(IHttpClientFactory httpFactory, IRuntimeConfig
         using var reader = new StreamReader(stream);
         var acc = new StreamAccumulator();
         var clock = System.Diagnostics.Stopwatch.StartNew();
-        while (!reader.EndOfStream)
+        var finished = false;
+        for (;;)
         {
             ct.ThrowIfCancellationRequested();
-            var line = await reader.ReadLineAsync(ct);
-            if (line is null || !line.StartsWith("data:", StringComparison.Ordinal)) continue;
+            string? line;
+            try { line = await reader.ReadLineAsync(idle.Token); }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            { throw new ModelStalledException($"模型服务 {Stall.TotalMinutes:0} 分钟没有吐出新内容"); }
+            if (line is null) break;
+            idle.CancelAfter(Stall);   // 来了内容就重新计时
+            if (!line.StartsWith("data:", StringComparison.Ordinal)) continue;
             var payload = line["data:".Length..].Trim();
-            if (payload == "[DONE]") break;
+            if (payload == "[DONE]") { finished = true; break; }
             var text = acc.Feed(payload, clock.Elapsed.TotalSeconds);
             if (!string.IsNullOrEmpty(text) && onText is not null) await onText(text);
         }
-        return acc.Result();
+        var result = acc.Result();
+        // 流中途断了（模型服务重启、连接被掐）：没收到结束标记也没有结束原因，写出来的是半截，不能当成答完了
+        if (!finished && result.FinishReason is null) throw new IOException("模型服务的输出中途断了");
+        return result;
     }
 
     /// <summary>本地 Qwen：思考强度、top_k、presence_penalty 这些只有它（vLLM）认；在线服务不带，免得被拒。</summary>

@@ -38,6 +38,25 @@ public record TokenCount(int Tokens, bool IncludesTools, int ContextTokens);
 /// <summary>模型端不支持工具调用（vLLM 没开 --enable-auto-tool-choice 之类）。调用方据此退回老问答流程。</summary>
 public class ToolCallingUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
 
+/// <summary>模型服务卡住了：等了好几分钟一个字都没来（显卡出问题、服务假死）。回合循环当成临时故障，等一会儿重试。</summary>
+public class ModelStalledException(string message) : TimeoutException(message);
+
+/// <summary>模型服务出的错是不是临时的（等一会儿再发多半就好）：服务重启连不上、5xx、限流、连接被重置、流中途断了、卡住没响应。
+/// 400 这类是发的内容有问题，重试也一样，不算。</summary>
+public static class ModelErrors
+{
+    public static bool IsTransient(Exception ex, CancellationToken ct) => !ct.IsCancellationRequested && ex switch
+    {
+        ContextOverflowException => false,
+        ModelStalledException => true,
+        HttpRequestException h => h.StatusCode is null || (int)h.StatusCode >= 500 || h.StatusCode == System.Net.HttpStatusCode.TooManyRequests,
+        IOException => true,
+        TimeoutException => true,
+        OperationCanceledException => true,   // 不是用户取消的取消：超时
+        _ => false,
+    };
+}
+
 /// <summary>发过去的内容超出了模型服务的上下文长度（vLLM 返回 400 并报出上限和这次实际有多少）。
 /// 回合循环据此按实际数字重估、把早先的内容压短再发一次。数字报不出来时为 0。</summary>
 public class ContextOverflowException(string message, int contextTokens, int promptTokens)
