@@ -63,9 +63,9 @@ const GROUPS: { title: string; keys: [string, string][] }[] = [
     ],
   },
   {
-    // 同事都在内网，按 IP 查不出在哪；填公司所在城市，服务器每 30 分钟去 Open-Meteo 取一次（要能上外网）
+    // 同事都在内网，按 IP 查不出在哪；填公司所在城市，服务器每 30 分钟去高德取一次（lbs.amap.com 注册，Key 选「Web 服务」）
     title: '首页天气',
-    keys: [['home.weather_city', '公司所在城市（如 上海；留空不显示天气）']],
+    keys: [['home.weather_city', '公司所在城市（如 上海；留空不显示天气）'], ['home.weather_api_key', '高德 Key（Web 服务类型）']],
   },
 ];
 

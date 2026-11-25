@@ -1,63 +1,49 @@
 namespace HT.Agent.Application.Logic;
 
-/// <summary>首页天气：把天气服务给的数（WMO 天气代码、气温、风速、PM2.5）换成首页用的几样东西——
+/// <summary>首页天气：把天气服务（高德）给的天气描述、气温、风力换成首页用的几样东西——
 /// 画什么天（晴、多云、雨、雪……）、日期后面写的那几个字、小人穿哪一套、问候的小字要不要换成提醒。
 /// 只是装饰，不进对话、不进模型。这里是纯逻辑，取数在 WeatherService。</summary>
 public static class WeatherLogic
 {
-    /// <summary>天气服务给的原始数。Min/Max 是今天的最低最高气温；YesterdayMin 用来看降温。</summary>
-    public record Now(string City, double Temp, double Min, double Max, double? YesterdayMin, int Code, double WindKmh, bool IsDay, double? Pm25);
+    /// <summary>天气服务给的原始数。Text 是天气描述（「小雨」「多云」「中度霾」）；Min/Max 是今天的最低最高气温；
+    /// YesterdayMin 用来看降温（没有就不提醒降温）；WindLevel 是风力级数。</summary>
+    public record Now(string City, double Temp, double Min, double Max, double? YesterdayMin, string Text, int WindLevel, bool IsDay);
 
     /// <summary>给首页的。Kind：clear 晴 / cloudy 多云 / overcast 阴 / rain 雨 / storm 雷雨 / snow 雪 / fog 雾 / haze 霾 / wind 大风。
     /// Outfit：normal / cool 围巾 / cold 羽绒服 / freezing 全套保暖 / hot 短袖草帽 / rain 雨衣 / mask 口罩。</summary>
     public record View(string City, int Temp, int Min, int Max, string Kind, string Label, string Outfit, bool VeryHot, bool IsDay, string? Tip);
 
-    /// <summary>六级风（39 km/h）起算大风。</summary>
-    public const double WindyKmh = 39;
-    /// <summary>PM2.5 到中度污染（115）算霾。</summary>
-    public const double HazePm25 = 115;
+    /// <summary>六级风起算大风。</summary>
+    public const int WindyLevel = 6;
 
-    public static string KindOf(int code, double windKmh, double? pm25)
+    /// <summary>天气描述 → 画什么天。先看雷、雨雪，再看雾霾沙尘、大风，最后看阴晴。</summary>
+    public static string KindOf(string? text, int windLevel)
     {
-        if (code >= 95) return "storm";
-        if (code is >= 71 and <= 77 or 85 or 86) return "snow";
-        if (code is >= 51 and <= 67 or >= 80 and <= 82) return "rain";
-        if (code is 45 or 48) return "fog";
-        if (pm25 >= HazePm25) return "haze";
-        if (windKmh >= WindyKmh) return "wind";
-        return code switch { 0 => "clear", 3 => "overcast", _ => "cloudy" };
+        var t = text ?? "";
+        if (t.Contains('雷') || t.Contains("冰雹")) return "storm";
+        if (t.Contains("雨夹雪") || t.Contains("冻雨")) return "rain";
+        if (t.Contains('雪')) return "snow";
+        if (t.Contains('雨')) return "rain";
+        if (t.Contains('霾') || t.Contains('沙') || t.Contains('尘')) return "haze";
+        if (t.Contains('雾')) return "fog";
+        if (windLevel >= WindyLevel || t.Contains("大风") || t.Contains("暴风") || t.Contains("飓风") || t.Contains("龙卷")) return "wind";
+        if (t.Contains('阴')) return "overcast";
+        if (t.Contains('云')) return "cloudy";
+        if (t.Contains('晴')) return "clear";
+        return "cloudy";
     }
 
-    /// <summary>日期后面写的那几个字。</summary>
-    public static string LabelOf(int code, string kind) => kind switch
+    /// <summary>风力：高德给的是「≤3」「4」「4-5」这样的字，取里面最大的数字。</summary>
+    public static int WindLevelOf(string? power)
     {
-        "haze" => "霾",
-        "wind" => "大风",
-        _ => code switch
+        var best = 0;
+        foreach (var part in (power ?? "").Split('-', '~', '～'))
         {
-            0 => "晴",
-            1 => "晴间多云",
-            2 => "多云",
-            3 => "阴",
-            45 or 48 => "雾",
-            51 or 53 or 55 => "毛毛雨",
-            56 or 57 or 66 or 67 => "冻雨",
-            61 => "小雨",
-            63 => "中雨",
-            65 => "大雨",
-            71 => "小雪",
-            73 => "中雪",
-            75 => "大雪",
-            77 => "雪粒",
-            80 or 81 => "阵雨",
-            82 => "强阵雨",
-            85 => "阵雪",
-            86 => "强阵雪",
-            95 => "雷阵雨",
-            96 or 99 => "雷阵雨伴冰雹",
-            _ => "多云",
-        },
-    };
+            var digits = new string(part.Where(char.IsAsciiDigit).ToArray());
+            if (int.TryParse(digits, out var n)) best = Math.Max(best, n);
+        }
+        return best;
+    }
 
     /// <summary>小人穿哪一套：下雨穿雨衣、雾霾戴口罩，其余按今天的最高最低气温（一整天不变）。</summary>
     public static string OutfitOf(string kind, double min, double max)
@@ -92,8 +78,9 @@ public static class WeatherLogic
 
     public static View Build(Now n)
     {
-        var kind = KindOf(n.Code, n.WindKmh, n.Pm25);
-        return new View(n.City, (int)Math.Round(n.Temp), (int)Math.Round(n.Min), (int)Math.Round(n.Max), kind, LabelOf(n.Code, kind),
+        var kind = KindOf(n.Text, n.WindLevel);
+        var label = kind == "wind" && !n.Text.Contains('风') ? "大风" : n.Text;
+        return new View(n.City, (int)Math.Round(n.Temp), (int)Math.Round(n.Min), (int)Math.Round(n.Max), kind, label,
             OutfitOf(kind, n.Min, n.Max), n.Max >= 35, n.IsDay, TipOf(kind, n.Min, n.Max, n.YesterdayMin));
     }
 }

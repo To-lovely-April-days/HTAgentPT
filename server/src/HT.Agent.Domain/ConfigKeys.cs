@@ -201,6 +201,8 @@ public static class ConfigKeys
     public const string PriceStaleMonths = "price.stale_months";
     /// <summary>首页天气按哪个城市取（公司所在城市，如 上海、苏州）。留空不显示天气。</summary>
     public const string HomeWeatherCity = "home.weather_city";
+    /// <summary>首页天气用的高德开放平台 key（「Web 服务」类型，lbs.amap.com 免费注册）。键名带 api_key，读配置时打码。</summary>
+    public const string HomeWeatherKey = "home.weather_api_key";
     /// <summary>只有未税价时推算含税价用的税率系数（如 1.13）。</summary>
     public const string PriceTaxRate = "price.tax_rate";
     /// <summary>关键词与向量两路权重（FR-4.3），0 纯关键词，1 纯向量。</summary>
