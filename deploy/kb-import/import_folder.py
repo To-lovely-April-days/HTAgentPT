@@ -51,8 +51,11 @@ KB_DESC = {
 }
 NO_CUSTOMER = "未注明客户"
 # 文件名里的设备 → 词表「设备类型」（先长后短：「高压釜」要排在「釜」前面）
-DEVICES = [("连续聚合", "聚合装置"), ("聚合装置", "聚合装置"), ("合成装置", "合成装置"), ("加氢釜", "加氢釜"), ("高压釜", "高压釜"),
-           ("反应釜", "反应釜"), ("管道反应", "管道反应器"), ("微通道", "微通道反应器"), ("反应器", "反应器"), ("釜", "反应釜")]
+DEVICES = [("固定床", "固定床反应装置"), ("微通道", "微通道反应器"), ("管式", "管式反应器"), ("管道反应", "管式反应器"),
+           ("连续聚合", "聚合装置"), ("聚合装置", "聚合装置"), ("聚合设备", "聚合装置"), ("合成装置", "合成装置"),
+           ("加氢釜", "加氢釜"), ("高压釜", "高压釜"), ("反应釜", "反应釜"), ("聚合釜", "反应釜"),
+           ("结晶", "结晶设备"), ("储罐", "储罐"), ("加料罐", "加料罐"), ("撬", "撬装设备"),
+           ("反应器", "反应器"), ("反应装置", "反应装置"), ("釜", "反应釜")]
 
 
 def rule_of(folder: str) -> dict:
@@ -66,7 +69,8 @@ def rule_of(folder: str) -> dict:
 
 def agreement_meta(stem: str) -> tuple[str, str, str]:
     """技术协议的文件名 → (客户, 设备类型, 类别)。认不出客户的给 NO_CUSTOMER。"""
-    t = re.sub(r"^\d{4}[.\-年]\d{1,2}[.\-月]\d{1,2}日?\s*", "", stem).strip()   # 开头的日期「2026.05.06 」
+    t = re.sub(r"^[A-Z]{1,4}-\d{6,8}-\d{2,5}(?:-\d{1,3})?[\s\-—]*", "", stem)   # 开头的合同 / 项目编号「XD-20251030-0159-01 」
+    t = re.sub(r"^\d{4}[.\-年]\d{1,2}[.\-月]\d{1,2}日?\s*", "", t).strip()      # 开头的日期「2026.05.06 」
     customer = None
     m = re.match(r"^(.+?)\s*[-－—_]\s*", t)
     if m:
@@ -80,6 +84,8 @@ def agreement_meta(stem: str) -> tuple[str, str, str]:
                 customer = customer[: -len(word)].strip()
         if not customer or re.search(r"协议|方案|模板|样例|报价", customer):
             customer = None
+    if customer is None and "有限公司" in t:                          # 「XX有限公司成盐反应釜装置 技术协议-2026.8.13」
+        customer = t[: t.index("有限公司") + 4].strip()
     device = next((d for word, d in DEVICES if word in t), "通用")
     category = "技术协议" if "协议" in t else "方案" if "方案" in t else "技术协议"
     return customer or NO_CUSTOMER, device, category
