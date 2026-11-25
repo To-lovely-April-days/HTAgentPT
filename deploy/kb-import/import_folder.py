@@ -6,8 +6,13 @@
     ├─ 标准规范/      → 知识库「标准规范」，类别「标准规范」
     ├─ 已作废标准/    → 知识库「标准规范」，类别「标准规范」，标题前加【已作废】，版本写「已作废」
     ├─ 设计手册/      → 知识库「设计手册」，类别「手册」
-    └─ 公司资料/      → 知识库「公司资料」，类别「资料」
+    ├─ 公司资料/      → 知识库「公司资料」，类别「资料」
+    └─ 技术协议/      → 知识库「技术协议」；文件夹名里带「协议」「方案」的都按这一类导
 密级一律「内部」（员工能查，客户门户看不到）；客户名称写「通用资料」；设备类型「通用」（词表里没有会自动加）。
+技术协议这一类按文件名认客户和设备，文件名最好写成「客户名-设备 技术协议.docx」：
+    「中科科乐-LDPE连续聚合装置 技术协议.docx」→ 客户「中科科乐」，设备「聚合装置」，类别「技术协议」
+    「高陵蓝晓科技新材料有限公司 100L高压釜技术方案.docx」→ 客户「高陵蓝晓科技新材料有限公司」，设备「高压釜」，类别「方案」
+    认不出客户的写「未注明客户」；文件名里带「模板」「样例」的跳过（那是做模板用的，不是真的协议）。先 --dry-run 看一眼，不对就改文件名再跑。
 标准的标题规整成「GB/T 150.1-2024 压力容器 第一部分：通用要求」这种写法，年份从文件名里取。
 
 用法（在服务器上，项目目录里）：
@@ -36,12 +41,48 @@ FOLDERS = {
     "公司资料": {"kb": "公司资料", "category": "资料"},
     "已作废标准": {"kb": "标准规范", "category": "标准规范", "obsolete": True},
     "设计手册": {"kb": "设计手册", "category": "手册"},
+    "技术协议": {"kb": "技术协议", "category": "技术协议", "per_file": True},
 }
 KB_DESC = {
     "标准规范": "国家标准、行业标准、安全技术规范和国外标准（ASME、AD 2000 等）。已作废的标题前标【已作废】，引用时用现行版。",
     "设计手册": "设计手册、教材、产品样本、选型手册和软件用户手册。",
     "公司资料": "公司内部流程、标准目录、作业指导等资料。",
+    "技术协议": "和客户签的技术协议、技术方案：设备参数、材质、范围、验收要求。按客户和设备类型检索。",
 }
+NO_CUSTOMER = "未注明客户"
+# 文件名里的设备 → 词表「设备类型」（先长后短：「高压釜」要排在「釜」前面）
+DEVICES = [("连续聚合", "聚合装置"), ("聚合装置", "聚合装置"), ("合成装置", "合成装置"), ("加氢釜", "加氢釜"), ("高压釜", "高压釜"),
+           ("反应釜", "反应釜"), ("管道反应", "管道反应器"), ("微通道", "微通道反应器"), ("反应器", "反应器"), ("釜", "反应釜")]
+
+
+def rule_of(folder: str) -> dict:
+    """子文件夹 → 导到哪里。名字里带「协议」「方案」的都按技术协议导。"""
+    if folder in FOLDERS:
+        return FOLDERS[folder]
+    if "协议" in folder or "方案" in folder:
+        return FOLDERS["技术协议"]
+    return {"kb": folder, "category": "资料"}
+
+
+def agreement_meta(stem: str) -> tuple[str, str, str]:
+    """技术协议的文件名 → (客户, 设备类型, 类别)。认不出客户的给 NO_CUSTOMER。"""
+    t = re.sub(r"^\d{4}[.\-年]\d{1,2}[.\-月]\d{1,2}日?\s*", "", stem).strip()   # 开头的日期「2026.05.06 」
+    customer = None
+    m = re.match(r"^(.+?)\s*[-－—_]\s*", t)
+    if m:
+        customer = m.group(1)
+    elif "有限公司" in t:
+        customer = t[: t.index("有限公司") + 4]
+    if customer:
+        customer = re.sub(r"\d.*$", "", customer).strip()          # 「滨化250ml反应釜」→「滨化」
+        for word, _ in DEVICES:                                      # 「XX反应釜」→「XX」
+            if customer.endswith(word):
+                customer = customer[: -len(word)].strip()
+        if not customer or re.search(r"协议|方案|模板|样例|报价", customer):
+            customer = None
+    device = next((d for word, d in DEVICES if word in t), "通用")
+    category = "技术协议" if "协议" in t else "方案" if "方案" in t else "技术协议"
+    return customer or NO_CUSTOMER, device, category
 PARSE_BATCH = 50
 SUPPORTED = {".pdf", ".docx", ".docm", ".dotx", ".xlsx", ".xlsm", ".pptx", ".pptm", ".txt", ".md"}
 CUSTOMER = "通用资料"
@@ -136,18 +177,24 @@ def plan(root: Path, default_year: int):
         if f.is_file() and not f.name.startswith("."):
             skipped.append((f.relative_to(root), "放在最外层，不知道导到哪个库；请放进子文件夹"))
     for d in folders:
-        rule = FOLDERS.get(d.name, {"kb": d.name, "category": "资料"})
+        rule = rule_of(d.name)
         for f in sorted(p for p in d.rglob("*") if p.is_file() and not p.name.startswith((".", "~$"))):
             if f.suffix.lower() not in SUPPORTED:
                 why = "老格式，请用 Office 另存为新格式（.docx / .xlsx / .pptx）" if f.suffix.lower() in (".doc", ".xls", ".ppt") else "这种格式读不了"
                 skipped.append((f.relative_to(root), why))
                 continue
+            if rule.get("per_file") and re.search(r"模板|样例", f.stem):
+                skipped.append((f.relative_to(root), "像是模板或样例，不是真的协议；要导的话改掉文件名里的「模板」「样例」"))
+                continue
             title, code, year = nice_title(f.stem)
             version = code
+            customer, device, category = CUSTOMER, None, rule["category"]
+            if rule.get("per_file"):
+                customer, device, category = agreement_meta(f.stem)
             if rule.get("obsolete"):
                 title = "【已作废】" + title
                 version = f"{code}（已作废）" if code else "已作废"
-            items.append({"path": f, "folder": d.name, "kb": rule["kb"], "category": rule["category"],
+            items.append({"path": f, "folder": d.name, "kb": rule["kb"], "category": category, "customer": customer, "device": device,
                           "title": title, "version": version, "year": year or default_year, "size": f.stat().st_size})
     return items, skipped
 
@@ -183,7 +230,8 @@ def main():
     if a.dry_run:
         print("\n标题预览（文件名 → 标题 · 版本 · 年份）：")
         for x in items:
-            print(f"  [{x['folder']}] {x['path'].name}\n      → {x['title']} · {x['version'] or '-'} · {x['year']}")
+            extra = f" · 客户「{x['customer']}」 · 设备「{x['device'] or a.device_type}」 · 类别「{x['category']}」" if x["customer"] != CUSTOMER else ""
+            print(f"  [{x['folder']}] {x['path'].name}\n      → {x['title']} · {x['version'] or '-'} · {x['year']}{extra}")
         return
 
     base = os.environ.get("HT_URL", "http://localhost:8080").rstrip("/")
@@ -196,13 +244,15 @@ def main():
         raise SystemExit(f"登录失败{e}")
 
     # 词表：设备类型没有就加；文档类别必须已有
-    terms = api(base, "/api/vocab/device_type", token)
-    if not any(t["value"] == a.device_type and t.get("isActive", True) for t in terms):
+    terms = {t["value"] for t in api(base, "/api/vocab/device_type", token) if t.get("isActive", True)}
+    for dev in dict.fromkeys([a.device_type] + [x["device"] for x in items if x["device"]]):
+        if dev in terms:
+            continue
         try:
-            api(base, "/api/vocab/device_type", token, body={"value": a.device_type, "aliases": None})
-            print(f"词表「设备类型」加了「{a.device_type}」")
+            api(base, "/api/vocab/device_type", token, body={"value": dev, "aliases": None})
+            print(f"词表「设备类型」加了「{dev}」")
         except ApiError as e:
-            raise SystemExit(f"词表「设备类型」里没有「{a.device_type}」，自动添加失败{e}。请在后台词表里加上再跑")
+            raise SystemExit(f"词表「设备类型」里没有「{dev}」，自动添加失败{e}。请在后台词表里加上再跑")
     cats = {t["value"] for t in api(base, "/api/vocab/doc_category", token) if t.get("isActive", True)}
     missing = {x["category"] for x in items} - cats
     if missing:
@@ -235,8 +285,8 @@ def main():
                     print(f"{tag} 库里已有，跳过")
                 continue
             body, ctype = multipart({
-                "kbId": kbs[x["kb"]], "classification": a.classification, "customerName": CUSTOMER, "year": str(x["year"]),
-                "deviceType": a.device_type, "docCategory": x["category"], "title": x["title"],
+                "kbId": kbs[x["kb"]], "classification": a.classification, "customerName": x["customer"], "year": str(x["year"]),
+                "deviceType": x["device"] or a.device_type, "docCategory": x["category"], "title": x["title"],
                 "docVersion": x["version"] or "", "registerProject": "false",
             }, x["path"].name, x["path"].read_bytes())
             try:
