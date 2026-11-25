@@ -481,7 +481,7 @@ export interface MyFilesContext {
   customerRequests: CustomerRequestRow[];
 }
 
-export interface ApprovalSummary { isApprover: boolean; isAdmin?: boolean; files: number; customers: number }
+export interface ApprovalSummary { isApprover: boolean; isAdmin?: boolean; isHead?: boolean; files: number; customers: number }
 
 /** 助手请用户确认：问题和选项。answered 是用户后来的回答（打开历史时有）。 */
 export interface AskQuestion { question: string; options: { label: string; detail: string | null }[]; multiple: boolean }

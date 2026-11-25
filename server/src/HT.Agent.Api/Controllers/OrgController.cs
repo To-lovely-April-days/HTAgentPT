@@ -66,10 +66,10 @@ public class ApprovalsController(IOrgService org, IDocumentService docs, ICorpus
     public async Task<IActionResult> Summary(CancellationToken ct)
     {
         var scope = await org.ScopeAsync(ct);
-        if (!scope.IsApprover) return Ok(new { isApprover = false, files = 0, customers = 0 });
+        if (!scope.IsApprover) return Ok(new { isApprover = false, isHead = false, files = 0, customers = 0 });
         var files = (await FilesInScopeAsync(scope, ct)).Count;
         var customers = (await org.PendingCustomerRequestsAsync(ct)).Count;
-        return Ok(new { isApprover = true, isAdmin = scope.All, files, customers });
+        return Ok(new { isApprover = true, isAdmin = scope.All, isHead = scope.IsHead, files, customers });
     }
 
     private async Task<List<DocRow>> FilesInScopeAsync(ApprovalScope scope, CancellationToken ct)

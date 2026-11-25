@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './styles/global.css'
 import './styles/preview.css'
 import './styles/home.css'
+import './styles/admin-home.css'
 import { AuthProvider, useAuth } from './lib/auth'
 import { Spinner } from './components/Common'
 import LoginPage from './pages/Login'
@@ -20,7 +21,7 @@ import TranslatePage from './pages/translate/TranslatePage'
 import CasesPage from './pages/cases/CasesPage'
 import CaseDetailPage from './pages/cases/CaseDetailPage'
 import CaseEntryPage from './pages/cases/CaseEntryPage'
-import AdminLayout, { AdminHome } from './pages/admin/AdminLayout'
+import AdminLayout, { AdminHome, ADMIN_PERMS } from './pages/admin/AdminLayout'
 import CorpusPage from './pages/admin/CorpusPage'
 import DocPreviewPage from './pages/admin/DocPreviewPage'
 import KbsPage from './pages/admin/KbsPage'
@@ -61,7 +62,10 @@ function Guarded({ children }: { children: React.ReactNode }) {
 /** 各角色的落地页：管理员进后台首页（决策 3），总部审核人进审核台，其余进问答。 */
 function HomeRedirect() {
   const { profile } = useAuth()
-  const to = profile?.roleCode === 'admin' ? '/admin' : profile?.roleCode === 'hq_reviewer' ? '/review' : '/chat'
+  const has = (p: string) => !!profile?.permissions.includes(p)
+  // 只管后台、不用问答的人（比如只看统计的管理层）直接进后台
+  const chatless = !has('qa.internal') && !has('qa.public') && !has('case.read') && ADMIN_PERMS.some(has)
+  const to = profile?.roleCode === 'admin' || chatless ? '/admin' : profile?.roleCode === 'hq_reviewer' ? '/review' : '/chat'
   return <Navigate to={to} replace />
 }
 

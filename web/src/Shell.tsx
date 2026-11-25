@@ -3,7 +3,7 @@ import { createContext, Fragment, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { get } from './lib/api';
 import type { ApprovalSummary } from './lib/types';
-import { ADMIN_NAV } from './pages/admin/AdminLayout';
+import { adminNavFor, canEnterAdmin } from './pages/admin/AdminLayout';
 import { useAuth } from './lib/auth';
 import { ClsBadge } from './components/Common';
 import { Icon } from './components/Icons';
@@ -56,16 +56,23 @@ export default function Shell() {
   useEffect(() => {
     try { localStorage.setItem(COLLAPSE_KEY, min ? '1' : '0'); } catch { /* 存不了就只在本页生效 */ }
   }, [min]);
-  // 部门主管多一个「审批」（谁是主管由组织架构决定，不是角色），带待办数
+  // 部门主管多一个「审批」（谁是主管由组织架构决定，不是角色），带待办数；主管也能进管理后台看本部门
   const canUpload = !!profile?.permissions.includes(Perm.CorpusUpload) && profile?.roleCode !== 'admin';
+  const isEmployee = !!profile && !profile.permissions.includes(Perm.CustomerSelf);
   const approvals = useQuery({
-    queryKey: ['approvals-summary'], enabled: canUpload, refetchInterval: 60_000, retry: false,
+    queryKey: ['approvals-summary'], enabled: isEmployee, refetchInterval: 60_000, retry: false,
     queryFn: () => get<ApprovalSummary>('/api/approvals/summary'),
   });
   if (!profile) return null;
-  const items = navFor(profile.roleCode, (p) => profile.permissions.includes(p));
+  const has = (p: string) => profile.permissions.includes(p);
+  const isHead = !!approvals.data?.isHead;
+  const items = navFor(profile.roleCode, has);
   if (canUpload && approvals.data?.isApprover)
     items.push({ to: '/approvals', label: '审批', icon: 'shield', badge: approvals.data.files + approvals.data.customers });
+  // 管理后台按权限给，不只认「系统管理员」：有管理类权限或是部门主管就有入口（系统管理员、总部审核人有自己的入口）
+  if (!['admin', 'hq_reviewer'].includes(profile.roleCode) && canEnterAdmin(has, isHead))
+    items.push({ to: '/admin', label: '管理后台', icon: 'settings' });
+  const adminNav = adminNavFor(has, isHead);
   const canChat = items.some((i) => i.to === '/chat');
   // 在管理后台里：侧栏直接换成后台的分组菜单
   const inAdmin = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
@@ -90,9 +97,9 @@ export default function Shell() {
         )}
 
         <nav className="side-nav" aria-label="主导航">
-          {inAdmin ? ADMIN_NAV.map((g) => (
-            <Fragment key={g.label}>
-              {!min && <div className="side-grp side-label">{g.label}</div>}
+          {inAdmin ? adminNav.map((g) => (
+            <Fragment key={g.label || 'home'}>
+              {!min && g.label && <div className="side-grp side-label">{g.label}</div>}
               {g.items.map((it) => (
                 <NavLink key={it.to} to={it.to} end={it.end} title={it.name}
                   className={({ isActive }) => 'side-link' + (isActive ? ' on' : '')}>
