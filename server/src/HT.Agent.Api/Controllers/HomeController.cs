@@ -39,4 +39,17 @@ public class HomeController(HomeService home, WeatherService weather) : Controll
         if (w is null) return Ok(new { ok = false });
         return Ok(new { ok = true, w.City, w.Temp, w.Min, w.Max, w.Kind, w.Label, w.Outfit, w.VeryHot, w.IsDay, w.Tip });
     }
+
+    /// <summary>周五下午到周日首页上的「这周我做成了」：只给本人看，数字都是系统里真记下的。</summary>
+    [HttpGet("week")]
+    public async Task<IActionResult> Week(CancellationToken ct)
+    {
+        var w = await home.WeekAsync(ct);
+        return Ok(new
+        {
+            show = w.Show, from = w.From.ToString("yyyy-MM-dd"), to = w.To.ToString("yyyy-MM-dd"),
+            questions = w.Questions, files = w.Files, lookups = w.Lookups,
+            hardest = w.Hardest is { } h ? new { title = h.Title, rounds = h.Rounds, files = h.Files } : null,
+        });
+    }
 }

@@ -12,6 +12,7 @@ import { Icon } from '../../../components/Icons';
 import { festivalOf } from '../../../components/pet/days';
 import { useWeather } from '../../../components/pet/weather';
 import { ComposerWeather, WeatherSky } from './WeatherSky';
+import { WeekCard } from './WeekCard';
 
 interface Line { title: string; sub: string }
 interface WorkItem { id: string; emoji: string; title: string; badge: string; tone: string; detail: string; action: string; prompt: string }
@@ -178,6 +179,8 @@ export function Home({ fallbackName, composer, onPick, skills, onSkill, drafts, 
           ))}
         </div>
       )}
+
+      <WeekCard name={name} />
 
       {ready && left.length > 0 && (
         <section className="hm-work" aria-labelledby="hm-work-t">

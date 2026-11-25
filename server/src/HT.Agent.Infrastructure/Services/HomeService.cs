@@ -26,6 +26,37 @@ public class HomeService(AppDbContext db, ICurrentUser me, IRuntimeConfig config
     public static DateTimeOffset Now => DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(8));
 
     /// <param name="Pending">模型还在后台写今天的内容，这次先给的是系统台词；前端过几秒再来取。</param>
+    /// <summary>周五的「这周我做成了」（见 <see cref="WeekRecap"/>）。Show=false 时首页不出这张卡。</summary>
+    public record Week(bool Show, DateTimeOffset From, DateTimeOffset To, int Questions, int Files, int Lookups, WeekRecap.Hardest? Hardest);
+
+    public async Task<Week> WeekAsync(CancellationToken ct)
+    {
+        var now = Now;
+        var from = WeekRecap.WeekStart(now);
+        var none = new Week(false, from, now, 0, 0, 0, null);
+        if (!WeekRecap.ShowOn(now)) return none;
+        var key = $"home-week:{me.UserId}:{now:yyyy-MM-dd-HH}";
+        if (cache.TryGetValue(key, out Week? hit) && hit is not null) return hit;
+
+        var msgs = await db.QaMessages.AsNoTracking().Where(m => m.Session!.UserId == me.UserId && m.At >= from)
+            .Select(m => new { m.SessionId, m.Payload }).ToListAsync(ct);
+        Week week;
+        if (msgs.Count < WeekRecap.MinQuestions) week = none;
+        else
+        {
+            var made = await db.MadeFiles.AsNoTracking().Where(f => f.UserId == me.UserId && f.Ok && f.CreatedAt >= from)
+                .Select(f => f.SessionId).ToListAsync(ct);
+            var filled = await db.GenerationSessions.CountAsync(g => g.CreatedById == me.UserId && g.Status == GenerationStatus.Completed && g.UpdatedAt >= from, ct);
+            var bySession = msgs.GroupBy(m => m.SessionId).Select(g => (Id: g.Key, Rounds: g.Count())).ToList();
+            var ids = bySession.Select(x => x.Id).ToList();
+            var titles = await db.QaSessions.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Title, ct);
+            var hardest = WeekRecap.HardestOf(bySession.Select(x => (titles.GetValueOrDefault(x.Id) ?? "一个对话", x.Rounds, made.Count(f => f == x.Id))));
+            week = new Week(true, from, now, msgs.Count, made.Count + filled, msgs.Sum(m => WeekRecap.Lookups(m.Payload)), hardest);
+        }
+        cache.Set(key, week, TimeSpan.FromHours(1));
+        return week;
+    }
+
     public record Today(HomeBrief.Result Brief, List<string> Recent, string OffWork, int RefreshLeft, string Name, bool Pending = false);
 
     /// <summary>首页不能干等模型：这么久写不完就先回系统台词和正事，模型在后台接着写，写完放进缓存。</summary>

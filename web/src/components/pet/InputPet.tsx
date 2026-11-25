@@ -5,6 +5,7 @@
 // · 鼠标凑过去：停下抬头看你
 // · 往页面上拖文件：跑到中间举手接
 // · 首页「需要你看的」都看完了：欢呼（首页发 htpet 事件）
+// · 连着忙了两个小时：端着咖啡提醒起来喝口水、走两步（一天一次）
 // · 18 点以后打开：挥手说辛苦啦；22 点以后：坐着打瞌睡，点醒了叫你早点休息
 // · 过节：旁边多一样道具（灯笼、月亮……）
 // · 按天气穿衣服（围巾、羽绒服、毛线帽、草帽、雨衣、口罩）：天气一到，它停下来一件件穿上，穿好跳一下；一天穿一次，天气变了再换
@@ -40,6 +41,9 @@ interface Today { name?: string }
 
 const SPEED = 26;          // 像素 / 秒
 const SLEEP_AFTER = 120_000;
+/** 连着忙多久提醒歇一下；中间停过 10 分钟以上就重新算。 */
+const WORK_LONG = 2 * 60 * 60_000;
+const BREAK_GAP = 10 * 60_000;
 
 const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
@@ -207,6 +211,26 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
     };
     window.addEventListener('htpet', on);
     return () => window.removeEventListener('htpet', on);
+  }, [speak]);
+
+  // 连着忙了两个小时（一直有鼠标键盘操作，中间没停过 10 分钟）：提醒歇一下，一天一次
+  const nameRef = useRef(name);
+  nameRef.current = name;
+  useEffect(() => {
+    let lastSeen = Date.now(), since = Date.now();
+    const mark = () => { const t = Date.now(); if (t - lastSeen > BREAK_GAP) since = t; lastSeen = t; };
+    window.addEventListener('pointermove', mark, { passive: true });
+    window.addEventListener('keydown', mark);
+    const timer = setInterval(() => {
+      const t = Date.now();
+      if (document.visibilityState !== 'visible' || t - lastSeen > 2 * 60_000 || t - since < WORK_LONG) return;
+      if (!['walk', 'sit', 'peek', 'look'].includes(state.current.mode)) return;
+      const day = new Date().toDateString();
+      try { if (localStorage.getItem('htpet-break') === day) return; localStorage.setItem('htpet-break', day); } catch { /* 存不了就照常提醒 */ }
+      since = t;
+      speak('talk', '连着忙两个小时了，起来喝口水、走两步吧。', 10_000, nameRef.current || undefined);
+    }, 60_000);
+    return () => { window.removeEventListener('pointermove', mark); window.removeEventListener('keydown', mark); clearInterval(timer); };
   }, [speak]);
 
   // 18 点以后头一回打开：挥挥手（一天一次）

@@ -179,3 +179,20 @@
   .dz, .pet-umb, .pet-breath, .sky-star, .sky-sun, .sky-cloud, .sky-dark, .sky-rain, .sky-snow, .sky-fog, .sky-leaf, .hm-splash { animation: none !important; }
   .sky-rain, .sky-snow, .sky-leaf, .hm-splash { display: none; }
 }
+
+/* ── 周五「这周我做成了」 ───────────────────────────── */
+.wk { margin-top: 48px; border: 1px solid #e6e6e2; border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; background: #fff; }
+.wk + .hm-work { margin-top: 28px; }
+.wk-hd { display: flex; align-items: flex-end; gap: 12px; }
+.wk-pet { display: inline-flex; align-items: flex-end; gap: 2px; line-height: 0; }
+.wk-pet svg { display: block; image-rendering: pixelated; }
+.wk-t { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.wk-t b { font-size: 15px; font-weight: 600; }
+.wk-t span { font-size: 12.5px; color: #77776f; }
+.wk-hd .hm-link { align-self: flex-start; }
+.wk-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 12px 0; border-top: 1px solid #f0f0ed; border-bottom: 1px solid #f0f0ed; }
+.wk-nums span { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: #77776f; }
+.wk-nums b { font-size: 22px; font-weight: 600; color: #141414; }
+.wk .tn { font-variant-numeric: tabular-nums; }
+.wk-note { margin: 0; font-size: 13px; line-height: 1.75; color: #3f3f3b; }
+.wk-note b { font-weight: 600; }

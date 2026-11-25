@@ -1265,7 +1265,7 @@ export const ICONS: Record<Icon, string[]> = {
 
 /** 过节时站在小人旁边的道具，格子和小人一样大。 */
 export type Prop = 'firework' | 'lantern' | 'tangyuan' | 'zongzi' | 'moon' | 'flag'
-  | 'umbrella' | 'icepop' | 'breath' | 'snowman' | 'sun' | 'cloud' | 'darkCloud' | 'crescent' | 'flake' | 'leaf';
+  | 'umbrella' | 'icepop' | 'breath' | 'snowman' | 'sun' | 'cloud' | 'darkCloud' | 'crescent' | 'flake' | 'leaf' | 'trophy';
 export const PROPS: Record<Prop, string[]> = {
   firework: ['....Y....', '.R..Y..R.', '..R.Y.R..', '...RYR...', 'YYYY.YYYY', '...RYR...', '..R.Y.R..', '.R..Y..R.', '....Y....'],
   lantern: ['...OO...', '..OrrO..', '.ORRRRO.', 'ORRYRRRO', 'ORRYRRRO', 'ORRYRRRO', '.ORRRRO.', '..OrrO..', '...YY...', '...Y.Y..', '..Y..Y..'],
@@ -1287,4 +1287,6 @@ export const PROPS: Record<Prop, string[]> = {
   crescent: ['..OOO..', '.OMMMO.', 'OMMMOO.', 'OMMO...', 'OMMMOO.', '.OMMMO.', '..OOO..'],
   flake: ['.W.', 'WWW', '.W.'],
   leaf: ['.Zz', 'ZZz', 'Zz.'],
+  // 周五「这周我做成了」小人举着的奖杯
+  trophy: ['OOOOOOOOO', 'OYYYYYYYO', 'OYYWYYYYO', '.OYYYYYO.', '..OYYYO..', '...OyO...', '...OyO...', '..OOOOO..', '..OgggO..', '..OOOOO..'],
 };
