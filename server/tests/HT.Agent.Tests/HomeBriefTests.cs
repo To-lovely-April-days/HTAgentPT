@@ -95,4 +95,35 @@ public class HomeBriefTests
         var r = HomeBrief.Parse("""{"picks":[{"title":"瞎猜的","why":"?","prompt":"问点啥"}]}""", ctx);
         Assert.Empty(r.Picks!);
     }
+
+    [Theory]
+    [InlineData("张工，早安，反应釜没炸吧", true)]
+    [InlineData("今天周三，稳住心态，报价单在等你。", true)]
+    [InlineData("又熬夜加班了？", true)]
+    [InlineData("早，张工 ☀️", false)]
+    [InlineData("降温了，出门多穿一件", false)]
+    public void 首页问候不得体的认得出来(string text, bool unfit) => Assert.Equal(unfit, HomeBrief.Unfit(text));
+
+    [Fact]
+    public void 模型写了不得体的问候_那一段换成系统的生活台词()
+    {
+        var raw = """
+            {"lines":{"morning":{"title":"张工，早安，反应釜没炸吧","sub":"今天周三，稳住心态，报价单在等你。"},
+                      "noon":{"title":"中午了，吃点热乎的 🍜","sub":"天冷，多喝点汤。"}}}
+            """;
+        var r = HomeBrief.Parse(raw, Ctx());
+        Assert.Equal("早，张工 ☀️", r.Lines["morning"].Title);
+        Assert.False(HomeBrief.Unfit(r.Lines["morning"].Sub));
+        Assert.Equal("中午了，吃点热乎的 🍜", r.Lines["noon"].Title);
+    }
+
+    [Fact]
+    public void 系统自己的台词都得体()
+    {
+        foreach (var l in HomeBrief.Fallback(Ctx(Price)).Lines.Values)
+        {
+            Assert.False(HomeBrief.Unfit(l.Title), l.Title);
+            Assert.False(HomeBrief.Unfit(l.Sub), l.Sub);
+        }
+    }
 }

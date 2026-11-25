@@ -40,7 +40,11 @@ public static class HomeBrief
         sb.AppendLine($"""
             你是公司内部助手（化工实验设备公司：反应釜、高压釜、合成装置等）的吉祥物 HTLAB，要给同事写今天首页上的内容。
             同事：{c.Name}，{c.Role}{(string.IsNullOrWhiteSpace(c.Department) ? "" : $"，{c.Department}")}。今天是 {c.Now:M 月 d 日} 星期{week}。
-            语气：像一个靠谱又有点幽默的同事，口语、简短、真诚，可以用 1 个表情符号点缀；不要鸡汤，不要说「作为 AI」，不要编造没给你的事实和数字。
+            语气：像一个靠谱、温和的同事，口语、简短、真诚，可以用 1 个表情符号点缀；不要鸡汤，不要说「作为 AI」，不要编造没给你的事实和数字。
+            「lines」里的问候（大标题和小字）是首页最显眼的一句，老板、客户都可能看到，要得体：
+            - 只说生活：天气和季节、吃饭喝水、休息、身体、周末、节气节日、通勤、家人、小小的好心情；
+            - 不提工作和行业：不说设备、反应釜、报价、客户、项目、加班、截止、「在等你」这类催促的话；
+            - 不开任何负面的玩笑：不说爆炸、着火、泄漏、事故、出错、挨骂、背锅、扣钱、熬夜、累，不调侃人。
             「今天有点意思」是让人放松一下、看了觉得有意思的：跟化工、材料、设备、实验有关的冷知识和小故事，最好贴近他常碰的东西；必须是你非常确定的真实知识，拿不准的宁可换一个。
             """);
         if (c.Memories.Count > 0) sb.AppendLine("他的长期记忆：" + string.Join("；", c.Memories.Take(8)));
@@ -56,7 +60,7 @@ public static class HomeBrief
             只输出一个 JSON 对象，不要别的文字：
             {
               "lines": {
-                "morning":   {"title": "刚上班时的大标题（≤16字）", "sub": "一句小字（≤30字），可以提今天有几件正事"},
+                "morning":   {"title": "刚上班时的大标题（≤16字）", "sub": "一句小字（≤30字），说生活，不提工作"},
                 "noon":      {"title": "...", "sub": "..."},
                 "afternoon": {"title": "下午犯困时", "sub": "..."},
                 "evening":   {"title": "快下班时", "sub": "..."},
@@ -98,7 +102,11 @@ public static class HomeBrief
         if (o["lines"] is JsonObject lo)
             foreach (var k in Slots)
                 if (lo[k] is JsonObject l && Clip(l["title"]?.ToString(), 30) is { Length: > 0 } t)
-                    lines[k] = new Line(t, Clip(l["sub"]?.ToString(), 60));
+                {
+                    var sub = Clip(l["sub"]?.ToString(), 60);
+                    // 模型没守住（开了事故玩笑、提了工作行业）：这一段用系统写的平实台词，不让不得体的话上首页
+                    if (!Unfit(t) && !Unfit(sub)) lines[k] = new Line(t, sub);
+                }
         var work = new List<Work>();
         var byId = c.Candidates.ToDictionary(x => x.Id);
         if (o["work"] is JsonArray wa)
@@ -141,19 +149,26 @@ public static class HomeBrief
         return new Result(lines, new Fun(kn, quiz, hist, num), work, quiet.Count > 0 ? quiet : fb.Quiet, true, picks);
     }
 
-    /// <summary>模型连不上时：系统写的平实台词，正事按候选顺序取前 3 件。不放假的示例问题。</summary>
+    /// <summary>首页问候不该出现的：事故、负面、催促的说法，以及工作和行业的词（问候只说生活）。</summary>
+    private static readonly System.Text.RegularExpressions.Regex Taboo = new(
+        "炸|爆|着火|失火|起火|泄漏|漏了|事故|出事|中毒|受伤|死|翻车|崩|挂了|背锅|挨骂|骂|扣钱|罚|熬夜|通宵|累死|加班|截止|deadline|催|在等你|等着你|别偷懒|摸鱼|"
+        + "反应釜|釜|设备|压力容器|报价|客户|项目|订单|合同|图纸|标准|老板|领导|KPI|绩效",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>这句问候不得体（有不该出现的词）。</summary>
+    public static bool Unfit(string? text) => !string.IsNullOrEmpty(text) && Taboo.IsMatch(text);
+
+    /// <summary>模型连不上时：系统写的平实台词（只说生活），正事按候选顺序取前 3 件。不放假的示例问题。</summary>
     public static Result Fallback(Context c)
     {
-        var n = c.Candidates.Count;
-        var todo = n > 0 ? $"今天有 {Math.Min(n, 3)} 件事可能跟你有关。" : "今天没有跟你有关的新变动。";
         var lines = new Dictionary<string, Line>
         {
-            ["morning"] = new($"早，{c.Name} ☀️", todo),
-            ["noon"] = new("先去吃饭 🍜", "回来再说，事情跑不掉。"),
-            ["afternoon"] = new("下午了，喝口水 ☕", todo),
-            ["evening"] = new("快下班了", "今天辛苦了，剩下的明天接着来。"),
+            ["morning"] = new($"早，{c.Name} ☀️", "新的一天，先喝杯水，慢慢进入状态。"),
+            ["noon"] = new("先去吃饭 🍜", "吃好饭，下午才有精神。"),
+            ["afternoon"] = new("下午了，喝口水 ☕", "起来走两步，活动一下肩颈。"),
+            ["evening"] = new("快下班了", "今天辛苦了，路上注意安全。"),
             ["late"] = new("这么晚还在，辛苦了 🌙", "早点休息。"),
-            ["friday"] = new("周五啦 🎉", "收个尾，周末好好歇。"),
+            ["friday"] = new("周五啦 🎉", "周末好好歇歇，陪陪家人。"),
         };
         var work = c.Candidates.Take(3).Select(x => new Work(x.Id, x.Emoji, x.Title, x.Badge, x.Tone, x.Detail, x.Action, x.Prompt)).ToList();
         return new Result(lines, new Fun(null, null, null, null), work, FallbackQuiet(c), false);
