@@ -212,7 +212,7 @@ def plan(root: Path, default_year: int):
             if rule.get("obsolete"):
                 title = "【已作废】" + title
                 version = f"{code}（已作废）" if code else "已作废"
-            items.append({"path": f, "folder": d.name, "kb": rule["kb"], "category": category, "customer": customer, "device": device, "project": pno,
+            items.append({"path": f, "folder": d.name, "kb": rule["kb"], "category": category, "customer": customer, "device": device, "project": pno, "per_file": bool(rule.get("per_file")),
                           "title": title, "version": version, "year": year or default_year, "size": f.stat().st_size})
     return items, skipped
 
@@ -272,7 +272,7 @@ def main():
         print("\n标题预览（文件名 → 标题 · 版本 · 年份）：")
         for x in items:
             extra = f" · 客户「{x['customer']}」 · 设备「{x['device'] or a.device_type}」 · 类别「{x['category']}」" if x["customer"] != CUSTOMER else ""
-            extra += f" · 项目「{x['project']}」" if x.get("project") else ""
+            extra += f" · 项目「{x['project']}」" if x.get("project") else (" · 暂不挂项目" if x.get("per_file") else "")
             print(f"  [{x['folder']}] {x['path'].name}\n      → {x['title']} · {x['version'] or '-'} · {x['year']}{extra}")
         return
 
@@ -332,6 +332,8 @@ def main():
                 "docVersion": x["version"] or "",
                 # 有项目编号的挂上项目（台账里没有就顺手登记：客户、年份、设备用这份文件的）
                 "projectNo": x.get("project") or "", "registerProject": "true" if x.get("project") else "false",
+                # 技术协议、方案按规定要挂项目；历史资料没编号的先「暂不挂项目」入库，以后补上编号再挂
+                "unlinked": "true" if x.get("per_file") and not x.get("project") else "false",
             }, x["path"].name, x["path"].read_bytes())
             try:
                 r = api(base, "/api/documents", token, raw=body, ctype=ctype, timeout=1800)

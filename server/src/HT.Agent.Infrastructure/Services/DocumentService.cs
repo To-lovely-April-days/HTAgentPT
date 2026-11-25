@@ -51,6 +51,10 @@ public class DocumentService(
     private static readonly string[] ProjectLinkedCategories =
         ["方案", "合同", "报价", "图纸", "交付报告", "故障记录", "技术协议"];
 
+    /// <summary>这份要不要拦下来补项目编号：技术协议、方案等必须挂项目；说了「暂不挂项目」的（历史资料）放行。</summary>
+    public static bool NeedsProject(string docCategory, string? projectNo, bool unlinked)
+        => ProjectLinkedCategories.Contains(docCategory) && string.IsNullOrWhiteSpace(projectNo) && !unlinked;
+
     public async Task<UploadResult> UploadAsync(UploadDocumentRequest req, Stream content, CancellationToken ct = default)
     {
         var kb = await db.KnowledgeBases.FindAsync([req.KbId], ct)
@@ -75,15 +79,13 @@ public class DocumentService(
         if (!await vocab.IsValidAsync(VocabKeys.DocCategory, req.DocCategory, ct))
             throw new DomainRuleException("META_DOC_CATEGORY", $"文档类别「{req.DocCategory}」不在受控词表中");
 
-        if (ProjectLinkedCategories.Contains(req.DocCategory))
-        {
-            if (string.IsNullOrWhiteSpace(req.ProjectNo))
-                throw new DomainRuleException("META_PROJECT_REQUIRED",
-                    $"文档类别为「{req.DocCategory}」时必须关联项目编号（表 4-5）");
-            if (!await db.Projects.AnyAsync(p => p.ProjectNo == req.ProjectNo, ct))
-                throw new DomainRuleException("META_PROJECT_NOT_FOUND",
-                    $"项目编号 {req.ProjectNo} 不在台账中，请先在台账登记");
-        }
+        if (NeedsProject(req.DocCategory, req.ProjectNo, req.Unlinked))
+            throw new DomainRuleException("META_PROJECT_REQUIRED",
+                $"文档类别为「{req.DocCategory}」时必须关联项目编号（表 4-5）");
+        if (ProjectLinkedCategories.Contains(req.DocCategory) && !string.IsNullOrWhiteSpace(req.ProjectNo)
+            && !await db.Projects.AnyAsync(p => p.ProjectNo == req.ProjectNo, ct))
+            throw new DomainRuleException("META_PROJECT_NOT_FOUND",
+                $"项目编号 {req.ProjectNo} 不在台账中，请先在台账登记");
 
         // 保存原文件并计算摘要（FR-1.8：原始文件存入对象存储并保留）
         using var sha = SHA256.Create();

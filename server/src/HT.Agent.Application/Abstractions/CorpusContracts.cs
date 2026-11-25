@@ -85,7 +85,10 @@ public record UploadDocumentRequest(
     string? ProjectNo, Guid? OwnerId, string? DocVersion, DateOnly? EffectiveDate,
     string? Title, ReviewStatus Review = ReviewStatus.Approved,
     /// <summary>除主库（KbId）外还要挂进的库：只能是本公司的内部库。一份文件只存一份、只解析一次。</summary>
-    IReadOnlyList<Guid>? ExtraKbIds = null);
+    IReadOnlyList<Guid>? ExtraKbIds = null,
+    /// <summary>暂不挂项目：技术协议、方案这类本该挂项目的，历史资料没有项目编号时先入库，以后补上编号再挂。
+    /// 只给有台账维护权限的人（批量导入历史资料用）；生成时选基准项目选不到它们，检索、问答照常。</summary>
+    bool Unlinked = false);
 
 public record UploadResult(Guid DocId, string FileKey);
 

@@ -36,8 +36,12 @@ public class DocumentsController(
         [FromForm] string? projectDeviceModel,
         [FromForm] string? projectSpecParams,
         [FromForm] List<Guid>? extraKbIds,
+        [FromForm] bool unlinked,
         CancellationToken ct)
     {
+        // 暂不挂项目（历史技术协议没有编号）：和登记台账一样归台账维护权限
+        if (unlinked && !me.Permissions.Contains(PermissionKeys.MetaManage))
+            return StatusCode(403, new { code = "FORBIDDEN", message = "你的角色不能让技术协议、方案暂不挂项目，请填上项目编号再上传。" });
         if (registerProject && !string.IsNullOrWhiteSpace(projectNo))
         {
             if (!me.Permissions.Contains(PermissionKeys.MetaManage))
@@ -58,7 +62,7 @@ public class DocumentsController(
             kbId, file.FileName, file.ContentType ?? "application/octet-stream", file.Length,
             classification, chunkStrategy,
             customerName, year, deviceType, docCategory, projectNo,
-            OwnerId: null, DocVersion: docVersion, EffectiveDate: null, Title: title, ExtraKbIds: extraKbIds), stream, ct);
+            OwnerId: null, DocVersion: docVersion, EffectiveDate: null, Title: title, ExtraKbIds: extraKbIds, Unlinked: unlinked), stream, ct);
         return Ok(result);
     }
 
