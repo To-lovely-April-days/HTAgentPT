@@ -13,6 +13,8 @@
     「中科科乐-LDPE连续聚合装置 技术协议.docx」→ 客户「中科科乐」，设备「聚合装置」，类别「技术协议」
     「高陵蓝晓科技新材料有限公司 100L高压釜技术方案.docx」→ 客户「高陵蓝晓科技新材料有限公司」，设备「高压釜」，类别「方案」
     认不出客户的写「未注明客户」；文件名里带「模板」「样例」的跳过（那是做模板用的，不是真的协议）。先 --dry-run 看一眼，不对就改文件名再跑。
+    同一个客户文件名里写法不一样（「万华」「万华化学集团股份公司」），用 --alias 合成一个：
+        --alias "万华=万华化学集团股份有限公司" --alias "巨化=浙江巨化"   （可以写多个；也可以写在一个文本文件里，每行一条，用 --alias-file 指定）
 标准的标题规整成「GB/T 150.1-2024 压力容器 第一部分：通用要求」这种写法，年份从文件名里取。
 
 用法（在服务器上，项目目录里）：
@@ -213,12 +215,28 @@ def main():
     ap.add_argument("--default-year", type=int, default=datetime.date.today().year, help="文件名里没有年份时用的年份")
     ap.add_argument("--only", help="只导这几个子文件夹（逗号隔开）")
     ap.add_argument("--dry-run", action="store_true", help="只列出会怎么导，不登录、不上传")
+    ap.add_argument("--alias", action="append", default=[], help="客户名合并：「文件名里的写法=统一的客户名」，可以写多个")
+    ap.add_argument("--alias-file", help="客户名合并写在文本文件里，每行一条「写法=客户名」，# 开头的行不算")
     a = ap.parse_args()
 
     root = Path(a.root).expanduser()
     if not root.is_dir():
         raise SystemExit(f"找不到文件夹 {root}")
     items, skipped = plan(root, a.default_year)
+    aliases = {}
+    lines = list(a.alias)
+    if a.alias_file:
+        lines += Path(a.alias_file).expanduser().read_text(encoding="utf-8").splitlines()
+    for ln in lines:
+        ln = ln.strip()
+        if not ln or ln.startswith("#"):
+            continue
+        if "=" not in ln:
+            raise SystemExit(f"客户名合并写错了：「{ln}」，要写成「写法=客户名」")
+        k, v = (x.strip() for x in ln.split("=", 1))
+        aliases[k] = v
+    for x in items:
+        x["customer"] = aliases.get(x["customer"], x["customer"])
     if a.only:
         keep = {x.strip() for x in a.only.split(",")}
         items = [x for x in items if x["folder"] in keep]
@@ -234,6 +252,13 @@ def main():
         for p, why in skipped:
             print(f"  {p}：{why}")
     if a.dry_run:
+        custs: dict[str, int] = {}
+        for x in items:
+            if x["customer"] != CUSTOMER:
+                custs[x["customer"]] = custs.get(x["customer"], 0) + 1
+        if custs:
+            print(f"\n客户 {len(custs)} 个（同一个客户写法不一样的，用 --alias 合成一个）：")
+            print("  " + "、".join(f"{c}（{n}）" for c, n in sorted(custs.items())))
         print("\n标题预览（文件名 → 标题 · 版本 · 年份）：")
         for x in items:
             extra = f" · 客户「{x['customer']}」 · 设备「{x['device'] or a.device_type}」 · 类别「{x['category']}」" if x["customer"] != CUSTOMER else ""
