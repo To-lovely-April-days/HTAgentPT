@@ -69,6 +69,15 @@ def rule_of(folder: str) -> dict:
     return {"kb": folder, "category": "资料"}
 
 
+PROJECT_RE = re.compile(r"^([A-Z]{1,4}-\d{6,8}-\d{2,5})")
+
+
+def project_no(stem: str) -> str | None:
+    """文件名开头的合同 / 项目编号：「XD-20251030-0159-01 …」→「XD-20251030-0159」（-01、-02 是同一单里的几台）。"""
+    m = PROJECT_RE.match(stem.strip())
+    return m.group(1) if m else None
+
+
 def agreement_meta(stem: str) -> tuple[str, str, str]:
     """技术协议的文件名 → (客户, 设备类型, 类别)。认不出客户的给 NO_CUSTOMER。"""
     t = re.sub(r"^[A-Z]{1,4}-\d{6,8}-\d{2,5}(?:-\d{1,3})?[\s\-—]*", "", stem)   # 开头的合同 / 项目编号「XD-20251030-0159-01 」
@@ -196,13 +205,14 @@ def plan(root: Path, default_year: int):
                 continue
             title, code, year = nice_title(f.stem)
             version = code
-            customer, device, category = CUSTOMER, None, rule["category"]
+            customer, device, category, pno = CUSTOMER, None, rule["category"], None
             if rule.get("per_file"):
                 customer, device, category = agreement_meta(f.stem)
+                pno = project_no(f.stem)
             if rule.get("obsolete"):
                 title = "【已作废】" + title
                 version = f"{code}（已作废）" if code else "已作废"
-            items.append({"path": f, "folder": d.name, "kb": rule["kb"], "category": category, "customer": customer, "device": device,
+            items.append({"path": f, "folder": d.name, "kb": rule["kb"], "category": category, "customer": customer, "device": device, "project": pno,
                           "title": title, "version": version, "year": year or default_year, "size": f.stat().st_size})
     return items, skipped
 
@@ -262,6 +272,7 @@ def main():
         print("\n标题预览（文件名 → 标题 · 版本 · 年份）：")
         for x in items:
             extra = f" · 客户「{x['customer']}」 · 设备「{x['device'] or a.device_type}」 · 类别「{x['category']}」" if x["customer"] != CUSTOMER else ""
+            extra += f" · 项目「{x['project']}」" if x.get("project") else ""
             print(f"  [{x['folder']}] {x['path'].name}\n      → {x['title']} · {x['version'] or '-'} · {x['year']}{extra}")
         return
 
@@ -318,7 +329,9 @@ def main():
             body, ctype = multipart({
                 "kbId": kbs[x["kb"]], "classification": a.classification, "customerName": x["customer"], "year": str(x["year"]),
                 "deviceType": x["device"] or a.device_type, "docCategory": x["category"], "title": x["title"],
-                "docVersion": x["version"] or "", "registerProject": "false",
+                "docVersion": x["version"] or "",
+                # 有项目编号的挂上项目（台账里没有就顺手登记：客户、年份、设备用这份文件的）
+                "projectNo": x.get("project") or "", "registerProject": "true" if x.get("project") else "false",
             }, x["path"].name, x["path"].read_bytes())
             try:
                 r = api(base, "/api/documents", token, raw=body, ctype=ctype, timeout=1800)
