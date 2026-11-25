@@ -8,6 +8,7 @@ import type { AssistantStep, EvidenceCard, VerifyReport } from '../../lib/types'
 import { DocPreviewModal } from './ResultCards';
 import { Icon } from '../../components/Icons';
 import { SiteIcon, hostOf } from '../../components/SiteIcon';
+import { FileTile, fileKind } from '../../components/FileTypeIcon';
 
 // ── ① 过程 ───────────────────────────────────────────
 export function StepsCard({ steps, streaming, seconds }: { steps: AssistantStep[]; streaming?: boolean; seconds?: number | null }) {
@@ -170,6 +171,7 @@ export function RefPanel({ used, other, focus, onFocus, onClose, onOpenWeb }: {
               <div className="refs-file-hd">
                 {g.kind === 'web' && g.first.url
                   ? <span className="site-box" aria-hidden="true"><SiteIcon host={hostOf(g.first.url)} size={18} /></span>
+                  : fileKind(g.ext) !== 'other' ? <FileTile name={g.ext} size={30} />
                   : <span className="refs-ext" style={{ background: bg, color: fg }} aria-hidden="true">{g.ext}</span>}
                 <span className="refs-file-t">
                   <b title={g.title}>{g.title}</b>

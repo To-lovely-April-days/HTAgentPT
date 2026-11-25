@@ -7,6 +7,7 @@ import { ApiError, del, get, post, put, upload } from '../../lib/api';
 import { DELIVERY_LABEL } from '../../lib/types';
 import type { ChatAttachment } from '../../lib/types';
 import { Icon } from '../../components/Icons';
+import { FileGlyph } from '../../components/FileTypeIcon';
 import { Spinner } from '../../components/Common';
 import { ATTACH_ACCEPT, formatSize } from './useAttachments';
 import { projectColor } from './composerUtil';
@@ -150,7 +151,7 @@ export function ProjectHome({ id, composer, busy, onOpenSession, onEdit, onGone,
             {files.length === 0 && <div className="pjh-empty">技术协议、图纸、报价单放这里，项目里的每次提问助手都能读到。只在这个项目里用，不进公司知识库。</div>}
             {files.map((f) => (
               <div key={f.id} className={'pjh-file' + (f.status === 'Failed' ? ' bad' : '')}>
-                <Icon name="file" size={14} />
+                <FileGlyph name={f.fileName} size={14} />
                 <button type="button" className="n" title={`${f.fileName} · 点开预览`} onClick={() => onPreview(f)}>{f.fileName}</button>
                 <span className="s">{busyFile(f) ? '解析中…' : f.status === 'Failed' ? (f.error ?? '没读出来') : formatSize(f.size)}</span>
                 <button type="button" className="x" aria-label={`删掉 ${f.fileName}`} onClick={() => void removeFile(f)}><Icon name="x" size={12} /></button>

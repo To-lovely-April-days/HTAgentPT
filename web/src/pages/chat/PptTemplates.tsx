@@ -52,7 +52,7 @@ export function PptPicker({ value, onPick, onClose, skillName }: {
     <div className="modal-mask" onClick={onClose}>
       <div className="modal-box ppt-pick" role="dialog" aria-label="选一套 PPT 模板" onClick={(e) => e.stopPropagation()}>
         <div className="ppt-pick-hd">
-          <b>选一套 PPT 模板</b>
+          <b>选一套 PPT 模板<span className="beta-tag" title="试用版：还在完善，做出来的 PPT 请检查后再用">Beta</span></b>
           <span className="hint">{skillName ? `已选「${skillName}」· 模板可以不选，助手会按内容挑` : `${list.length} 套 · 都是能商用的开源模板`}</span>
           <button type="button" className="gbtn" style={{ marginLeft: 'auto' }} onClick={() => { onPick(null); onClose(); }}>不选，让助手挑</button>
           <button type="button" className="ppt-x" aria-label="关闭" onClick={onClose}><Icon name="x" size={16} /></button>

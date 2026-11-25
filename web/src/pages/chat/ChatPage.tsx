@@ -30,6 +30,7 @@ import { RefPanel, StepsCard, VerifyBar } from './AssistantParts';
 import { ArtifactCards, AskCard, ExportBar } from './ToolCards';
 import { SideSlotCtx } from '../../Shell';
 import { BrandMark, Icon } from '../../components/Icons';
+import { FileGlyph } from '../../components/FileTypeIcon';
 import { ATTACH_ACCEPT, formatSize, useAttachments } from './useAttachments';
 import type { PendingFile } from './useAttachments';
 import { Prose } from '../../components/Prose';
@@ -703,7 +704,7 @@ export default function ChatPage() {
                     {sessionFiles.data!.map((f) => (
                       <button key={f.id} type="button" className="sess-file" title={f.status === 'Failed' ? f.error ?? '解析失败' : `${f.fileName} · ${formatSize(f.size)} · 点开预览`}
                         onClick={() => openPreview({ kind: 'file', src: `/api/chat/attachments/${f.id}/file`, fileName: f.fileName })}>
-                        <Icon name="file" size={13} />{f.fileName}{f.status === 'Failed' && <b>（没读出来）</b>}
+                        <FileGlyph name={f.fileName} size={13} />{f.fileName}{f.status === 'Failed' && <b>（没读出来）</b>}
                       </button>
                     ))}
                   </div>
@@ -787,7 +788,7 @@ function Composer({ placeholder, big, attach, plus, chips, children, busy = fals
         <div className="att-list">
           {attach.files.map((f) => (
             <div key={f.key} className={'att att-' + f.state} title={f.note ?? f.name}>
-              <Icon name="file" size={16} />
+              <FileGlyph name={f.name} size={16} />
               <span className="att-txt">
                 <span className="att-n">{f.name}</span>
                 <span className="att-s">
@@ -893,7 +894,7 @@ function UserMessage() {
       {skill && <span className="sess-file" title="这一问点名用的技能"><Icon name="book" size={13} />技能：{skill}</span>}
       {files && files.length > 0 && (
         <div className="chat-user-files">
-          {files.map((n) => <span key={n} className="sess-file"><Icon name="file" size={13} />{n}</span>)}
+          {files.map((n) => <span key={n} className="sess-file"><FileGlyph name={n} size={13} />{n}</span>)}
         </div>
       )}
       <div className="chat-user-bubble"><MessagePrimitive.Parts /></div>

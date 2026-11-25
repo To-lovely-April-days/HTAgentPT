@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ApiError, download, postDownload } from '../../lib/api';
 import type { AskQuestion, AskSpec, EvidenceCard, HazardChemCard, HazardProcessCard, ToolArtifact } from '../../lib/types';
 import { EstimateCard, TableCard } from './DataCards';
+import { FileGlyph, FileTile } from '../../components/FileTypeIcon';
 import { BlockCard } from './blocks/BlockCard';
 import { SimCard } from './SimCard';
 import { PptPages, Restyle } from './PptTemplates';
@@ -252,8 +253,8 @@ function FormCard({ a, onSend }: { a: Extract<ToolArtifact, { kind: 'form' }>; o
       ))}
       <div className="export-bar" style={{ padding: '0 16px 12px' }}>
         {onSend && <button type="button" className="primary" disabled={filled === 0} onClick={send}>按已填的接着选型{filled ? `（${filled} 项）` : ''}</button>}
-        <button type="button" onClick={() => void word()}>导出 Word 发给客户</button>
-        <button type="button" onClick={() => void excel()}>导出 Excel</button>
+        <button type="button" onClick={() => void word()}><FileGlyph name="x.docx" />导出 Word 发给客户</button>
+        <button type="button" onClick={() => void excel()}><FileGlyph name="x.xlsx" />导出 Excel</button>
         {msg && <span className="hint">{msg}</span>}
       </div>
     </section>
@@ -343,22 +344,16 @@ function WebPageCard({ a }: { a: Extract<ToolArtifact, { kind: 'webpage' }> }) {
   );
 }
 
-const FILE_TONE: Record<string, [string, string]> = {
-  DXF: ['#f1f1ef', '#4a4a4a'], STEP: ['#f1f1ef', '#4a4a4a'], XLSX: ['#e6f2ec', '#1d6f42'], CSV: ['#e6f2ec', '#1d6f42'], DOCX: ['#e8eef8', '#2a4a85'], PPTX: ['#fbece4', '#b34a17'], PDF: ['#fde8ea', '#a00d25'],
-};
-
 function FileCard({ a, onSend }: { a: Extract<ToolArtifact, { kind: 'file' }>; onSend?: (text: string) => void }) {
   const [msg, setMsg] = useState<string | null>(null);
   const open = usePreview();
   const ext = (a.title.split('.').pop() ?? '').toUpperCase().slice(0, 4) || 'DOCX';
-  // 文件种类配色：Excel 绿、Word 蓝、PPT 橙、PDF 红
-  const tone = FILE_TONE[ext] ?? FILE_TONE.DOCX;
   // CAD 文件（DXF、STEP）浏览器里看不了，只给下载
   const canPreview = !!open && !['DXF', 'STEP', 'STP'].includes(ext);
   if (a.pages?.length || a.template) return <PptFileCard a={a} onSend={onSend} />;
   return (
     <section className="tool-card file-card">
-      <span className="refs-ext" style={{ background: tone[0], color: tone[1] }} aria-hidden="true">{ext}</span>
+      <FileTile name={a.title} />
       <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <b>{a.title}</b>
         <span className="hint">{a.ok && !msg && <Icon name="check" size={12} stroke={2.4} style={{ verticalAlign: '-2px', marginRight: 3, color: '#1c6b45' }} />}{msg ?? a.detail}</span>
@@ -373,11 +368,10 @@ function FileCard({ a, onSend }: { a: Extract<ToolArtifact, { kind: 'file' }>; o
 /** 按模板做的 PPT：一排每页的图、检查结果、用的模板、换个风格。 */
 function PptFileCard({ a, onSend }: { a: Extract<ToolArtifact, { kind: 'file' }>; onSend?: (text: string) => void }) {
   const [msg, setMsg] = useState<string | null>(null);
-  const tone = FILE_TONE.PPTX;
   return (
     <section className="tool-card file-card ppt-card">
       <div className="ppt-card-hd">
-        <span className="refs-ext" style={{ background: tone[0], color: tone[1] }} aria-hidden="true">PPTX</span>
+        <FileTile name={a.title.toLowerCase().endsWith('.pptx') ? a.title : 'x.pptx'} />
         <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <b>{a.title}</b>
           <span className="hint">{msg ?? a.detail}{a.template?.license ? `（${a.template.license}）` : ''}</span>
@@ -469,10 +463,10 @@ export function ExportBar({ text, title, sources }: { text: string; title: strin
   };
   return (
     <div className="export-bar">
-      <button type="button" onClick={() => void word()}>导出 Word</button>
-      <button type="button" onClick={() => void pdf()}>PDF</button>
-      <button type="button" onClick={() => void ppt()}>PPT</button>
-      {tables.length > 0 && <button type="button" onClick={() => void excel()}>导出 Excel（{tables.length} 个表）</button>}
+      <button type="button" onClick={() => void word()}><FileGlyph name="x.docx" />导出 Word</button>
+      <button type="button" onClick={() => void pdf()}><FileGlyph name="x.pdf" />PDF</button>
+      <button type="button" onClick={() => void ppt()}><FileGlyph name="x.pptx" />PPT</button>
+      {tables.length > 0 && <button type="button" onClick={() => void excel()}><FileGlyph name="x.xlsx" />导出 Excel（{tables.length} 个表）</button>}
       <button type="button" onClick={() => void copy()}>复制</button>
       {msg && <span className="hint">{msg}</span>}
     </div>

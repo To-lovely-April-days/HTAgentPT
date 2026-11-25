@@ -74,7 +74,7 @@ export function PlusMenu({ onUpload, skills, plugins, onManage, memory, scope, p
               )}
               {ppt && (
                 <button type="button" role="menuitem" className="pm-i" onClick={() => { done(); ppt.onOpen(); }}>
-                  <Icon name="slides" size={15} /><span className="pm-t">PPT 模板<small>{ppt.value ?? '助手按场景挑'}</small></span><Icon name="right" size={13} className="pm-r" />
+                  <Icon name="slides" size={15} /><span className="pm-t"><span>PPT 模板<span className="beta-tag" title="试用版：还在完善，做出来的 PPT 请检查后再用">Beta</span></span><small>{ppt.value ?? '助手按场景挑'}</small></span><Icon name="right" size={13} className="pm-r" />
                 </button>
               )}
               {scope && (
@@ -127,7 +127,7 @@ export function PlusMenu({ onUpload, skills, plugins, onManage, memory, scope, p
                 {skillRows.map((s) => (
                   <button key={s.code} type="button" role="menuitemradio" aria-checked={skills!.value?.code === s.code} className="pm-i" title={s.description}
                     onClick={() => { skills!.onChange(skills!.value?.code === s.code ? null : s); done(); }}>
-                    <Icon name="book" size={15} /><span className="pm-t">{s.name}</span>
+                    <Icon name="book" size={15} /><span className="pm-t"><span>{s.name}{s.ppt && <span className="beta-tag" title="试用版：还在完善，做出来的 PPT 请检查后再用">Beta</span>}</span></span>
                     {skills!.value?.code === s.code && <Icon name="check" size={14} stroke={2.4} className="pm-r" />}
                   </button>
                 ))}
