@@ -73,6 +73,8 @@ public static class DependencyInjection
         services.AddScoped<IMemoryService, MemoryService>();
         services.AddScoped<IPriceService, PriceService>();
         services.AddScoped<HomeService>();
+        services.AddScoped<WeatherService>();
+        services.AddHttpClient("weather", c => c.Timeout = TimeSpan.FromSeconds(8));
         services.AddSingleton<ModelContextProbe>();
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<IFaultCaseService, FaultCaseService>();

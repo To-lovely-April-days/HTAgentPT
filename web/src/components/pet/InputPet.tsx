@@ -7,15 +7,31 @@
 // · 首页「需要你看的」都看完了：欢呼（首页发 htpet 事件）
 // · 18 点以后打开：挥手说辛苦啦；22 点以后：坐着打瞌睡，点醒了叫你早点休息
 // · 过节：旁边多一样道具（灯笼、月亮……）
+// · 按天气穿衣服（围巾、羽绒服、毛线帽、草帽、雨衣、口罩）：天气一到，它停下来一件件穿上，穿好跳一下；一天穿一次，天气变了再换
 // 系统设置了「减少动态效果」的人，它只换姿势不走动。
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { get } from '../../lib/api';
 import { PixelIcon, PixelProp, PixelSprite } from './PixelSprite';
+import { DressedSprite } from './DressedSprite';
+import { dress, outfitOf } from './outfit';
+import type { Outfit } from './outfit';
+import { useWeather } from './weather';
 import type { Icon, Pose } from './sprite';
 import { byeLine, festivalOf, isLate, talkLine } from './days';
 
-type Mode = 'walk' | 'sit' | 'look' | 'jump' | 'away' | 'sleepy' | 'talk' | 'dizzy' | 'peek' | 'catch' | 'cheer' | 'bye';
+type Mode = 'walk' | 'sit' | 'look' | 'jump' | 'away' | 'sleepy' | 'talk' | 'dizzy' | 'peek' | 'catch' | 'cheer' | 'bye' | 'dress';
+
+// 今天已经穿上的那套（这台电脑的浏览器里记着；存不了就每次打开都穿一遍）
+const WORN_KEY = 'htpet-outfit';
+function wornToday(): Outfit | null {
+  try {
+    const s = JSON.parse(localStorage.getItem(WORN_KEY) ?? 'null') as { day?: string; outfit?: string } | null;
+    if (s?.day === new Date().toDateString()) return outfitOf(s.outfit);
+  } catch { /* 读不了 */ }
+  return null;
+}
+function saveWorn(o: Outfit) { try { localStorage.setItem(WORN_KEY, JSON.stringify({ day: new Date().toDateString(), outfit: o })); } catch { /* 存不了 */ } }
 
 /** 首页让小人做个反应：window.dispatchEvent(new CustomEvent('htpet', { detail: 'cheer' }))。 */
 export type PetCue = 'cheer';
@@ -55,6 +71,10 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
   const still = reduced();
   const fest = festivalOf(new Date());
   const unit = size / 32;
+  const weather = useWeather();
+  const outfit: Outfit = weather.data?.ok ? outfitOf(weather.data.outfit) : 'normal';
+  const [worn, setWorn] = useState<Outfit>(() => wornToday() ?? 'normal');
+  const [dressing, setDressing] = useState<number | null>(null);
 
   const go = useCallback((m: Mode) => { state.current.mode = m; setMode(m); }, []);
   const moveTo = useCallback((nx: number, glide: boolean) => {
@@ -70,7 +90,7 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
     back.current = setTimeout(() => {
       setSay(null);
       const s = state.current;
-      if (s.mode === 'away' || s.mode === 'jump') return;
+      if (s.mode === 'away' || s.mode === 'jump' || s.mode === 'dress') return;
       go('sit');
       s.walkUntil = Date.now() + 9000;
       setTimeout(() => { if (state.current.mode === 'sit' && !still) go('walk'); }, 2500);
@@ -78,6 +98,7 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
   }, [go, still]);
   useEffect(() => () => clearTimeout(back.current), []);
   const speak = useCallback((m: Mode, text: string | null, ms: number, label?: string) => {
+    if (state.current.mode === 'dress') return;
     setTipLeft(state.current.x > state.current.width / 2);
     setSay(text ? { label, text } : null);
     go(m);
@@ -142,7 +163,7 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
   useEffect(() => {
     let depth = 0;
     const isFile = (e: DragEvent) => !!e.dataTransfer?.types.includes('Files');
-    const free = () => state.current.mode !== 'away' && state.current.mode !== 'jump';
+    const free = () => state.current.mode !== 'away' && state.current.mode !== 'jump' && state.current.mode !== 'dress';
     const onEnter = (e: DragEvent) => {
       if (!isFile(e)) return;
       depth++;
@@ -198,6 +219,32 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
     const t = setTimeout(() => { if (state.current.mode !== 'away') speak('bye', line, 5000); }, 1500);
     return () => clearTimeout(t);
   }, [speak]);
+
+  // 按天气穿衣服：天气到了、和身上穿的不一样，就停下来一件件穿上（穿好跳一下）；平常的衣服、减少动态效果的直接换
+  const dressTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(dressTimer.current), []);
+  useEffect(() => {
+    if (!weather.data || outfit === worn || dressing) return;
+    if (outfit === 'normal' || still) { setWorn(outfit); saveWorn(outfit); return; }
+    if (busy || state.current.mode === 'away' || state.current.mode === 'jump') return;
+    setSay(null); clearTimeout(back.current);
+    go('dress');
+    setWorn(outfit);
+    setDressing(Date.now());
+    clearTimeout(dressTimer.current);
+    dressTimer.current = setTimeout(() => {
+      setDressing(null);
+      saveWorn(outfit);
+      if (state.current.mode !== 'dress') return;   // 穿到一半去回答里干活了：衣服照样穿好，不用跳
+      go('jump');
+      setTimeout(() => {
+        if (state.current.mode !== 'jump') return;
+        go('sit');
+        state.current.walkUntil = Date.now() + 8000;
+        setTimeout(() => { if (state.current.mode === 'sit' && !still) go('walk'); }, 2500);
+      }, 600);
+    }, dress('sit', outfit).total * 1000 + 300);
+  }, [weather.data, outfit, worn, dressing, busy, still, go]);
 
   // 发送：跳一下就离开，去回答里干活；答完跳回来坐下，歇会儿再溜达
   // 从 false 起：刚发完问题、底部输入框才出现时也要先跳一下再走
@@ -264,7 +311,7 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
   const poke = () => {
     const s = state.current;
     s.lastInput = Date.now();
-    if (s.mode === 'away' || s.mode === 'jump') return;
+    if (s.mode === 'away' || s.mode === 'jump' || s.mode === 'dress') return;
     s.pokes = [...s.pokes.filter((t) => Date.now() - t < 1500), Date.now()];
     if (s.pokes.length >= 5) { s.pokes = []; speak('dizzy', '别戳啦…头晕', 2200); return; }
     if (s.mode === 'dizzy') return;
@@ -276,6 +323,7 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
   const shown: Mode = still && (mode === 'walk' || mode === 'away') ? (busy ? 'away' : 'sit') : mode;
   const pose: Pose = shown === 'walk' ? (frame ? 'walk2' : 'walk1')
     : shown === 'sit' ? (blink ? 'blink' : 'sit')
+      : shown === 'dress' ? 'sit'
       : shown === 'look' || shown === 'peek' ? 'look'
         : shown === 'jump' ? 'jump'
           : shown === 'sleepy' ? 'sleepy'
@@ -284,14 +332,20 @@ export function InputPet({ busy, size = 32 }: { busy: boolean; size?: number }) 
                 : shown === 'bye' ? (blink ? 'blink' : 'idle')
                   : 'cheer';
   const icon: Icon | null = shown === 'dizzy' || shown === 'cheer' ? 'spark' : shown === 'bye' ? 'wave' : null;
-  const seated = shown === 'sit' || shown === 'look' || shown === 'peek' || shown === 'sleepy';
+  const seated = shown === 'sit' || shown === 'look' || shown === 'peek' || shown === 'sleepy' || shown === 'dress';
+  // 穿好以后手里的东西：下雨撑伞、很热拿冰棍、零下呵白气（过节的道具优先）
+  const extra = dressing || shown === 'away' ? null
+    : worn === 'rain' ? 'umbrella' : worn === 'hot' && weather.data?.veryHot && !fest ? 'icepop' : worn === 'freezing' ? 'breath' : null;
 
   return (
     <div ref={ref} className={'pet' + (seated ? ' seated' : '') + (shown === 'jump' ? ' jumping' : '') + (shown === 'away' ? ' away' : '') + (smooth ? ' glide' : '')}
       style={{ left: x, ['--pet-w' as string]: `${size}px` }}>
       <button type="button" className="pet-btn" onClick={poke} title="点我一下" aria-label="和小人打个招呼">
-        <PixelSprite pose={pose} width={size} />
+        {worn === 'normal' ? <PixelSprite pose={pose} width={size} /> : <DressedSprite pose={pose} outfit={worn} width={size} dressing={dressing} />}
       </button>
+      {extra === 'umbrella' && <PixelProp prop="umbrella" unit={unit * 1.5} className="pet-umb" />}
+      {extra === 'icepop' && <PixelProp prop="icepop" unit={unit} className="pet-pop" />}
+      {extra === 'breath' && <PixelProp prop="breath" unit={unit} className="pet-breath" />}
       {icon && <PixelIcon icon={icon} unit={unit} className={'pet-ic pet-ic-' + icon} />}
       {fest && shown !== 'away' && <PixelProp prop={fest.prop} unit={unit} className="pet-prop" />}
       {shown === 'sleepy' && <span className="pet-z" aria-hidden="true">z<b>Z</b></span>}

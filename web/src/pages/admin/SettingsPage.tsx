@@ -62,6 +62,11 @@ const GROUPS: { title: string; keys: [string, string][] }[] = [
       ['translate.batch_chars', '翻译单批字数'],
     ],
   },
+  {
+    // 同事都在内网，按 IP 查不出在哪；填公司所在城市，服务器每 30 分钟去 Open-Meteo 取一次（要能上外网）
+    title: '首页天气',
+    keys: [['home.weather_city', '公司所在城市（如 上海；留空不显示天气）']],
+  },
 ];
 
 export default function SettingsPage() {

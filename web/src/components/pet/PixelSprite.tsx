@@ -5,7 +5,8 @@ import type { Icon, Pose, Prop } from './sprite';
 
 const cache = new Map<string, { ch: string; fill: string; d: string }[]>();
 
-function paths(key: string, rows: string[]) {
+/** 字符画 → 每种颜色一条 path（带缓存）。 */
+export function paths(key: string, rows: string[]) {
   const hit = cache.get(key);
   if (hit) return hit;
   const byColor = new Map<string, string[]>();

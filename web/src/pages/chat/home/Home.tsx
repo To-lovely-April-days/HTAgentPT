@@ -1,6 +1,7 @@
 // 首页：居中一列，只有三样——问候（日期、一句问好、一句生活上的话）、输入框（下面一行常用技能）、需要你看的（最多 3 件）。
 // 问候按时段换、每天由模型现写，过节换成节日祝福；「需要你看的」把处理好的反馈、没填完的文档、系统算出的正事排在一起，
 // 点过的当天不再出现；一件都没有就整块不显示；都点完了收成一行，小人欢呼一下。
+// 天气（后台填的公司城市）：日期后面写「上海 小雨 9°」，顶上那一片跟着下雨下雪，问候的小字遇到雨雪、高温、降温换成提醒。
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -9,6 +10,8 @@ import type { SessionRowT } from '../../../lib/types';
 import type { SkillRow } from '../composerUtil';
 import { Icon } from '../../../components/Icons';
 import { festivalOf } from '../../../components/pet/days';
+import { useWeather } from '../../../components/pet/weather';
+import { ComposerWeather, WeatherSky } from './WeatherSky';
 
 interface Line { title: string; sub: string }
 interface WorkItem { id: string; emoji: string; title: string; badge: string; tone: string; detail: string; action: string; prompt: string }
@@ -65,6 +68,11 @@ function loadSeen(): Seen {
 }
 function saveSeen(s: Seen) { try { localStorage.setItem(SEEN_KEY, JSON.stringify(s)); } catch { /* 存不了 */ } }
 
+/** 日期后面那个天气图标（Lucide）。 */
+const SKY_ICON: Record<string, string> = {
+  clear: 'sun', cloudy: 'cloud', overcast: 'cloud', rain: 'cloudRain', storm: 'cloudLightning', snow: 'cloudSnow', fog: 'cloudFog', haze: 'cloudFog', wind: 'wind',
+};
+
 const TONE: Record<string, string> = { up: 'up', warn: 'warn', ok: 'ok', info: 'info' };
 
 interface Item { key: string; tone: string; title: string; badge?: string; detail: string; action: string; done?: boolean; run: () => void }
@@ -88,7 +96,13 @@ export function Home({ fallbackName, composer, onPick, skills, onSkill, drafts, 
   const slot = slotOf(now);
   const name = data?.name || fallbackName;
   const fest = festivalOf(now);
-  const line = fest ? { title: `${fest.title}，${name}`, sub: fest.sub } : data?.lines[slot] ?? defaultLine(slot, name);
+  const sky = useWeather().data;
+  const w = sky?.ok && sky.kind ? sky : null;
+  const night = now.getHours() >= 18 || now.getHours() < 6;
+  // 晚上只在不下雨不下雪时画夜空
+  const nightSky = night && (!w || ['clear', 'cloudy', 'overcast', 'wind'].includes(w.kind!));
+  const base = fest ? { title: `${fest.title}，${name}`, sub: fest.sub } : data?.lines[slot] ?? defaultLine(slot, name);
+  const line = !fest && w?.tip ? { ...base, sub: w.tip } : base;
   const [seen, setSeen] = useState(loadSeen);
 
   const items: Item[] = [
@@ -133,14 +147,27 @@ export function Home({ fallbackName, composer, onPick, skills, onSkill, drafts, 
   };
 
   return (
+    <div className={'hm-wrap' + (nightSky ? ' night' : '')}>
+    {(w || nightSky) && <WeatherSky kind={w?.kind ?? 'clear'} night={nightSky} />}
     <div className="hm">
       <header className="hm-hero">
-        <span className="hm-date tn">{dateLine(now)}</span>
+        <span className="hm-date tn">
+          {dateLine(now)}
+          {w && (
+            <span className="hm-wx">
+              <Icon name={nightSky && w.kind === 'clear' ? 'moon' : SKY_ICON[w.kind!] ?? 'cloud'} size={14} />
+              {w.city} {w.label} {w.temp}°
+            </span>
+          )}
+        </span>
         <h1 className="hm-title">{line.title}</h1>
         {line.sub && <p className="hm-sub">{line.sub}</p>}
       </header>
 
-      {composer}
+      <div className="hm-cbox">
+        {composer}
+        {w && <ComposerWeather kind={w.kind!} />}
+      </div>
 
       {skills.length > 0 && (
         <div className="hm-skills" aria-label="常用技能">
@@ -174,6 +201,7 @@ export function Home({ fallbackName, composer, onPick, skills, onSkill, drafts, 
       {allDone && (
         <div className="hm-done" role="status"><Icon name="check" size={14} stroke={2.6} />今天要看的都看完了</div>
       )}
+    </div>
     </div>
   );
 }

@@ -9,7 +9,7 @@ namespace HT.Agent.Api.Controllers;
 [ApiController]
 [Route("api/home")]
 [Authorize]
-public class HomeController(HomeService home) : ControllerBase
+public class HomeController(HomeService home, WeatherService weather) : ControllerBase
 {
     /// <summary>refresh=true 是「换一批」，每天最多 3 次。</summary>
     [HttpGet("today")]
@@ -29,5 +29,14 @@ public class HomeController(HomeService home) : ControllerBase
             generated = b.Generated,
             pending = t.Pending,
         });
+    }
+
+    /// <summary>首页天气（公司所在城市，全公司共用）。没填城市、取不到时 ok=false，首页照旧。</summary>
+    [HttpGet("weather")]
+    public async Task<IActionResult> Weather(CancellationToken ct)
+    {
+        var w = await weather.TodayAsync(ct);
+        if (w is null) return Ok(new { ok = false });
+        return Ok(new { ok = true, w.City, w.Temp, w.Min, w.Max, w.Kind, w.Label, w.Outfit, w.VeryHot, w.IsDay, w.Tip });
     }
 }

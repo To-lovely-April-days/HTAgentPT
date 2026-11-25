@@ -1,7 +1,7 @@
 // HTLAB 吉祥物的 8-bit 像素版（32×44）。每个动作是一张字符画：一个字符一格，'.' 是透明。
 // 由设计稿生成；要改造型就改这里的字符画。ICONS 是头顶冒出来的小图标（问号、省略号、灯泡、汗滴、信号）。
 
-export const PALETTE: Record<string, string> = {"O": "#141416", "K": "#2B2B31", "k": "#4A4A54", "R": "#D7263D", "r": "#8E1328", "W": "#FFFFFF", "S": "#F6CBA8", "s": "#DEA07E", "E": "#18181B", "P": "#F0958A", "G": "#8C8C94", "g": "#5C5C64", "Y": "#F5B800", "y": "#B98500", "B": "#7FB7E8", "M": "#FCE9B0", "m": "#E9C46A", "Z": "#4E9A5B", "z": "#2F6B3A"};
+export const PALETTE: Record<string, string> = {"O": "#141416", "K": "#2B2B31", "k": "#4A4A54", "R": "#D7263D", "r": "#8E1328", "W": "#FFFFFF", "S": "#F6CBA8", "s": "#DEA07E", "E": "#18181B", "P": "#F0958A", "G": "#8C8C94", "g": "#5C5C64", "Y": "#F5B800", "y": "#B98500", "B": "#7FB7E8", "M": "#FCE9B0", "m": "#E9C46A", "Z": "#4E9A5B", "z": "#2F6B3A", "N": "#2E4A7A", "n": "#1B2F52", "L": "#5479B5", "Q": "#F3EBDC", "q": "#D2C29E", "c": "#D5DCE6", "X": "#D3E8F8", "x": "#93BEE3", "I": "#7FD1C7", "i": "#4FA89C", "T": "#8B5A2B", "U": "#33507F", "h": "#F2C14E", "j": "#C9962A", "V": "#FFD33D", "v": "#D9A400", "D": "#5C6B80", "d": "#3E4A5C"};
 
 export type Pose = 'idle' | 'blink' | 'walk1' | 'walk2' | 'sit' | 'look' | 'jump' | 'sleepy' | 'busy' | 'coffee' | 'cheer' | 'think' | 'scratch1' | 'scratch2' | 'read1' | 'read2' | 'mag1' | 'mag2' | 'calc1' | 'calc2' | 'web1' | 'web2' | 'idea' | 'write1' | 'write2' | 'oops1' | 'oops2';
 export type Icon = 'q' | 'dots' | 'bulb' | 'sweat' | 'wave' | 'spark';
@@ -1264,7 +1264,8 @@ export const ICONS: Record<Icon, string[]> = {
 };
 
 /** 过节时站在小人旁边的道具，格子和小人一样大。 */
-export type Prop = 'firework' | 'lantern' | 'tangyuan' | 'zongzi' | 'moon' | 'flag';
+export type Prop = 'firework' | 'lantern' | 'tangyuan' | 'zongzi' | 'moon' | 'flag'
+  | 'umbrella' | 'icepop' | 'breath' | 'snowman' | 'sun' | 'cloud' | 'darkCloud' | 'crescent' | 'flake' | 'leaf';
 export const PROPS: Record<Prop, string[]> = {
   firework: ['....Y....', '.R..Y..R.', '..R.Y.R..', '...RYR...', 'YYYY.YYYY', '...RYR...', '..R.Y.R..', '.R..Y..R.', '....Y....'],
   lantern: ['...OO...', '..OrrO..', '.ORRRRO.', 'ORRYRRRO', 'ORRYRRRO', 'ORRYRRRO', '.ORRRRO.', '..OrrO..', '...YY...', '...Y.Y..', '..Y..Y..'],
@@ -1272,4 +1273,18 @@ export const PROPS: Record<Prop, string[]> = {
   zongzi: ['....O....', '...OZO...', '..OZZZO..', '..OZZZO..', '.OYYYYYO.', '.OZZZZZO.', 'OZZZzZZZO', 'OZZzzzZZO', 'OOOOOOOOO'],
   moon: ['..OOOOO..', '.OMMMMMO.', 'OMMMmMMMO', 'OMMMMMMMO', 'OMmMMMMMO', 'OMMMMMmMO', 'OMMMMMMMO', '.OMMMMMO.', '..OOOOO..'],
   flag: ['gOOOOOOO', 'gORRRRRO', 'gORYRRRO', 'gORRRRRO', 'gOOOOOOO', 'g.......', 'g.......', 'g.......', 'g.......', 'g.......'],
+  // 天气：下雨撑的伞、热天的冰棍、冷天呵的白气、下雪堆的雪人
+  umbrella: ['.......OOOOOO.......', '....OOOUUUUUUOOO....', '..OOUUUUUUUUUUUUOO..', '.OUUUUUUUUUUUUUUUUO.', 'OUUUnUUUUnUUUUnUUUUO', 'OOOOOOOOOOOOOOOOOOOO',
+    '.........gg.........', '.........gg.........', '.........gg.........', '.........gg.........', '.........gg.........', '.........gg.........', '.........gg.........',
+    '.........gg.........', '.........gg.........', '.........gg.........', '.........gg.........', '.........gg..gg.....', '..........gggg......'],
+  icepop: ['.OOOO.', 'OIIIIO', 'OIiIIO', 'OIIIIO', 'OIIiIO', 'OIIIIO', '.OOOO.', '..OT..', '..OT..', '..OO..'],
+  breath: ['.....OOO.', '..OOOWWWO', '.OWWWWWWO', 'OWWcWWWO.', '.OOOOOOO.'],
+  snowman: ['...OOO...', '..OWWWO..', '.OWEWEWO.', '.OWWYWWO.', '..OWWWO..', '.ORRRRRO.', 'OWWWWWWWO', 'OWWWEWWWO', 'OWWWWWWWO', 'OWWWEWWWO', '.OWWWWWO.', '..OOOOO..'],
+  // 首页天上：太阳、云、乌云、弯月、雪花、叶子
+  sun: ['....y....', '.y..y..y.', '..yYYYy..', '..YYYYY..', 'yyYYYYYyy', '..YYYYY..', '..yYYYy..', '.y..y..y.', '....y....'],
+  cloud: ['....OOOO.......', '...OWWWWO.OOO..', '..OWWWWWWOWWWO.', '.OWWWWWWWWWWWWO', 'OWWWWWWWWWWWWWO', 'OccccccccccccO.', '.OOOOOOOOOOOO..'],
+  darkCloud: ['....OOOO.......', '...ODDDDO.OOO..', '..ODDDDDDODDDO.', '.ODDDDDDDDDDDDO', 'ODDDDDDDDDDDDDO', 'OddddddddddddO.', '.OOOOOOOOOOOO..'],
+  crescent: ['..OOO..', '.OMMMO.', 'OMMMOO.', 'OMMO...', 'OMMMOO.', '.OMMMO.', '..OOO..'],
+  flake: ['.W.', 'WWW', '.W.'],
+  leaf: ['.Zz', 'ZZz', 'Zz.'],
 };
