@@ -27,36 +27,41 @@ export function AskCard({ ask, active, onAnswer }: { ask: AskSpec; active: boole
       ? qs.map((q, i) => `${q.question}：${picked[i].join('、')}`).join('\n') + (own.trim() ? `\n补充：${own.trim()}` : '')
       : own.trim();
   return (
-    <div className={'ask-card' + (active ? '' : ' done')}>
+    <section className={'ask-card' + (active ? '' : ' done')} aria-label="需要你确认">
+      <div className="ask-hd">
+        <b>{many ? `需要你确认 ${qs.length} 件事` : '需要你确认'}</b>
+        <span className="hint">{active ? '选好后接着做，前面查到的不会重来；其余没说清的按常规做法定' : '已回答'}</span>
+      </div>
       {qs.map((q, qi) => (
-        <div key={qi} className="ask-one">
-          <b className="ask-q">{many && <span className="ask-n">{qi + 1}</span>}{q.question}</b>
+        <fieldset key={qi} className="ask-one">
+          <legend className="ask-q">
+            {many && <span className="ask-n">{String(qi + 1).padStart(2, '0')}</span>}{q.question}
+            <small>{q.multiple ? '可多选' : '单选'}</small>
+          </legend>
           <div className="ask-opts" role={q.multiple ? 'group' : 'radiogroup'} aria-label={q.question}>
             {q.options.map((o) => {
               const on = picked[qi]?.includes(o.label) || (!active && ask.answered?.includes(o.label));
               return (
                 <button key={o.label} type="button" className={'ask-opt' + (on ? ' on' : '')} disabled={!active}
                   role={q.multiple ? 'checkbox' : 'radio'} aria-checked={!!on} onClick={() => toggle(qi, o.label)}>
-                  <span className={'ask-mark' + (q.multiple ? ' sq' : '')} aria-hidden="true">{on && <Icon name={q.multiple ? 'check' : 'dot'} size={q.multiple ? 12 : 14} stroke={2.6} />}</span>
+                  <span className={'ask-mark' + (q.multiple ? ' sq' : '')} aria-hidden="true">{on && <Icon name={q.multiple ? 'check' : 'dot'} size={q.multiple ? 11 : 12} stroke={2.6} />}</span>
                   <span className="ask-t"><b>{o.label}</b>{o.detail && <span>{o.detail}</span>}</span>
                 </button>
               );
             })}
           </div>
-        </div>
+        </fieldset>
       ))}
       {active ? (
-        <>
-          <form className="ask-own" onSubmit={(e) => { e.preventDefault(); if (answer) onAnswer(answer); }}>
-            <input className="inp" placeholder={many ? '还有要补充的，或者都不是，我自己说…' : '都不是，我自己说…'} value={own} onChange={(e) => setOwn(e.target.value)} />
-            <button type="submit" className="pbtn" disabled={!answer}>确定</button>
-          </form>
-          <span className="hint">
-            {many ? `${qs.length} 个问题都选好再点确定。` : ''}选完接着做，前面查到的不会重来。{!many && ask.multiple ? '可以多选。' : ''}
-          </span>
-        </>
-      ) : ask.answered && <span className="hint">你的回答：{ask.answered}</span>}
-    </div>
+        <form className="ask-ft" onSubmit={(e) => { e.preventDefault(); if (answer) onAnswer(answer); }}>
+          <label className="ask-own">补充说明
+            <input className="inp" placeholder={many ? '可选；都不是的话直接写在这里' : '都不是的话直接写在这里'} value={own} onChange={(e) => setOwn(e.target.value)} />
+          </label>
+          <button type="button" className="gbtn" onClick={() => onAnswer('按常规做法定，直接开始，不合适的地方在回答里说明。')}>按常规做法定，直接开始</button>
+          <button type="submit" className="pbtn" disabled={!answer}>{many && !allPicked && !own.trim() ? `还有 ${picked.filter((p) => p.length === 0).length} 个没选` : '确认并继续'}</button>
+        </form>
+      ) : ask.answered && <div className="ask-answered hint">你的回答：{ask.answered}</div>}
+    </section>
   );
 }
 
@@ -203,6 +208,9 @@ function FormCard({ a, onSend }: { a: Extract<ToolArtifact, { kind: 'form' }>; o
   const [vals, setVals] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<string | null>(null);
   const filled = Object.values(vals).filter((v) => v.trim()).length;
+  const all = a.groups.flatMap((g) => g.items.map((it) => ({ g: g.name, it })));
+  const must = all.filter((x) => x.it.status === 'must');
+  const mustLeft = must.filter((x) => !vals[`${x.g}/${x.it.field}`]?.trim()).length;
   const send = () => {
     const parts: string[] = [];
     for (const g of a.groups) for (const it of g.items) {
@@ -225,37 +233,59 @@ function FormCard({ a, onSend }: { a: Extract<ToolArtifact, { kind: 'form' }>; o
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), '缺项单');
     XLSX.writeFile(wb, `${a.title}.xlsx`);
   };
+  let no = 0;
   return (
-    <section className="tool-card">
-      <div className="tool-card-hd">
-        <span className="tool-ic form" aria-hidden="true">单</span>
-        <b>{a.title}</b>
-        <span className="hint">已知 {a.known} 项 · 待确认 {a.missing} 项</span>
-      </div>
-      {a.groups.map((g) => (
-        <div key={g.name} className="form-group">
-          <div className="form-group-hd">{g.name}</div>
-          {g.items.map((it) => {
-            const k = `${g.name}/${it.field}`;
-            return (
-              <div key={k} className="form-row">
-                <span className={'form-st ' + STATUS[it.status][1]}>{STATUS[it.status][0]}</span>
-                <label className="form-f" htmlFor={'f-' + k}>{it.field}</label>
-                {it.status === 'known'
-                  ? <span className="form-v">{it.value}</span>
-                  : <input id={'f-' + k} className="inp form-inp" placeholder={it.value || '客户回复后填在这里'} value={vals[k] ?? ''}
-                      onChange={(e) => setVals({ ...vals, [k]: e.target.value })} />}
-                {it.why && <span className="form-why">{it.why}</span>}
-              </div>
-            );
-          })}
+    <section className="form-card">
+      <div className="form-hd">
+        <div className="form-ttl">
+          <b>{a.title.includes('缺项单') ? a.title : `询价缺项单 · ${a.title}`}</b>
+          <span className="hint">发给客户确认后，按已填的接着选型和报价</span>
         </div>
-      ))}
-      <div className="export-bar" style={{ padding: '0 16px 12px' }}>
-        {onSend && <button type="button" className="primary" disabled={filled === 0} onClick={send}>按已填的接着选型{filled ? `（${filled} 项）` : ''}</button>}
-        <button type="button" onClick={() => void word()}><FileGlyph name="x.docx" />导出 Word 发给客户</button>
-        <button type="button" onClick={() => void excel()}><FileGlyph name="x.xlsx" />导出 Excel</button>
-        {msg && <span className="hint">{msg}</span>}
+        <div className="form-kpi">
+          <span><small>已知</small><b>{a.known}</b></span>
+          <span><small>待确认</small><b>{a.missing}</b></span>
+          {must.length > 0 && <span><small>其中必须</small><b className="must">{must.length}</b></span>}
+          <span><small>已填写</small><b className="ok">{filled}</b></span>
+        </div>
+      </div>
+      <div className="form-legend">
+        <span><i className="must" />必须确认：缺了没法选型报价</span>
+        <span><i className="should" />建议确认：影响价格和配置</span>
+        <span><Icon name="check" size={11} stroke={3} style={{ color: '#1c6b45' }} />已知或按常规定</span>
+      </div>
+      <div className="form-scroll">
+        <table className="form-t">
+          <colgroup><col style={{ width: 52 }} /><col style={{ width: 200 }} /><col /><col style={{ width: 220 }} /></colgroup>
+          <thead><tr><th>序号</th><th>项目</th><th>客户答复 / 已知内容</th><th>为什么要问</th></tr></thead>
+          {a.groups.map((g) => (
+            <tbody key={g.name}>
+              <tr className="form-g"><td colSpan={4}>{g.name}<span>{g.items.length} 项</span></td></tr>
+              {g.items.map((it) => {
+                const k = `${g.name}/${it.field}`;
+                no += 1;
+                return (
+                  <tr key={k}>
+                    <td className="no">{String(no).padStart(2, '0')}</td>
+                    <td><span className="form-f"><i className={it.status} aria-hidden="true" /><label htmlFor={'f-' + k}>{it.field}</label></span></td>
+                    <td>
+                      {it.status === 'known'
+                        ? <span className="form-v"><Icon name="check" size={12} stroke={3} style={{ color: '#1c6b45' }} />{it.value}</span>
+                        : <input id={'f-' + k} className={'form-inp' + (vals[k]?.trim() ? ' has' : '')} placeholder={it.value || '客户答复后填写'} value={vals[k] ?? ''}
+                            aria-label={`${it.field}（${STATUS[it.status][0]}）`} onChange={(e) => setVals({ ...vals, [k]: e.target.value })} />}
+                    </td>
+                    <td className="why">{it.why}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          ))}
+        </table>
+      </div>
+      <div className="form-ft">
+        <span className="hint">{msg ?? (filled === 0 ? '客户答复后填在表里，或导出发给客户' : `已填 ${filled} 项${must.length > 0 ? ` · 必须确认的还差 ${mustLeft} 项` : ''}`)}</span>
+        <button type="button" className="gbtn" onClick={() => void word()}><FileGlyph name="x.docx" />导出 Word 发给客户</button>
+        <button type="button" className="gbtn" onClick={() => void excel()}><FileGlyph name="x.xlsx" />导出 Excel</button>
+        {onSend && <button type="button" className="pbtn" disabled={filled === 0} onClick={send}>按已填的接着选型{filled ? `（${filled} 项）` : ''}</button>}
       </div>
     </section>
   );

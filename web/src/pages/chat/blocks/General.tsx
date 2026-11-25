@@ -5,6 +5,8 @@ import type { D } from './util';
 import { fmt, list, niceMax, niceStep, nums, PALETTE, s, strs, tickFractions } from './util';
 import { Refs } from './Refs';
 import { Icon } from '../../../components/Icons';
+import { renderToString } from 'katex';
+import 'katex/dist/katex.min.css';
 
 // ── 关键数字 ─────────────────────────────────────
 export function Metrics({ d }: { d: D }) {
@@ -209,24 +211,47 @@ export function Options({ d }: { d: D }) {
 }
 
 // ── 计算过程 ─────────────────────────────────────
+/** 公式、符号：写成 LaTeX 的（有 \\delta、^、_、{}）用 KaTeX 排好版再显示，普通文字原样显示。KaTeX 会转义输入，排不了的原样显示。 */
+function Tex({ src, block }: { src: string; block?: boolean }) {
+  const html = useMemo(() => {
+    if (!/\\[a-zA-Z]|[\^_{}]/.test(src)) return null;
+    try { return renderToString(src, { throwOnError: false, displayMode: !!block, strict: 'ignore', output: 'html' }); }
+    catch { return null; }
+  }, [src, block]);
+  return html ? <span dangerouslySetInnerHTML={{ __html: html }} /> : <>{src}</>;
+}
+
 export function Formula({ d }: { d: D }) {
   const r = (d.result && typeof d.result === 'object' ? d.result : {}) as D;
+  const vars = list(d.vars);
   return (
     <div className="blk-formula">
-      {s(d.formula) && <div className="eq">{s(d.formula)}</div>}
-      {list(d.vars).map((v, i) => (
-        <div key={i} className="var">
-          <span className="sym">{s(v.symbol)}</span><span className="nm">{s(v.name)}</span><b className="tnum">{s(v.value)}</b><Refs v={v.ref} />
-        </div>
-      ))}
+      <div className="fx-main">
+        {s(d.formula) && <div className="eq"><Tex src={s(d.formula)} block /></div>}
+        {vars.length > 0 && (
+          <table className="fx-vars">
+            <thead><tr><th>符号</th><th>名称</th><th>取值</th></tr></thead>
+            <tbody>
+              {vars.map((v, i) => (
+                <tr key={i}>
+                  <td className="sym"><Tex src={s(v.symbol)} /></td>
+                  <td className="nm">{s(v.name)}<Refs v={v.ref} /></td>
+                  <td className="val">{s(v.value)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
       {(s(r.expr) || s(r.value)) && (
-        <div className="res">
-          <span className="expr">{s(r.expr)}{s(r.expr) && ' ='}</span>
+        <div className="fx-res">
+          <span className="lbl">计算结果</span>
           <b>{s(r.value)}</b>
+          {s(r.expr) && <span className="expr">{s(r.expr)}</span>}
+          {r.checked === true && <span className="chk ok"><Icon name="check" size={12} stroke={3} />系统已按式子重算核对</span>}
+          {r.checked === false && <span className="chk bad">按式子重算是 {s(r.computed)}，和上面的结果对不上，请核对</span>}
         </div>
       )}
-      {r.checked === true && <span className="chk ok"><Icon name="check" size={13} stroke={2.2} style={{ verticalAlign: '-2px', marginRight: 3 }} />系统已按式子重算核对</span>}
-      {r.checked === false && <span className="chk bad">按式子重算是 {s(r.computed)}，和上面的结果对不上，请核对</span>}
     </div>
   );
 }

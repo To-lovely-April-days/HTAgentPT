@@ -20,9 +20,11 @@ export function StepsCard({ steps, streaming, seconds }: { steps: AssistantStep[
   // 「思考」那一行（用了哪一档、想了多久）不算查了几步
   const used = steps.filter((s) => s.tool !== 'think').length;
   return (
-    <div className="as-steps">
+    <div className={'as-steps' + (expanded ? ' open' : '')}>
       <button type="button" className="as-steps-hd" aria-expanded={expanded} onClick={() => setOpen(!expanded)}>
-        <i className={'as-dot' + (running ? ' run' : '')} aria-hidden="true" />
+        {running
+          ? <span className="comet sm" aria-hidden="true" />
+          : <span className="as-ok" aria-hidden="true"><Icon name="check" size={9} stroke={3.4} /></span>}
         <b>{running ? '正在查' : used > 0 ? `查了 ${used} 步` : '直接回答'}</b>
         {!running && seconds != null && <span className="as-muted">· 用时 {Math.round(seconds)} 秒</span>}
         {running && <span className="as-muted">· {steps[steps.length - 1].label}…</span>}

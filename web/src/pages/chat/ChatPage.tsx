@@ -31,6 +31,7 @@ import { ArtifactCards, AskCard, ExportBar } from './ToolCards';
 import { SideSlotCtx } from '../../Shell';
 import { BrandMark, Icon } from '../../components/Icons';
 import { FileGlyph } from '../../components/FileTypeIcon';
+import { Notice } from './Notice';
 import { ATTACH_ACCEPT, formatSize, useAttachments } from './useAttachments';
 import type { PendingFile } from './useAttachments';
 import { Prose } from '../../components/Prose';
@@ -965,37 +966,21 @@ function AssistantMessage() {
         )}
         {m.wrap && !m.streaming && <WrapCard wrap={m.wrap} unfinished={m.unfinished} active={active} onSend={sendText} />}
         {!m.wrap && m.unfinished && m.unfinished.length > 0 && !m.streaming && (
-          <div className="as-trunc" role="status">
-            <Icon name="warn" size={15} stroke={2} />
-            <b style={{ fontWeight: 500 }}>还有 {m.unfinished.length} 步没做完</b>
-            <span className="hint">{m.unfinished.join('、')}</span>
-            {isLast && (
-              <button type="button" className="gbtn" disabled={busy}
-                onClick={() => sendText(`接着做没做完的步骤：${m.unfinished!.join('、')}。前面查到的直接用，不用重新查。`)}>
-                <Icon name="play" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />接着做</button>
-            )}
-          </div>
+          <Notice tone="info" icon="list" title={`计划还有 ${m.unfinished.length} 步没做完`} detail={m.unfinished.join('、')}
+            action={isLast ? '接着做' : null} actionIcon="play" primary disabled={busy}
+            onAction={() => sendText(`接着做没做完的步骤：${m.unfinished!.join('、')}。前面查到的直接用，不用重新查。`)} />
         )}
         {m.interrupted && !m.streaming && !m.ask && (
-          <div className="as-trunc" role="status">
-            <Icon name="warn" size={15} stroke={2} />
-            <b style={{ fontWeight: 500 }}>这一轮做到一半断了</b>
-            <span className="hint">{m.steps && m.steps.length > 0 ? `做完的 ${m.steps.length} 步已经存下，接着做不用重查` : '可以接着做'}</span>
-            {isLast && (
-              <button type="button" className="gbtn" disabled={busy}
-                onClick={() => sendText('接着做：从中断的地方继续，前面查到的直接用，不用重新查。')}>
-                <Icon name="play" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />接着做</button>
-            )}
-          </div>
+          <Notice tone="warn" icon="pause" title="这一轮做到一半断了"
+            detail={m.steps && m.steps.length > 0 ? `做完的 ${m.steps.length} 步已经存下，接着做不用重新查` : '点「接着做」从断的地方继续'}
+            action={isLast ? '接着做' : null} actionIcon="play" primary disabled={busy}
+            onAction={() => sendText('接着做：从中断的地方继续，前面查到的直接用，不用重新查。')} />
         )}
         {m.truncated && !m.streaming && (
-          <div className="as-trunc" role="status">
-            <Icon name="warn" size={15} stroke={2} /><b style={{ fontWeight: 500 }}>回答太长，写到一半停了</b>
-            {deepOk && m.level !== 'deep'
-              ? <button type="button" className="gbtn" disabled={busy} onClick={() => deepAgain(lastQuestion(byId, id))}>
-                  <Icon name="refresh" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />用深度再答一遍</button>
-              : <span className="hint">可以把问题拆小一点，分几次问</span>}
-          </div>
+          <Notice icon="warn" title="回答写到长度上限停了"
+            detail={deepOk && m.level !== 'deep' ? '可以用深度档再答一遍，或把问题拆小一点' : '可以把问题拆小一点，分几次问'}
+            action={deepOk && m.level !== 'deep' ? '用深度再答一遍' : null} actionIcon="refresh" disabled={busy}
+            onAction={() => deepAgain(lastQuestion(byId, id))} />
         )}
         {m.messageId && !m.streaming && (m.text || m.noResult) && (
           <FeedbackBar key={m.messageId} messageId={m.messageId} helpful={m.helpful} reason={m.feedbackReason}

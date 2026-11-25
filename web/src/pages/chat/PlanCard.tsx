@@ -1,9 +1,9 @@
-// 回答里的任务清单：模型先列计划，做完一步打勾、正在做的转圈；每一步下面挂着它调过的工具；最下面一行说正在干什么、用了多久。
-// 答完收成一行（做了几步 · 用时 · 计划改过几次），点开还能看。简单问题没有计划，照旧显示「查了几步」（StepsCard）。
+// 回答里的执行计划：模型先列计划，每一步一个带序号的圈（做完打勾、正在做的外圈有彗星尾在转、没做的虚线圈），
+// 上面一条按步数分段的进度条；正在做的那一步展开它调过的工具；最下面一行说正在干什么、这一下用了多久。
+// 前提假设收在卡片底部；有没做的步骤时，底部说明为什么停、还差什么。答完收成一行（几步 · 用时 · 调用几次），点开还能看。
+// 简单问题没有计划，照旧显示「查资料」记录（StepsCard）。
 import { useEffect, useState } from 'react';
 import type { AssistantStep, PlanState } from '../../lib/types';
-import { PixelSprite } from '../../components/pet/PixelSprite';
-import { ACTS, actOfTool } from '../../components/pet/thinking';
 import { Icon } from '../../components/Icons';
 
 // 列计划、思考、翻看技能不挂在步骤下面给用户看
@@ -20,92 +20,133 @@ function useNow(on: boolean) {
   return now;
 }
 
+/** 时长：00:37、03:41。 */
 const clock = (sec: number) => {
   const s = Math.max(0, Math.round(sec));
-  return s < 60 ? `${s} 秒` : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 };
 const since = (now: number, iso: string | null | undefined, end?: string | null) => (iso ? ((end ? Date.parse(end) : now) - Date.parse(iso)) / 1000 : 0);
 
-/** 状态记号：线框图标。 */
-function Mark({ s }: { s: string }) {
-  if (s === 'done') return <svg width="18" height="18" viewBox="0 0 18 18" aria-label="做完"><circle cx="9" cy="9" r="8" fill="#1C6B45" /><path d="M5.2 9.3l2.4 2.4 5-5" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
-  // 正在做：彗星尾——一道由淡到深的光尾绕着圈转（纯 CSS，见 .comet）
-  if (s === 'now') return <span className="comet" role="img" aria-label="正在做" />;
-  if (s === 'skip') return <svg width="18" height="18" viewBox="0 0 18 18" aria-label="没做"><circle cx="9" cy="9" r="7.5" fill="none" stroke="#C9C9C6" strokeWidth="1.4" /><path d="M5.5 9h7" stroke="#9A9A9A" strokeWidth="1.6" strokeLinecap="round" /></svg>;
-  return <svg width="18" height="18" viewBox="0 0 18 18" aria-label="还没做"><circle cx="9" cy="9" r="7.5" fill="none" stroke="#B5B5B1" strokeWidth="1.4" strokeDasharray="2.6 2.2" /></svg>;
+type Status = PlanState['items'][number]['status'];
+
+/** 步骤前面的圈：做完打勾，正在做的外圈有彗星尾，还没做的灰圈，没做的虚线圈。 */
+function Mark({ s, n }: { s: Status; n: number }) {
+  if (s === 'done') return <span className="pl-mk done" role="img" aria-label="做完"><Icon name="check" size={12} stroke={3} /></span>;
+  const label = s === 'now' ? '正在做' : s === 'skip' ? '没做' : '还没做';
+  return <span className={'pl-mk ' + s} role="img" aria-label={label}>{n}</span>;
 }
 
 export function PlanCard({ plan, steps, streaming, seconds }: { plan: PlanState; steps: AssistantStep[]; streaming: boolean; seconds?: number | null }) {
   const [open, setOpen] = useState<boolean | null>(null);
   const [peek, setPeek] = useState<Record<number, boolean>>({});
+  const [assumeOpen, setAssumeOpen] = useState(true);
   const live = streaming && !plan.finished;
   const now = useNow(live);
   const byId = new Map(steps.map((s) => [s.id, s]));
   const done = plan.items.filter((i) => i.status === 'done').length;
+  const skipped = plan.items.filter((i) => i.status === 'skip');
   const total = seconds ?? since(now, plan.started);
+  const calls = steps.filter((s) => !QUIET.has(s.tool) && s.tool !== 'retry').length;
   const expanded = open ?? live;
   const running = [...steps].reverse().find((s) => s.status === 'running' && !QUIET.has(s.tool));
-  const act = ACTS[running ? actOfTool(running.tool) : 'scratch'];
   // 当前这个工具从什么时候开始（网页这边记，给最下面一行计时）
   const rid = running?.id ?? null;
   const [mark, setMark] = useState<{ id: string | null; at: number }>({ id: rid, at: now });
   if (mark.id !== rid) setMark({ id: rid, at: now });
   const lastReason = plan.reasons.length > 0 ? plan.reasons[plan.reasons.length - 1] : null;
+  const assumptions = plan.assumptions ?? [];
+  const allDone = done === plan.items.length;
 
   if (!expanded) {
     return (
       <button type="button" className="pl-one" aria-expanded={false} onClick={() => setOpen(true)}>
-        <Mark s="done" /><b>做了 {done} 步</b>
-        <span className="hint">· 用时 {clock(total)}{plan.revisions > 0 ? ` · 计划改过 ${plan.revisions} 次` : ''}{plan.items.some((i) => i.status === 'skip') ? ` · ${plan.items.filter((i) => i.status === 'skip').length} 步没做` : ''}</span>
-        <span className="hint" style={{ marginLeft: 'auto' }}>展开<Icon name="down" size={13} className="gi" /></span>
+        {allDone
+          ? <span className="pl-mk done sm" aria-hidden="true"><Icon name="check" size={10} stroke={3.2} /></span>
+          : <span className="pl-mk part sm" aria-hidden="true"><i /></span>}
+        <b>{allDone ? `执行计划 · ${plan.items.length} 步全部完成` : `执行计划 · 完成 ${done} / ${plan.items.length} 步`}</b>
+        <span className="hint tn">
+          用时 {clock(total)}{calls > 0 ? ` · 调用工具 ${calls} 次` : ''}{plan.revisions > 0 ? ` · 计划调整 ${plan.revisions} 次` : ''}
+          {skipped.length > 0 ? ` · ${skipped.length} 步没做` : ''}
+        </span>
+        <span className="hint pl-r">展开<Icon name="down" size={13} className="gi" /></span>
       </button>
     );
   }
+
+  const state = live ? { cls: 'run', text: '进行中' } : allDone ? { cls: 'ok', text: '已完成' } : { cls: 'wait', text: skipped.length > 0 ? '有步骤暂缓' : '没做完' };
   return (
-    <section className="pl" aria-label="任务清单">
+    <section className="pl" aria-label="执行计划">
       <div className="pl-hd">
-        <b>要做 {plan.items.length} 步</b>
-        <span className="hint">已完成 {done} 步{plan.revisions > 0 ? ` · 计划改过 ${plan.revisions} 次` : ''}</span>
-        <span className="hint pl-r">用时 {clock(total)}</span>
+        <b>执行计划</b>
+        <span className="hint">
+          共 {plan.items.length} 步 · 已完成 {done} 步{skipped.length > 0 ? ` · 暂缓 ${skipped.length} 步` : ''}{plan.revisions > 0 ? ` · 计划调整 ${plan.revisions} 次` : ''}
+        </span>
+        <span className={'pl-state ' + state.cls}>{state.cls === 'run' && <i aria-hidden="true" />}{state.text}</span>
+        <span className="hint tn">{clock(total)}</span>
         {!live && <button type="button" className="hm-link" onClick={() => setOpen(false)}>收起<Icon name="chevUp" size={13} className="gi" /></button>}
       </div>
-      <div className="pl-bar"><i style={{ width: `${(done / Math.max(1, plan.items.length)) * 100}%` }} /></div>
-      {lastReason && live && <div className="pl-note">改了计划：{lastReason}</div>}
-      {plan.assumptions && plan.assumptions.length > 0 && (
-        <div className="pl-assume"><Icon name="bulb" size={13} className="gi l" />按这些假设做：{plan.assumptions.join('；')}</div>
-      )}
-      {plan.items.map((it, i) => {
-        const sub = it.steps.map((id) => byId.get(id)).filter((s): s is AssistantStep => !!s && !QUIET.has(s.tool));
-        const show = peek[i] ?? it.status === 'now';
-        const secs = it.started ? since(now, it.started, it.ended) : null;
-        return (
-          <div key={i}>
-            <div className={'pl-it ' + it.status}>
-              <Mark s={it.status} />
-              <span className="pl-t">{it.title}{it.note && <small>{it.note}</small>}</span>
-              {sub.length > 0 && <button type="button" className="pl-n" aria-expanded={show} onClick={() => setPeek({ ...peek, [i]: !show })}>{sub.length} 次调用<Icon name={show ? 'chevUp' : 'down'} size={12} className="gi" /></button>}
-              <span className="pl-s">{secs != null && it.status !== 'todo' ? clock(secs) : ''}</span>
-            </div>
-            {show && sub.length > 0 && (
-              <div className="pl-sub">
-                {sub.map((s) => (
-                  <div key={s.id} className={s.status === 'error' ? 'err' : undefined}>
-                    <b>{s.label}</b><span className="v">{s.detail || '—'}</span><span>{s.status === 'running' ? '…' : s.result ?? ''}</span>
+      <div className="pl-seg" aria-hidden="true">
+        {plan.items.map((it, i) => <i key={i} className={it.status} />)}
+      </div>
+      {lastReason && live && <div className="pl-note">调整了计划：{lastReason}</div>}
+      <ol className="pl-list">
+        {plan.items.map((it, i) => {
+          const sub = it.steps.map((id) => byId.get(id)).filter((s): s is AssistantStep => !!s && !QUIET.has(s.tool));
+          const show = peek[i] ?? it.status === 'now';
+          const secs = it.started ? since(now, it.started, it.ended) : 0;
+          return (
+            <li key={i} className={'pl-it ' + it.status}>
+              <Mark s={it.status} n={i + 1} />
+              <div className="pl-body">
+                <span className="pl-t">{it.title}</span>
+                {it.note && <span className="pl-sub-note">{it.status === 'skip' ? '暂缓：' : ''}{it.note}</span>}
+                {show && sub.length > 0 && (
+                  <div className="pl-calls">
+                    {sub.map((s) => (
+                      <div key={s.id} className={s.status === 'error' ? 'err' : undefined}>
+                        <span className="k">{s.label}</span>
+                        <span className="v">{s.detail || '—'}</span>
+                        <span className="r tn">{s.status === 'running' ? '进行中…' : s.result ?? ''}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </div>
-        );
-      })}
+              <div className="pl-meta">
+                {sub.length > 0 && (
+                  <button type="button" className="pl-n" aria-expanded={show} onClick={() => setPeek({ ...peek, [i]: !show })}>
+                    {sub.length} 次调用<Icon name={show ? 'chevUp' : 'down'} size={12} />
+                  </button>
+                )}
+                <span className="tn">{(it.status === 'done' || it.status === 'now') && secs > 0 ? clock(secs) : ''}</span>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
       {live && (
         <div className="pl-live">
-          <span className="pl-pet" style={{ ['--ag-speed' as string]: `${act.speed}s` }}>
-            <PixelSprite pose={act.frames[0]} width={22} className={act.frames[0] !== act.frames[1] ? 'ag-f1' : undefined} />
-            {act.frames[0] !== act.frames[1] && <PixelSprite pose={act.frames[1]} width={22} className="ag-f2" />}
-          </span>
-          <span>正在：{running ? `${running.label}${running.detail ? ' · ' + running.detail : ''}` : '想下一步'}</span>
-          {running && <span className="pl-tm">{clock((now - mark.at) / 1000)}</span>}
+          <span className="comet sm" aria-hidden="true" />
+          <span>{running ? `正在${running.label}${running.detail ? ' · ' + running.detail : ''}` : '正在想下一步'}</span>
+          {running && <span className="pl-tm tn">{clock((now - mark.at) / 1000)}</span>}
+        </div>
+      )}
+      {!live && skipped.length > 0 && (
+        <div className="pl-pause">
+          <Icon name="clock" size={16} />
+          <div>
+            <b>{skipped.length === plan.items.length - done ? `后面 ${skipped.length} 步没做` : `有 ${skipped.length} 步没做`}</b>
+            <span>{skipped[0].note ? `原因：${skipped[0].note}` : '缺的信息补上后，说「接着做」就从这里继续。'}</span>
+          </div>
+        </div>
+      )}
+      {assumptions.length > 0 && (
+        <div className="pl-assume">
+          <button type="button" aria-expanded={assumeOpen} onClick={() => setAssumeOpen(!assumeOpen)}>
+            <b>前提假设</b><span className="hint">{assumptions.length} 条 · 没说清的按常规做法定，不合适随时改</span>
+            <Icon name={assumeOpen ? 'chevUp' : 'down'} size={13} className="pl-r" />
+          </button>
+          {assumeOpen && <ol>{assumptions.map((a) => <li key={a}>{a}</li>)}</ol>}
         </div>
       )}
     </section>
