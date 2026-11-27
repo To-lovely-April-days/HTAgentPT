@@ -15,6 +15,11 @@
     认不出客户的写「未注明客户」；文件名里带「模板」「样例」的跳过（那是做模板用的，不是真的协议）。先 --dry-run 看一眼，不对就改文件名再跑。
     同一个客户文件名里写法不一样（「万华」「万华化学集团股份公司」），用 --alias 合成一个：
         --alias "万华=万华化学集团股份有限公司" --alias "巨化=浙江巨化"   （可以写多个；也可以写在一个文本文件里，每行一条，用 --alias-file 指定）
+销售订单：每单一个文件夹「客户XD-20251014-0044-设备」，里面的文件按名字分：
+    采购合同 / 合同 / 采购协议 / 回执 → 「合同」，报价单 → 「报价」（这两类有金额，按机密）；
+    技术协议、技术方案 → 「技术协议」「方案」，进「技术协议」库；生产单 / 任务单 → 「生产任务单」；PID / 图纸 / 流程图 → 「图纸」。
+    客户和项目编号先看文件名，没有就看单子的文件夹名；挂上项目编号，台账里没有的顺手登记。
+    文件名看不出是什么的按格式猜（预览里单独列出来）；内容一模一样的文件只导一份；文件名里自己公司的名字（--self-name，默认「霍桐」）不当客户。
 标准的标题规整成「GB/T 150.1-2024 压力容器 第一部分：通用要求」这种写法，年份从文件名里取。
 
 用法（在服务器上，项目目录里）：
@@ -44,12 +49,14 @@ FOLDERS = {
     "已作废标准": {"kb": "标准规范", "category": "标准规范", "obsolete": True},
     "设计手册": {"kb": "设计手册", "category": "手册"},
     "技术协议": {"kb": "技术协议", "category": "技术协议", "per_file": True},
+    "销售订单": {"kb": "销售订单", "category": "合同", "per_file": True, "order": True},
 }
 KB_DESC = {
     "标准规范": "国家标准、行业标准、安全技术规范和国外标准（ASME、AD 2000 等）。已作废的标题前标【已作废】，引用时用现行版。",
     "设计手册": "设计手册、教材、产品样本、选型手册和软件用户手册。",
     "公司资料": "公司内部流程、标准目录、作业指导等资料。",
     "技术协议": "和客户签的技术协议、技术方案：设备参数、材质、范围、验收要求。按客户和设备类型检索。",
+    "销售订单": "签了单的项目：采购合同、报价单、生产任务单、图纸。合同和报价有金额，按机密入库。",
 }
 NO_CUSTOMER = "未注明客户"
 # 文件名里的设备 → 词表「设备类型」（先长后短：「高压釜」要排在「釜」前面）
@@ -57,13 +64,16 @@ DEVICES = [("固定床", "固定床反应装置"), ("微通道", "微通道反�
            ("连续聚合", "聚合装置"), ("聚合装置", "聚合装置"), ("聚合设备", "聚合装置"), ("合成装置", "合成装置"),
            ("加氢釜", "加氢釜"), ("高压釜", "高压釜"), ("反应釜", "反应釜"), ("聚合釜", "反应釜"),
            ("结晶", "结晶设备"), ("储罐", "储罐"), ("加料罐", "加料罐"), ("撬", "撬装设备"),
-           ("反应器", "反应器"), ("反应装置", "反应装置"), ("釜", "反应釜")]
+           ("评价装置", "评价装置"), ("成套", "成套装置"), ("合成装置", "合成装置"),
+           ("反应器", "反应器"), ("反应装置", "反应装置"), ("釜", "反应釜"), ("装置", "反应装置")]
 
 
 def rule_of(folder: str) -> dict:
-    """子文件夹 → 导到哪里。名字里带「协议」「方案」的都按技术协议导。"""
+    """子文件夹 → 导到哪里。名字里带「订单」「任务单」的按销售订单导；带「协议」「方案」的按技术协议导。"""
     if folder in FOLDERS:
         return FOLDERS[folder]
+    if "订单" in folder or "任务单" in folder:
+        return FOLDERS["销售订单"]
     if "协议" in folder or "方案" in folder:
         return FOLDERS["技术协议"]
     return {"kb": folder, "category": "资料"}
@@ -100,6 +110,93 @@ def agreement_meta(stem: str) -> tuple[str, str, str]:
     device = next((d for word, d in DEVICES if word in t), "通用")
     category = "技术协议" if "协议" in t else "方案" if "方案" in t else "技术协议"
     return customer or NO_CUSTOMER, device, category
+
+
+# ── 销售订单 ─────────────────────────────────────────
+# 每单一个文件夹「客户XD-编号-设备」，里面是合同、报价单、技术协议 / 方案、生产任务单、图纸；也有不分单、平铺在一起的。
+# 客户和编号先看文件名，文件名里没有就往上找单子的文件夹。合同、报价有金额，按机密；其余按内部。
+# 技术协议、方案进「技术协议」库（和以前导的放一起，生成时能当基准）；其余进「销售订单」库。
+XD_RE = re.compile(r"XD-(\d{4})(\d{4})-(\d{4})")
+ORG_RE = re.compile(r"股份有限公司|有限责任公司|有限公司|分公司|大学|研究所|研究院|中心|集团")
+CONFIDENTIAL = {"合同", "报价"}
+
+
+def xd_of(text: str) -> tuple[str, int] | None:
+    """「…XD-20260327-01632升降…」→（「XD-20260327-0163」，2026）。编号是 4 位，后面紧跟的数字算设备的。"""
+    m = XD_RE.search(text)
+    return (f"XD-{m.group(1)}{m.group(2)}-{m.group(3)}", int(m.group(1))) if m else None
+
+
+SELF_NAMES: list[str] = []   # 自己公司的名字（--self-name）：合同文件名里常带着，不能当成客户
+
+
+def org_of(text: str) -> str | None:
+    """一段文字里的单位名：取到最后一个「有限公司 / 大学 / 研究所……」为止；前面的序号「3、」去掉；是自己公司的不算。"""
+    t = re.sub(r"^[\d\s、.．]+", "", text)
+    ends = list(ORG_RE.finditer(t))
+    if not ends:
+        return None
+    name = t[: ends[-1].end()].strip(" -_—、.．")
+    if not name or any(n in name for n in SELF_NAMES):
+        return None
+    return name
+
+
+def customer_of(text: str) -> str | None:
+    """文件名或文件夹名 → 客户：编号前面那段里的单位名；编号在最前面的看编号后面那段。"""
+    m = XD_RE.search(text)
+    if m:
+        before, after = text[: m.start()], text[m.end():]
+        return org_of(before) or org_of(re.sub(r"^[\d\s\-—_]*", "", after))
+    return org_of(text)
+
+
+def kind_of(stem: str, suffix: str, size: int) -> str:
+    """文件名 → 类别。认不出的：小的 docx 多半是生产任务单，大的 docx 当方案，pdf 当合同（宁可按机密收着）。"""
+    s = stem.upper()
+    if re.search(r"P&?ID|图纸|流程图", s):
+        return "图纸"
+    if "任务单" in stem or "生产单" in stem:
+        return "生产任务单"
+    if "报价" in stem and re.search(r"协议|方案", stem):
+        return "报价+技术协议"
+    if "采购协议" in stem or "合同" in stem or "回执" in stem:
+        return "合同"
+    if "技术协议" in stem or "协议" in stem:
+        return "技术协议"
+    if "方案" in stem:
+        return "方案"
+    if "报价" in stem:
+        return "报价"
+    if suffix == ".docx":
+        return "生产任务单" if size < 80 * 1024 else "方案"
+    return "合同"
+
+
+def order_meta(f: Path, root: Path, default_year: int) -> dict:
+    """销售订单里的一份文件 → 库、类别、密级、客户、项目编号、设备、标题。"""
+    stem = re.sub(r"\s*-\s*副本|\s*\(\d\)|（\d）", "", f.stem).strip()
+    parents = [p.name for p in f.relative_to(root).parents][:-1][::-1]   # 从上到下的文件夹名
+    order_dir = next((p for p in reversed(parents) if XD_RE.search(p) or ORG_RE.search(p)), "")
+    xd = xd_of(stem) or xd_of(order_dir)
+    customer = customer_of(stem) if xd_of(stem) or ORG_RE.search(stem) else None
+    customer = customer or customer_of(order_dir) or NO_CUSTOMER
+    kind = kind_of(stem, f.suffix.lower(), f.stat().st_size)
+    guessed = not re.search(r"P&?ID|图纸|流程图|任务单|生产单|报价|协议|合同|回执|方案", stem, re.I)
+    device = next((d for word, d in DEVICES if word in stem), None) or next((d for word, d in DEVICES if word in order_dir), "通用")
+    category = "技术协议" if kind == "报价+技术协议" else kind
+    secret = kind in CONFIDENTIAL or kind == "报价+技术协议"
+    kb = "技术协议" if category in ("技术协议", "方案") else "销售订单"
+    # 标题：文件名里没写客户的（「聚合釜合同」「LXYQ-S-250088霍桐-双章」）前面补上客户和编号，搜得到
+    title = stem
+    if customer != NO_CUSTOMER and customer not in stem:
+        title = f"{customer} {xd[0] + ' ' if xd and xd[0] not in stem else ''}{stem}"
+    elif xd and xd[0] not in stem.replace(" ", ""):
+        title = f"{xd[0]} {stem}"
+    return {"kb": kb, "category": category, "kind": kind, "guessed": guessed, "secret": secret, "customer": customer,
+            "device": device, "project": xd[0] if xd else None, "year": xd[1] if xd else default_year, "title": title}
+
+
 PARSE_BATCH = 50
 SUPPORTED = {".pdf", ".docx", ".docm", ".dotx", ".xlsx", ".xlsm", ".pptx", ".pptm", ".txt", ".md"}
 CUSTOMER = "通用资料"
@@ -185,8 +282,9 @@ def multipart(fields, file_name, file_bytes):
 
 
 def plan(root: Path, default_year: int):
-    """扫一遍文件夹，列出每个文件导到哪里、标题是什么；不支持的格式单独列出。"""
-    items, skipped = [], []
+    """扫一遍文件夹，列出每个文件导到哪里、标题是什么；不支持的格式单独列出；内容一模一样的只导一份。"""
+    import hashlib
+    items, skipped, seen = [], [], {}
     folders = [d for d in sorted(root.iterdir()) if d.is_dir() and not d.name.startswith(".")]
     order = {name: i for i, name in enumerate(FOLDERS)}
     folders.sort(key=lambda d: (order.get(d.name, len(order)), d.name))
@@ -202,6 +300,15 @@ def plan(root: Path, default_year: int):
                 continue
             if rule.get("per_file") and re.search(r"模板|样例", f.stem):
                 skipped.append((f.relative_to(root), "像是模板或样例，不是真的协议；要导的话改掉文件名里的「模板」「样例」"))
+                continue
+            digest = hashlib.sha1(f.read_bytes()).hexdigest()
+            if digest in seen:
+                skipped.append((f.relative_to(root), f"和「{seen[digest]}」内容一模一样，只导一份"))
+                continue
+            seen[digest] = f.relative_to(root)
+            if rule.get("order"):
+                m = order_meta(f, d, default_year)
+                items.append({"path": f, "folder": d.name, "per_file": True, "version": None, "size": f.stat().st_size, **m})
                 continue
             title, code, year = nice_title(f.stem)
             version = code
@@ -227,7 +334,9 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="只列出会怎么导，不登录、不上传")
     ap.add_argument("--alias", action="append", default=[], help="客户名合并：「文件名里的写法=统一的客户名」，可以写多个")
     ap.add_argument("--alias-file", help="客户名合并写在文本文件里，每行一条「写法=客户名」，# 开头的行不算")
+    ap.add_argument("--self-name", action="append", default=["霍桐"], help="自己公司名字里的词：文件名里出现的不当客户（默认「霍桐」，可以写多个）")
     a = ap.parse_args()
+    SELF_NAMES.extend(a.self_name)
 
     root = Path(a.root).expanduser()
     if not root.is_dir():
@@ -256,7 +365,8 @@ def main():
         by_folder.setdefault(x["folder"], []).append(x)
     print(f"共 {len(items)} 份，{sum(x['size'] for x in items) / 1048576:.0f} MB：")
     for name, xs in by_folder.items():
-        print(f"  {name:<8} → 库「{xs[0]['kb']}」类别「{xs[0]['category']}」 {len(xs)} 份 {sum(x['size'] for x in xs) / 1048576:.0f} MB")
+        where = "销售订单（按文件分：技术协议、方案进「技术协议」库，其余进「销售订单」库）" if "kind" in xs[0] else f"库「{xs[0]['kb']}」类别「{xs[0]['category']}」"
+        print(f"  {name:<8} → {where} {len(xs)} 份 {sum(x['size'] for x in xs) / 1048576:.0f} MB")
     if skipped:
         print(f"跳过 {len(skipped)} 份：")
         for p, why in skipped:
@@ -269,10 +379,24 @@ def main():
         if custs:
             print(f"\n客户 {len(custs)} 个（同一个客户写法不一样的，用 --alias 合成一个）：")
             print("  " + "、".join(f"{c}（{n}）" for c, n in sorted(custs.items())))
+        orders = [x for x in items if "kind" in x]
+        if orders:
+            kinds: dict[str, int] = {}
+            for x in orders:
+                kinds[x["category"]] = kinds.get(x["category"], 0) + 1
+            n_proj = len({x["project"] for x in orders if x.get("project")})
+            print(f"\n销售订单 {len(orders)} 份：" + "、".join(f"{k} {n}" for k, n in sorted(kinds.items(), key=lambda kv: -kv[1]))
+                  + f"；涉及 {n_proj} 个项目编号（台账里没有的会登记）；机密 {sum(1 for x in orders if x['secret'])} 份")
+            guessed = [x for x in orders if x["guessed"]]
+            if guessed:
+                print(f"其中 {len(guessed)} 份文件名里看不出是什么，按大小和格式猜的（不对就改文件名再跑）：")
+                for x in guessed:
+                    print(f"  {x['path'].relative_to(root)} → {x['category']}")
         print("\n标题预览（文件名 → 标题 · 版本 · 年份）：")
         for x in items:
             extra = f" · 客户「{x['customer']}」 · 设备「{x['device'] or a.device_type}」 · 类别「{x['category']}」" if x["customer"] != CUSTOMER else ""
             extra += f" · 项目「{x['project']}」" if x.get("project") else (" · 暂不挂项目" if x.get("per_file") else "")
+            extra += f" · 库「{x['kb']}」" + (" · 机密" if x.get("secret") else "") if "kind" in x else ""
             print(f"  [{x['folder']}] {x['path'].name}\n      → {x['title']} · {x['version'] or '-'} · {x['year']}{extra}")
         return
 
@@ -296,9 +420,12 @@ def main():
         except ApiError as e:
             raise SystemExit(f"词表「设备类型」里没有「{dev}」，自动添加失败{e}。请在后台词表里加上再跑")
     cats = {t["value"] for t in api(base, "/api/vocab/doc_category", token) if t.get("isActive", True)}
-    missing = {x["category"] for x in items} - cats
-    if missing:
-        raise SystemExit(f"词表「文档类别」里没有：{'、'.join(sorted(missing))}。请在后台词表里加上再跑")
+    for cat in sorted({x["category"] for x in items} - cats):
+        try:
+            api(base, "/api/vocab/doc_category", token, body={"value": cat, "aliases": None})
+            print(f"词表「文档类别」加了「{cat}」")
+        except ApiError as e:
+            raise SystemExit(f"词表「文档类别」里没有「{cat}」，自动添加失败{e}。请在后台词表里加上再跑")
 
     # 知识库：没有就建
     kbs = {k["name"]: k["id"] for k in api(base, "/api/kbs", token)}
@@ -327,7 +454,7 @@ def main():
                     print(f"{tag} 库里已有，跳过")
                 continue
             body, ctype = multipart({
-                "kbId": kbs[x["kb"]], "classification": a.classification, "customerName": x["customer"], "year": str(x["year"]),
+                "kbId": kbs[x["kb"]], "classification": "Confidential" if x.get("secret") else a.classification, "customerName": x["customer"], "year": str(x["year"]),
                 "deviceType": x["device"] or a.device_type, "docCategory": x["category"], "title": x["title"],
                 "docVersion": x["version"] or "",
                 # 有项目编号的挂上项目（台账里没有就顺手登记：客户、年份、设备用这份文件的）
